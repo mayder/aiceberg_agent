@@ -1,0 +1,16 @@
+[Unit]
+Description=AIceberg Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=aiceberg_agent
+Group=aiceberg_agent
+ExecStart=/usr/local/bin/aiceberg_agent -config /etc/aiceberg/config.yml
+Restart=always
+RestartSec=3
+StateDirectory=aiceberg_agent
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

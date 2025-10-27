@@ -1,0 +1,19 @@
+agent:
+  id: auto
+  interval: 3s
+  log_level: info
+
+http:
+  ingest_url: ""https://ingest.aiceberg.local/v1/ingest""
+  timeout: 5s
+  auth_token: ""REPLACE_ME""
+
+queue:
+  path: ""./data/queue.db""
+  max_mb: 200
+
+modules:
+  noc:
+    sysmetrics:
+      enabled: true
+      interval: 3s
