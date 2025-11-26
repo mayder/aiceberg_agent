@@ -19,6 +19,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/common/version"
 	"github.com/you/aiceberg_agent/internal/data/local/outbox"
+	"github.com/you/aiceberg_agent/internal/data/local/prefs"
 	"github.com/you/aiceberg_agent/internal/data/remote/transport"
 	"github.com/you/aiceberg_agent/internal/data/repositories"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
@@ -33,16 +34,19 @@ func Run(cfg config.Config, log logger.Logger) error {
 	store := outbox.NewMemStore()
 	outboxRepo := repositories.NewOutboxRepository(store)
 	httpTx := transport.NewHTTPJSONClient(cfg)
+	prefStore := prefs.NewStore(cfg.PrefsPath)
+	_, _ = prefStore.Load()
 
 	if err := bootstrap(ctx, cfg, log); err != nil {
 		log.Fatal("bootstrap failed", "err", err)
 	}
 
 	// Use cases
-	collector := sysmetrics.New(outboxRepo.Len)
+	collector := sysmetrics.New(outboxRepo.Len, prefStore.Get)
 	collectUC := usecase.NewCollectAndBuffer(collector, outboxRepo, log)
 	flushUC := usecase.NewFlushOutbox(outboxRepo, httpTx, log)
 	pingUC := usecase.NewPingBackend(cfg, log)
+	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore)
 
 	if cfg.HealthPort > 0 {
 		go health.Serve(cfg.HealthPort, log)
@@ -51,9 +55,11 @@ func Run(cfg config.Config, log logger.Logger) error {
 	tCollect := time.NewTicker(10 * time.Second)
 	tFlush := time.NewTicker(15 * time.Second)
 	tPing := time.NewTicker(cfg.PingInterval)
+	tCfgSync := time.NewTicker(cfg.ConfigSyncInterval)
 	defer tCollect.Stop()
 	defer tFlush.Stop()
 	defer tPing.Stop()
+	defer tCfgSync.Stop()
 
 	log.Info("agent started")
 
@@ -68,6 +74,8 @@ func Run(cfg config.Config, log logger.Logger) error {
 			_ = flushUC.Execute(ctx)
 		case <-tPing.C:
 			_ = pingUC.Execute(ctx)
+		case <-tCfgSync.C:
+			_ = configSyncUC.Execute(ctx)
 		}
 	}
 }

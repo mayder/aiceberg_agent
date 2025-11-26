@@ -13,11 +13,33 @@ type AgentCfg struct {
 }
 
 type Config struct {
-	Agent        AgentCfg
-	APIBaseURL   string
-	APIKey       string
-	HealthPort   int
-	PingInterval time.Duration
+	Agent              AgentCfg
+	APIBaseURL         string
+	APIKey             string
+	HealthPort         int
+	PingInterval       time.Duration
+	ConfigSyncInterval time.Duration
+	PrefsPath          string
+}
+
+type CollectPrefs struct {
+	Version   string `json:"version,omitempty"`
+	CPU       bool   `json:"cpu"`
+	Memory    bool   `json:"memory"`
+	Disk      bool   `json:"disk"`
+	Network   bool   `json:"network"`
+	NetActive bool   `json:"net_active"`
+	Host      bool   `json:"host"`
+	Sensors   bool   `json:"sensors"`
+	Power     bool   `json:"power"`
+	Sanity    bool   `json:"sanity"`
+	GPU       bool   `json:"gpu"`
+	Services  bool   `json:"services"`
+	TimeSync  bool   `json:"time_sync"`
+	Logs      bool   `json:"logs"`
+	Updates   bool   `json:"updates"`
+	Agent     bool   `json:"agent"`
+	Processes bool   `json:"processes"`
 }
 
 func Load(_ string) (Config, error) {
@@ -28,16 +50,24 @@ func Load(_ string) (Config, error) {
 		}
 	}
 	pingInterval := time.Duration(intEnv("PING_INTERVAL", 5)) * time.Second
+	cfgSyncInterval := time.Duration(intEnv("CONFIG_SYNC_INTERVAL", 30)) * time.Second
 	cfg := Config{
 		Agent:      AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
-		APIBaseURL: getenv("API_BASE_URL", "http://localhost:8080"),
+		APIBaseURL: getenv("API_BASE_URL", "https://api.aiceberg.com.br/v1"),
 		APIKey:     getenv("API_KEY", ""),
 		HealthPort: port,
+		PrefsPath:  getenv("PREFS_PATH", "./data/collect_prefs.json"),
 		PingInterval: func() time.Duration {
 			if pingInterval <= 0 {
 				return 5 * time.Second
 			}
 			return pingInterval
+		}(),
+		ConfigSyncInterval: func() time.Duration {
+			if cfgSyncInterval <= 0 {
+				return 30 * time.Second
+			}
+			return cfgSyncInterval
 		}(),
 	}
 	if cfg.Agent.Token == "" {

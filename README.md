@@ -104,10 +104,24 @@ Enquanto não temos instalador, use este fluxo para rodar localmente com token d
    ```
    O agente lerá o token/estado persistido, pulará bootstrap e enviará telemetria com `Authorization: Token <token>`.
 
+## 🧱 Gerar instaladores
+1. Garanta que `API_BASE_URL` está apontando para `https://api.aiceberg.com.br/v1`.
+2. Execute os comandos:
+   ```bash
+   chmod +x scripts/build_installers.sh
+   ./scripts/build_installers.sh
+   ls dist
+   ```
+3. Os artefatos saem em `dist/` (tar.gz/zip com binário, `README_INSTALL.txt`, service/PS1 e `agent.env.example`). Publique esses arquivos no painel conforme o SO do usuário.
+4. Cada README do pacote instrui sobre como definir `AGENT_TOKEN`/`AGENT_TOKEN_PATH` e instalar o serviço (systemd/launchd/Windows).
+
 Notas:
+- API de produção é o padrão (`https://api.aiceberg.com.br/v1`); use `API_BASE_URL` apenas para apontar para ambientes de teste.
+- Bootstrap (`POST /v1/agent/bootstrap`) já envia `versao_agente` com `internal/common/version.Version`, então a API acompanha qual versão do agente cada host executa.
 - Endpoint de bootstrap usado: `POST /v1/agent/bootstrap` (header `Authorization: Token <token>`).
 - Saúde local: `http://localhost:8081/health` (configurável via `HEALTH_PORT`).
 - Ping remoto: o agente faz long-polling em `/v1/agent/ping` a cada `PING_INTERVAL` segundos (default 5s); ao receber um desafio `{challenge}`, responde com `POST /v1/agent/ping` incluindo hostname, versão e timestamp.
+- Configuração remota: o agente puxa `/v1/agent/config` a cada `CONFIG_SYNC_INTERVAL` (default 30s), salva em `PREFS_PATH` (default `./data/collect_prefs.json`) e passa a coletar somente o que estiver marcado; o payload retornado deve conter os flags de coleta e uma `version` para evitar reprocesso.
 - A coleta envia um pacote único (`metric/sub=sysmetrics`) com CPU, memória, disco (I/O + SMART), rede, host, sensores/fans, bateria, GPU (NVIDIA), serviços, time sync (NTP), sanity (ping/DNS), backlog da fila, logs (.log em ./logs), updates (apt/softwareupdate), top processos.
 
 Quando formos criar instaladores, este fluxo servirá de base: validar token, gravar localmente e evitar reuso.

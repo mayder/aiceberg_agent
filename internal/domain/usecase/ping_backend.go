@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/common/version"
 )
@@ -43,7 +44,7 @@ func (uc *PingBackend) fetchChallenge(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	applyAuth(req, uc.cfg)
+	httpx.SetAuth(req, uc.cfg)
 
 	resp, err := uc.cl.Do(req)
 	if err != nil {
@@ -80,7 +81,7 @@ func (uc *PingBackend) sendAck(ctx context.Context, challenge string) error {
 	if err != nil {
 		return err
 	}
-	applyAuth(req, uc.cfg)
+	httpx.SetAuth(req, uc.cfg)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := uc.cl.Do(req)

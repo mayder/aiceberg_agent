@@ -25,15 +25,19 @@ import (
 	gnet "github.com/shirou/gopsutil/v3/net"
 	"github.com/shirou/gopsutil/v3/process"
 
+	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/common/version"
+	"github.com/you/aiceberg_agent/internal/data/local/prefs"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
 
 type collector struct {
 	queueStats func() (int, int64)
+	prefs      func() config.CollectPrefs
 }
 
-func New(queueStats func() (int, int64)) ports.Collector {
-	return &collector{queueStats: queueStats}
+func New(queueStats func() (int, int64), prefsProvider func() config.CollectPrefs) ports.Collector {
+	return &collector{queueStats: queueStats, prefs: prefsProvider}
 }
 
 func (c *collector) Name() string { return "sysmetrics" }
@@ -41,22 +45,23 @@ func (c *collector) Name() string { return "sysmetrics" }
 func (c *collector) Interval() time.Duration { return 10 * time.Second }
 
 type snapshot struct {
-	CPU       cpuSnapshot    `json:"cpu"`
-	Memory    memSnapshot    `json:"memory"`
-	Disk      diskSnapshot   `json:"disk"`
-	Network   netSnapshot    `json:"network"`
-	Host      hostSnapshot   `json:"host"`
-	Sensors   sensorsSnap    `json:"sensors,omitempty"`
-	NetActive netActive      `json:"net_active,omitempty"`
-	Power     powerSnapshot  `json:"power,omitempty"`
-	Sanity    sanitySnapshot `json:"sanity,omitempty"`
-	GPU       []gpuSnapshot  `json:"gpu,omitempty"`
-	Services  []serviceSnap  `json:"services,omitempty"`
-	TimeSync  timeSyncSnap   `json:"time_sync,omitempty"`
-	Logs      []logFileSnap  `json:"logs,omitempty"`
-	Updates   []updatesSnap  `json:"updates,omitempty"`
-	Agent     agentSnap      `json:"agent,omitempty"`
-	Processes []procSnapshot `json:"processes,omitempty"`
+	Capabilities map[string]bool `json:"capabilities,omitempty"`
+	CPU          cpuSnapshot     `json:"cpu,omitempty"`
+	Memory       memSnapshot     `json:"memory,omitempty"`
+	Disk         diskSnapshot    `json:"disk,omitempty"`
+	Network      netSnapshot     `json:"network,omitempty"`
+	Host         hostSnapshot    `json:"host,omitempty"`
+	Sensors      sensorsSnap     `json:"sensors,omitempty"`
+	NetActive    netActive       `json:"net_active,omitempty"`
+	Power        powerSnapshot   `json:"power,omitempty"`
+	Sanity       sanitySnapshot  `json:"sanity,omitempty"`
+	GPU          []gpuSnapshot   `json:"gpu,omitempty"`
+	Services     []serviceSnap   `json:"services,omitempty"`
+	TimeSync     timeSyncSnap    `json:"time_sync,omitempty"`
+	Logs         []logFileSnap   `json:"logs,omitempty"`
+	Updates      []updatesSnap   `json:"updates,omitempty"`
+	Agent        agentSnap       `json:"agent,omitempty"`
+	Processes    []procSnapshot  `json:"processes,omitempty"`
 }
 
 type cpuSnapshot struct {
@@ -228,8 +233,9 @@ type serviceSnap struct {
 }
 
 type agentSnap struct {
-	QueueItems int   `json:"queue_items,omitempty"`
-	QueueBytes int64 `json:"queue_bytes,omitempty"`
+	QueueItems int    `json:"queue_items,omitempty"`
+	QueueBytes int64  `json:"queue_bytes,omitempty"`
+	Version    string `json:"version,omitempty"`
 }
 
 type timeSyncSnap struct {
@@ -260,206 +266,328 @@ type procSnapshot struct {
 }
 
 func (c *collector) Collect(ctx context.Context) ([]byte, error) {
-	s := snapshot{}
-
-	if totals, err := cpu.PercentWithContext(ctx, 0, false); err == nil && len(totals) > 0 {
-		s.CPU.PercentTotal = totals[0]
-	}
-	if perCPU, err := cpu.PercentWithContext(ctx, 0, true); err == nil {
-		s.CPU.PercentPerCPU = perCPU
-	}
-	if l, err := load.AvgWithContext(ctx); err == nil {
-		s.CPU.Load1, s.CPU.Load5, s.CPU.Load15 = l.Load1, l.Load5, l.Load15
-	}
-	if n, err := cpu.CountsWithContext(ctx, true); err == nil {
-		s.CPU.CoresLogical = n
-	}
-	if n, err := cpu.CountsWithContext(ctx, false); err == nil {
-		s.CPU.CoresPhysical = n
-	}
-	if infos, err := cpu.InfoWithContext(ctx); err == nil && len(infos) > 0 {
-		s.CPU.FreqCurrentMHz = infos[0].Mhz
-		s.CPU.FreqMaxMHz = infos[0].Mhz
+	p := prefs.Default()
+	if c.prefs != nil {
+		p = c.prefs()
 	}
 
-	if vm, err := mem.VirtualMemoryWithContext(ctx); err == nil {
-		s.Memory = memSnapshot{
-			Total:       vm.Total,
-			Used:        vm.Used,
-			Free:        vm.Free,
-			UsedPercent: vm.UsedPercent,
-			Buffers:     vm.Buffers,
-			Cached:      vm.Cached,
+	s := snapshot{Capabilities: make(map[string]bool)}
+	agentInfo := agentSnap{Version: version.Version}
+
+	if p.CPU {
+		cpuOk := false
+		if totals, err := cpu.PercentWithContext(ctx, 0, false); err == nil && len(totals) > 0 {
+			s.CPU.PercentTotal = totals[0]
+			cpuOk = true
 		}
-	}
-	if swap, err := mem.SwapMemoryWithContext(ctx); err == nil {
-		s.Memory.SwapTotal = swap.Total
-		s.Memory.SwapUsed = swap.Used
-		s.Memory.SwapFree = swap.Free
-		s.Memory.SwapUsedPerc = swap.UsedPercent
+		if perCPU, err := cpu.PercentWithContext(ctx, 0, true); err == nil {
+			s.CPU.PercentPerCPU = perCPU
+			cpuOk = true
+		}
+		if l, err := load.AvgWithContext(ctx); err == nil {
+			s.CPU.Load1, s.CPU.Load5, s.CPU.Load15 = l.Load1, l.Load5, l.Load15
+			cpuOk = true
+		}
+		if n, err := cpu.CountsWithContext(ctx, true); err == nil {
+			s.CPU.CoresLogical = n
+			cpuOk = true
+		}
+		if n, err := cpu.CountsWithContext(ctx, false); err == nil {
+			s.CPU.CoresPhysical = n
+			cpuOk = true
+		}
+		if infos, err := cpu.InfoWithContext(ctx); err == nil && len(infos) > 0 {
+			s.CPU.FreqCurrentMHz = infos[0].Mhz
+			s.CPU.FreqMaxMHz = infos[0].Mhz
+			cpuOk = true
+		}
+		s.Capabilities["cpu"] = cpuOk
+	} else {
+		s.Capabilities["cpu"] = false
 	}
 
-	if parts, err := disk.PartitionsWithContext(ctx, true); err == nil {
-		devSeen := make(map[string]struct{})
-		for _, p := range parts {
-			if u, err := disk.UsageWithContext(ctx, p.Mountpoint); err == nil {
-				s.Disk.Filesystems = append(s.Disk.Filesystems, diskFS{
-					Mount:          p.Mountpoint,
-					FSType:         p.Fstype,
-					Total:          u.Total,
-					Used:           u.Used,
-					Free:           u.Free,
-					UsedPercent:    u.UsedPercent,
-					InodesTotal:    u.InodesTotal,
-					InodesUsed:     u.InodesUsed,
-					InodesFree:     u.InodesFree,
-					InodesUsedPerc: u.InodesUsedPercent,
+	if p.Memory {
+		memOk := false
+		if vm, err := mem.VirtualMemoryWithContext(ctx); err == nil {
+			s.Memory = memSnapshot{
+				Total:       vm.Total,
+				Used:        vm.Used,
+				Free:        vm.Free,
+				UsedPercent: vm.UsedPercent,
+				Buffers:     vm.Buffers,
+				Cached:      vm.Cached,
+			}
+			memOk = true
+		}
+		if swap, err := mem.SwapMemoryWithContext(ctx); err == nil {
+			s.Memory.SwapTotal = swap.Total
+			s.Memory.SwapUsed = swap.Used
+			s.Memory.SwapFree = swap.Free
+			s.Memory.SwapUsedPerc = swap.UsedPercent
+			memOk = true
+		}
+		s.Capabilities["memory"] = memOk
+	} else {
+		s.Capabilities["memory"] = false
+	}
+
+	if p.Disk {
+		diskOk := false
+		if parts, err := disk.PartitionsWithContext(ctx, true); err == nil {
+			devSeen := make(map[string]struct{})
+			for _, p := range parts {
+				if u, err := disk.UsageWithContext(ctx, p.Mountpoint); err == nil {
+					s.Disk.Filesystems = append(s.Disk.Filesystems, diskFS{
+						Mount:          p.Mountpoint,
+						FSType:         p.Fstype,
+						Total:          u.Total,
+						Used:           u.Used,
+						Free:           u.Free,
+						UsedPercent:    u.UsedPercent,
+						InodesTotal:    u.InodesTotal,
+						InodesUsed:     u.InodesUsed,
+						InodesFree:     u.InodesFree,
+						InodesUsedPerc: u.InodesUsedPercent,
+					})
+					diskOk = true
+				}
+				if p.Device != "" {
+					devSeen[p.Device] = struct{}{}
+				}
+			}
+			if sm := collectSMART(devSeen); len(sm) > 0 {
+				s.Disk.SMART = sm
+				diskOk = true
+			}
+		}
+		if ioStats, err := disk.IOCountersWithContext(ctx); err == nil {
+			for name, io := range ioStats {
+				s.Disk.IOStats = append(s.Disk.IOStats, diskIO{
+					Device:      name,
+					Reads:       io.ReadCount,
+					Writes:      io.WriteCount,
+					ReadBytes:   io.ReadBytes,
+					WriteBytes:  io.WriteBytes,
+					ReadTimeMs:  io.ReadTime,
+					WriteTimeMs: io.WriteTime,
 				})
 			}
-			if p.Device != "" {
-				devSeen[p.Device] = struct{}{}
+			if len(s.Disk.IOStats) > 0 {
+				sort.Slice(s.Disk.IOStats, func(i, j int) bool { return s.Disk.IOStats[i].Device < s.Disk.IOStats[j].Device })
+				diskOk = true
 			}
 		}
-		if sm := collectSMART(devSeen); len(sm) > 0 {
-			s.Disk.SMART = sm
-		}
-	}
-	if ioStats, err := disk.IOCountersWithContext(ctx); err == nil {
-		for name, io := range ioStats {
-			s.Disk.IOStats = append(s.Disk.IOStats, diskIO{
-				Device:      name,
-				Reads:       io.ReadCount,
-				Writes:      io.WriteCount,
-				ReadBytes:   io.ReadBytes,
-				WriteBytes:  io.WriteBytes,
-				ReadTimeMs:  io.ReadTime,
-				WriteTimeMs: io.WriteTime,
-			})
-		}
-		sort.Slice(s.Disk.IOStats, func(i, j int) bool { return s.Disk.IOStats[i].Device < s.Disk.IOStats[j].Device })
+		s.Capabilities["disk"] = diskOk
+	} else {
+		s.Capabilities["disk"] = false
 	}
 
-	if ifs, err := gnet.InterfacesWithContext(ctx); err == nil {
-		ioByName := map[string]gnet.IOCountersStat{}
-		if ioStats, err := gnet.IOCountersWithContext(ctx, true); err == nil {
-			for _, st := range ioStats {
-				ioByName[st.Name] = st
-			}
-		}
-		for _, inf := range ifs {
-			io := ioByName[inf.Name]
-			var addrs []string
-			for _, a := range inf.Addrs {
-				addrs = append(addrs, a.Addr)
-			}
-			s.Network.Interfaces = append(s.Network.Interfaces, netIf{
-				Name:        inf.Name,
-				MTU:         inf.MTU,
-				MAC:         inf.HardwareAddr,
-				IPs:         addrs,
-				Flags:       inf.Flags,
-				BytesSent:   io.BytesSent,
-				BytesRecv:   io.BytesRecv,
-				PacketsSent: io.PacketsSent,
-				PacketsRecv: io.PacketsRecv,
-				ErrIn:       io.Errin,
-				ErrOut:      io.Errout,
-				DropIn:      io.Dropin,
-				DropOut:     io.Dropout,
-				IsUp:        containsFlag(inf.Flags, "up") || containsFlag(inf.Flags, "UP"),
-			})
-		}
-	}
-
-	if conns, err := gnet.ConnectionsWithContext(ctx, "inet"); err == nil {
-		stateCount := make(map[string]int)
-		var listening []listenPort
-		for _, c := range conns {
-			stateCount[c.Status]++
-			if c.Status == "LISTEN" {
-				lp := listenPort{
-					Proto:     protoName(c.Type),
-					LocalAddr: c.Laddr.IP,
-					LocalPort: c.Laddr.Port,
+	if p.Network {
+		netOk := false
+		if ifs, err := gnet.InterfacesWithContext(ctx); err == nil {
+			ioByName := map[string]gnet.IOCountersStat{}
+			if ioStats, err := gnet.IOCountersWithContext(ctx, true); err == nil {
+				for _, st := range ioStats {
+					ioByName[st.Name] = st
 				}
-				listening = append(listening, lp)
+			}
+			for _, inf := range ifs {
+				io := ioByName[inf.Name]
+				var addrs []string
+				for _, a := range inf.Addrs {
+					addrs = append(addrs, a.Addr)
+				}
+				s.Network.Interfaces = append(s.Network.Interfaces, netIf{
+					Name:        inf.Name,
+					MTU:         inf.MTU,
+					MAC:         inf.HardwareAddr,
+					IPs:         addrs,
+					Flags:       inf.Flags,
+					BytesSent:   io.BytesSent,
+					BytesRecv:   io.BytesRecv,
+					PacketsSent: io.PacketsSent,
+					PacketsRecv: io.PacketsRecv,
+					ErrIn:       io.Errin,
+					ErrOut:      io.Errout,
+					DropIn:      io.Dropin,
+					DropOut:     io.Dropout,
+					IsUp:        containsFlag(inf.Flags, "up") || containsFlag(inf.Flags, "UP"),
+				})
+			}
+			if len(s.Network.Interfaces) > 0 {
+				netOk = true
 			}
 		}
-		s.NetActive = netActive{
-			ConnectionsByState: stateCount,
-			Listening:          listening,
+		s.Capabilities["network"] = netOk
+	} else {
+		s.Capabilities["network"] = false
+	}
+
+	if p.NetActive {
+		if conns, err := gnet.ConnectionsWithContext(ctx, "inet"); err == nil {
+			stateCount := make(map[string]int)
+			var listening []listenPort
+			for _, c := range conns {
+				stateCount[c.Status]++
+				if c.Status == "LISTEN" {
+					lp := listenPort{
+						Proto:     protoName(c.Type),
+						LocalAddr: c.Laddr.IP,
+						LocalPort: c.Laddr.Port,
+					}
+					listening = append(listening, lp)
+				}
+			}
+			s.NetActive = netActive{
+				ConnectionsByState: stateCount,
+				Listening:          listening,
+			}
+			s.Capabilities["net_active"] = true
+		} else {
+			s.Capabilities["net_active"] = false
 		}
+	} else {
+		s.Capabilities["net_active"] = false
 	}
 
-	if hi, err := host.InfoWithContext(ctx); err == nil {
-		s.Host = hostSnapshot{
-			Hostname:         hi.Hostname,
-			OS:               hi.OS,
-			Platform:         hi.Platform,
-			PlatformFamily:   hi.PlatformFamily,
-			PlatformVersion:  hi.PlatformVersion,
-			KernelVersion:    hi.KernelVersion,
-			UptimeSec:        hi.Uptime,
-			BootTimeUnix:     hi.BootTime,
-			Virtualization:   hi.VirtualizationSystem,
-			VirtualizationRo: hi.VirtualizationRole,
+	if p.Host {
+		if hi, err := host.InfoWithContext(ctx); err == nil {
+			s.Host = hostSnapshot{
+				Hostname:         hi.Hostname,
+				OS:               hi.OS,
+				Platform:         hi.Platform,
+				PlatformFamily:   hi.PlatformFamily,
+				PlatformVersion:  hi.PlatformVersion,
+				KernelVersion:    hi.KernelVersion,
+				UptimeSec:        hi.Uptime,
+				BootTimeUnix:     hi.BootTime,
+				Virtualization:   hi.VirtualizationSystem,
+				VirtualizationRo: hi.VirtualizationRole,
+			}
+			s.Capabilities["host"] = true
+		} else {
+			s.Capabilities["host"] = false
 		}
+	} else {
+		s.Capabilities["host"] = false
 	}
 
-	if temps, err := host.SensorsTemperaturesWithContext(ctx); err == nil {
-		for _, t := range temps {
-			s.Sensors.Temperatures = append(s.Sensors.Temperatures, tempReading{
-				Sensor: t.SensorKey,
-				TempC:  t.Temperature,
-			})
+	if p.Sensors {
+		if temps, err := host.SensorsTemperaturesWithContext(ctx); err == nil {
+			for _, t := range temps {
+				s.Sensors.Temperatures = append(s.Sensors.Temperatures, tempReading{
+					Sensor: t.SensorKey,
+					TempC:  t.Temperature,
+				})
+			}
 		}
-	}
-	if fans := readFanSpeeds(); len(fans) > 0 {
-		s.Sensors.Fans = fans
-	}
-
-	if bats, err := battery.GetAll(); err == nil {
-		for _, b := range bats {
-			s.Power.Batteries = append(s.Power.Batteries, batterySnapshot{
-				Percent:        b.Current / b.Full * 100,
-				State:          b.State.String(),
-				DesignCapacity: b.Design,
-				FullCapacity:   b.Full,
-				ChargeRateMw:   b.ChargeRate,
-				Voltage:        b.Voltage,
-			})
+		if fans := readFanSpeeds(); len(fans) > 0 {
+			s.Sensors.Fans = fans
 		}
+		s.Capabilities["sensors"] = len(s.Sensors.Temperatures) > 0 || len(s.Sensors.Fans) > 0
+	} else {
+		s.Capabilities["sensors"] = false
 	}
 
-	s.Sanity = sanitySnapshot{
-		Ping: multiPing(pingTargets(), 2*time.Second),
-		DNS:  multiDNS(dnsTargets(), 2*time.Second),
+	if p.Power {
+		if bats, err := battery.GetAll(); err == nil {
+			for _, b := range bats {
+				s.Power.Batteries = append(s.Power.Batteries, batterySnapshot{
+					Percent:        b.Current / b.Full * 100,
+					State:          b.State.String(),
+					DesignCapacity: b.Design,
+					FullCapacity:   b.Full,
+					ChargeRateMw:   b.ChargeRate,
+					Voltage:        b.Voltage,
+				})
+			}
+		}
+		s.Capabilities["power"] = len(s.Power.Batteries) > 0
+	} else {
+		s.Capabilities["power"] = false
 	}
 
-	if gpus := collectGPUs(); len(gpus) > 0 {
-		s.GPU = gpus
+	if p.Sanity {
+		s.Sanity = sanitySnapshot{
+			Ping: multiPing(pingTargets(), 2*time.Second),
+			DNS:  multiDNS(dnsTargets(), 2*time.Second),
+		}
+		s.Capabilities["sanity"] = len(s.Sanity.Ping) > 0 || len(s.Sanity.DNS) > 0
+	} else {
+		s.Capabilities["sanity"] = false
 	}
 
-	if services := collectServices(); len(services) > 0 {
-		s.Services = services
+	if p.GPU {
+		if gpus := collectGPUs(); len(gpus) > 0 {
+			s.GPU = gpus
+			s.Capabilities["gpu"] = true
+		} else {
+			s.Capabilities["gpu"] = false
+		}
+	} else {
+		s.Capabilities["gpu"] = false
 	}
 
-	s.TimeSync = timeSyncCheck("time.google.com", 3*time.Second)
-
-	if logs := collectLogs(); len(logs) > 0 {
-		s.Logs = logs
+	if p.Services {
+		if services := collectServices(); len(services) > 0 {
+			s.Services = services
+			s.Capabilities["services"] = true
+		} else {
+			s.Capabilities["services"] = false
+		}
+	} else {
+		s.Capabilities["services"] = false
 	}
 
-	if updates := collectUpdates(3 * time.Second); len(updates) > 0 {
-		s.Updates = updates
+	if p.TimeSync {
+		s.TimeSync = timeSyncCheck("time.google.com", 3*time.Second)
+		s.Capabilities["time_sync"] = s.TimeSync.Source != ""
+	} else {
+		s.Capabilities["time_sync"] = false
 	}
 
-	if c.queueStats != nil {
-		items, bytes := c.queueStats()
-		s.Agent = agentSnap{QueueItems: items, QueueBytes: bytes}
+	if p.Logs {
+		if logs := collectLogs(); len(logs) > 0 {
+			s.Logs = logs
+			s.Capabilities["logs"] = true
+		} else {
+			s.Capabilities["logs"] = false
+		}
+	} else {
+		s.Capabilities["logs"] = false
 	}
 
-	s.Processes = topProcesses(ctx, 5)
+	if p.Updates {
+		if updates := collectUpdates(3 * time.Second); len(updates) > 0 {
+			s.Updates = updates
+			s.Capabilities["updates"] = true
+		} else {
+			s.Capabilities["updates"] = false
+		}
+	} else {
+		s.Capabilities["updates"] = false
+	}
+
+	if p.Agent {
+		if c.queueStats != nil {
+			items, bytes := c.queueStats()
+			agentInfo.QueueItems = items
+			agentInfo.QueueBytes = bytes
+			s.Capabilities["agent"] = true
+		} else {
+			s.Capabilities["agent"] = false
+		}
+	} else {
+		s.Capabilities["agent"] = false
+	}
+
+	s.Agent = agentInfo
+	if p.Processes {
+		s.Processes = topProcesses(ctx, 5)
+		s.Capabilities["processes"] = len(s.Processes) > 0
+	} else {
+		s.Capabilities["processes"] = false
+	}
 
 	return json.Marshal(s)
 }

@@ -1,0 +1,19 @@
+{
+  "version": "5",
+  "cpu": true,
+  "memory": true,
+  "disk": true,
+  "network": true,
+  "net_active": true,
+  "host": true,
+  "sensors": true,
+  "power": true,
+  "sanity": true,
+  "gpu": true,
+  "services": true,
+  "time_sync": true,
+  "logs": true,
+  "updates": true,
+  "agent": true,
+  "processes": true
+}

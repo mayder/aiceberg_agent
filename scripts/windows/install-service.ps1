@@ -1,6 +1,9 @@
 param(
-  [string]\ = 'C:\Program Files\AIceberg\agent\agent.exe',
-  [string]\ = 'C:\ProgramData\AIceberg\config.yml'
+  [string]$BinPath = 'C:\Program Files\AIceberg\agent\agent.exe',
+  [string]$ConfigPath = 'C:\ProgramData\AIceberg\config.yml'
 )
-sc.exe create AIcebergAgent binPath= '\"' + \ + '\" -config \"' + \ + '\"' start= auto
-sc.exe start AIcebergAgent
+
+$serviceName = 'AIcebergAgent'
+$cmd = '"' + $BinPath + '" -config "' + $ConfigPath + '"'
+sc.exe create $serviceName binPath= $cmd start= auto
+sc.exe start $serviceName

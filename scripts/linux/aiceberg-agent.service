@@ -6,7 +6,9 @@ Wants=network-online.target
 [Service]
 User=aiceberg_agent
 Group=aiceberg_agent
-ExecStart=/usr/local/bin/aiceberg_agent -config /etc/aiceberg/config.yml
+WorkingDirectory=/var/lib/aiceberg
+EnvironmentFile=/etc/aiceberg/agent.env
+ExecStart=/usr/local/bin/aiceberg_agent
 Restart=always
 RestartSec=3
 StateDirectory=aiceberg_agent
