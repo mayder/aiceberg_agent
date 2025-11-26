@@ -107,6 +107,7 @@ Enquanto não temos instalador, use este fluxo para rodar localmente com token d
 Notas:
 - Endpoint de bootstrap usado: `POST /v1/agent/bootstrap` (header `Authorization: Token <token>`).
 - Saúde local: `http://localhost:8081/health` (configurável via `HEALTH_PORT`).
+- Ping remoto: o agente faz long-polling em `/v1/agent/ping` a cada `PING_INTERVAL` segundos (default 5s); ao receber um desafio `{challenge}`, responde com `POST /v1/agent/ping` incluindo hostname, versão e timestamp.
 - A coleta envia um pacote único (`metric/sub=sysmetrics`) com CPU, memória, disco (I/O + SMART), rede, host, sensores/fans, bateria, GPU (NVIDIA), serviços, time sync (NTP), sanity (ping/DNS), backlog da fila, logs (.log em ./logs), updates (apt/softwareupdate), top processos.
 
 Quando formos criar instaladores, este fluxo servirá de base: validar token, gravar localmente e evitar reuso.

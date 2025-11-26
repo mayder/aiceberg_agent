@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 )
 
 type AgentCfg struct {
@@ -12,10 +13,11 @@ type AgentCfg struct {
 }
 
 type Config struct {
-	Agent      AgentCfg
-	APIBaseURL string
-	APIKey     string
-	HealthPort int
+	Agent        AgentCfg
+	APIBaseURL   string
+	APIKey       string
+	HealthPort   int
+	PingInterval time.Duration
 }
 
 func Load(_ string) (Config, error) {
@@ -25,11 +27,18 @@ func Load(_ string) (Config, error) {
 			port = p
 		}
 	}
+	pingInterval := time.Duration(intEnv("PING_INTERVAL", 5)) * time.Second
 	cfg := Config{
 		Agent:      AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
 		APIBaseURL: getenv("API_BASE_URL", "http://localhost:8080"),
 		APIKey:     getenv("API_KEY", ""),
 		HealthPort: port,
+		PingInterval: func() time.Duration {
+			if pingInterval <= 0 {
+				return 5 * time.Second
+			}
+			return pingInterval
+		}(),
 	}
 	if cfg.Agent.Token == "" {
 		return cfg, fmt.Errorf("AGENT_TOKEN obrigatório")
@@ -53,4 +62,13 @@ func loadToken() string {
 		return string(b)
 	}
 	return ""
+}
+
+func intEnv(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
 }

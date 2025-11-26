@@ -42,6 +42,7 @@ func Run(cfg config.Config, log logger.Logger) error {
 	collector := sysmetrics.New(outboxRepo.Len)
 	collectUC := usecase.NewCollectAndBuffer(collector, outboxRepo, log)
 	flushUC := usecase.NewFlushOutbox(outboxRepo, httpTx, log)
+	pingUC := usecase.NewPingBackend(cfg, log)
 
 	if cfg.HealthPort > 0 {
 		go health.Serve(cfg.HealthPort, log)
@@ -49,8 +50,10 @@ func Run(cfg config.Config, log logger.Logger) error {
 
 	tCollect := time.NewTicker(10 * time.Second)
 	tFlush := time.NewTicker(15 * time.Second)
+	tPing := time.NewTicker(cfg.PingInterval)
 	defer tCollect.Stop()
 	defer tFlush.Stop()
+	defer tPing.Stop()
 
 	log.Info("agent started")
 
@@ -63,6 +66,8 @@ func Run(cfg config.Config, log logger.Logger) error {
 			_ = collectUC.Execute(ctx)
 		case <-tFlush.C:
 			_ = flushUC.Execute(ctx)
+		case <-tPing.C:
+			_ = pingUC.Execute(ctx)
 		}
 	}
 }
