@@ -59,5 +59,8 @@ func (a *OutboxRepoAdapter) Ack(ids []string) error {
 	return impl.outbox.Commit(nil)
 }
 
+// Len retorna 0; TelemetryRepository não expõe contagem no momento.
+func (a *OutboxRepoAdapter) Len() (int, int64) { return 0, 0 }
+
 // Garante conformidade.
 var _ ports.OutboxRepo = (*OutboxRepoAdapter)(nil)

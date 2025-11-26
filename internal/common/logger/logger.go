@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"log"
 	"os"
 )
@@ -19,7 +20,7 @@ func New(_ string) Logger { return &std{} }
 func (s *std) Info(msg string)  { log.Println("[INFO] " + msg) }
 func (s *std) Error(msg string) { log.Println("[ERROR] " + msg) }
 func (s *std) Fatal(msg string, kv ...any) {
-	log.Println("[FATAL] " + msg)
+	log.Println("[FATAL] " + msg + " " + fmt.Sprint(kv...))
 	os.Exit(1)
 }
 func (s *std) Sync() {}

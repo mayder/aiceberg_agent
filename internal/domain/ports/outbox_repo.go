@@ -6,4 +6,5 @@ type OutboxRepo interface {
 	Append(env entities.Envelope) error
 	ReadBatch(n int) ([]entities.Envelope, error)
 	Ack(ids []string) error
+	Len() (items int, bytes int64)
 }

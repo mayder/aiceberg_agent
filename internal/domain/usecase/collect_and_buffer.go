@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
@@ -27,10 +28,13 @@ func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
 		return err
 	}
 
+	hostname, _ := os.Hostname()
 	env := entities.Envelope{
 		ID:            genID(),
 		SchemaVersion: 1,
-		Kind:          "sysmetrics",
+		Kind:          "metric",
+		Sub:           uc.collector.Name(),
+		AgentID:       hostname,
 		TSUnixMs:      time.Now().UnixMilli(),
 		Body:          json.RawMessage(data), // mantém como JSON bruto
 	}

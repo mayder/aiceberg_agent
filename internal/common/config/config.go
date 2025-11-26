@@ -1,12 +1,14 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 )
 
 type AgentCfg struct {
 	LogLevel string `json:"log_level"`
+	Token    string `json:"token"`
 }
 
 type Config struct {
@@ -23,12 +25,16 @@ func Load(_ string) (Config, error) {
 			port = p
 		}
 	}
-	return Config{
-		Agent:      AgentCfg{LogLevel: getenv("LOG_LEVEL", "info")},
+	cfg := Config{
+		Agent:      AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
 		APIBaseURL: getenv("API_BASE_URL", "http://localhost:8080"),
 		APIKey:     getenv("API_KEY", ""),
 		HealthPort: port,
-	}, nil
+	}
+	if cfg.Agent.Token == "" {
+		return cfg, fmt.Errorf("AGENT_TOKEN obrigatório")
+	}
+	return cfg, nil
 }
 
 func getenv(k, def string) string {
@@ -36,4 +42,15 @@ func getenv(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func loadToken() string {
+	if v := os.Getenv("AGENT_TOKEN"); v != "" {
+		return v
+	}
+	path := getenv("AGENT_TOKEN_PATH", "./data/agent.token")
+	if b, err := os.ReadFile(path); err == nil {
+		return string(b)
+	}
+	return ""
 }

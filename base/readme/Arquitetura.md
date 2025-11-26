@@ -126,19 +126,54 @@ Versões futuras incluirão recepção de políticas, execução de comandos e a
 |-- retry/backoff/ACK
 ```
 
-**Envelope JSON (simplificado):**
+**Envelope JSON (versão atual do `sysmetrics`):**
 
 ```json
 {
-  "envelope_id": "01JV...",
-  "agent_id": "host-123",
+  "envelope_id": "20251124T124447.485921000",
+  "agent_id": "host-01",
   "kind": "metric",
-  "sub": "sys",
-  "ts_unix_ms": 1730123456789,
-  "meta": { "os": "linux", "host": "web-01" },
-  "body": { "cpu_pct": 7.1, "mem_pct": 43.3, "disk_pct": 48.0 }
+  "sub": "sysmetrics",
+  "schema_version": 1,
+  "ts_unix_ms": 1763988287485,
+  "body": {
+    "cpu": { "percent_total": 4.2, "percent_per_cpu": [3.1, 5.3], "load1": 0.12, "cores_logical": 8, "cores_physical": 4, "freq_current_mhz": 2400 },
+    "memory": { "total_bytes": 17179869184, "used_bytes": 8590458880, "used_percent": 50.0, "swap_total_bytes": 2147483648, "swap_used_bytes": 0 },
+    "disk": {
+      "filesystems": [{ "mount": "/", "fs_type": "ext4", "total_bytes": 107374182400, "used_bytes": 53687091200, "used_percent": 50 }],
+      "io_stats": [{ "device": "nvme0n1", "reads": 1234, "writes": 5678, "read_bytes": 1048576, "write_bytes": 2097152 }],
+      "smart": [{ "device": "/dev/nvme0n1", "health": "PASSED", "temperature_c": 35 }]
+    },
+    "network": {
+      "interfaces": [{ "name": "eth0", "mac": "00:11:22:33:44:55", "ips": ["192.0.2.10/24"], "bytes_sent": 123456, "bytes_recv": 654321, "is_up": true }]
+    },
+    "net_active": {
+      "connections_by_state": { "ESTABLISHED": 12, "LISTEN": 5 },
+      "listening": [{ "proto": "tcp", "local_addr": "0.0.0.0", "local_port": 8080 }]
+    },
+    "host": { "hostname": "host-01", "os": "linux", "platform": "ubuntu", "kernel_version": "6.8.0", "uptime_sec": 123456, "boot_time_unix": 1763900000, "virtualization": "kvm" },
+    "sensors": { "temperatures": [{ "sensor": "CPU", "temp_c": 42.5 }], "fans": [{ "sensor": "fan1_input", "rpm": 1800 }] },
+    "power": { "batteries": [{ "percent": 78.1, "state": "Discharging", "design_capacity_wh": 50.0, "full_capacity_wh": 48.0, "charge_rate_mw": 12000, "voltage_v": 11.4 }] },
+    "gpu": [{ "vendor": "nvidia", "name": "RTX 3080", "memory_total_mb": 10240, "memory_used_mb": 2048, "util_percent": 15.0, "temperature_c": 50, "fan_percent": 30, "power_w": 80 }],
+    "services": [{ "name": "ssh.service", "status": "running" }],
+    "time_sync": { "source": "time.google.com", "offset_ms": 2, "rtt_ms": 24, "last_check_unix": 1763988287 },
+    "sanity": {
+      "ping": [{ "target": "1.1.1.1:53", "success": true, "duration_ms": 10 }],
+      "dns": [{ "target": "example.com", "success": true, "duration_ms": 15 }]
+    },
+    "agent": { "queue_items": 3, "queue_bytes": 0 },
+    "logs": [{ "path": "./logs/agent.log", "size_bytes": 12345 }],
+    "updates": [{ "source": "apt", "pending": 5 }],
+    "processes": [{ "pid": 1234, "name": "nginx", "cpu_percent": 2.1, "rss_bytes": 10485760 }]
+  }
 }
 ```
+
+**Blocos coletados pelo `sysmetrics` (todos opcionais/conforme suporte do SO):**
+- `cpu`, `memory`, `disk` (fs + I/O + SMART), `network` (interfaces), `net_active` (conexões e listens).
+- `host` (OS/platform/kernel/uptime/virtualização).
+- `sensors` (temperaturas, fans), `power` (bateria), `gpu` (via `nvidia-smi`).
+- `services` (systemd/sc), `time_sync` (NTP), `sanity` (ping/DNS), `agent` (backlog da fila), `logs` (tamanho de .log em ./logs), `updates` (apt/softwareupdate), `processes` (top 5 CPU).
 
 ---
 

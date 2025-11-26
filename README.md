@@ -80,6 +80,39 @@ O agente carregará o arquivo de configuração `./configs/config.example.yml`, 
 
 ---
 
+## 🚀 Execução com vínculo por token (modo direto)
+
+Enquanto não temos instalador, use este fluxo para rodar localmente com token do painel:
+
+1. Gere um token no painel (agente pendente).
+2. Na primeira execução, passe o token (será persistido em `./data/agent.token` e `./data/bootstrap.ok`):
+   ```bash
+   API_BASE_URL=http://127.0.0.1:8082 \
+   AGENT_TOKEN=SEU_TOKEN_AQUI \
+   ./scripts/dev-run.sh
+   ```
+   Se a API retornar que o token já foi usado (409), você pode pular o bootstrap criando os arquivos manualmente:
+   ```bash
+   mkdir -p data
+   echo -n "SEU_TOKEN_AQUI" > data/agent.token
+   echo '{"token":"SEU_TOKEN_AQUI"}' > data/bootstrap.ok
+   chmod 600 data/agent.token data/bootstrap.ok
+   ```
+3. Nas próximas execuções, basta:
+   ```bash
+   ./scripts/dev-run.sh
+   ```
+   O agente lerá o token/estado persistido, pulará bootstrap e enviará telemetria com `Authorization: Token <token>`.
+
+Notas:
+- Endpoint de bootstrap usado: `POST /v1/agent/bootstrap` (header `Authorization: Token <token>`).
+- Saúde local: `http://localhost:8081/health` (configurável via `HEALTH_PORT`).
+- A coleta envia um pacote único (`metric/sub=sysmetrics`) com CPU, memória, disco (I/O + SMART), rede, host, sensores/fans, bateria, GPU (NVIDIA), serviços, time sync (NTP), sanity (ping/DNS), backlog da fila, logs (.log em ./logs), updates (apt/softwareupdate), top processos.
+
+Quando formos criar instaladores, este fluxo servirá de base: validar token, gravar localmente e evitar reuso.
+
+---
+
 ## 📄 Licença
 
 Projeto de propriedade do **AIceberg**, desenvolvido sob orientação do Arquiteto do Caos Elegante.  

@@ -21,6 +21,13 @@ func (m *MemStore) Push(e entities.Envelope) error {
 	return nil
 }
 
+// Len retorna contagem aproximada de itens e bytes (bytes não calculados aqui).
+func (m *MemStore) Len() (int, int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.queue), 0
+}
+
 func (m *MemStore) Peek(n int) ([]entities.Envelope, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

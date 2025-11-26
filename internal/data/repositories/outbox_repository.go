@@ -10,6 +10,7 @@ type Store interface {
 	Push(e entities.Envelope) error
 	Peek(n int) ([]entities.Envelope, error)
 	Delete(ids []string) error
+	Len() (items int, bytes int64)
 }
 
 type outboxRepo struct{ store Store }
@@ -21,3 +22,5 @@ func (r *outboxRepo) Append(env entities.Envelope) error { return r.store.Push(e
 func (r *outboxRepo) ReadBatch(n int) ([]entities.Envelope, error) { return r.store.Peek(n) }
 
 func (r *outboxRepo) Ack(ids []string) error { return r.store.Delete(ids) }
+
+func (r *outboxRepo) Len() (int, int64) { return r.store.Len() }

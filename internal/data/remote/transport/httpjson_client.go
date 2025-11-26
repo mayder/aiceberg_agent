@@ -33,7 +33,9 @@ func (h *httpClient) Send(batch []entities.Envelope) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if h.cfg.APIKey != "" {
+	if h.cfg.Agent.Token != "" {
+		req.Header.Set("Authorization", "Token "+h.cfg.Agent.Token)
+	} else if h.cfg.APIKey != "" {
 		req.Header.Set("Authorization", "Bearer "+h.cfg.APIKey)
 	}
 	resp, err := h.cl.Do(req)
