@@ -30,7 +30,7 @@ Passos resumidos:
    - macOS (launchd): sudo cp service/com.aiceberg.agent.plist /Library/LaunchDaemons/ && sudo launchctl load /Library/LaunchDaemons/com.aiceberg.agent.plist
 5) Verifique: curl http://localhost:8081/health (se HEALTH_PORT habilitado).
 
-API de produção já é padrão: https://api.aiceberg.com.br/v1
+  API de produção já é padrão: https://api.aiceberg.com.br (o agente adiciona `/v1/...`).
 EOF
 }
 
@@ -53,7 +53,7 @@ Passos resumidos (PowerShell como Admin):
 4) Execute: .\install-service.ps1 -BinPath "C:\Program Files\AIceberg\agent\agent.exe"
 5) Verifique: sc.exe query AIcebergAgent ou Event Viewer (Application).
 
-API de produção já é padrão: https://api.aiceberg.com.br/v1
+  API de produção já é padrão: https://api.aiceberg.com.br (o agente adiciona `/v1/...`).
 EOF
 }
 

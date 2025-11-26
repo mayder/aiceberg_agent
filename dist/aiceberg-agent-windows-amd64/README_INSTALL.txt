@@ -15,4 +15,4 @@ Passos resumidos (PowerShell como Admin):
 4) Execute: .\install-service.ps1 -BinPath "C:\Program Files\AIceberg\agent\agent.exe"
 5) Verifique: sc.exe query AIcebergAgent ou Event Viewer (Application).
 
-API de produção já é padrão: https://api.aiceberg.com.br/v1
+  API de produção já é padrão: https://api.aiceberg.com.br (o agente adiciona `/v1/...`).

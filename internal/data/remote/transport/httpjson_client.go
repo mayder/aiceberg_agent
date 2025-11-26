@@ -28,7 +28,7 @@ func (h *httpClient) Send(batch []entities.Envelope) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, h.cfg.APIBaseURL+"/v1/ingest", bytes.NewReader(b))
+	req, err := http.NewRequest(http.MethodPost, h.cfg.APIEndpoint("/v1/ingest"), bytes.NewReader(b))
 	if err != nil {
 		return err
 	}

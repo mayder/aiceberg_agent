@@ -5,7 +5,7 @@ Este guia orienta a instalação do AIceberg Agent em estações/servidores Wind
 ## O que você precisa
 - Token do agente gerado no painel.
 - Permissão de administrador/root para instalar serviços.
-- Acesso HTTPS para `https://api.aiceberg.com.br/v1` (porta 443).
+- Acesso HTTPS para `https://api.aiceberg.com.br` (porta 443); o agente acrescenta `/v1/...` automaticamente.
 
 ## Pacotes esperados
 - Windows: `AIcebergAgent-Setup-x64.msi` (ou `.exe`).

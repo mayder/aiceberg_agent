@@ -105,7 +105,7 @@ Enquanto não temos instalador, use este fluxo para rodar localmente com token d
    O agente lerá o token/estado persistido, pulará bootstrap e enviará telemetria com `Authorization: Token <token>`.
 
 ## 🧱 Gerar instaladores
-1. Garanta que `API_BASE_URL` está apontando para `https://api.aiceberg.com.br/v1`.
+1. Garanta que `API_BASE_URL` está apontando para `https://api.aiceberg.com.br` (o agente já adiciona `/v1/...` internamente).
 2. Execute os comandos:
    ```bash
    chmod +x scripts/build_installers.sh
@@ -116,7 +116,7 @@ Enquanto não temos instalador, use este fluxo para rodar localmente com token d
 4. Cada README do pacote instrui sobre como definir `AGENT_TOKEN`/`AGENT_TOKEN_PATH` e instalar o serviço (systemd/launchd/Windows).
 
 Notas:
-- API de produção é o padrão (`https://api.aiceberg.com.br/v1`); use `API_BASE_URL` apenas para apontar para ambientes de teste.
+- API de produção é o padrão (`https://api.aiceberg.com.br`) e o agente junta `/v1/...` sozinho; use `API_BASE_URL` apenas para apontar para ambientes de teste.
 - Bootstrap (`POST /v1/agent/bootstrap`) já envia `versao_agente` com `internal/common/version.Version`, então a API acompanha qual versão do agente cada host executa.
 - Endpoint de bootstrap usado: `POST /v1/agent/bootstrap` (header `Authorization: Token <token>`).
 - Saúde local: `http://localhost:8081/health` (configurável via `HEALTH_PORT`).

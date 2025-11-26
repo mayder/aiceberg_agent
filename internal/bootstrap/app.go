@@ -108,7 +108,7 @@ func bootstrap(ctx context.Context, cfg config.Config, log logger.Logger) error 
 		"versao_agente":    version.Version,
 	}
 	body, _ := json.Marshal(payload)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.APIBaseURL+"/v1/agent/bootstrap", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.APIEndpoint("/v1/agent/bootstrap"), bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

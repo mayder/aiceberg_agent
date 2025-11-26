@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -53,7 +54,7 @@ func Load(_ string) (Config, error) {
 	cfgSyncInterval := time.Duration(intEnv("CONFIG_SYNC_INTERVAL", 30)) * time.Second
 	cfg := Config{
 		Agent:      AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
-		APIBaseURL: getenv("API_BASE_URL", "https://api.aiceberg.com.br/v1"),
+		APIBaseURL: getenv("API_BASE_URL", "https://api.aiceberg.com.br"),
 		APIKey:     getenv("API_KEY", ""),
 		HealthPort: port,
 		PrefsPath:  getenv("PREFS_PATH", "./data/collect_prefs.json"),
@@ -92,6 +93,17 @@ func loadToken() string {
 		return string(b)
 	}
 	return ""
+}
+
+func (c Config) APIEndpoint(segment string) string {
+	base := strings.TrimRight(c.APIBaseURL, "/")
+	if segment == "" {
+		return base
+	}
+	if !strings.HasPrefix(segment, "/") {
+		segment = "/" + segment
+	}
+	return base + segment
 }
 
 func intEnv(key string, def int) int {

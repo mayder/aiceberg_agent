@@ -30,7 +30,7 @@ func NewConfigSync(cfg config.Config, log logger.Logger, store *prefs.Store) *Co
 }
 
 func (uc *ConfigSync) Execute(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uc.cfg.APIBaseURL+"/v1/agent/config", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uc.cfg.APIEndpoint("/v1/agent/config"), nil)
 	if err != nil {
 		return err
 	}
