@@ -270,6 +270,9 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	if c.prefs != nil {
 		p = c.prefs()
 	}
+	if p.Paused {
+		return nil, nil
+	}
 
 	s := snapshot{Capabilities: make(map[string]bool)}
 	agentInfo := agentSnap{Version: version.Version}

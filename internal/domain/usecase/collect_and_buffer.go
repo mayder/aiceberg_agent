@@ -12,13 +12,14 @@ import (
 )
 
 type CollectAndBuffer struct {
-	collector ports.Collector
-	outbox    ports.OutboxRepo
-	log       logger.Logger
+	collector  ports.Collector
+	outbox     ports.OutboxRepo
+	log        logger.Logger
+	authHeader string
 }
 
-func NewCollectAndBuffer(c ports.Collector, o ports.OutboxRepo, l logger.Logger) *CollectAndBuffer {
-	return &CollectAndBuffer{collector: c, outbox: o, log: l}
+func NewCollectAndBuffer(c ports.Collector, o ports.OutboxRepo, l logger.Logger, authHeader string) *CollectAndBuffer {
+	return &CollectAndBuffer{collector: c, outbox: o, log: l, authHeader: authHeader}
 }
 
 func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
@@ -37,6 +38,7 @@ func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
 		AgentID:       hostname,
 		TSUnixMs:      time.Now().UnixMilli(),
 		Body:          json.RawMessage(data), // mantém como JSON bruto
+		AuthHeader:    uc.authHeader,
 	}
 
 	if err := uc.outbox.Append(env); err != nil {

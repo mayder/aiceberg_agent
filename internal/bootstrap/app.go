@@ -22,8 +22,10 @@ import (
 	"github.com/you/aiceberg_agent/internal/data/local/prefs"
 	"github.com/you/aiceberg_agent/internal/data/remote/transport"
 	"github.com/you/aiceberg_agent/internal/data/repositories"
+	"github.com/you/aiceberg_agent/internal/domain/ports"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
 	"github.com/you/aiceberg_agent/internal/interfaces/health"
+	"github.com/you/aiceberg_agent/internal/interfaces/hub"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/sysmetrics"
 )
 
@@ -33,18 +35,35 @@ func Run(cfg config.Config, log logger.Logger) error {
 	// Adapters mínimos
 	store := outbox.NewMemStore()
 	outboxRepo := repositories.NewOutboxRepository(store)
-	httpTx := transport.NewHTTPJSONClient(cfg)
 	prefStore := prefs.NewStore(cfg.PrefsPath)
 	_, _ = prefStore.Load()
 
-	if err := bootstrap(ctx, cfg, log); err != nil {
-		log.Fatal("bootstrap failed", "err", err)
+	mode := cfg.Mode()
+
+	if !cfg.SkipBootstrap {
+		if err := bootstrap(ctx, cfg, log); err != nil {
+			log.Fatal("bootstrap failed", "err", err)
+		}
 	}
 
 	// Use cases
+	authHeader := ""
+	if cfg.Agent.Token != "" {
+		authHeader = "Token " + cfg.Agent.Token
+	} else if cfg.APIKey != "" {
+		authHeader = "Bearer " + cfg.APIKey
+	}
+
+	var tx ports.Transport
+	if mode == "relay" {
+		tx = transport.NewHubClient(cfg)
+	} else {
+		tx = transport.NewHTTPJSONClient(cfg)
+	}
+
 	collector := sysmetrics.New(outboxRepo.Len, prefStore.Get)
-	collectUC := usecase.NewCollectAndBuffer(collector, outboxRepo, log)
-	flushUC := usecase.NewFlushOutbox(outboxRepo, httpTx, log)
+	collectUC := usecase.NewCollectAndBuffer(collector, outboxRepo, log, authHeader)
+	flushUC := usecase.NewFlushOutbox(outboxRepo, tx, log, authHeader)
 	pingUC := usecase.NewPingBackend(cfg, log)
 	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore)
 
@@ -52,14 +71,30 @@ func Run(cfg config.Config, log logger.Logger) error {
 		go health.Serve(cfg.HealthPort, log)
 	}
 
+	if mode == "hub" {
+		addr := cfg.HubListenAddr
+		if addr == "" {
+			addr = ":9090"
+		}
+		go hub.ServeHub(addr, cfg, outboxRepo, log)
+	}
+
 	tCollect := time.NewTicker(10 * time.Second)
 	tFlush := time.NewTicker(15 * time.Second)
-	tPing := time.NewTicker(cfg.PingInterval)
-	tCfgSync := time.NewTicker(cfg.ConfigSyncInterval)
+	var tPing *time.Ticker
+	var tCfgSync *time.Ticker
+	if mode != "relay" {
+		tPing = time.NewTicker(cfg.PingInterval)
+		tCfgSync = time.NewTicker(cfg.ConfigSyncInterval)
+	}
 	defer tCollect.Stop()
 	defer tFlush.Stop()
-	defer tPing.Stop()
-	defer tCfgSync.Stop()
+	if tPing != nil {
+		defer tPing.Stop()
+	}
+	if tCfgSync != nil {
+		defer tCfgSync.Stop()
+	}
 
 	log.Info("agent started")
 
@@ -72,9 +107,9 @@ func Run(cfg config.Config, log logger.Logger) error {
 			_ = collectUC.Execute(ctx)
 		case <-tFlush.C:
 			_ = flushUC.Execute(ctx)
-		case <-tPing.C:
+		case <-readTick(tPing):
 			_ = pingUC.Execute(ctx)
-		case <-tCfgSync.C:
+		case <-readTick(tCfgSync):
 			_ = configSyncUC.Execute(ctx)
 		}
 	}
@@ -203,4 +238,11 @@ func loadBootstrapState() (bootstrapState, error) {
 		return bootstrapState{}, err
 	}
 	return st, nil
+}
+
+func readTick(t *time.Ticker) <-chan time.Time {
+	if t == nil {
+		return nil
+	}
+	return t.C
 }

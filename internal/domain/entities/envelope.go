@@ -10,4 +10,5 @@ type Envelope struct {
 	TSUnixMs      int64             `json:"ts_unix_ms"`
 	Meta          map[string]string `json:"meta,omitempty"`
 	Body          any               `json:"body"`
+	AuthHeader    string            `json:"-"`
 }

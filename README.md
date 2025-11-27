@@ -118,6 +118,7 @@ Enquanto não temos instalador, use este fluxo para rodar localmente com token d
 Notas:
 - API de produção é o padrão (`https://api.aiceberg.com.br`) e o agente junta `/v1/...` sozinho; use `API_BASE_URL` apenas para apontar para ambientes de teste.
 - Bootstrap (`POST /v1/agent/bootstrap`) já envia `versao_agente` com `internal/common/version.Version`, então a API acompanha qual versão do agente cada host executa.
+- Modos de conexão: `AGENT_MODE=direct` (padrão, envia para API), `AGENT_MODE=hub` (recebe `/v1/ingest` via `HUB_LISTEN_ADDR` e reenvia à API) e `AGENT_MODE=relay` (envia para `HUB_URL`, sem falar direto com a API). `SKIP_BOOTSTRAP=true` pode ser usado em relay puro.
 - Endpoint de bootstrap usado: `POST /v1/agent/bootstrap` (header `Authorization: Token <token>`).
 - Saúde local: `http://localhost:8081/health` (configurável via `HEALTH_PORT`).
 - Ping remoto: o agente faz long-polling em `/v1/agent/ping` a cada `PING_INTERVAL` segundos (default 5s); ao receber um desafio `{challenge}`, responde com `POST /v1/agent/ping` incluindo hostname, versão e timestamp.

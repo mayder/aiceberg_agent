@@ -11,34 +11,34 @@ import (
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
 
-type httpClient struct {
+// HubClient envia lotes para um hub (relay).
+type hubClient struct {
 	cl  *http.Client
 	cfg config.Config
 }
 
-func NewHTTPJSONClient(cfg config.Config) ports.Transport {
-	return &httpClient{
+func NewHubClient(cfg config.Config) ports.Transport {
+	return &hubClient{
 		cl:  &http.Client{Timeout: 10 * time.Second},
 		cfg: cfg,
 	}
 }
 
-func (h *httpClient) SendWithAuth(batch []entities.Envelope, authHeader string) error {
+func (h *hubClient) SendWithAuth(batch []entities.Envelope, authHeader string) error {
 	b, err := json.Marshal(batch)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, h.cfg.APIEndpoint("/v1/ingest"), bytes.NewReader(b))
+	url := h.cfg.HubURL + "/v1/ingest"
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if authHeader != "" {
 		req.Header.Set("Authorization", authHeader)
-	} else if h.cfg.Agent.Token != "" {
-		req.Header.Set("Authorization", "Token "+h.cfg.Agent.Token)
-	} else if h.cfg.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+h.cfg.APIKey)
+	} else if h.cfg.HubToken != "" {
+		req.Header.Set("Authorization", "Token "+h.cfg.HubToken)
 	}
 	resp, err := h.cl.Do(req)
 	if err != nil {
@@ -50,7 +50,3 @@ func (h *httpClient) SendWithAuth(batch []entities.Envelope, authHeader string) 
 	}
 	return nil
 }
-
-type httpStatusErr struct{ code int }
-
-func (e *httpStatusErr) Error() string { return http.StatusText(e.code) }

@@ -5,17 +5,19 @@ import (
 	"strconv"
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
 
 type FlushOutbox struct {
-	outbox ports.OutboxRepo
-	tx     ports.Transport
-	log    logger.Logger
+	outbox      ports.OutboxRepo
+	tx          ports.Transport
+	log         logger.Logger
+	defaultAuth string
 }
 
-func NewFlushOutbox(o ports.OutboxRepo, t ports.Transport, l logger.Logger) *FlushOutbox {
-	return &FlushOutbox{o, t, l}
+func NewFlushOutbox(o ports.OutboxRepo, t ports.Transport, l logger.Logger, defaultAuth string) *FlushOutbox {
+	return &FlushOutbox{o, t, l, defaultAuth}
 }
 
 func (uc *FlushOutbox) Execute(ctx context.Context) error {
@@ -23,9 +25,21 @@ func (uc *FlushOutbox) Execute(ctx context.Context) error {
 	if err != nil || len(batch) == 0 {
 		return err
 	}
-	if err := uc.tx.Send(batch); err != nil {
-		uc.log.Error("transport: " + err.Error())
-		return err
+
+	grouped := make(map[string][]entities.Envelope)
+	for _, e := range batch {
+		h := e.AuthHeader
+		if h == "" {
+			h = uc.defaultAuth
+		}
+		grouped[h] = append(grouped[h], e)
+	}
+
+	for auth, list := range grouped {
+		if err := uc.tx.SendWithAuth(list, auth); err != nil {
+			uc.log.Error("transport: " + err.Error())
+			return err
+		}
 	}
 
 	ids := make([]string, 0, len(batch))

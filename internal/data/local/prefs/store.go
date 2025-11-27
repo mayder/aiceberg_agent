@@ -22,6 +22,7 @@ func NewStore(path string) *Store {
 
 func Default() config.CollectPrefs {
 	return config.CollectPrefs{
+		Paused:    false,
 		CPU:       true,
 		Memory:    true,
 		Disk:      true,

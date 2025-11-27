@@ -21,10 +21,16 @@ type Config struct {
 	PingInterval       time.Duration
 	ConfigSyncInterval time.Duration
 	PrefsPath          string
+	AgentMode          string
+	HubURL             string
+	HubToken           string
+	HubListenAddr      string
+	SkipBootstrap      bool
 }
 
 type CollectPrefs struct {
 	Version   string `json:"version,omitempty"`
+	Paused    bool   `json:"paused,omitempty"`
 	CPU       bool   `json:"cpu"`
 	Memory    bool   `json:"memory"`
 	Disk      bool   `json:"disk"`
@@ -53,11 +59,16 @@ func Load(_ string) (Config, error) {
 	pingInterval := time.Duration(intEnv("PING_INTERVAL", 5)) * time.Second
 	cfgSyncInterval := time.Duration(intEnv("CONFIG_SYNC_INTERVAL", 30)) * time.Second
 	cfg := Config{
-		Agent:      AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
-		APIBaseURL: getenv("API_BASE_URL", "https://api.aiceberg.com.br"),
-		APIKey:     getenv("API_KEY", ""),
-		HealthPort: port,
-		PrefsPath:  getenv("PREFS_PATH", "./data/collect_prefs.json"),
+		Agent:         AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
+		APIBaseURL:    getenv("API_BASE_URL", "https://api.aiceberg.com.br"),
+		APIKey:        getenv("API_KEY", ""),
+		HealthPort:    port,
+		PrefsPath:     getenv("PREFS_PATH", "./data/collect_prefs.json"),
+		AgentMode:     strings.ToLower(getenv("AGENT_MODE", "direct")),
+		HubURL:        getenv("HUB_URL", ""),
+		HubToken:      getenv("HUB_TOKEN", ""),
+		HubListenAddr: getenv("HUB_LISTEN_ADDR", ""),
+		SkipBootstrap: strings.ToLower(getenv("SKIP_BOOTSTRAP", "")) == "true",
 		PingInterval: func() time.Duration {
 			if pingInterval <= 0 {
 				return 5 * time.Second
@@ -104,6 +115,15 @@ func (c Config) APIEndpoint(segment string) string {
 		segment = "/" + segment
 	}
 	return base + segment
+}
+
+func (c Config) Mode() string {
+	switch strings.ToLower(c.AgentMode) {
+	case "hub", "relay", "direct":
+		return strings.ToLower(c.AgentMode)
+	default:
+		return "direct"
+	}
 }
 
 func intEnv(key string, def int) int {

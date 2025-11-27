@@ -3,5 +3,6 @@ package ports
 import "github.com/you/aiceberg_agent/internal/domain/entities"
 
 type Transport interface {
-	Send(batch []entities.Envelope) error
+	// SendWithAuth envia um batch aplicando o header Authorization fornecido (se não vazio).
+	SendWithAuth(batch []entities.Envelope, authHeader string) error
 }
