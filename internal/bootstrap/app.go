@@ -26,6 +26,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
 	"github.com/you/aiceberg_agent/internal/interfaces/health"
 	"github.com/you/aiceberg_agent/internal/interfaces/hub"
+	"github.com/you/aiceberg_agent/internal/platform/collectors/oslogs"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/sysmetrics"
 )
 
@@ -67,6 +68,22 @@ func Run(cfg config.Config, log logger.Logger) error {
 	pingUC := usecase.NewPingBackend(cfg, log)
 	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore)
 
+	var osLogCollectUC *usecase.CollectAndBuffer
+	var osLogFlushUC *usecase.FlushOutbox
+	if cfg.OSLogEnabled && len(cfg.OSLogFiles) > 0 {
+		osStore := outbox.NewMemStore()
+		osRepo := repositories.NewOutboxRepository(osStore)
+		osCollector := oslogs.New(cfg)
+		osLogCollectUC = usecase.NewCollectAndBuffer(osCollector, osRepo, log, authHeader)
+		var osTx ports.Transport
+		if mode == "relay" {
+			osTx = transport.NewHubClient(cfg)
+		} else {
+			osTx = transport.NewHTTPLogsClient(cfg)
+		}
+		osLogFlushUC = usecase.NewFlushOutbox(osRepo, osTx, log, authHeader)
+	}
+
 	if cfg.HealthPort > 0 {
 		go health.Serve(cfg.HealthPort, log)
 	}
@@ -83,9 +100,13 @@ func Run(cfg config.Config, log logger.Logger) error {
 	tFlush := time.NewTicker(15 * time.Second)
 	var tPing *time.Ticker
 	var tCfgSync *time.Ticker
+	var tOsCollect *time.Ticker
 	if mode != "relay" {
 		tPing = time.NewTicker(cfg.PingInterval)
 		tCfgSync = time.NewTicker(cfg.ConfigSyncInterval)
+	}
+	if osLogCollectUC != nil {
+		tOsCollect = time.NewTicker(cfg.OSLogInterval)
 	}
 	defer tCollect.Stop()
 	defer tFlush.Stop()
@@ -94,6 +115,9 @@ func Run(cfg config.Config, log logger.Logger) error {
 	}
 	if tCfgSync != nil {
 		defer tCfgSync.Stop()
+	}
+	if tOsCollect != nil {
+		defer tOsCollect.Stop()
 	}
 
 	log.Info("agent started")
@@ -107,10 +131,17 @@ func Run(cfg config.Config, log logger.Logger) error {
 			_ = collectUC.Execute(ctx)
 		case <-tFlush.C:
 			_ = flushUC.Execute(ctx)
+			if osLogFlushUC != nil {
+				_ = osLogFlushUC.Execute(ctx)
+			}
 		case <-readTick(tPing):
 			_ = pingUC.Execute(ctx)
 		case <-readTick(tCfgSync):
 			_ = configSyncUC.Execute(ctx)
+		case <-readTick(tOsCollect):
+			if osLogCollectUC != nil {
+				_ = osLogCollectUC.Execute(ctx)
+			}
 		}
 	}
 }

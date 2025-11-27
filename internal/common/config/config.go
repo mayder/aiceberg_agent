@@ -26,6 +26,12 @@ type Config struct {
 	HubToken           string
 	HubListenAddr      string
 	SkipBootstrap      bool
+	OSLogEnabled       bool
+	OSLogFiles         []string
+	OSLogCursorPath    string
+	OSLogBatchLines    int
+	OSLogMaxBytes      int
+	OSLogInterval      time.Duration
 }
 
 type CollectPrefs struct {
@@ -69,6 +75,12 @@ func Load(_ string) (Config, error) {
 		HubToken:      getenv("HUB_TOKEN", ""),
 		HubListenAddr: getenv("HUB_LISTEN_ADDR", ""),
 		SkipBootstrap: strings.ToLower(getenv("SKIP_BOOTSTRAP", "")) == "true",
+		OSLogEnabled:  strings.ToLower(getenv("OSLOG_ENABLED", "")) == "true",
+		OSLogFiles:    splitCsv(getenv("OSLOG_FILES", "")),
+		OSLogCursorPath: getenv("OSLOG_CURSOR_PATH", "./data/oslogs.cursor"),
+		OSLogBatchLines: intEnv("OSLOG_BATCH_LINES", 200),
+		OSLogMaxBytes:   intEnv("OSLOG_MAX_BYTES", 256*1024),
+		OSLogInterval:   time.Duration(intEnv("OSLOG_INTERVAL", 15)) * time.Second,
 		PingInterval: func() time.Duration {
 			if pingInterval <= 0 {
 				return 5 * time.Second
@@ -124,6 +136,21 @@ func (c Config) Mode() string {
 	default:
 		return "direct"
 	}
+}
+
+func splitCsv(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	var out []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func intEnv(key string, def int) int {

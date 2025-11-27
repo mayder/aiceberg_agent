@@ -41,17 +41,20 @@ AIceberg Agent - pacote standalone (Windows)
 Conteúdo:
 - agent.exe
 - install-service.ps1 (cria o serviço)
+- install.ps1 (instala tudo: copia binário, grava token/env, cria serviço)
 - LEIA-ME: defina AGENT_TOKEN (variável de ambiente do sistema) e paths opcionais; ou crie C:\ProgramData\AIceberg\agent.token e sete AGENT_TOKEN_PATH.
 
 Passos resumidos (PowerShell como Admin):
-1) Copie agent.exe para "C:\Program Files\AIceberg\agent".
-2) Crie dados: mkdir C:\ProgramData\AIceberg
-3) Defina o token (recomendado com path explícito):
+1) (Recomendado) Rodar instalador automático:
+   powershell -ExecutionPolicy Bypass -File .\install.ps1 -Token SEU_TOKEN_AQUI
+   (isso copia o binário, grava token/env e cria o serviço)
+2) Ou manual:
+   - Copie agent.exe para "C:\Program Files\AIceberg\agent"
+   - Crie dados: mkdir C:\ProgramData\AIceberg
    - setx /M AGENT_TOKEN_PATH C:\ProgramData\AIceberg\agent.token
    - echo -n SEU_TOKEN_AQUI > C:\ProgramData\AIceberg\agent.token
-   (ou setx /M AGENT_TOKEN SEU_TOKEN_AQUI)
-4) Execute: .\install-service.ps1 -BinPath "C:\Program Files\AIceberg\agent\agent.exe"
-5) Verifique: sc.exe query AIcebergAgent ou Event Viewer (Application).
+   - Execute: .\install-service.ps1 -BinPath "C:\Program Files\AIceberg\agent\agent.exe"
+3) Verifique: sc.exe query AIcebergAgent ou Event Viewer (Application).
 
   API de produção já é padrão: https://api.aiceberg.com.br (o agente adiciona `/v1/...`).
 EOF
@@ -66,6 +69,10 @@ build_unix() {
   if [[ -n "$svc" ]]; then
     cp "$ROOT/$svc" "$outdir/service/"
   fi
+  if [[ "$os" == "linux" ]]; then
+    cp "$ROOT/scripts/linux/install.sh" "$outdir/install.sh"
+    chmod +x "$outdir/install.sh"
+  fi
   write_unix_readme "$outdir/README_INSTALL.txt"
   (cd "$DIST" && tar -czf "aiceberg-agent-${os}-${arch}.${ext}" "aiceberg-agent-${os}-${arch}")
 }
@@ -76,6 +83,7 @@ build_windows() {
   mkdir -p "$outdir"
   GOOS=windows GOARCH="$arch" CGO_ENABLED=0 go build -ldflags "$LD_FLAGS" -o "$outdir/agent.exe" "$ROOT/cmd/agent"
   cp "$ROOT/scripts/windows/install-service.ps1" "$outdir/install-service.ps1"
+  cp "$ROOT/scripts/windows/install.ps1" "$outdir/install.ps1"
   write_win_readme "$outdir/README_INSTALL.txt"
   (cd "$DIST" && zip -qr "aiceberg-agent-windows-${arch}.zip" "aiceberg-agent-windows-${arch}")
 }

@@ -8,19 +8,20 @@ Este guia orienta a instalação do AIceberg Agent em estações/servidores Wind
 - Acesso HTTPS para `https://api.aiceberg.com.br` (porta 443); o agente acrescenta `/v1/...` automaticamente.
 
 ## Pacotes esperados
-- Windows: `AIcebergAgent-Setup-x64.msi` (ou `.exe`).
+- Windows: `.zip` com `agent.exe`, `install.ps1` (instala tudo) e `install-service.ps1`.
 - macOS: `AIcebergAgent.pkg`.
-- Linux: `aiceberg-agent_<versao>_amd64.deb` (Debian/Ubuntu) ou `aiceberg-agent-<versao>.x86_64.rpm` (RHEL/Alma/Rocky/Fedora).
+- Linux: `.tar.gz` com `aiceberg_agent`, `agent.env.example`, `aiceberg-agent.service`, `install.sh`.
 
 ## Instalação
-### Windows
-1. Baixe o instalador MSI/EXE.
-2. Execute e insira o token quando solicitado.
-3. O serviço `AIcebergAgent` será criado e iniciado automaticamente.
-4. Modo silencioso (PowerShell/admin):
+### Windows (recomendado)
+1. Abra PowerShell como Administrador e vá para a pasta extraída.
+2. Rode o instalador automático:
    ```powershell
-   msiexec /i .\AIcebergAgent-Setup-x64.msi TOKEN=SEU_TOKEN_HERE /qn
+   powershell -ExecutionPolicy Bypass -File .\install.ps1 -Token SEU_TOKEN_AQUI
    ```
+   (Opcional: `-Mode hub|relay`, `-HubUrl`, `-HubToken`, `-SkipBootstrap`).
+3. Isso cria pastas, grava o token (se informado), define variáveis de ambiente e cria o serviço.
+4. Verifique: `sc query AIcebergAgent`.
 
 ### macOS
 1. Abra `AIcebergAgent.pkg`.
@@ -31,22 +32,18 @@ Este guia orienta a instalação do AIceberg Agent em estações/servidores Wind
    sudo installer -pkg AIcebergAgent.pkg -target /
    ```
 
-### Linux (Debian/Ubuntu)
+### Linux (instalador automático no tar.gz)
 ```bash
-sudo TOKEN=SEU_TOKEN_HERE dpkg -i aiceberg-agent_<versao>_amd64.deb
-sudo systemctl status aiceberg-agent
+tar -xzf aiceberg-agent-linux-amd64.tar.gz
+cd aiceberg-agent-linux-amd64
+sudo ./install.sh   # instala binário, service e cria /etc/aiceberg/agent.env (edite depois)
 ```
-
-### Linux (RHEL/Alma/Rocky/Fedora)
-```bash
-sudo TOKEN=SEU_TOKEN_HERE rpm -i aiceberg-agent-<versao>.x86_64.rpm
-sudo systemctl status aiceberg-agent
-```
+Depois edite `/etc/aiceberg/agent.env` para definir `AGENT_TOKEN` e demais variáveis (`AGENT_MODE`, `HUB_URL`, `OSLOG_*` etc.), e reinicie o serviço se necessário.
 
 ## Onde ficam os arquivos
 - Windows: binário em `C:\Program Files\AIceberg\agent\agent.exe`; token/estado/logs em `C:\ProgramData\AIceberg\`.
 - macOS: `/usr/local/bin/aiceberg_agent` ou `/Library/AIceberg/agent`; dados em `/Library/AIceberg/`.
-- Linux: `/usr/local/bin/aiceberg_agent`; config em `/etc/aiceberg/config.yml`; dados/logs em `/var/lib/aiceberg/`.
+- Linux: `/usr/local/bin/aiceberg_agent`; env em `/etc/aiceberg/agent.env`; dados/logs em `/var/lib/aiceberg/`.
 
 ## Verificação pós-instalação
 1. Serviço: `sc query AIcebergAgent` (Win) / `launchctl list | grep aiceberg` (macOS) / `systemctl status aiceberg-agent` (Linux).
@@ -59,6 +56,8 @@ sudo systemctl status aiceberg-agent
 - Linux: `sudo apt remove aiceberg-agent` ou `sudo rpm -e aiceberg-agent`.
 
 ## Notas e suporte
-- A API de produção já é o padrão (`API_BASE_URL`); só altere se indicado pelo suporte.
+- A API de produção já é o padrão (`API_BASE_URL=https://api.aiceberg.com.br`); o agente acrescenta `/v1/...` automaticamente.
+- Modos: `AGENT_MODE=direct|hub|relay`; em hub/relay configure `HUB_URL/HUB_TOKEN/HUB_LISTEN_ADDR`, `SKIP_BOOTSTRAP` se relay não tiver acesso à API.
+- Logs (SOC): habilite com `OSLOG_ENABLED=true`. Linux: liste arquivos em `OSLOG_FILES`; Windows: coleta canais Security/System/Application/Sysmon via Event Log. Cursor em `OSLOG_CURSOR_PATH`.
 - O token fica salvo localmente para sobrevivência a reboot/upgrade.
 - Em caso de bloqueio de rede, permitir tráfego HTTPS de saída para `api.aiceberg.com.br`. Log local: veja o diretório de dados/logs citado acima.

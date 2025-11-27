@@ -30,6 +30,9 @@ func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
 	}
 
 	hostname, _ := os.Hostname()
+	if data == nil {
+		return nil
+	}
 	env := entities.Envelope{
 		ID:            genID(),
 		SchemaVersion: 1,
