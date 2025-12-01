@@ -32,6 +32,7 @@ type Config struct {
 	OSLogBatchLines    int
 	OSLogMaxBytes      int
 	OSLogInterval      time.Duration
+	OSLogWinChannels   []string
 }
 
 type CollectPrefs struct {
@@ -65,22 +66,23 @@ func Load(_ string) (Config, error) {
 	pingInterval := time.Duration(intEnv("PING_INTERVAL", 5)) * time.Second
 	cfgSyncInterval := time.Duration(intEnv("CONFIG_SYNC_INTERVAL", 30)) * time.Second
 	cfg := Config{
-		Agent:         AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
-		APIBaseURL:    getenv("API_BASE_URL", "https://api.aiceberg.com.br"),
-		APIKey:        getenv("API_KEY", ""),
-		HealthPort:    port,
-		PrefsPath:     getenv("PREFS_PATH", "./data/collect_prefs.json"),
-		AgentMode:     strings.ToLower(getenv("AGENT_MODE", "direct")),
-		HubURL:        getenv("HUB_URL", ""),
-		HubToken:      getenv("HUB_TOKEN", ""),
-		HubListenAddr: getenv("HUB_LISTEN_ADDR", ""),
-		SkipBootstrap: strings.ToLower(getenv("SKIP_BOOTSTRAP", "")) == "true",
-		OSLogEnabled:  strings.ToLower(getenv("OSLOG_ENABLED", "")) == "true",
-		OSLogFiles:    splitCsv(getenv("OSLOG_FILES", "")),
-		OSLogCursorPath: getenv("OSLOG_CURSOR_PATH", "./data/oslogs.cursor"),
-		OSLogBatchLines: intEnv("OSLOG_BATCH_LINES", 200),
-		OSLogMaxBytes:   intEnv("OSLOG_MAX_BYTES", 256*1024),
-		OSLogInterval:   time.Duration(intEnv("OSLOG_INTERVAL", 15)) * time.Second,
+		Agent:            AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
+		APIBaseURL:       getenv("API_BASE_URL", "https://api.aiceberg.com.br"),
+		APIKey:           getenv("API_KEY", ""),
+		HealthPort:       port,
+		PrefsPath:        getenv("PREFS_PATH", "./data/collect_prefs.json"),
+		AgentMode:        strings.ToLower(getenv("AGENT_MODE", "direct")),
+		HubURL:           getenv("HUB_URL", ""),
+		HubToken:         getenv("HUB_TOKEN", ""),
+		HubListenAddr:    getenv("HUB_LISTEN_ADDR", ""),
+		SkipBootstrap:    strings.ToLower(getenv("SKIP_BOOTSTRAP", "")) == "true",
+		OSLogEnabled:     strings.ToLower(getenv("OSLOG_ENABLED", "")) == "true",
+		OSLogFiles:       splitCsv(getenv("OSLOG_FILES", "")),
+		OSLogCursorPath:  getenv("OSLOG_CURSOR_PATH", "./data/oslogs.cursor"),
+		OSLogBatchLines:  intEnv("OSLOG_BATCH_LINES", 200),
+		OSLogMaxBytes:    intEnv("OSLOG_MAX_BYTES", 256*1024),
+		OSLogInterval:    time.Duration(intEnv("OSLOG_INTERVAL", 15)) * time.Second,
+		OSLogWinChannels: splitCsv(getenv("OSLOG_WIN_CHANNELS", "")),
 		PingInterval: func() time.Duration {
 			if pingInterval <= 0 {
 				return 5 * time.Second
