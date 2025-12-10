@@ -43,6 +43,8 @@ type Config struct {
 	OSLogMaxBytes      int
 	OSLogInterval      time.Duration
 	OSLogWinChannels   []string
+	OSLogEnrich        bool
+	OSLogDetections    bool
 	OSLogDiag          bool
 }
 
@@ -107,6 +109,8 @@ func Load(configPath string) (Config, error) {
 		OSLogMaxBytes:    intEnv("OSLOG_MAX_BYTES", 256*1024),
 		OSLogInterval:    time.Duration(intEnv("OSLOG_INTERVAL", 15)) * time.Second,
 		OSLogWinChannels: splitCsv(getenv("OSLOG_WIN_CHANNELS", "")),
+		OSLogEnrich:      strings.ToLower(getenv("OSLOG_ENRICH", "")) == "true",
+		OSLogDetections:  strings.ToLower(getenv("OSLOG_DETECTIONS", "")) == "true",
 		OSLogDiag:        strings.ToLower(getenv("OSLOG_DIAG", "")) == "true",
 		PingInterval: func() time.Duration {
 			if pingInterval <= 0 {

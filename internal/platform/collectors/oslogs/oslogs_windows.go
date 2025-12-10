@@ -29,6 +29,7 @@ type winCollector struct {
 	interval   time.Duration
 	diag       bool
 	errors     []string
+	detect     bool
 }
 
 type logEvent struct {
@@ -40,6 +41,7 @@ type logEvent struct {
 	Level     string `json:"level,omitempty"`
 	Computer  string `json:"computer,omitempty"`
 	Message   string `json:"message"`
+	Category  string `json:"category,omitempty"`
 }
 
 type payload struct {
@@ -59,6 +61,7 @@ func New(cfg config.Config) ports.Collector {
 		maxBytes:   cfg.OSLogMaxBytes,
 		interval:   cfg.OSLogInterval,
 		diag:       cfg.OSLogDiag,
+		detect:     cfg.OSLogDetections,
 	}
 }
 
@@ -81,6 +84,11 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 			c.errors = append(c.errors, "nenhum evento lido do canal "+ch)
 		}
 		if len(events) > 0 {
+			if c.detect {
+				for i := range events {
+					events[i].Category = windowsCategory(events[i].EventID, events[i].Message)
+				}
+			}
 			out = append(out, events...)
 			maxRec := last
 			for _, ev := range events {
@@ -174,6 +182,37 @@ func parseEventBlock(block, channel, hostname string, maxBytes int) logEvent {
 	}
 	ev.Message = msg
 	return ev
+}
+
+func windowsCategory(eventID uint64, msg string) string {
+	switch eventID {
+	case 4625, 4771, 4768, 4769:
+		return "auth_fail"
+	case 4624:
+		return "auth_success"
+	case 4672:
+		return "privilege_assigned"
+	case 4688:
+		return "process_start"
+	case 4697, 7045:
+		return "service_install"
+	case 4720:
+		return "user_create"
+	case 4726:
+		return "user_delete"
+	case 4728, 4732:
+		return "group_add"
+	case 4735:
+		return "group_change"
+	case 4740:
+		return "account_locked"
+	default:
+		l := strings.ToLower(msg)
+		if strings.Contains(l, "failed logon") {
+			return "auth_fail"
+		}
+		return ""
+	}
 }
 
 func loadCursorWin(path string) map[string]uint64 {

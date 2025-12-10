@@ -232,7 +232,12 @@ Na versão atual, o agente é **somente emissor** (envia dados) e opera em três
 - **Auto-update**: checar versão, baixar binário assinado, validar hash/assinatura e aplicar com rollback.
 - **Atualização acionada via API**: endpoint/ação remota que dispare o fluxo de update (download + validação + troca controlada) com confirmação no painel.
 - **Criptografia em repouso**: cifrar outbox/token em disco (Windows DPAPI, Linux/macOS chave local).
-- **Melhorias SOC**: normalização de logs, enriquecimento (geo/IP), integração com detecções locais simples.
+- **Melhorias SOC**: evoluir o que já temos (enrich/detections opt-in) para:
+  - Parsing completo de syslog (RFC3164/5424) e Event Log (provider/task/user, opcode, keywords).
+  - Categorias adicionais (ex.: RDP, firewall, kernel panics, privilege escalation, file integrity).
+  - Enriquecimento opcional (geo/IP reverso/local, tags de origem), mantendo opt-in.
+- **Descoberta de fontes de log**: ação remota (via API/painel) para o agente varrer destinos de log seguros (p.ex. `/var/log` com filtros e `wevtutil el` no Windows), devolver sugestões de paths/canais para o backend, e o usuário selecionar no painel o que habilitar na coleta.
+- **Suporte gRPC opcional**: canal de controle e ingest em streaming para ambientes de alto volume/baixa latência.
 - **Suporte gRPC opcional**: canal de controle e ingest em streaming para ambientes de alto volume/baixa latência.
 
 ---

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +28,8 @@ type collector struct {
 	interval   time.Duration
 	diag       bool
 	errors     []string
+	enrich     bool
+	detect     bool
 }
 
 func New(cfg config.Config) ports.Collector {
@@ -42,6 +45,8 @@ func New(cfg config.Config) ports.Collector {
 		cursor:     loadCursor(cfg.OSLogCursorPath),
 		interval:   cfg.OSLogInterval,
 		diag:       cfg.OSLogDiag,
+		enrich:     cfg.OSLogEnrich,
+		detect:     cfg.OSLogDetections,
 	}
 }
 
@@ -54,6 +59,12 @@ type logEvent struct {
 	Source    string `json:"source,omitempty"`
 	File      string `json:"file"`
 	Message   string `json:"message"`
+	App       string `json:"app,omitempty"`
+	PID       string `json:"pid,omitempty"`
+	Level     string `json:"level,omitempty"`
+	Facility  string `json:"facility,omitempty"`
+	Severity  string `json:"severity,omitempty"`
+	Category  string `json:"category,omitempty"`
 }
 
 type payload struct {
@@ -109,14 +120,33 @@ func (c *collector) readFile(path, hostname string) []logEvent {
 	for len(out) < c.batchLines {
 		line, err := r.ReadString('\n')
 		if line != "" {
-			if len(line) > c.maxBytes {
-				line = line[:c.maxBytes]
+			line = strings.TrimRight(line, "\r\n")
+			app, pid, lvl, severity, facility, msg := "", "", "", "", "", line
+			if c.enrich {
+				a, p, l, sev, fac, m := parseSyslog(line, c.maxBytes)
+				if m != "" {
+					msg = m
+				}
+				app, pid, lvl, severity, facility = a, p, l, sev, fac
+			}
+			if len(msg) > c.maxBytes {
+				msg = msg[:c.maxBytes]
+			}
+			category := ""
+			if c.detect {
+				category = detectUnixCategory(msg)
 			}
 			out = append(out, logEvent{
 				Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 				Source:    hostname,
 				File:      path,
-				Message:   line,
+				Message:   msg,
+				App:       app,
+				PID:       pid,
+				Level:     lvl,
+				Severity:  severity,
+				Facility:  facility,
+				Category:  category,
 			})
 		}
 		if err != nil {
@@ -160,4 +190,146 @@ func saveCursor(path string, cur map[string]int64) error {
 
 func formatDiagError(errs []string) error {
 	return fmt.Errorf("oslogs: %s", strings.Join(errs, "; "))
+}
+
+// parseSyslog tenta extrair app, pid, level e mensagem de uma linha estilo syslog.
+func parseSyslog(line string, maxBytes int) (app, pid, level, severity, facility, msg string) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return
+	}
+	msg = line
+	if strings.HasPrefix(msg, "<") {
+		if end := strings.Index(msg, ">"); end > 1 {
+			if pri, err := strconv.Atoi(msg[1:end]); err == nil {
+				severity = severityName(pri & 7)
+				facility = facilityName(pri >> 3)
+			}
+			msg = strings.TrimSpace(msg[end+1:])
+		}
+	}
+	if len(msg) > maxBytes {
+		msg = msg[:maxBytes]
+	}
+	if idx := strings.Index(msg, ":"); idx >= 0 {
+		header := strings.TrimSpace(msg[:idx])
+		msg = strings.TrimSpace(msg[idx+1:])
+		fields := strings.Fields(header)
+		if len(fields) > 0 {
+			appPid := fields[len(fields)-1]
+			app, pid = splitAppPid(appPid)
+		}
+	}
+	level = severity
+	if level == "" {
+		level = detectLevel(msg)
+	}
+	return
+}
+
+func splitAppPid(s string) (app, pid string) {
+	if i := strings.Index(s, "["); i >= 0 {
+		app = s[:i]
+		if j := strings.Index(s[i:], "]"); j > 0 {
+			pid = s[i+1 : i+j]
+		}
+		return app, pid
+	}
+	return s, ""
+}
+
+func detectLevel(msg string) string {
+	l := strings.ToLower(strings.TrimSpace(msg))
+	switch {
+	case strings.HasPrefix(l, "err"), strings.HasPrefix(l, "fail"):
+		return "error"
+	case strings.HasPrefix(l, "warn"):
+		return "warning"
+	case strings.HasPrefix(l, "crit"), strings.HasPrefix(l, "fatal"), strings.HasPrefix(l, "panic"):
+		return "critical"
+	case strings.HasPrefix(l, "info"):
+		return "info"
+	case strings.HasPrefix(l, "debug"):
+		return "debug"
+	default:
+		return ""
+	}
+}
+
+func severityName(code int) string {
+	switch code {
+	case 0:
+		return "emergency"
+	case 1:
+		return "alert"
+	case 2:
+		return "critical"
+	case 3:
+		return "error"
+	case 4:
+		return "warning"
+	case 5:
+		return "notice"
+	case 6:
+		return "info"
+	case 7:
+		return "debug"
+	default:
+		return ""
+	}
+}
+
+func facilityName(code int) string {
+	switch code {
+	case 0:
+		return "kernel"
+	case 1:
+		return "user"
+	case 2:
+		return "mail"
+	case 3:
+		return "daemon"
+	case 4:
+		return "auth"
+	case 5:
+		return "syslog"
+	case 6:
+		return "lpr"
+	case 7:
+		return "news"
+	case 8:
+		return "uucp"
+	case 9:
+		return "cron"
+	case 10:
+		return "authpriv"
+	case 11:
+		return "ftp"
+	default:
+		return ""
+	}
+}
+
+func detectUnixCategory(msg string) string {
+	l := strings.ToLower(msg)
+	switch {
+	case strings.Contains(l, "failed password") || strings.Contains(l, "authentication failure") || strings.Contains(l, "invalid user"):
+		return "auth_fail"
+	case strings.Contains(l, "session opened for user") || strings.Contains(l, "accepted password"):
+		return "auth_success"
+	case strings.Contains(l, "sudo:") && strings.Contains(l, "authentication failure"):
+		return "sudo_fail"
+	case strings.Contains(l, "sudo:") && strings.Contains(l, "tty="):
+		return "sudo_use"
+	case strings.Contains(l, "pam_unix"):
+		return "pam_event"
+	case strings.Contains(l, "segfault"):
+		return "crash"
+	case strings.Contains(l, "oom-killer") || strings.Contains(l, "out of memory"):
+		return "oom"
+	case strings.Contains(l, "service:") && strings.Contains(l, "state"):
+		return "service_state"
+	default:
+		return ""
+	}
 }
