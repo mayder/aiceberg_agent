@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
@@ -23,14 +24,16 @@ func NewCollectAndBuffer(c ports.Collector, o ports.OutboxRepo, l logger.Logger,
 }
 
 func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
+	start := time.Now()
 	data, err := uc.collector.Collect(ctx) // []byte
 	if err != nil {
-		uc.log.Error("collect: " + err.Error())
+		uc.log.Error("collect failed: " + err.Error())
 		return err
 	}
 
 	hostname, _ := os.Hostname()
 	if data == nil {
+		uc.log.Info("collect empty")
 		return nil
 	}
 	env := entities.Envelope{
@@ -45,10 +48,10 @@ func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
 	}
 
 	if err := uc.outbox.Append(env); err != nil {
-		uc.log.Error("outbox append: " + err.Error())
+		uc.log.Error("outbox append failed: " + err.Error())
 		return err
 	}
-	uc.log.Info("buffered: " + env.ID)
+	uc.log.Info("collect buffered id=" + env.ID + " duration_ms=" + strconv.FormatInt(time.Since(start).Milliseconds(), 10))
 	return nil
 }
 

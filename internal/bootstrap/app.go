@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/shirou/gopsutil/v3/host"
+	ps "github.com/shirou/gopsutil/v3/process"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/httpx"
@@ -34,6 +35,7 @@ import (
 )
 
 func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
+	startedAt := time.Now()
 	// Adapters mínimos
 	store := selectOutbox(cfg, log)
 	outboxRepo := repositories.NewOutboxRepository(store)
@@ -44,7 +46,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 
 	if !cfg.SkipBootstrap {
 		if err := bootstrap(ctx, cfg, log); err != nil {
-			log.Fatal("bootstrap failed", "err", err)
+			log.Fatal("bootstrap failed", "op", "bootstrap", "err", err)
 		}
 	}
 
@@ -62,6 +64,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	} else {
 		tx = transport.NewHTTPJSONClient(cfg)
 	}
+
+	proc := processHandle()
 
 	collector := sysmetrics.New(outboxRepo.Len, prefStore.Get)
 	collectUC := usecase.NewCollectAndBuffer(collector, outboxRepo, log, authHeader)
@@ -96,13 +100,21 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				items += oi
 				bytes += ob
 			}
+			procRSS, procCPU := procStats(proc)
 			return health.Snapshot{
-				Status:     "ok",
-				QueueItems: items,
-				QueueBytes: bytes,
-				FlushOK:    counters.flushOK.Load(),
-				FlushErr:   counters.flushErr.Load(),
-				CollectErr: counters.collectErr.Load(),
+				Status:         "ok",
+				QueueItems:     items,
+				QueueBytes:     bytes,
+				FlushOK:        counters.flushOK.Load(),
+				FlushErr:       counters.flushErr.Load(),
+				CollectErr:     counters.collectErr.Load(),
+				UptimeSec:      int64(time.Since(startedAt).Seconds()),
+				ProcRSS:        procRSS,
+				ProcCPU:        procCPU,
+				Goroutines:     runtime.NumGoroutine(),
+				LastCollectMs:  counters.lastCollectMs.Load(),
+				LastFlushMs:    counters.lastFlushMs.Load(),
+				LastFlushBatch: counters.lastFlushBatch.Load(),
 			}
 		})
 	}
@@ -147,21 +159,29 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			log.Info("shutdown")
 			return nil
 		case <-tCollect.C:
+			start := time.Now()
 			if err := collectUC.Execute(ctx); err != nil {
 				counters.collectErr.Add(1)
 			}
+			counters.lastCollectMs.Store(time.Since(start).Milliseconds())
 		case <-tFlush.C:
-			if err := flushUC.Execute(ctx); err != nil {
+			start := time.Now()
+			if n, err := flushUC.Execute(ctx); err != nil {
 				counters.flushErr.Add(1)
 			} else {
 				counters.flushOK.Add(1)
+				counters.lastFlushBatch.Store(int64(n))
 			}
+			counters.lastFlushMs.Store(time.Since(start).Milliseconds())
 			if osLogFlushUC != nil {
-				if err := osLogFlushUC.Execute(ctx); err != nil {
+				start := time.Now()
+				if n, err := osLogFlushUC.Execute(ctx); err != nil {
 					counters.flushErr.Add(1)
 				} else {
 					counters.flushOK.Add(1)
+					counters.lastFlushBatch.Store(int64(n))
 				}
+				counters.lastFlushMs.Store(time.Since(start).Milliseconds())
 			}
 		case <-readTick(tPing):
 			_ = pingUC.Execute(ctx)
@@ -277,9 +297,33 @@ func selectOutbox(cfg config.Config, log logger.Logger) repositories.Store {
 }
 
 type obsCounters struct {
-	flushOK    atomic.Int64
-	flushErr   atomic.Int64
-	collectErr atomic.Int64
+	flushOK        atomic.Int64
+	flushErr       atomic.Int64
+	collectErr     atomic.Int64
+	lastCollectMs  atomic.Int64
+	lastFlushMs    atomic.Int64
+	lastFlushBatch atomic.Int64
+}
+
+func processHandle() *ps.Process {
+	p, err := ps.NewProcess(int32(os.Getpid()))
+	if err != nil {
+		return nil
+	}
+	return p
+}
+
+func procStats(p *ps.Process) (rss int64, cpu float64) {
+	if p == nil {
+		return 0, 0
+	}
+	if mi, err := p.MemoryInfo(); err == nil {
+		rss = int64(mi.RSS)
+	}
+	if pct, err := p.CPUPercent(); err == nil {
+		cpu = pct
+	}
+	return rss, cpu
 }
 
 func persistToken(token string) error {

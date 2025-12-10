@@ -47,7 +47,7 @@ Depois edite `/etc/aiceberg/agent.env` para definir `AGENT_TOKEN` e demais vari�
 
 ## Verificação pós-instalação
 1. Serviço: `sc query AIcebergAgent` (Win) / `launchctl list | grep aiceberg` (macOS) / `systemctl status aiceberg-agent` (Linux).
-2. Health local (se habilitado): `http://localhost:8081/health` deve responder `ok`.
+2. Health/metrics locais (se habilitado `HEALTH_PORT`): `http://localhost:8081/health` (JSON com fila/contadores/version) e `http://localhost:8081/metrics` (formato Prometheus) devem responder.
 3. Painel: confirme “último check-in” e, opcionalmente, use o botão de ping remoto para validar presença online.
 
 ## Desinstalação

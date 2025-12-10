@@ -21,6 +21,8 @@ const serviceName = "AIcebergAgent"
 var configPath = flag.String("config", "", "path to config file (.env|.json|.yaml)")
 
 func main() {
+	flag.Parse()
+
 	isSvc, err := svc.IsWindowsService()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "svc detection failed: %v\n", err)
@@ -28,7 +30,6 @@ func main() {
 	}
 
 	if !isSvc {
-		flag.Parse()
 		runForeground()
 		return
 	}

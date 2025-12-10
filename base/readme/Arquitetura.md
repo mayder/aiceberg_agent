@@ -214,16 +214,25 @@ Na versão atual, o agente é **somente emissor** (envia dados) e opera em três
 
 ---
 
+## ✅ Entregue na versão atual
+- Modos de operação: `direct` / `relay` / `hub` com bootstrap por token, ping remoto e config-sync.
+- Transporte HTTP com gzip opcional e `Idempotency-Key`, respeitando proxy/TLS e opção de skip verify em teste.
+- Outbox persistente em bbolt (fallback memória) com limites configuráveis e GC de itens antigos.
+- Coleta de sysmetrics (CPU/mem/disco/rede/serviços/net_active/sensores/power/gpu/time_sync/updates/processes).
+- Coleta de logs do SO (files e Event Log) com cursor e modo diagnóstico.
+- Observabilidade interna: `/health` e `/metrics` com fila, contadores de flush/coleta, uptime, CPU/RSS do processo, goroutines e tempos/tamanho do último flush/coleta.
+- Instaladores/scritps para systemd, launchd e serviço Windows nativo (service-aware).
+
+---
+
 ## 🌱 Backlog de Evoluções (sugestões)
 
 - **Políticas remotas**: receber prefs de coleta/SOC, ativar/desativar coletores, lista de paths/canais de log.
 - **Execução controlada**: allowlist de ações (reiniciar serviço, rodar script de verificação), com auditoria e ACK.
 - **Auto-update**: checar versão, baixar binário assinado, validar hash/assinatura e aplicar com rollback.
 - **Atualização acionada via API**: endpoint/ação remota que dispare o fluxo de update (download + validação + troca controlada) com confirmação no painel.
-- **Proteções de recurso**: limites de CPU/RAM/disk para o agente, backoff agressivo em pressão de recursos.
 - **Criptografia em repouso**: cifrar outbox/token em disco (Windows DPAPI, Linux/macOS chave local).
 - **Melhorias SOC**: normalização de logs, enriquecimento (geo/IP), integração com detecções locais simples.
-- **Observabilidade interna**: expor métricas (Prometheus/OpenMetrics) e tracing opcional para depuração.
 - **Suporte gRPC opcional**: canal de controle e ingest em streaming para ambientes de alto volume/baixa latência.
 
 ---

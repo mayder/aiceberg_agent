@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
@@ -20,12 +21,14 @@ func NewFlushOutbox(o ports.OutboxRepo, t ports.Transport, l logger.Logger, defa
 	return &FlushOutbox{o, t, l, defaultAuth}
 }
 
-func (uc *FlushOutbox) Execute(ctx context.Context) error {
+// Execute envia um lote da outbox; retorna quantos envelopes foram ackados.
+func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 	batch, err := uc.outbox.ReadBatch(50)
 	if err != nil || len(batch) == 0 {
-		return err
+		return 0, err
 	}
 
+	start := time.Now()
 	grouped := make(map[string][]entities.Envelope)
 	for _, e := range batch {
 		h := e.AuthHeader
@@ -37,8 +40,8 @@ func (uc *FlushOutbox) Execute(ctx context.Context) error {
 
 	for auth, list := range grouped {
 		if err := uc.tx.SendWithAuth(list, auth); err != nil {
-			uc.log.Error("transport: " + err.Error())
-			return err
+			uc.log.Error("transport failed: " + err.Error())
+			return 0, err
 		}
 	}
 
@@ -47,9 +50,9 @@ func (uc *FlushOutbox) Execute(ctx context.Context) error {
 		ids = append(ids, e.ID)
 	}
 	if err := uc.outbox.Ack(ids); err != nil {
-		uc.log.Error("ack: " + err.Error())
-		return err
+		uc.log.Error("ack failed: " + err.Error())
+		return 0, err
 	}
-	uc.log.Info("flushed: ack=" + strconv.Itoa(len(ids)))
-	return nil
+	uc.log.Info("flushed ack=" + strconv.Itoa(len(ids)) + " duration_ms=" + strconv.FormatInt(time.Since(start).Milliseconds(), 10))
+	return len(ids), nil
 }

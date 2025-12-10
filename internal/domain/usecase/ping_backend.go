@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -32,11 +33,21 @@ func NewPingBackend(cfg config.Config, log logger.Logger) *PingBackend {
 }
 
 func (uc *PingBackend) Execute(ctx context.Context) error {
+	start := time.Now()
 	challenge, err := uc.fetchChallenge(ctx)
 	if err != nil || challenge == "" {
+		if err != nil {
+			uc.log.Error("ping challenge failed: " + err.Error())
+		}
 		return err
 	}
-	return uc.sendAck(ctx, challenge)
+	err = uc.sendAck(ctx, challenge)
+	if err != nil {
+		uc.log.Error("ping ack failed: " + err.Error())
+		return err
+	}
+	uc.log.Info("ping ack sent challenge=" + challenge + " duration_ms=" + strconv.FormatInt(time.Since(start).Milliseconds(), 10))
+	return nil
 }
 
 func (uc *PingBackend) fetchChallenge(ctx context.Context) (string, error) {

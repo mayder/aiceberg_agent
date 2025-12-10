@@ -38,7 +38,7 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 
 	resp, err := uc.cl.Do(req)
 	if err != nil {
-		uc.log.Error("config sync: " + err.Error())
+		uc.log.Error("config sync failed: " + err.Error())
 		return err
 	}
 	defer resp.Body.Close()
@@ -67,7 +67,7 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 	}
 
 	if err := uc.store.Update(payload.Collect); err != nil {
-		uc.log.Error("config persist: " + err.Error())
+		uc.log.Error("config persist failed: " + err.Error())
 		return err
 	}
 	uc.log.Info("config sync ok version=" + payload.Collect.Version)

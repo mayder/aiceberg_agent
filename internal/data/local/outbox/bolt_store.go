@@ -15,11 +15,12 @@ import (
 
 // BoltStore persistente com limites de tamanho e coleta simples por lote.
 type BoltStore struct {
-	path   string
-	maxMB  int
-	db     *bolt.DB
-	mu     sync.Mutex
-	bucket []byte
+	path     string
+	maxMB    int
+	db       *bolt.DB
+	mu       sync.Mutex
+	bucket   []byte
+	maxBytes int64
 }
 
 func NewBoltStore(path string, maxMB int) (*BoltStore, error) {
@@ -29,6 +30,7 @@ func NewBoltStore(path string, maxMB int) (*BoltStore, error) {
 	if maxMB <= 0 {
 		maxMB = 100
 	}
+	maxBytes := int64(maxMB) * 1024 * 1024
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
@@ -36,7 +38,7 @@ func NewBoltStore(path string, maxMB int) (*BoltStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	store := &BoltStore{path: path, maxMB: maxMB, db: db, bucket: []byte("outbox")}
+	store := &BoltStore{path: path, maxMB: maxMB, maxBytes: maxBytes, db: db, bucket: []byte("outbox")}
 	if err := store.init(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -63,8 +65,7 @@ func (b *BoltStore) Push(e entities.Envelope) error {
 	key := []byte(e.ID)
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	// Checa espaço aproximado.
-	if ok, err := b.withinLimit(len(raw)); err != nil {
+	if ok, err := b.withinLimit(int64(len(raw))); err != nil {
 		return err
 	} else if !ok {
 		return errors.New("outbox full (max MB reached)")
@@ -119,12 +120,7 @@ func (b *BoltStore) Len() (int, int64) {
 	var count int
 	var bytes int64
 	_ = b.db.View(func(tx *bolt.Tx) error {
-		bk := tx.Bucket(b.bucket)
-		c := bk.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			count++
-			bytes += int64(len(v))
-		}
+		count, bytes = bucketStats(tx, b.bucket)
 		return nil
 	})
 	return count, bytes
@@ -134,33 +130,39 @@ func (b *BoltStore) Len() (int, int64) {
 func (b *BoltStore) GC() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	ok, err := b.withinLimit(0)
-	if err != nil || ok {
-		return err
-	}
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bk := tx.Bucket(b.bucket)
 		c := bk.Cursor()
-		var bytes int64
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			bytes += int64(len(v))
-			if bytes/1024/1024 > int64(b.maxMB) {
-				_ = bk.Delete(k)
-			}
+		_, curBytes := bucketStats(tx, b.bucket)
+		for k, v := c.First(); k != nil && curBytes > b.maxBytes; k, v = c.Next() {
+			curBytes -= int64(len(v))
+			_ = bk.Delete(k)
 		}
 		return nil
 	})
 }
 
-func (b *BoltStore) withinLimit(nextBytes int) (bool, error) {
-	info, err := os.Stat(b.path)
-	if err != nil && !os.IsNotExist(err) {
+func (b *BoltStore) withinLimit(nextBytes int64) (bool, error) {
+	var curBytes int64
+	err := b.db.View(func(tx *bolt.Tx) error {
+		_, curBytes = bucketStats(tx, b.bucket)
+		return nil
+	})
+	if err != nil {
 		return false, err
 	}
-	var size int64
-	if info != nil {
-		size = info.Size()
+	return curBytes+nextBytes <= b.maxBytes, nil
+}
+
+func bucketStats(tx *bolt.Tx, bucket []byte) (count int, bytes int64) {
+	bk := tx.Bucket(bucket)
+	if bk == nil {
+		return 0, 0
 	}
-	size += int64(nextBytes)
-	return size/1024/1024 < int64(b.maxMB), nil
+	c := bk.Cursor()
+	for k, v := c.First(); k != nil; k, v = c.Next() {
+		count++
+		bytes += int64(len(v))
+	}
+	return count, bytes
 }
