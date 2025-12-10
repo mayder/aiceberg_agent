@@ -1,11 +1,16 @@
 package config
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 type AgentCfg struct {
@@ -17,6 +22,11 @@ type Config struct {
 	Agent              AgentCfg
 	APIBaseURL         string
 	APIKey             string
+	HTTPGzip           bool
+	HTTPIdempotency    bool
+	TLSInsecureSkip    bool
+	OutboxPath         string
+	OutboxMaxMB        int
 	HealthPort         int
 	PingInterval       time.Duration
 	ConfigSyncInterval time.Duration
@@ -33,6 +43,7 @@ type Config struct {
 	OSLogMaxBytes      int
 	OSLogInterval      time.Duration
 	OSLogWinChannels   []string
+	OSLogDiag          bool
 }
 
 type CollectPrefs struct {
@@ -56,7 +67,15 @@ type CollectPrefs struct {
 	Processes bool   `json:"processes"`
 }
 
-func Load(_ string) (Config, error) {
+func Load(configPath string) (Config, error) {
+	// Carrega envs de arquivo (flag -config ou AGENT_ENV_FILE) sem sobrescrever o que já está no ambiente.
+	envFile := getenv("AGENT_ENV_FILE", "")
+	if configPath != "" {
+		loadEnvFile(configPath)
+	} else if envFile != "" {
+		loadEnvFile(envFile)
+	}
+
 	port := 0
 	if v := os.Getenv("HEALTH_PORT"); v != "" {
 		if p, err := strconv.Atoi(v); err == nil {
@@ -69,6 +88,11 @@ func Load(_ string) (Config, error) {
 		Agent:            AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
 		APIBaseURL:       getenv("API_BASE_URL", "https://api.aiceberg.com.br"),
 		APIKey:           getenv("API_KEY", ""),
+		HTTPGzip:         strings.ToLower(getenv("HTTP_GZIP", "")) == "true",
+		HTTPIdempotency:  strings.ToLower(getenv("HTTP_IDEMPOTENCY", "true")) == "true",
+		TLSInsecureSkip:  strings.ToLower(getenv("TLS_INSECURE_SKIP_VERIFY", "")) == "true",
+		OutboxPath:       getenv("OUTBOX_PATH", "./data/outbox.db"),
+		OutboxMaxMB:      intEnv("OUTBOX_MAX_MB", 200),
 		HealthPort:       port,
 		PrefsPath:        getenv("PREFS_PATH", "./data/collect_prefs.json"),
 		AgentMode:        strings.ToLower(getenv("AGENT_MODE", "direct")),
@@ -83,6 +107,7 @@ func Load(_ string) (Config, error) {
 		OSLogMaxBytes:    intEnv("OSLOG_MAX_BYTES", 256*1024),
 		OSLogInterval:    time.Duration(intEnv("OSLOG_INTERVAL", 15)) * time.Second,
 		OSLogWinChannels: splitCsv(getenv("OSLOG_WIN_CHANNELS", "")),
+		OSLogDiag:        strings.ToLower(getenv("OSLOG_DIAG", "")) == "true",
 		PingInterval: func() time.Duration {
 			if pingInterval <= 0 {
 				return 5 * time.Second
@@ -162,4 +187,105 @@ func intEnv(key string, def int) int {
 		}
 	}
 	return def
+}
+
+// loadEnvFile lê um arquivo (env-style, JSON ou YAML simples) e injeta variáveis de ambiente
+// somente quando ainda não existem no ambiente atual.
+func loadEnvFile(path string) {
+	if path == "" {
+		return
+	}
+	vars := parseConfigFile(path)
+	for k, v := range vars {
+		if os.Getenv(k) == "" {
+			_ = os.Setenv(k, v)
+		}
+	}
+}
+
+func parseConfigFile(path string) map[string]string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return map[string]string{}
+	}
+	raw := strings.TrimSpace(string(b))
+	if raw == "" {
+		return map[string]string{}
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".json":
+		return parseJSONMap(raw)
+	case ".yaml", ".yml":
+		if m := parseYAMLMap(raw); len(m) > 0 {
+			return m
+		}
+	}
+	if m := parseEnvLines(raw); len(m) > 0 {
+		return m
+	}
+	// fallback: tentar JSON por último mesmo se extensão diferente
+	return parseJSONMap(raw)
+}
+
+func parseJSONMap(raw string) map[string]string {
+	var data map[string]any
+	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+		return map[string]string{}
+	}
+	return flattenStringMap(data, "")
+}
+
+func parseYAMLMap(raw string) map[string]string {
+	var data map[string]any
+	if err := yaml.Unmarshal([]byte(raw), &data); err != nil {
+		return map[string]string{}
+	}
+	return flattenStringMap(data, "")
+}
+
+// parseEnvLines lê formato KEY=VALUE ou KEY: VALUE (ignora linhas vazias/# comentário).
+func parseEnvLines(raw string) map[string]string {
+	out := map[string]string{}
+	sc := bufio.NewScanner(strings.NewReader(raw))
+	for sc.Scan() {
+		ln := strings.TrimSpace(sc.Text())
+		if ln == "" || strings.HasPrefix(ln, "#") {
+			continue
+		}
+		sep := strings.IndexAny(ln, "=:")
+		if sep <= 0 {
+			continue
+		}
+		k := strings.TrimSpace(ln[:sep])
+		v := strings.TrimSpace(ln[sep+1:])
+		if k != "" {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// flattenStringMap achata mapas simples convertendo valores em string.
+func flattenStringMap(in map[string]any, prefix string) map[string]string {
+	out := map[string]string{}
+	for k, v := range in {
+		key := k
+		if prefix != "" {
+			key = prefix + "." + k
+		}
+		switch val := v.(type) {
+		case string:
+			out[key] = val
+		case fmt.Stringer:
+			out[key] = val.String()
+		case map[string]any:
+			for nk, nv := range flattenStringMap(val, key) {
+				out[nk] = nv
+			}
+		default:
+			out[key] = fmt.Sprint(val)
+		}
+	}
+	return out
 }

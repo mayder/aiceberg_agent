@@ -25,7 +25,7 @@ func NewConfigSync(cfg config.Config, log logger.Logger, store *prefs.Store) *Co
 		cfg:   cfg,
 		log:   log,
 		store: store,
-		cl:    &http.Client{Timeout: 8 * time.Second},
+		cl:    httpx.NewClient(cfg, 8*time.Second),
 	}
 }
 

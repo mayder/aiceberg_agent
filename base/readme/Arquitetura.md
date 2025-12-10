@@ -2,7 +2,7 @@
 
 Este documento descreve a **arquitetura técnica do AIceberg Agent**, seu design modular, camadas, responsabilidades, e o fluxo de comunicação com o backend do **AIceberg**.
 
-O agente foi projetado com base em princípios **SOLID**, **Clean Architecture** e **Ports & Adapters**, permitindo fácil evolução, testabilidade e portabilidade entre sistemas operacionais (Linux e Windows).
+O agente foi projetado com base em princípios **SOLID**, **Clean Architecture** e **Ports & Adapters**, permitindo fácil evolução, testabilidade e portabilidade entre sistemas operacionais (Linux, macOS e Windows).
 
 ---
 
@@ -15,8 +15,7 @@ O **AIceberg Agent** é um serviço residente (daemon / Windows Service) respons
 3. **Enviar** pacotes batelados (JSON comprimido) ao backend via **HTTP + JSON**.
 4. **Manter** um canal de comunicação seguro e resiliente com o servidor AIceberg.
 
-Na primeira versão (v0.1), o agente é **somente emissor** (envia dados).  
-Versões futuras incluirão recepção de políticas, execução de comandos e atualizações remotas.
+Na versão atual, o agente é **somente emissor** (envia dados) e opera em três modos: `direct` (API), `relay` (envia para hub) e `hub` (recebe ingest e repassa para a API). Há bootstrap por token, configuração remota (`/v1/agent/config`), ping remoto e health local com contadores de fila e erros. Planeja-se no futuro: políticas remotas, execução de comandos e autoatualização.
 
 ---
 
@@ -28,25 +27,24 @@ Versões futuras incluirão recepção de políticas, execução de comandos e a
 | (composition root / entrypoint principal) |
 +----------------------------------------------------+
 | app |
-| Orquestra o ciclo de vida e dependências |
+| Orquestra ciclo de vida e dependências |
 +----------------------------------------------------+
 | internal/common |
-| - config: carrega YAML |
+| - config: env/.env/.json/.yaml + overrides por env |
 | - logger: abstração de log |
-| - health: endpoint local opcional |
+| - health: endpoint local opcional (/health JSON) |
+| - httpx: clientes HTTP (proxy/TLS, idempotência, gzip) |
+| - version: versão do agente |
 +----------------------------------------------------+
 | ports (interfaces) |
-| Definem contratos: Collector, Queue, Transport |
+| Collector, OutboxRepo, Transport |
 +----------------------------------------------------+
 | implementations (adapters) |
-| - collectors/noc/sysmetrics: coleta de sistema |
-| - queue/bolt: fila local persistente |
-| - ingest/httpjson: envio HTTP + JSON gzip/zstd |
-| - ingest/batcher: agrega e envia em lotes |
-+----------------------------------------------------+
-| pkg (entidades) |
-| - types/envelope: DTOs de telemetria |
-| - version: versão do agente |
+| - collectors/sysmetrics: CPU/mem/disco/rede/services/ |
+|   net_active/sensors/power/gpu/time_sync/updates/processes |
+| - collectors/oslogs: tail de arquivos (Unix) e Event Log (Win) |
+| - outbox: bbolt persistente (fallback memória) |
+| - transport: HTTP JSON ingest/logs, hub client |
 +----------------------------------------------------+
 ```
 
@@ -208,10 +206,25 @@ Versões futuras incluirão recepção de políticas, execução de comandos e a
 | Versão   | Principais recursos                                       |
 | -------- | --------------------------------------------------------- |
 | **v0.1** | Envio HTTP/JSON (métricas básicas, fila offline)          |
-| **v0.2** | Heartbeat, compressão zstd, retry/backoff refinado        |
-| **v0.3** | Canal de controle (long-poll), ACK remoto                 |
-| **v0.4** | Atualização remota, assinatura de binários                |
+| **v0.2** | Heartbeat/ping remoto, ingest gzip + Idempotency-Key      |
+| **v0.3** | Outbox persistente (bbolt), coleta de logs OS, health com counters |
+| **v0.4** | Canal de controle (long-poll), ACK remoto                 |
+| **v0.5** | Atualização remota, assinatura de binários                |
 | **v1.0** | Transição opcional para gRPC + Protobuf com stream duplex |
+
+---
+
+## 🌱 Backlog de Evoluções (sugestões)
+
+- **Políticas remotas**: receber prefs de coleta/SOC, ativar/desativar coletores, lista de paths/canais de log.
+- **Execução controlada**: allowlist de ações (reiniciar serviço, rodar script de verificação), com auditoria e ACK.
+- **Auto-update**: checar versão, baixar binário assinado, validar hash/assinatura e aplicar com rollback.
+- **Atualização acionada via API**: endpoint/ação remota que dispare o fluxo de update (download + validação + troca controlada) com confirmação no painel.
+- **Proteções de recurso**: limites de CPU/RAM/disk para o agente, backoff agressivo em pressão de recursos.
+- **Criptografia em repouso**: cifrar outbox/token em disco (Windows DPAPI, Linux/macOS chave local).
+- **Melhorias SOC**: normalização de logs, enriquecimento (geo/IP), integração com detecções locais simples.
+- **Observabilidade interna**: expor métricas (Prometheus/OpenMetrics) e tracing opcional para depuração.
+- **Suporte gRPC opcional**: canal de controle e ingest em streaming para ambientes de alto volume/baixa latência.
 
 ---
 

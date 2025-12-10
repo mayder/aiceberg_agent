@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/beevik/ntp"
@@ -432,13 +433,12 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 			var listening []listenPort
 			for _, c := range conns {
 				stateCount[c.Status]++
-				if c.Status == "LISTEN" {
-					lp := listenPort{
+				if isListeningPort(c) {
+					listening = append(listening, listenPort{
 						Proto:     protoName(c.Type),
 						LocalAddr: c.Laddr.IP,
 						LocalPort: c.Laddr.Port,
-					}
-					listening = append(listening, lp)
+					})
 				}
 			}
 			s.NetActive = netActive{
@@ -978,6 +978,17 @@ func protoName(t uint32) string {
 	default:
 		return "unknown"
 	}
+}
+
+func isListeningPort(c gnet.ConnectionStat) bool {
+	if c.Status == "LISTEN" {
+		return true
+	}
+	// UDP sockets não têm estado LISTEN; considere portas UDP abertas.
+	if c.Type == syscall.SOCK_DGRAM && c.Laddr.Port > 0 {
+		return true
+	}
+	return false
 }
 
 func topProcesses(ctx context.Context, limit int) []procSnapshot {

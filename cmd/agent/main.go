@@ -1,6 +1,10 @@
+//go:build !windows
+// +build !windows
+
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -10,7 +14,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/logger"
 )
 
-var configPath = flag.String("config", "./configs/config.example.yml", "path to config.yml")
+var configPath = flag.String("config", "", "path to config file (.env|.json|.yaml)")
 
 func main() {
 	flag.Parse()
@@ -24,7 +28,7 @@ func main() {
 	log := logger.New(cfg.Agent.LogLevel)
 	defer log.Sync()
 
-	if err := app.Run(cfg, log); err != nil {
+	if err := app.Run(context.Background(), cfg, log); err != nil {
 		log.Fatal("app run failed", "err", err)
 	}
 }

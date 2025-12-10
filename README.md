@@ -59,13 +59,25 @@ Registra **decisões arquiteturais, planos de expansão, ideias e melhorias futu
 
 ---
 
+## ✅ Funcionalidades atuais
+
+- Coleta de sysmetrics (CPU, memória, disco, rede, serviços, time sync, sensores/bateria quando disponíveis) com prefs remotas para pausar/coletar.
+- Coleta de logs do SO (tail de arquivos em Linux/macOS; Event Logs no Windows via `wevtutil`) controlada por `OSLOG_ENABLED` e `OSLOG_FILES`/`OSLOG_WIN_CHANNELS`, com cursor persistido.
+- Modos `direct` (API), `relay` (envia para hub) e `hub` (escuta `/v1/ingest` e repassa para a API), incluindo transporte HTTP JSON para métricas e logs.
+- Bootstrap por token (`/v1/agent/bootstrap`), persistindo `agent.token`/`bootstrap.ok`, health opcional e ping/config-sync periódicos.
+- Carregamento de config via arquivo/env (`-config` ou `AGENT_ENV_FILE`) suportando env-file/JSON/YAML simples, com sobrescrita por variáveis de ambiente.
+- Transporte HTTP com header `Idempotency-Key`, opção de gzip (`HTTP_GZIP=true`) e TLS opcionalmente inseguro para testes (`TLS_INSECURE_SKIP_VERIFY=true`), respeitando `HTTPS_PROXY/NO_PROXY`.
+- Coletor de logs com defaults por SO, modo diagnóstico (`OSLOG_DIAG=true`) e mensagens de permissão/arquivo para facilitar troubleshooting.
+- Net active inclui contagem por estado e todas as portas TCP/UDP em escuta (sem limite artificial).
+- Outbox persistente com fallback em memória (`OUTBOX_PATH`, `OUTBOX_MAX_MB`).
+- Instaladores gerados por `scripts/build_installers.sh` (tar.gz/zip) com service scripts para systemd, launchd e serviço Windows nativo.
+
+---
+
 ## 🧭 Próximos Passos
 
-1. Implementar o módulo `sysmetrics` (coleta de CPU, RAM, disco, rede).  
-2. Criar camada de transporte HTTP (`httpjson`) com compressão e idempotência.  
-3. Integrar fila local (`bbolt`) e lógica de reenvio automático.  
-4. Validar ingestão no backend do AIceberg.  
-5. Atualizar o documento [Arquitetura.md](/base/readme/Arquitetura.md) com os diagramas e decisões tomadas.
+1. Observabilidade: counters de flush/erros no health e logs estruturados em falhas de ingest/bootstrap.  
+2. Atualizar o documento [Arquitetura.md](/base/readme/Arquitetura.md) com diagrama e decisões atuais.  
 
 ---
 
@@ -113,7 +125,10 @@ Enquanto não temos instalador, use este fluxo para rodar localmente com token d
    ls dist
    ```
 3. Os artefatos saem em `dist/` (tar.gz/zip com binário, `README_INSTALL.txt`, service/PS1 e `agent.env.example`). Publique esses arquivos no painel conforme o SO do usuário.
+   > Dica: `go build` manual com `GOOS=...` só recompila o binário; use o script acima para gerar o pacote completo (binário + scripts + README + compressão).
 4. Cada README do pacote instrui sobre como definir `AGENT_TOKEN`/`AGENT_TOKEN_PATH` e instalar o serviço (systemd/launchd/Windows).
+
+Para o passo a passo de instalação por SO e por modo (direct/hub/relay), veja `docs/guia_instalacao.md`.
 
 Notas:
 - API de produção é o padrão (`https://api.aiceberg.com.br`) e o agente junta `/v1/...` sozinho; use `API_BASE_URL` apenas para apontar para ambientes de teste.

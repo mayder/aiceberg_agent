@@ -5,17 +5,20 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"github.com/shirou/gopsutil/v3/host"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/common/version"
 	"github.com/you/aiceberg_agent/internal/data/local/outbox"
@@ -30,11 +33,9 @@ import (
 	"github.com/you/aiceberg_agent/internal/platform/collectors/sysmetrics"
 )
 
-func Run(cfg config.Config, log logger.Logger) error {
-	ctx := context.Background()
-
+func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	// Adapters mínimos
-	store := outbox.NewMemStore()
+	store := selectOutbox(cfg, log)
 	outboxRepo := repositories.NewOutboxRepository(store)
 	prefStore := prefs.NewStore(cfg.PrefsPath)
 	_, _ = prefStore.Load()
@@ -67,12 +68,15 @@ func Run(cfg config.Config, log logger.Logger) error {
 	flushUC := usecase.NewFlushOutbox(outboxRepo, tx, log, authHeader)
 	pingUC := usecase.NewPingBackend(cfg, log)
 	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore)
+	var counters obsCounters
 
 	var osLogCollectUC *usecase.CollectAndBuffer
 	var osLogFlushUC *usecase.FlushOutbox
-	if cfg.OSLogEnabled && len(cfg.OSLogFiles) > 0 {
+	var osLogRepo ports.OutboxRepo
+	if cfg.OSLogEnabled {
 		osStore := outbox.NewMemStore()
 		osRepo := repositories.NewOutboxRepository(osStore)
+		osLogRepo = osRepo
 		osCollector := oslogs.New(cfg)
 		osLogCollectUC = usecase.NewCollectAndBuffer(osCollector, osRepo, log, authHeader)
 		var osTx ports.Transport
@@ -85,7 +89,22 @@ func Run(cfg config.Config, log logger.Logger) error {
 	}
 
 	if cfg.HealthPort > 0 {
-		go health.Serve(cfg.HealthPort, log)
+		go health.Serve(cfg.HealthPort, log, func() health.Snapshot {
+			items, bytes := outboxRepo.Len()
+			if osLogRepo != nil {
+				oi, ob := osLogRepo.Len()
+				items += oi
+				bytes += ob
+			}
+			return health.Snapshot{
+				Status:     "ok",
+				QueueItems: items,
+				QueueBytes: bytes,
+				FlushOK:    counters.flushOK.Load(),
+				FlushErr:   counters.flushErr.Load(),
+				CollectErr: counters.collectErr.Load(),
+			}
+		})
 	}
 
 	if mode == "hub" {
@@ -128,11 +147,21 @@ func Run(cfg config.Config, log logger.Logger) error {
 			log.Info("shutdown")
 			return nil
 		case <-tCollect.C:
-			_ = collectUC.Execute(ctx)
+			if err := collectUC.Execute(ctx); err != nil {
+				counters.collectErr.Add(1)
+			}
 		case <-tFlush.C:
-			_ = flushUC.Execute(ctx)
+			if err := flushUC.Execute(ctx); err != nil {
+				counters.flushErr.Add(1)
+			} else {
+				counters.flushOK.Add(1)
+			}
 			if osLogFlushUC != nil {
-				_ = osLogFlushUC.Execute(ctx)
+				if err := osLogFlushUC.Execute(ctx); err != nil {
+					counters.flushErr.Add(1)
+				} else {
+					counters.flushOK.Add(1)
+				}
 			}
 		case <-readTick(tPing):
 			_ = pingUC.Execute(ctx)
@@ -176,20 +205,20 @@ func bootstrap(ctx context.Context, cfg config.Config, log logger.Logger) error 
 	body, _ := json.Marshal(payload)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.APIEndpoint("/v1/agent/bootstrap"), bytes.NewReader(body))
 	if err != nil {
-		return err
+		return fmt.Errorf("build bootstrap request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Token "+cfg.Agent.Token)
 
-	cl := &http.Client{Timeout: 10 * time.Second}
+	cl := httpx.NewClient(cfg, 10*time.Second)
 	resp, err := cl.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("bootstrap http: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
-		return errors.New("bootstrap rejected: " + resp.Status + " body=" + string(respBody))
+		return fmt.Errorf("bootstrap rejected: %s body=%s", resp.Status, string(respBody))
 	}
 	_ = persistToken(cfg.Agent.Token)
 	_ = persistBootstrapState(cfg.Agent.Token, hi.HostID)
@@ -229,6 +258,28 @@ func firstIP() string {
 		}
 	}
 	return ""
+}
+
+// selectOutbox escolhe entre bbolt (persistente) ou memória.
+func selectOutbox(cfg config.Config, log logger.Logger) repositories.Store {
+	maxMB := cfg.OutboxMaxMB
+	path := cfg.OutboxPath
+	if path != "" {
+		if bs, err := outbox.NewBoltStore(path, maxMB); err == nil {
+			log.Info("outbox=bolt path=" + path)
+			return bs
+		} else {
+			log.Error("outbox bolt fallback to memory: " + err.Error())
+		}
+	}
+	log.Info("outbox=memory")
+	return outbox.NewMemStore()
+}
+
+type obsCounters struct {
+	flushOK    atomic.Int64
+	flushErr   atomic.Int64
+	collectErr atomic.Int64
 }
 
 func persistToken(token string) error {

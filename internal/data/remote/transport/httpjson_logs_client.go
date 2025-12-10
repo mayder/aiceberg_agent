@@ -1,12 +1,11 @@
 package transport
 
 import (
-	"bytes"
-	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
@@ -19,21 +18,16 @@ type logsClient struct {
 
 func NewHTTPLogsClient(cfg config.Config) ports.Transport {
 	return &logsClient{
-		cl:  &http.Client{Timeout: 10 * time.Second},
+		cl:  httpx.NewClient(cfg, 10*time.Second),
 		cfg: cfg,
 	}
 }
 
 func (h *logsClient) SendWithAuth(batch []entities.Envelope, authHeader string) error {
-	b, err := json.Marshal(batch)
+	req, err := buildRequest(h.cfg.APIEndpoint("/v1/logs/raw"), batch, h.cfg)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, h.cfg.APIEndpoint("/v1/logs/raw"), bytes.NewReader(b))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
 	if authHeader != "" {
 		req.Header.Set("Authorization", authHeader)
 	} else if h.cfg.Agent.Token != "" {

@@ -2,6 +2,8 @@
 
 Este documento lista os passos necessários para criar instaladores reais do AIceberg Agent, por sistema operacional. Use como checklist de implementação e QA.
 
+Pipeline atual de pacotes standalone (zip/tar.gz): `./scripts/build_installers.sh` — gera `dist/aiceberg-agent-<os>-<arch>.(zip|tar.gz)` com binário, README, env example e scripts de serviço (systemd/launchd/Windows).
+
 ## Comum a todos
 - [ ] Pipeline de build cross-compilado (GOOS/GOARCH) com versão embutida.
 - [ ] Layout de paths: binário, config, estado (token/bootstrap), logs, dados (fila).
@@ -13,6 +15,7 @@ Este documento lista os passos necessários para criar instaladores reais do AIc
 
 ## Windows (MSI/EXE)
 - [ ] Gerar binário `aiceberg_agent.exe` (amd64/arm64).
+- [ ] Binário já é service-aware (`golang.org/x/sys/windows/svc`): `sc create/start` funciona com `agent.exe`.
 - [ ] Empacotar com MSI/EXE (WiX ou ferramenta similar):
   - Path sugerido: `C:\Program Files\AIceberg\agent\agent.exe`.
   - Diretório de dados/config: `C:\ProgramData\AIceberg\`.

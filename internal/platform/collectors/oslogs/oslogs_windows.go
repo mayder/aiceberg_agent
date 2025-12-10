@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,6 +27,8 @@ type winCollector struct {
 	batchLines int
 	maxBytes   int
 	interval   time.Duration
+	diag       bool
+	errors     []string
 }
 
 type logEvent struct {
@@ -55,6 +58,7 @@ func New(cfg config.Config) ports.Collector {
 		batchLines: cfg.OSLogBatchLines,
 		maxBytes:   cfg.OSLogMaxBytes,
 		interval:   cfg.OSLogInterval,
+		diag:       cfg.OSLogDiag,
 	}
 }
 
@@ -64,6 +68,7 @@ func (c *winCollector) Interval() time.Duration { return c.interval }
 
 func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 	hostname, _ := os.Hostname()
+	c.errors = c.errors[:0]
 	var out []logEvent
 
 	for _, ch := range c.channels {
@@ -72,6 +77,9 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 		}
 		last := c.cursor[ch]
 		events := c.fetchChannel(ctx, ch, last, c.batchLines-len(out), hostname)
+		if len(events) == 0 && c.diag {
+			c.errors = append(c.errors, "nenhum evento lido do canal "+ch)
+		}
 		if len(events) > 0 {
 			out = append(out, events...)
 			maxRec := last
@@ -85,6 +93,12 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 	}
 
 	if len(out) == 0 {
+		if c.diag && len(c.errors) > 0 {
+			return nil, formatDiagError(c.errors)
+		}
+		if c.diag {
+			return nil, formatDiagError([]string{"nenhum evento lido; verifique OSLOG_WIN_CHANNELS e permissões (wevtutil)"})
+		}
 		return nil, nil
 	}
 	_ = saveCursorWin(c.cursorPath, c.cursor)
@@ -98,6 +112,9 @@ func (c *winCollector) fetchChannel(ctx context.Context, channel string, lastRec
 	cmd := exec.CommandContext(ctx, "wevtutil", args...)
 	raw, err := cmd.Output()
 	if err != nil {
+		if c.diag {
+			c.errors = append(c.errors, "falha wevtutil "+channel+": "+err.Error())
+		}
 		return events
 	}
 	blocks := splitEvents(string(raw))
@@ -178,4 +195,8 @@ func saveCursorWin(path string, cur map[string]uint64) error {
 	_ = os.MkdirAll(filepath.Dir(path), 0o755)
 	raw, _ := json.Marshal(cur)
 	return os.WriteFile(path, raw, 0o600)
+}
+
+func formatDiagError(errs []string) error {
+	return fmt.Errorf("oslogs: %s", strings.Join(errs, "; "))
 }

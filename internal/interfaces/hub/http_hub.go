@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
@@ -68,7 +69,7 @@ func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logge
 			return
 		}
 		req.Header.Set("Authorization", auth)
-		cl := &http.Client{Timeout: 8 * time.Second}
+		cl := httpx.NewClient(cfg, 8*time.Second)
 		resp, err := cl.Do(req)
 		if err != nil {
 			http.Error(w, "upstream error", http.StatusBadGateway)

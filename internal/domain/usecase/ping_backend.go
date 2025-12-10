@@ -26,7 +26,7 @@ func NewPingBackend(cfg config.Config, log logger.Logger) *PingBackend {
 	return &PingBackend{
 		cfg:      cfg,
 		log:      log,
-		cl:       &http.Client{Timeout: 5 * time.Second},
+		cl:       httpx.NewClient(cfg, 5*time.Second),
 		hostname: hn,
 	}
 }

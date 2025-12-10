@@ -7,8 +7,11 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -22,16 +25,23 @@ type collector struct {
 	maxBytes   int
 	cursor     map[string]int64
 	interval   time.Duration
+	diag       bool
+	errors     []string
 }
 
 func New(cfg config.Config) ports.Collector {
+	files := cfg.OSLogFiles
+	if len(files) == 0 {
+		files = defaultPaths()
+	}
 	return &collector{
-		files:      cfg.OSLogFiles,
+		files:      files,
 		cursorPath: cfg.OSLogCursorPath,
 		batchLines: cfg.OSLogBatchLines,
 		maxBytes:   cfg.OSLogMaxBytes,
 		cursor:     loadCursor(cfg.OSLogCursorPath),
 		interval:   cfg.OSLogInterval,
+		diag:       cfg.OSLogDiag,
 	}
 }
 
@@ -55,6 +65,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		return nil, nil
 	}
 	hostname, _ := os.Hostname()
+	c.errors = c.errors[:0]
 	var events []logEvent
 	for _, path := range c.files {
 		evs := c.readFile(path, hostname)
@@ -64,6 +75,12 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		}
 	}
 	if len(events) == 0 {
+		if c.diag && len(c.errors) > 0 {
+			return nil, formatDiagError(c.errors)
+		}
+		if c.diag {
+			return nil, formatDiagError([]string{"nenhum evento lido; verifique OSLOG_FILES, existência e permissões"})
+		}
 		return nil, nil
 	}
 	_ = saveCursor(c.cursorPath, c.cursor)
@@ -74,6 +91,13 @@ func (c *collector) readFile(path, hostname string) []logEvent {
 	var out []logEvent
 	f, err := os.Open(path)
 	if err != nil {
+		if os.IsPermission(err) {
+			c.errors = append(c.errors, "permissao negada em "+path)
+		} else if os.IsNotExist(err) {
+			c.errors = append(c.errors, "arquivo inexistente "+path)
+		} else {
+			c.errors = append(c.errors, "erro ao abrir "+path+": "+err.Error())
+		}
 		return out
 	}
 	defer f.Close()
@@ -105,6 +129,14 @@ func (c *collector) readFile(path, hostname string) []logEvent {
 	return out
 }
 
+func defaultPaths() []string {
+	if runtime.GOOS == "darwin" {
+		return []string{"/var/log/system.log", "/var/log/install.log"}
+	}
+	// fallback para Linux e demais Unix-like
+	return []string{"/var/log/auth.log", "/var/log/syslog", "/var/log/messages"}
+}
+
 func loadCursor(path string) map[string]int64 {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -124,4 +156,8 @@ func saveCursor(path string, cur map[string]int64) error {
 	_ = os.MkdirAll(filepath.Dir(path), 0o755)
 	raw, _ := json.Marshal(cur)
 	return os.WriteFile(path, raw, 0o600)
+}
+
+func formatDiagError(errs []string) error {
+	return fmt.Errorf("oslogs: %s", strings.Join(errs, "; "))
 }
