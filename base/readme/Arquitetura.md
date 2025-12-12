@@ -203,14 +203,15 @@ Na versão atual, o agente é **somente emissor** (envia dados) e opera em três
 
 ## 🔄 Evolução Planejada
 
-| Versão   | Principais recursos                                       |
-| -------- | --------------------------------------------------------- |
-| **v0.1** | Envio HTTP/JSON (métricas básicas, fila offline)          |
-| **v0.2** | Heartbeat/ping remoto, ingest gzip + Idempotency-Key      |
-| **v0.3** | Outbox persistente (bbolt), coleta de logs OS, health com counters |
-| **v0.4** | Canal de controle (long-poll), ACK remoto                 |
-| **v0.5** | Atualização remota, assinatura de binários                |
-| **v1.0** | Transição opcional para gRPC + Protobuf com stream duplex |
+| Versão   | Principais recursos                                                                                           |
+| -------- | ------------------------------------------------------------------------------------------------------------- |
+| **v0.1** | Envio HTTP/JSON (métricas básicas), fila em memória, modo direto                                              |
+| **v0.2** | Heartbeat/ping remoto, ingest gzip + Idempotency-Key, health básico                                           |
+| **v0.3** | Outbox persistente (bbolt), coleta de logs OS, health com counters/process stats, service Windows nativo      |
+| **v0.4** | Relay completo via hub (bootstrap/ping/config/ingest/logs), SOC enrich/detections opt-in, /metrics expandido  |
+| **v0.5** | (planejado) Auto-update local (direto/hub), assinatura/validação de artefatos, rollback                     |
+| **v0.6** | (planejado) Canal de controle (long-poll/WS) e auto-update mediado via hub para relays sem saída              |
+| **v1.0** | (planejado) Transição opcional para gRPC + Protobuf com stream duplex                                          |
 
 ---
 
@@ -231,13 +232,17 @@ Na versão atual, o agente é **somente emissor** (envia dados) e opera em três
 - **Execução controlada**: allowlist de ações (reiniciar serviço, rodar script de verificação), com auditoria e ACK.
 - **Auto-update**: checar versão, baixar binário assinado, validar hash/assinatura e aplicar com rollback.
 - **Atualização acionada via API**: endpoint/ação remota que dispare o fluxo de update (download + validação + troca controlada) com confirmação no painel.
+- **Auto-update detalhado**:
+  - Direto/Hub (com saída para API): backend publica manifest (versão, URL, hash/assinatura). Agente recebe comando, baixa em tmp, valida hash/assinatura, troca binário e reinicia com rollback se falhar. Logs e health pós-restart.
+  - Relay sem saída: requer canal de controle via hub (a ser implementado). Hub recebe comando, baixa/valida artefato, entrega ao relay (ou manda comando para buscar no hub), coordena troca e reporta status ao backend.
+  - Segurança: artefatos assinados, hash obrigatório, staging/AB, rollback automático, permissões elevadas para substituir binário/serviço.
 - **Criptografia em repouso**: cifrar outbox/token em disco (Windows DPAPI, Linux/macOS chave local).
 - **Melhorias SOC**: evoluir o que já temos (enrich/detections opt-in) para:
   - Parsing completo de syslog (RFC3164/5424) e Event Log (provider/task/user, opcode, keywords).
   - Categorias adicionais (ex.: RDP, firewall, kernel panics, privilege escalation, file integrity).
   - Enriquecimento opcional (geo/IP reverso/local, tags de origem), mantendo opt-in.
 - **Descoberta de fontes de log**: ação remota (via API/painel) para o agente varrer destinos de log seguros (p.ex. `/var/log` com filtros e `wevtutil el` no Windows), devolver sugestões de paths/canais para o backend, e o usuário selecionar no painel o que habilitar na coleta.
-- **Suporte gRPC opcional**: canal de controle e ingest em streaming para ambientes de alto volume/baixa latência.
+- **Inventário de software**: coletar lista de pacotes/apps instalados (dpkg/rpm, Homebrew/apps, WMI/Chocolatey/Winget), classificar OSS vs. proprietário e enviar nome/versão/licença (quando disponível) de forma opt-in para não inflar payload; expiração de licença só por integração específica.
 - **Suporte gRPC opcional**: canal de controle e ingest em streaming para ambientes de alto volume/baixa latência.
 
 ---

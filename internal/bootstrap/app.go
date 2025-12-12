@@ -132,10 +132,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var tPing *time.Ticker
 	var tCfgSync *time.Ticker
 	var tOsCollect *time.Ticker
-	if mode != "relay" {
-		tPing = time.NewTicker(cfg.PingInterval)
-		tCfgSync = time.NewTicker(cfg.ConfigSyncInterval)
-	}
+	tPing = time.NewTicker(cfg.PingInterval)
+	tCfgSync = time.NewTicker(cfg.ConfigSyncInterval)
 	if osLogCollectUC != nil {
 		tOsCollect = time.NewTicker(cfg.OSLogInterval)
 	}

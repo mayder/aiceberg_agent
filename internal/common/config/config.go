@@ -67,6 +67,7 @@ type CollectPrefs struct {
 	Updates   bool   `json:"updates"`
 	Agent     bool   `json:"agent"`
 	Processes bool   `json:"processes"`
+	Vulns     bool   `json:"vulns"`
 }
 
 func Load(configPath string) (Config, error) {

@@ -127,6 +127,9 @@ func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logge
 			return
 		}
 		req.Header.Set("Authorization", auth)
+		if ct := r.Header.Get("Content-Type"); ct != "" {
+			req.Header.Set("Content-Type", ct)
+		}
 		cl := httpx.NewClient(cfg, 8*time.Second)
 		resp, err := cl.Do(req)
 		if err != nil {

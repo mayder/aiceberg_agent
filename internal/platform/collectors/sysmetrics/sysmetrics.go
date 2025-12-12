@@ -59,6 +59,7 @@ type snapshot struct {
 	GPU          []gpuSnapshot   `json:"gpu,omitempty"`
 	Services     []serviceSnap   `json:"services,omitempty"`
 	TimeSync     timeSyncSnap    `json:"time_sync,omitempty"`
+	Vulns        vulnsSnap       `json:"vulns"`
 	Logs         []logFileSnap   `json:"logs,omitempty"`
 	Updates      []updatesSnap   `json:"updates,omitempty"`
 	Agent        agentSnap       `json:"agent,omitempty"`
@@ -258,12 +259,21 @@ type updatesSnap struct {
 	Error   string `json:"error,omitempty"`
 }
 
+type vulnsSnap struct {
+	CVEs []string `json:"cves"`
+}
+
 type procSnapshot struct {
-	PID        int32   `json:"pid"`
-	Name       string  `json:"name,omitempty"`
-	CPUPercent float64 `json:"cpu_percent,omitempty"`
-	RSSBytes   uint64  `json:"rss_bytes,omitempty"`
-	VMSBytes   uint64  `json:"vms_bytes,omitempty"`
+	PID            int32   `json:"pid"`
+	Name           string  `json:"name,omitempty"`
+	CPUPercent     float64 `json:"cpu_percent,omitempty"`
+	RSSBytes       uint64  `json:"rss_bytes,omitempty"`
+	VMSBytes       uint64  `json:"vms_bytes,omitempty"`
+	IOReadBytes    uint64  `json:"io_read_bytes,omitempty"`
+	IOWriteBytes   uint64  `json:"io_write_bytes,omitempty"`
+	CreateTimeUnix int64   `json:"create_time_unix,omitempty"`
+	Status         string  `json:"status,omitempty"`
+	Cmdline        string  `json:"cmdline,omitempty"`
 }
 
 func (c *collector) Collect(ctx context.Context) ([]byte, error) {
@@ -585,8 +595,15 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	}
 
 	s.Agent = agentInfo
+	if p.Vulns {
+		s.Vulns = vulnsSnap{CVEs: detectCVEs(ctx)}
+		s.Capabilities["vulns"] = true
+	} else {
+		s.Vulns = vulnsSnap{CVEs: []string{}}
+		s.Capabilities["vulns"] = false
+	}
 	if p.Processes {
-		s.Processes = topProcesses(ctx, 5)
+		s.Processes = topProcesses(ctx, 10, 10)
 		s.Capabilities["processes"] = len(s.Processes) > 0
 	} else {
 		s.Capabilities["processes"] = false
@@ -991,30 +1008,92 @@ func isListeningPort(c gnet.ConnectionStat) bool {
 	return false
 }
 
-func topProcesses(ctx context.Context, limit int) []procSnapshot {
+func topProcesses(ctx context.Context, topCPU, topMem int) []procSnapshot {
 	procs, err := process.ProcessesWithContext(ctx)
 	if err != nil || len(procs) == 0 {
 		return nil
 	}
 
-	stats := make([]procSnapshot, 0, len(procs))
-	for _, p := range procs {
-		name, _ := p.NameWithContext(ctx)
-		cpuPct, _ := p.PercentWithContext(ctx, 0)
-		if mi, err := p.MemoryInfoWithContext(ctx); err == nil {
-			stats = append(stats, procSnapshot{
-				PID:        p.Pid,
-				Name:       name,
-				CPUPercent: cpuPct,
-				RSSBytes:   mi.RSS,
-				VMSBytes:   mi.VMS,
+	type procData struct {
+		p    *process.Process
+		cpu  float64
+		rss  uint64
+		vms  uint64
+		name string
+	}
+
+	all := make([]procData, 0, len(procs))
+	for _, pr := range procs {
+		name, _ := pr.NameWithContext(ctx)
+		cpuPct, _ := pr.PercentWithContext(ctx, 0)
+		if mi, err := pr.MemoryInfoWithContext(ctx); err == nil {
+			all = append(all, procData{
+				p:    pr,
+				cpu:  cpuPct,
+				rss:  mi.RSS,
+				vms:  mi.VMS,
+				name: name,
 			})
 		}
 	}
 
-	sort.Slice(stats, func(i, j int) bool { return stats[i].CPUPercent > stats[j].CPUPercent })
-	if len(stats) > limit {
-		stats = stats[:limit]
+	cpuOrder := make([]procData, len(all))
+	memOrder := make([]procData, len(all))
+	copy(cpuOrder, all)
+	copy(memOrder, all)
+
+	sort.Slice(cpuOrder, func(i, j int) bool { return cpuOrder[i].cpu > cpuOrder[j].cpu })
+	sort.Slice(memOrder, func(i, j int) bool { return memOrder[i].rss > memOrder[j].rss })
+
+	selected := make(map[int32]procData)
+	for i := 0; i < len(cpuOrder) && i < topCPU; i++ {
+		selected[cpuOrder[i].p.Pid] = cpuOrder[i]
 	}
-	return stats
+	for i := 0; i < len(memOrder) && i < topMem; i++ {
+		if _, ok := selected[memOrder[i].p.Pid]; !ok {
+			selected[memOrder[i].p.Pid] = memOrder[i]
+		}
+	}
+
+	out := make([]procSnapshot, 0, len(selected))
+	for _, data := range selected {
+		snap := procSnapshot{
+			PID:        data.p.Pid,
+			Name:       data.name,
+			CPUPercent: data.cpu,
+			RSSBytes:   data.rss,
+			VMSBytes:   data.vms,
+		}
+		if ct, err := data.p.CreateTimeWithContext(ctx); err == nil {
+			snap.CreateTimeUnix = ct / 1000 // ms to s
+		}
+		if st, err := data.p.StatusWithContext(ctx); err == nil && len(st) > 0 {
+			if len(st) == 1 {
+				snap.Status = st[0]
+			} else {
+				snap.Status = strings.Join(st, ",")
+			}
+		}
+		if cmd, err := data.p.CmdlineSliceWithContext(ctx); err == nil && len(cmd) > 0 {
+			joined := strings.Join(cmd, " ")
+			if len(joined) > 200 {
+				joined = joined[:200]
+			}
+			snap.Cmdline = joined
+		}
+		if ioStats, err := data.p.IOCountersWithContext(ctx); err == nil && ioStats != nil {
+			snap.IOReadBytes = ioStats.ReadBytes
+			snap.IOWriteBytes = ioStats.WriteBytes
+		}
+		out = append(out, snap)
+	}
+
+	sort.Slice(out, func(i, j int) bool { return out[i].CPUPercent > out[j].CPUPercent })
+	return out
+}
+
+// detectCVEs retorna uma lista de CVEs conhecidas para o host.
+// Implementação inicial: vazia; pode ser expandida com base local/NVD/OVAL ou heurísticas.
+func detectCVEs(ctx context.Context) []string {
+	return []string{}
 }

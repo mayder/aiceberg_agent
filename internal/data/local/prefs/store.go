@@ -39,6 +39,7 @@ func Default() config.CollectPrefs {
 		Updates:   true,
 		Agent:     true,
 		Processes: true,
+		Vulns:     true,
 	}
 }
 
