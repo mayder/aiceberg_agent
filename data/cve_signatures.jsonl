@@ -1,0 +1,6 @@
+{"os":"linux","pkg":"openssl","op":"<","version":"1.1.1t","cves":["CVE-2023-0286"]}
+{"os":"linux","pkg":"openssl","op":"<","version":"1.0.3","cves":["CVE-2016-2107","CVE-2014-0160"]}
+{"os":"linux","pkg":"openssh-server","op":"<","version":"7.3","cves":["CVE-2016-6210"]}
+{"os":"linux","pkg":"linux-image","op":"<","version":"5.0.0","cves":["CVE-2016-5195"]}
+{"os":"linux","pkg":"linux","op":"<","version":"5.0.0","cves":["CVE-2016-5195"]}
+{"os":"linux","pkg":"kernel","op":"<","version":"5.0.0","cves":["CVE-2016-5195"]}
