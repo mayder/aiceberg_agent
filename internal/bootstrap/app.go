@@ -223,7 +223,11 @@ func bootstrap(ctx context.Context, cfg config.Config, log logger.Logger) error 
 		"versao_agente":    version.Version,
 	}
 	body, _ := json.Marshal(payload)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.APIEndpoint("/v1/agent/bootstrap"), bytes.NewReader(body))
+	url := cfg.APIEndpoint("/v1/agent/bootstrap")
+	if cfg.AgentMode == "relay" && cfg.HubURL != "" {
+		url = cfg.HubURL + "/v1/agent/bootstrap"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("build bootstrap request: %w", err)
 	}

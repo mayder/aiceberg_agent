@@ -51,7 +51,11 @@ func (uc *PingBackend) Execute(ctx context.Context) error {
 }
 
 func (uc *PingBackend) fetchChallenge(ctx context.Context) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uc.cfg.APIEndpoint("/v1/agent/ping"), nil)
+	url := uc.cfg.APIEndpoint("/v1/agent/ping")
+	if uc.cfg.AgentMode == "relay" && uc.cfg.HubURL != "" {
+		url = uc.cfg.HubURL + "/v1/agent/ping"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
@@ -88,7 +92,11 @@ func (uc *PingBackend) sendAck(ctx context.Context, challenge string) error {
 	}
 	raw, _ := json.Marshal(body)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uc.cfg.APIEndpoint("/v1/agent/ping"), bytes.NewReader(raw))
+	url := uc.cfg.APIEndpoint("/v1/agent/ping")
+	if uc.cfg.AgentMode == "relay" && uc.cfg.HubURL != "" {
+		url = uc.cfg.HubURL + "/v1/agent/ping"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}

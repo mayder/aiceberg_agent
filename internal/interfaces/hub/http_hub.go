@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -64,6 +65,63 @@ func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logge
 			return
 		}
 		req, err := http.NewRequest(http.MethodGet, cfg.APIEndpoint("/v1/agent/config"), nil)
+		if err != nil {
+			http.Error(w, "upstream build error", http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("Authorization", auth)
+		cl := httpx.NewClient(cfg, 8*time.Second)
+		resp, err := cl.Do(req)
+		if err != nil {
+			http.Error(w, "upstream error", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	})
+
+	mux.HandleFunc("/v1/agent/bootstrap", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" {
+			http.Error(w, "missing Authorization", http.StatusUnauthorized)
+			return
+		}
+		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		if err != nil {
+			http.Error(w, "read error", http.StatusBadRequest)
+			return
+		}
+		req, err := http.NewRequest(http.MethodPost, cfg.APIEndpoint("/v1/agent/bootstrap"), bytes.NewReader(body))
+		if err != nil {
+			http.Error(w, "upstream build error", http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("Authorization", auth)
+		req.Header.Set("Content-Type", "application/json")
+		cl := httpx.NewClient(cfg, 10*time.Second)
+		resp, err := cl.Do(req)
+		if err != nil {
+			http.Error(w, "upstream error", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	})
+
+	mux.HandleFunc("/v1/agent/ping", func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if auth == "" {
+			http.Error(w, "missing Authorization", http.StatusUnauthorized)
+			return
+		}
+		upURL := cfg.APIEndpoint("/v1/agent/ping")
+		req, err := http.NewRequest(r.Method, upURL, r.Body)
 		if err != nil {
 			http.Error(w, "upstream build error", http.StatusInternalServerError)
 			return

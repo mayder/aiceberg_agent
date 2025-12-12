@@ -30,7 +30,11 @@ func NewConfigSync(cfg config.Config, log logger.Logger, store *prefs.Store) *Co
 }
 
 func (uc *ConfigSync) Execute(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uc.cfg.APIEndpoint("/v1/agent/config"), nil)
+	url := uc.cfg.APIEndpoint("/v1/agent/config")
+	if uc.cfg.AgentMode == "relay" && uc.cfg.HubURL != "" {
+		url = uc.cfg.HubURL + "/v1/agent/config"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
