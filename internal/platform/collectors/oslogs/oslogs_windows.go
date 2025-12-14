@@ -21,6 +21,7 @@ import (
 )
 
 type winCollector struct {
+	prefs      func() config.CollectPrefs
 	channels   []string
 	cursorPath string
 	cursor     map[string]uint64
@@ -48,12 +49,13 @@ type payload struct {
 	Events []logEvent `json:"events"`
 }
 
-func New(cfg config.Config) ports.Collector {
+func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
 	ch := cfg.OSLogWinChannels
 	if len(ch) == 0 {
 		ch = []string{"Security", "System", "Application", "Microsoft-Windows-Sysmon/Operational"}
 	}
 	return &winCollector{
+		prefs:      prefsProvider,
 		channels:   ch,
 		cursorPath: cfg.OSLogCursorPath,
 		cursor:     loadCursorWin(cfg.OSLogCursorPath),
@@ -70,6 +72,25 @@ func (c *winCollector) Name() string { return "oslogs" }
 func (c *winCollector) Interval() time.Duration { return c.interval }
 
 func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
+	p := config.CollectPrefs{}
+	if c.prefs != nil {
+		p = c.prefs()
+	}
+	if !p.OSLogWinChannels {
+		return nil, nil
+	}
+	c.diag = p.OSLogDiag
+	c.detect = p.OSLogDetections
+	if len(p.OSLogWinChList) > 0 {
+		c.channels = p.OSLogWinChList
+	}
+	if p.OSLogBatchLines > 0 {
+		c.batchLines = p.OSLogBatchLines
+	}
+	if p.OSLogMaxBytes > 0 {
+		c.maxBytes = p.OSLogMaxBytes
+	}
+
 	hostname, _ := os.Hostname()
 	c.errors = c.errors[:0]
 	var out []logEvent

@@ -57,6 +57,16 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 	var payload struct {
 		Version string              `json:"version,omitempty"`
 		Collect config.CollectPrefs `json:"collect"`
+		Vulns   struct {
+			SignaturesURL string `json:"signatures_url"`
+		} `json:"vulns"`
+		Logs struct {
+			WinChannels []string `json:"win_channels"`
+			Files       []string `json:"files"`
+			BatchLines  int      `json:"batch_lines"`
+			MaxBytes    int      `json:"max_bytes"`
+			Interval    int      `json:"interval"`
+		} `json:"logs"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return err
@@ -64,6 +74,18 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 
 	// Preencher versão no struct interno.
 	payload.Collect.Version = payload.Version
+	payload.Collect.CVESignaturesURL = payload.Vulns.SignaturesURL
+	payload.Collect.OSLogWinChList = payload.Logs.WinChannels
+	payload.Collect.OSLogFilesList = payload.Logs.Files
+	if payload.Logs.BatchLines > 0 {
+		payload.Collect.OSLogBatchLines = payload.Logs.BatchLines
+	}
+	if payload.Logs.MaxBytes > 0 {
+		payload.Collect.OSLogMaxBytes = payload.Logs.MaxBytes
+	}
+	if payload.Logs.Interval > 0 {
+		payload.Collect.OSLogIntervalSec = payload.Logs.Interval
+	}
 
 	cur := uc.store.Get()
 	if cur.Version == payload.Collect.Version && payload.Collect.Version != "" {

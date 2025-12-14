@@ -49,25 +49,37 @@ type Config struct {
 }
 
 type CollectPrefs struct {
-	Version   string `json:"version,omitempty"`
-	Paused    bool   `json:"paused,omitempty"`
-	CPU       bool   `json:"cpu"`
-	Memory    bool   `json:"memory"`
-	Disk      bool   `json:"disk"`
-	Network   bool   `json:"network"`
-	NetActive bool   `json:"net_active"`
-	Host      bool   `json:"host"`
-	Sensors   bool   `json:"sensors"`
-	Power     bool   `json:"power"`
-	Sanity    bool   `json:"sanity"`
-	GPU       bool   `json:"gpu"`
-	Services  bool   `json:"services"`
-	TimeSync  bool   `json:"time_sync"`
-	Logs      bool   `json:"logs"`
-	Updates   bool   `json:"updates"`
-	Agent     bool   `json:"agent"`
-	Processes bool   `json:"processes"`
-	Vulns     bool   `json:"vulns"`
+	Version          string   `json:"version,omitempty"`
+	Paused           bool     `json:"paused,omitempty"`
+	CPU              bool     `json:"cpu"`
+	Memory           bool     `json:"memory"`
+	Disk             bool     `json:"disk"`
+	Network          bool     `json:"network"`
+	NetActive        bool     `json:"net_active"`
+	Host             bool     `json:"host"`
+	Sensors          bool     `json:"sensors"`
+	Power            bool     `json:"power"`
+	Sanity           bool     `json:"sanity"`
+	GPU              bool     `json:"gpu"`
+	Services         bool     `json:"services"`
+	TimeSync         bool     `json:"time_sync"`
+	Logs             bool     `json:"logs"`
+	Updates          bool     `json:"updates"`
+	Agent            bool     `json:"agent"`
+	Processes        bool     `json:"processes"`
+	Vulns            bool     `json:"vulns"`
+	Inventory        bool     `json:"inventory"`
+	OSLogEnrich      bool     `json:"oslog_enrich"`
+	OSLogDetections  bool     `json:"oslog_detections"`
+	OSLogDiag        bool     `json:"oslog_diag"`
+	OSLogWinChannels bool     `json:"oslog_win_channels"`
+	OSLogFiles       bool     `json:"oslog_files"`
+	CVESignaturesURL string   `json:"cve_signatures_url,omitempty"`
+	OSLogWinChList   []string `json:"oslog_win_channels_list,omitempty"`
+	OSLogFilesList   []string `json:"oslog_files_list,omitempty"`
+	OSLogBatchLines  int      `json:"oslog_batch_lines,omitempty"`
+	OSLogMaxBytes    int      `json:"oslog_max_bytes,omitempty"`
+	OSLogIntervalSec int      `json:"oslog_interval,omitempty"`
 }
 
 func Load(configPath string) (Config, error) {

@@ -264,4 +264,39 @@ Desenvolvido sob orientação do **Arquiteto do Caos Elegante**.
 
 ---
 
+## 📋 Coletas configuráveis: o que já está na UI e o que falta expor
+
+**Já exposto na UI (mapeia para flags do agente)**  
+- Pausar coleta (`paused`)  
+- CPU (`cpu`), Memória (`memory`), Discos (`disk`), Rede (`network`), Conexões ativas/portas (`net_active`)  
+- Host info (`host`)  
+- Sensores/Temperatura (`sensors`), Energia/Bateria (`power`)  
+- Sanity Ping/DNS (`sanity`)  
+- GPU (`gpu`)  
+- Serviços (`services`)  
+- Sync de tempo (`time_sync`)  
+- Logs/tamanho de logs (`logs`)  
+- Updates/Patches (`updates`)  
+- Fila/estado do agente (`agent`)  
+- Processos (top N) (`processes`)
+
+**Implementado no agente e ainda não configurável na UI**  
+- Inventário (`inventory`): pacotes Linux (dpkg/rpm), hotfixes e apps instalados no Windows.  
+- Vulnerabilidades/CVEs (`vulns`): heurísticas + matching local com `data/cve_signatures.jsonl` (sempre envia; poderia virar opt-out).  
+- Logs SOC avançados:  
+  - `OSLOG_ENRICH` (enriquecimento app/pid/level),  
+  - `OSLOG_DETECTIONS` (categorizações/detections),  
+  - `OSLOG_DIAG` (modo diagnóstico),  
+  - `OSLOG_WIN_CHANNELS` (canais no Windows),  
+  - `OSLOG_FILES` (paths específicos).
+- Gestão de assinaturas de CVE: arquivo `data/cve_signatures.jsonl` é estático; não há UI para trocar/subir feed.
+
+**Sugestões para UI**  
+- Toggle para Inventário.  
+- Toggle para Vulnerabilidades/CVEs (opt-out se quiser reduzir payload).  
+- Seção avançada de Logs SOC (enrich/detections/diag/canais/paths).  
+- Possibilidade de gerenciar/atualizar assinaturas CVE (upload ou apontar feed/mirror).
+
+---
+
 [⬅️ Voltar ao README](../../README.md)

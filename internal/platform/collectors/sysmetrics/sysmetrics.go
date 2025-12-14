@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -63,6 +64,7 @@ type snapshot struct {
 	Services     []serviceSnap   `json:"services,omitempty"`
 	TimeSync     timeSyncSnap    `json:"time_sync,omitempty"`
 	Vulns        vulnsSnap       `json:"vulns"`
+	Inventory    inventorySnap   `json:"inventory,omitempty"`
 	Logs         []logFileSnap   `json:"logs,omitempty"`
 	Updates      []updatesSnap   `json:"updates,omitempty"`
 	Agent        agentSnap       `json:"agent,omitempty"`
@@ -218,7 +220,9 @@ var (
 	defaultPingTargets = []string{"1.1.1.1:53", "8.8.8.8:53"}
 	defaultDNSTargets  = []string{"example.com", "google.com"}
 	cveSigCache        []cveSignature
-	cveSigOnce         sync.Once
+	cveSigLastURL      string
+	cveSigLastFetch    time.Time
+	cveSigMu           sync.Mutex
 )
 
 type gpuSnapshot struct {
@@ -266,6 +270,33 @@ type updatesSnap struct {
 
 type vulnsSnap struct {
 	CVEs []string `json:"cves"`
+}
+
+type inventorySnap struct {
+	LinuxPackages []pkgInfo   `json:"linux_packages,omitempty"`
+	WinHotfixes   []winHotfix `json:"windows_hotfixes,omitempty"`
+	WinApps       []winApp    `json:"windows_apps,omitempty"`
+}
+
+type pkgInfo struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Source  string `json:"source,omitempty"`
+	Arch    string `json:"arch,omitempty"`
+}
+
+type winHotfix struct {
+	ID          string `json:"id,omitempty"`
+	InstalledOn string `json:"installed_on,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+type winApp struct {
+	Name    string `json:"name,omitempty"`
+	Version string `json:"version,omitempty"`
+	Vendor  string `json:"vendor,omitempty"`
+	Install string `json:"install_date,omitempty"`
+	Source  string `json:"source,omitempty"`
 }
 
 type cveSignature struct {
@@ -609,11 +640,18 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 
 	s.Agent = agentInfo
 	if p.Vulns {
-		s.Vulns = vulnsSnap{CVEs: detectCVEs(ctx)}
+		s.Vulns = vulnsSnap{CVEs: detectCVEs(ctx, p)}
 		s.Capabilities["vulns"] = true
 	} else {
 		s.Vulns = vulnsSnap{CVEs: []string{}}
 		s.Capabilities["vulns"] = false
+	}
+	if p.Inventory {
+		inv := collectInventory(ctx)
+		s.Inventory = inv
+		s.Capabilities["inventory"] = len(inv.LinuxPackages) > 0 || len(inv.WinApps) > 0 || len(inv.WinHotfixes) > 0
+	} else {
+		s.Capabilities["inventory"] = false
 	}
 	if p.Processes {
 		s.Processes = topProcesses(ctx, 10, 10)
@@ -1107,7 +1145,7 @@ func topProcesses(ctx context.Context, topCPU, topMem int) []procSnapshot {
 
 // detectCVEs retorna uma lista de CVEs conhecidas para o host.
 // Combina heurísticas locais e, se disponível, matching com assinaturas em data/cve_signatures.jsonl.
-func detectCVEs(ctx context.Context) []string {
+func detectCVEs(ctx context.Context, prefs config.CollectPrefs) []string {
 	seen := make(map[string]struct{})
 	add := func(id string) {
 		if id != "" {
@@ -1174,9 +1212,9 @@ func detectCVEs(ctx context.Context) []string {
 	if len(seen) == 0 {
 		add("CVE-UNKNOWN-NO-DB")
 	}
-	// Regras a partir de assinaturas locais (quando existirem).
+	// Regras a partir de assinaturas locais ou remotas (quando existirem).
 	inv := detectPackages(ctx)
-	for _, sig := range loadCveSignatures() {
+	for _, sig := range loadCveSignatures(prefs.CVESignaturesURL) {
 		if sig.OS != "" && sig.OS != runtime.GOOS {
 			continue
 		}
@@ -1229,9 +1267,31 @@ func parseSSHVersion(out string) string {
 	return ""
 }
 
+// collectInventory retorna inventário básico para CVE: pacotes Linux ou hotfix/apps Windows.
+func collectInventory(ctx context.Context) inventorySnap {
+	var inv inventorySnap
+	switch runtime.GOOS {
+	case "linux":
+		inv.LinuxPackages = listLinuxPackages(ctx)
+	case "windows":
+		inv.WinHotfixes = collectWindowsHotfixes(ctx)
+		inv.WinApps = collectWindowsApps(ctx)
+	}
+	return inv
+}
+
 // detectPackages retorna mapa pacote->versão a partir de dpkg/rpm (best effort).
 func detectPackages(ctx context.Context) map[string]string {
 	out := make(map[string]string)
+	for _, pkg := range listLinuxPackages(ctx) {
+		out[pkg.Name] = pkg.Version
+	}
+	return out
+}
+
+// listLinuxPackages devolve inventário simples de pacotes (dpkg/rpm).
+func listLinuxPackages(ctx context.Context) []pkgInfo {
+	var pkgs []pkgInfo
 
 	if path, err := exec.LookPath("dpkg"); err == nil {
 		cmd := exec.CommandContext(ctx, path, "-l")
@@ -1242,16 +1302,18 @@ func detectPackages(ctx context.Context) map[string]string {
 				ln := sc.Text()
 				fields := strings.Fields(ln)
 				if len(fields) >= 3 && strings.HasPrefix(fields[0], "ii") {
-					pkg := fields[1]
-					ver := fields[2]
-					out[pkg] = ver
+					pkgs = append(pkgs, pkgInfo{
+						Name:    fields[1],
+						Version: fields[2],
+						Source:  "dpkg",
+					})
 				}
 			}
 		}
 	}
 
 	if path, err := exec.LookPath("rpm"); err == nil {
-		cmd := exec.CommandContext(ctx, path, "-qa", "--qf", "%{NAME} %{VERSION}-%{RELEASE}\n")
+		cmd := exec.CommandContext(ctx, path, "-qa", "--qf", "%{NAME} %{VERSION}-%{RELEASE} %{ARCH}\n")
 		raw, err := cmd.Output()
 		if err == nil {
 			sc := bufio.NewScanner(bytes.NewReader(raw))
@@ -1259,22 +1321,41 @@ func detectPackages(ctx context.Context) map[string]string {
 				ln := sc.Text()
 				parts := strings.Fields(ln)
 				if len(parts) >= 2 {
-					out[parts[0]] = parts[1]
+					name := parts[0]
+					ver := parts[1]
+					arch := ""
+					if len(parts) >= 3 {
+						arch = parts[2]
+					}
+					pkgs = append(pkgs, pkgInfo{Name: name, Version: ver, Arch: arch, Source: "rpm"})
 				}
 			}
 		}
 	}
 
-	return out
+	return pkgs
 }
 
-func loadCveSignatures() []cveSignature {
-	cveSigOnce.Do(func() {
+func loadCveSignatures(remoteURL string) []cveSignature {
+	cveSigMu.Lock()
+	defer cveSigMu.Unlock()
+
+	// Recarrega remoto se URL mudou ou passou 6h.
+	if remoteURL != "" && (remoteURL != cveSigLastURL || time.Since(cveSigLastFetch) > 6*time.Hour) {
+		if sigs := fetchRemoteSignatures(remoteURL); len(sigs) > 0 {
+			cveSigCache = sigs
+			cveSigLastURL = remoteURL
+			cveSigLastFetch = time.Now()
+			return cveSigCache
+		}
+	}
+
+	if len(cveSigCache) == 0 {
 		path := "./data/cve_signatures.jsonl"
 		f, err := os.Open(path)
 		if err != nil {
 			cveSigCache = nil
-			return
+			return cveSigCache
 		}
 		defer f.Close()
 		var sigs []cveSignature
@@ -1288,7 +1369,8 @@ func loadCveSignatures() []cveSignature {
 			}
 		}
 		cveSigCache = sigs
-	})
+	}
+
 	return cveSigCache
 }
 
@@ -1349,6 +1431,30 @@ func atoiPrefix(s string) int {
 	}
 	v, _ := strconv.Atoi(m[1])
 	return v
+}
+
+// fetchRemoteSignatures tenta baixar um jsonl de assinaturas CVE.
+func fetchRemoteSignatures(url string) []cveSignature {
+	client := http.Client{Timeout: 8 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil
+	}
+	var sigs []cveSignature
+	sc := bufio.NewScanner(resp.Body)
+	for sc.Scan() {
+		var s cveSignature
+		if err := json.Unmarshal(sc.Bytes(), &s); err == nil {
+			if len(s.CVEs) > 0 && s.Pkg != "" && s.Op != "" && s.Version != "" {
+				sigs = append(sigs, s)
+			}
+		}
+	}
+	return sigs
 }
 
 // ltSemver faz comparação simples major.minor.patch[letter], sem suf fixos complexos.

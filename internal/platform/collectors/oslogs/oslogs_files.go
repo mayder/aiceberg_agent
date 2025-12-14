@@ -20,6 +20,7 @@ import (
 )
 
 type collector struct {
+	prefs      func() config.CollectPrefs
 	files      []string
 	cursorPath string
 	batchLines int
@@ -32,12 +33,13 @@ type collector struct {
 	detect     bool
 }
 
-func New(cfg config.Config) ports.Collector {
+func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
 	files := cfg.OSLogFiles
 	if len(files) == 0 {
 		files = defaultPaths()
 	}
 	return &collector{
+		prefs:      prefsProvider,
 		files:      files,
 		cursorPath: cfg.OSLogCursorPath,
 		batchLines: cfg.OSLogBatchLines,
@@ -72,6 +74,28 @@ type payload struct {
 }
 
 func (c *collector) Collect(ctx context.Context) ([]byte, error) {
+	p := config.CollectPrefs{}
+	if c.prefs != nil {
+		p = c.prefs()
+	}
+	// Se logs SOC estiverem desabilitados via prefs, retorne.
+	if !p.OSLogFiles {
+		return nil, nil
+	}
+	// Ajuste de flags dinâmicos
+	c.diag = p.OSLogDiag
+	c.enrich = p.OSLogEnrich
+	c.detect = p.OSLogDetections
+	if len(p.OSLogFilesList) > 0 {
+		c.files = p.OSLogFilesList
+	}
+	if p.OSLogBatchLines > 0 {
+		c.batchLines = p.OSLogBatchLines
+	}
+	if p.OSLogMaxBytes > 0 {
+		c.maxBytes = p.OSLogMaxBytes
+	}
+
 	if len(c.files) == 0 {
 		return nil, nil
 	}

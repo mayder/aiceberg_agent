@@ -77,20 +77,19 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var osLogCollectUC *usecase.CollectAndBuffer
 	var osLogFlushUC *usecase.FlushOutbox
 	var osLogRepo ports.OutboxRepo
-	if cfg.OSLogEnabled {
-		osStore := outbox.NewMemStore()
-		osRepo := repositories.NewOutboxRepository(osStore)
-		osLogRepo = osRepo
-		osCollector := oslogs.New(cfg)
-		osLogCollectUC = usecase.NewCollectAndBuffer(osCollector, osRepo, log, authHeader)
-		var osTx ports.Transport
-		if mode == "relay" {
-			osTx = transport.NewHubClient(cfg)
-		} else {
-			osTx = transport.NewHTTPLogsClient(cfg)
-		}
-		osLogFlushUC = usecase.NewFlushOutbox(osRepo, osTx, log, authHeader)
+	// Inicializa coletor de logs do SO; o gating agora é feito pelas prefs (collect_logs e flags avançados).
+	osStore := outbox.NewMemStore()
+	osRepo := repositories.NewOutboxRepository(osStore)
+	osLogRepo = osRepo
+	osCollector := oslogs.New(cfg, prefStore.Get)
+	osLogCollectUC = usecase.NewCollectAndBuffer(osCollector, osRepo, log, authHeader)
+	var osTx ports.Transport
+	if mode == "relay" {
+		osTx = transport.NewHubClient(cfg)
+	} else {
+		osTx = transport.NewHTTPLogsClient(cfg)
 	}
+	osLogFlushUC = usecase.NewFlushOutbox(osRepo, osTx, log, authHeader)
 
 	if cfg.HealthPort > 0 {
 		go health.Serve(cfg.HealthPort, log, func() health.Snapshot {
