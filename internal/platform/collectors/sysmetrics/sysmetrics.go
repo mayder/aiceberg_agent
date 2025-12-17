@@ -263,9 +263,11 @@ type logFileSnap struct {
 }
 
 type updatesSnap struct {
-	Source  string `json:"source"`
-	Pending int    `json:"pending"`
-	Error   string `json:"error,omitempty"`
+	Source        string         `json:"source"`
+	Pending       int            `json:"pending,omitempty"`
+	Error         string         `json:"error,omitempty"`
+	LastCheckUnix int64          `json:"last_check_unix,omitempty"`
+	Security      securityUpdate `json:"security,omitempty"`
 }
 
 type vulnsSnap struct {
@@ -273,30 +275,86 @@ type vulnsSnap struct {
 }
 
 type inventorySnap struct {
-	LinuxPackages []pkgInfo   `json:"linux_packages,omitempty"`
-	WinHotfixes   []winHotfix `json:"windows_hotfixes,omitempty"`
-	WinApps       []winApp    `json:"windows_apps,omitempty"`
+	LinuxRPMPackages []rpmPkg     `json:"linux_rpm_packages,omitempty"`
+	OSRelease        osRelease    `json:"os_release,omitempty"`
+	Kernel           kernelInfo   `json:"kernel,omitempty"`
+	Repos            repoSnap     `json:"repos,omitempty"`
+	WinHotfixes      []winHotfix  `json:"windows_hotfixes,omitempty"`
+	WinApps          []winApp     `json:"windows_apps,omitempty"`
+	WinFeatures      []winFeature `json:"windows_features,omitempty"`
 }
 
-type pkgInfo struct {
+type rpmPkg struct {
 	Name    string `json:"name"`
+	Epoch   int    `json:"epoch"`
 	Version string `json:"version"`
-	Source  string `json:"source,omitempty"`
+	Release string `json:"release"`
 	Arch    string `json:"arch,omitempty"`
+	Vendor  string `json:"vendor,omitempty"`
+	Source  string `json:"source,omitempty"`
+}
+
+type osRelease struct {
+	ID         string `json:"id,omitempty"`
+	VersionID  string `json:"version_id,omitempty"`
+	PrettyName string `json:"pretty_name,omitempty"`
+}
+
+type kernelInfo struct {
+	Running   string   `json:"running,omitempty"`
+	Installed []rpmPkg `json:"installed,omitempty"`
+}
+
+type repoSnap struct {
+	Enabled []string `json:"enabled,omitempty"`
+	Raw     string   `json:"raw,omitempty"`
 }
 
 type winHotfix struct {
 	ID          string `json:"id,omitempty"`
 	InstalledOn string `json:"installed_on,omitempty"`
 	Description string `json:"description,omitempty"`
+	Source      string `json:"source,omitempty"`
 }
 
 type winApp struct {
-	Name    string `json:"name,omitempty"`
-	Version string `json:"version,omitempty"`
-	Vendor  string `json:"vendor,omitempty"`
-	Install string `json:"install_date,omitempty"`
-	Source  string `json:"source,omitempty"`
+	Name            string `json:"name,omitempty"`
+	Version         string `json:"version,omitempty"`
+	Vendor          string `json:"vendor,omitempty"`
+	Install         string `json:"install_date,omitempty"`
+	Source          string `json:"source,omitempty"`
+	InstallLocation string `json:"install_location,omitempty"`
+	InstallSource   string `json:"install_source,omitempty"`
+	UninstallString string `json:"uninstall_string,omitempty"`
+}
+
+type winFeature struct {
+	Name        string `json:"name,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+	Installed   bool   `json:"installed"`
+}
+
+type pendingUpdate struct {
+	UpdateID     string   `json:"update_id,omitempty"`
+	Title        string   `json:"title,omitempty"`
+	KBIDs        []string `json:"kb_ids,omitempty"`
+	Category     string   `json:"category,omitempty"`
+	Severity     string   `json:"severity,omitempty"`
+	IsDownloaded *bool    `json:"is_downloaded,omitempty"`
+	IsInstalled  *bool    `json:"is_installed,omitempty"`
+}
+
+type securityUpdate struct {
+	Advisories   []securityAdvisory `json:"advisories,omitempty"`
+	Pending      []pendingUpdate    `json:"pending_updates,omitempty"`
+	PendingCount int                `json:"pending_count,omitempty"`
+}
+
+type securityAdvisory struct {
+	AdvisoryID string   `json:"advisory_id,omitempty"`
+	Severity   string   `json:"severity,omitempty"`
+	CVEs       []string `json:"cves,omitempty"`
+	Packages   []string `json:"packages,omitempty"`
 }
 
 type cveSignature struct {
@@ -649,7 +707,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	if p.Inventory {
 		inv := collectInventory(ctx)
 		s.Inventory = inv
-		s.Capabilities["inventory"] = len(inv.LinuxPackages) > 0 || len(inv.WinApps) > 0 || len(inv.WinHotfixes) > 0
+		s.Capabilities["inventory"] = len(inv.LinuxRPMPackages) > 0 || len(inv.WinApps) > 0 || len(inv.WinHotfixes) > 0
 	} else {
 		s.Capabilities["inventory"] = false
 	}
@@ -834,11 +892,11 @@ func collectLogs() []logFileSnap {
 func collectUpdates(timeout time.Duration) []updatesSnap {
 	switch runtime.GOOS {
 	case "linux":
-		return []updatesSnap{aptUpdates(timeout)}
+		return []updatesSnap{linuxSecurityUpdates(timeout)}
 	case "darwin":
 		return []updatesSnap{macUpdates(timeout)}
 	case "windows":
-		return []updatesSnap{{Source: "windows_update", Pending: 0, Error: "not implemented"}}
+		return []updatesSnap{windowsSecurityUpdates(timeout)}
 	default:
 		return nil
 	}
@@ -885,6 +943,180 @@ func macUpdates(timeout time.Duration) updatesSnap {
 	}
 	count := strings.Count(string(out), "*")
 	return updatesSnap{Source: "softwareupdate", Pending: count}
+}
+
+// linuxSecurityUpdates tenta coletar advisories/cves via dnf updateinfo --security.
+func linuxSecurityUpdates(timeout time.Duration) updatesSnap {
+	// se existir apt, mantém comportamento antigo
+	if _, err := exec.LookPath("apt-get"); err == nil {
+		return aptUpdates(timeout)
+	}
+	path, err := exec.LookPath("dnf")
+	if err != nil {
+		path, err = exec.LookPath("yum")
+		if err != nil {
+			return updatesSnap{Source: "dnf", Error: "dnf/yum not found"}
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmdList := exec.CommandContext(ctx, path, "updateinfo", "list", "--security")
+	rawList, err := cmdList.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return updatesSnap{Source: "dnf", Error: "timeout"}
+	}
+	if err != nil {
+		return updatesSnap{Source: "dnf", Error: err.Error()}
+	}
+
+	cmdInfo := exec.CommandContext(ctx, path, "updateinfo", "info", "--security")
+	rawInfo, _ := cmdInfo.CombinedOutput() // best effort
+
+	advisories := parseDnfUpdateinfo(rawInfo)
+	pendingCount := len(advisories)
+	if pendingCount == 0 {
+		// fallback: contar linhas do list
+		sc := bufio.NewScanner(bytes.NewBuffer(rawList))
+		for sc.Scan() {
+			ln := strings.TrimSpace(sc.Text())
+			if ln == "" || strings.HasPrefix(strings.ToLower(ln), "last metadata expiration check") {
+				continue
+			}
+			pendingCount++
+		}
+	}
+
+	return updatesSnap{
+		Source:        "dnf",
+		LastCheckUnix: time.Now().Unix(),
+		Security: securityUpdate{
+			Advisories:   advisories,
+			PendingCount: pendingCount,
+		},
+		Pending: pendingCount,
+	}
+}
+
+func parseDnfUpdateinfo(raw []byte) []securityAdvisory {
+	var out []securityAdvisory
+	if len(raw) == 0 {
+		return out
+	}
+	type state int
+	const (
+		none state = iota
+		inPkg
+	)
+	var current securityAdvisory
+	var section state
+	sc := bufio.NewScanner(bytes.NewBuffer(raw))
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "===============================================================================") {
+			if current.AdvisoryID != "" {
+				out = append(out, current)
+			}
+			current = securityAdvisory{}
+			section = none
+			continue
+		}
+		// Example sections:
+		// RHSA-2025:1234 Important/Sec. ...
+		if strings.HasPrefix(line, "RHSA-") || strings.HasPrefix(line, "ELSA-") || strings.HasPrefix(line, "ALSA-") || strings.HasPrefix(line, "OSA-") {
+			parts := strings.Fields(line)
+			if len(parts) > 0 {
+				current.AdvisoryID = parts[0]
+				if len(parts) > 1 {
+					current.Severity = parts[1]
+				}
+			}
+			section = inPkg
+			continue
+		}
+		if strings.HasPrefix(strings.ToLower(line), "cves:") {
+			cves := strings.Fields(strings.TrimPrefix(line, "CVE:"))
+			if len(cves) == 0 {
+				rest := strings.TrimSpace(strings.TrimPrefix(line, "cves:"))
+				cves = strings.Fields(rest)
+			}
+			current.CVEs = append(current.CVEs, cves...)
+			continue
+		}
+		// packages lines look like: kernel.x86_64 4.18.0-553.33.1.el8_10
+		if section == inPkg {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 && strings.Contains(parts[0], ".") {
+				current.Packages = append(current.Packages, parts[0]+" "+parts[1])
+			}
+		}
+	}
+	if current.AdvisoryID != "" {
+		out = append(out, current)
+	}
+	return out
+}
+
+// windowsSecurityUpdates consulta updates pendentes via PowerShell (MSFT Update Session).
+func windowsSecurityUpdates(timeout time.Duration) updatesSnap {
+	path, err := exec.LookPath("powershell")
+	if err != nil {
+		return updatesSnap{Source: "windows_update", Error: "powershell not found"}
+	}
+	script := `
+	$session = New-Object -ComObject Microsoft.Update.Session
+	$searcher = $session.CreateUpdateSearcher()
+	$result = $searcher.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+	$updates = @()
+	foreach ($u in $result.Updates) {
+	  $kbids = @()
+	  foreach ($id in $u.KBArticleIDs) { $kbids += $id }
+	  $updates += [PSCustomObject]@{
+	    UpdateID = $u.Identity.UpdateID
+	    Title = $u.Title
+	    KBIDs = $kbids
+	    Category = ($u.Categories | Where-Object { $_.Type -eq 'UpdateClassification' } | Select-Object -First 1 -ExpandProperty Name)
+	    Severity = $u.MsrcSeverity
+	    IsDownloaded = $u.IsDownloaded
+	    IsInstalled = $u.IsInstalled
+	  }
+	}
+	$updates | ConvertTo-Json
+	`
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, path, "-Command", script)
+	raw, err := cmd.Output()
+	if ctx.Err() == context.DeadlineExceeded {
+		return updatesSnap{Source: "windows_update", Error: "timeout"}
+	}
+	if err != nil {
+		return updatesSnap{Source: "windows_update", Error: err.Error()}
+	}
+	if len(raw) == 0 {
+		return updatesSnap{Source: "windows_update", LastCheckUnix: time.Now().Unix()}
+	}
+	// normaliza quando retorna um único objeto
+	if len(raw) > 0 && raw[0] == '{' {
+		raw = []byte("[" + strings.TrimSpace(string(raw)) + "]")
+	}
+	var items []pendingUpdate
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return updatesSnap{Source: "windows_update", Error: err.Error()}
+	}
+	return updatesSnap{
+		Source:        "windows_update",
+		LastCheckUnix: time.Now().Unix(),
+		Security: securityUpdate{
+			Pending:      items,
+			PendingCount: len(items),
+		},
+		Pending: len(items),
+	}
 }
 
 // collectGPUs tenta coletar info de GPU via nvidia-smi (quando disponível).
@@ -1267,15 +1499,19 @@ func parseSSHVersion(out string) string {
 	return ""
 }
 
-// collectInventory retorna inventário básico para CVE: pacotes Linux ou hotfix/apps Windows.
+// collectInventory retorna inventário para CVE: pacotes Linux (EVR), repos, kernel ou hotfix/apps/features Windows.
 func collectInventory(ctx context.Context) inventorySnap {
 	var inv inventorySnap
 	switch runtime.GOOS {
 	case "linux":
-		inv.LinuxPackages = listLinuxPackages(ctx)
+		inv.LinuxRPMPackages = listLinuxPackages(ctx)
+		inv.OSRelease = readOSRelease()
+		inv.Kernel = collectKernelInfo(ctx)
+		inv.Repos = collectLinuxRepos(ctx)
 	case "windows":
 		inv.WinHotfixes = collectWindowsHotfixes(ctx)
 		inv.WinApps = collectWindowsApps(ctx)
+		inv.WinFeatures = collectWindowsFeatures(ctx)
 	}
 	return inv
 }
@@ -1289,9 +1525,9 @@ func detectPackages(ctx context.Context) map[string]string {
 	return out
 }
 
-// listLinuxPackages devolve inventário simples de pacotes (dpkg/rpm).
-func listLinuxPackages(ctx context.Context) []pkgInfo {
-	var pkgs []pkgInfo
+// listLinuxPackages devolve inventário com EVR para RPM (RHEL-like) ou versão simples via dpkg.
+func listLinuxPackages(ctx context.Context) []rpmPkg {
+	var pkgs []rpmPkg
 
 	if path, err := exec.LookPath("dpkg"); err == nil {
 		cmd := exec.CommandContext(ctx, path, "-l")
@@ -1302,7 +1538,7 @@ func listLinuxPackages(ctx context.Context) []pkgInfo {
 				ln := sc.Text()
 				fields := strings.Fields(ln)
 				if len(fields) >= 3 && strings.HasPrefix(fields[0], "ii") {
-					pkgs = append(pkgs, pkgInfo{
+					pkgs = append(pkgs, rpmPkg{
 						Name:    fields[1],
 						Version: fields[2],
 						Source:  "dpkg",
@@ -1313,27 +1549,106 @@ func listLinuxPackages(ctx context.Context) []pkgInfo {
 	}
 
 	if path, err := exec.LookPath("rpm"); err == nil {
-		cmd := exec.CommandContext(ctx, path, "-qa", "--qf", "%{NAME} %{VERSION}-%{RELEASE} %{ARCH}\n")
+		cmd := exec.CommandContext(ctx, path, "-qa", "--qf", "%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{VENDOR}\n")
 		raw, err := cmd.Output()
 		if err == nil {
 			sc := bufio.NewScanner(bytes.NewReader(raw))
 			for sc.Scan() {
 				ln := sc.Text()
-				parts := strings.Fields(ln)
-				if len(parts) >= 2 {
-					name := parts[0]
-					ver := parts[1]
-					arch := ""
-					if len(parts) >= 3 {
-						arch = parts[2]
-					}
-					pkgs = append(pkgs, pkgInfo{Name: name, Version: ver, Arch: arch, Source: "rpm"})
+				parts := strings.Split(ln, "\t")
+				if len(parts) >= 5 {
+					pkgs = append(pkgs, rpmPkg{
+						Name:    parts[0],
+						Epoch:   atoiPrefix(parts[1]),
+						Version: parts[2],
+						Release: parts[3],
+						Arch:    parts[4],
+						Vendor:  safeIdx(parts, 5),
+						Source:  "rpm",
+					})
 				}
 			}
 		}
 	}
 
 	return pkgs
+}
+
+func safeIdx(parts []string, idx int) string {
+	if idx < len(parts) {
+		return parts[idx]
+	}
+	return ""
+}
+
+func collectKernelInfo(ctx context.Context) kernelInfo {
+	k := kernelInfo{}
+	if hi, err := host.InfoWithContext(ctx); err == nil {
+		k.Running = hi.KernelVersion
+	}
+	// filtra pacotes kernel*
+	for _, pkg := range listLinuxPackages(ctx) {
+		if strings.HasPrefix(pkg.Name, "kernel") {
+			k.Installed = append(k.Installed, pkg)
+		}
+	}
+	return k
+}
+
+func readOSRelease() osRelease {
+	f, err := os.Open("/etc/os-release")
+	if err != nil {
+		return osRelease{}
+	}
+	defer f.Close()
+	var res osRelease
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := sc.Text()
+		kv := strings.SplitN(line, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		key := strings.ToLower(kv[0])
+		val := strings.Trim(kv[1], "\"")
+		switch key {
+		case "id":
+			res.ID = val
+		case "version_id":
+			res.VersionID = val
+		case "pretty_name":
+			res.PrettyName = val
+		}
+	}
+	return res
+}
+
+func collectLinuxRepos(ctx context.Context) repoSnap {
+	var rs repoSnap
+	path, err := exec.LookPath("dnf")
+	if err != nil {
+		path, err = exec.LookPath("yum")
+	}
+	if err != nil {
+		return rs
+	}
+	cmd := exec.CommandContext(ctx, path, "repolist", "-v")
+	raw, err := cmd.Output()
+	if err != nil {
+		return rs
+	}
+	rs.Raw = string(raw)
+	sc := bufio.NewScanner(bytes.NewBuffer(raw))
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if strings.HasPrefix(strings.ToLower(line), "repo-id") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				rs.Enabled = append(rs.Enabled, parts[1])
+			}
+		}
+	}
+	return rs
 }
 
 func loadCveSignatures(remoteURL string) []cveSignature {
