@@ -74,6 +74,7 @@ type CollectPrefs struct {
 	OSLogDiag        bool     `json:"oslog_diag"`
 	OSLogWinChannels bool     `json:"oslog_win_channels"`
 	OSLogFiles       bool     `json:"oslog_files"`
+	CollectNow       []string `json:"collect_now,omitempty"`
 	CVESignaturesURL string   `json:"cve_signatures_url,omitempty"`
 	OSLogWinChList   []string `json:"oslog_win_channels_list,omitempty"`
 	OSLogFilesList   []string `json:"oslog_files_list,omitempty"`

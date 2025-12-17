@@ -13,17 +13,34 @@ import (
 type httpClient struct {
 	cl  *http.Client
 	cfg config.Config
+	end string
 }
 
 func NewHTTPJSONClient(cfg config.Config) ports.Transport {
 	return &httpClient{
 		cl:  httpx.NewClient(cfg, 10*time.Second),
 		cfg: cfg,
+		end: "/v1/ingest",
 	}
 }
 
-func (h *httpClient) SendWithAuth(batch []entities.Envelope, authHeader string) error {
-	req, err := buildRequest(h.cfg.APIEndpoint("/v1/ingest"), batch, h.cfg)
+func NewHTTPJSONClientWithEndpoint(cfg config.Config, endpoint string) ports.Transport {
+	if endpoint == "" {
+		endpoint = "/v1/ingest"
+	}
+	return &httpClient{
+		cl:  httpx.NewClient(cfg, 10*time.Second),
+		cfg: cfg,
+		end: endpoint,
+	}
+}
+
+func (h *httpClient) SendWithAuth(batch []entities.Envelope, authHeader string, endpoint string) error {
+	target := h.end
+	if endpoint != "" {
+		target = endpoint
+	}
+	req, err := buildRequest(h.cfg.APIEndpoint(target), batch, h.cfg)
 	if err != nil {
 		return err
 	}

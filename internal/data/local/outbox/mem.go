@@ -17,6 +17,7 @@ func NewMemStore() *MemStore { return &MemStore{} }
 func (m *MemStore) Push(e entities.Envelope) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	// preserva endpoint/autorização no envelope em memória
 	m.queue = append(m.queue, e)
 	return nil
 }

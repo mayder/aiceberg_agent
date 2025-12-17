@@ -29,19 +29,28 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 	}
 
 	start := time.Now()
-	grouped := make(map[string][]entities.Envelope)
+	grouped := make(map[string]map[string][]entities.Envelope) // auth -> endpoint -> list
 	for _, e := range batch {
 		h := e.AuthHeader
 		if h == "" {
 			h = uc.defaultAuth
 		}
-		grouped[h] = append(grouped[h], e)
+		end := e.Endpoint
+		if end == "" {
+			end = "/v1/ingest"
+		}
+		if grouped[h] == nil {
+			grouped[h] = make(map[string][]entities.Envelope)
+		}
+		grouped[h][end] = append(grouped[h][end], e)
 	}
 
-	for auth, list := range grouped {
-		if err := uc.tx.SendWithAuth(list, auth); err != nil {
-			uc.log.Error("transport failed: " + err.Error())
-			return 0, err
+	for auth, byEndpoint := range grouped {
+		for endpoint, list := range byEndpoint {
+			if err := uc.tx.SendWithAuth(list, auth, endpoint); err != nil {
+				uc.log.Error("transport failed: " + err.Error())
+				return 0, err
+			}
 		}
 	}
 

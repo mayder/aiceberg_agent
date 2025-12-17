@@ -17,7 +17,7 @@ func NewTransportAdapter(repo TelemetryRepository) *TransportAdapter {
 }
 
 // Implementa ports.Transport
-func (a *TransportAdapter) SendWithAuth(batch []entities.Envelope, authHeader string) error {
+func (a *TransportAdapter) SendWithAuth(batch []entities.Envelope, authHeader string, endpoint string) error {
 	impl, ok := a.repo.(*telemetryRepoImpl)
 	if !ok {
 		return nil
@@ -32,7 +32,10 @@ func (a *TransportAdapter) SendWithAuth(batch []entities.Envelope, authHeader st
 	if authHeader != "" {
 		headers["Authorization"] = authHeader
 	}
-	_, _, err = impl.ingest.SendBatch("/v1/ingest", payload, headers)
+	if endpoint == "" {
+		endpoint = "/v1/ingest"
+	}
+	_, _, err = impl.ingest.SendBatch(endpoint, payload, headers)
 	return err
 }
 

@@ -14,18 +14,20 @@ import (
 
 // ConfigSync faz pull periódico das preferências de coleta do backend e persiste localmente.
 type ConfigSync struct {
-	cfg   config.Config
-	log   logger.Logger
-	store *prefs.Store
-	cl    *http.Client
+	cfg      config.Config
+	log      logger.Logger
+	store    *prefs.Store
+	cl       *http.Client
+	commands chan<- string
 }
 
-func NewConfigSync(cfg config.Config, log logger.Logger, store *prefs.Store) *ConfigSync {
+func NewConfigSync(cfg config.Config, log logger.Logger, store *prefs.Store, commands chan<- string) *ConfigSync {
 	return &ConfigSync{
-		cfg:   cfg,
-		log:   log,
-		store: store,
-		cl:    httpx.NewClient(cfg, 8*time.Second),
+		cfg:      cfg,
+		log:      log,
+		store:    store,
+		cl:       httpx.NewClient(cfg, 8*time.Second),
+		commands: commands,
 	}
 }
 
@@ -88,7 +90,10 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 	}
 
 	cur := uc.store.Get()
-	if cur.Version == payload.Collect.Version && payload.Collect.Version != "" {
+	collectNow := payload.Collect.CollectNow
+	// não persistir trigger efêmero
+	payload.Collect.CollectNow = nil
+	if cur.Version == payload.Collect.Version && payload.Collect.Version != "" && len(collectNow) == 0 {
 		return nil
 	}
 
@@ -97,5 +102,15 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 		return err
 	}
 	uc.log.Info("config sync ok version=" + payload.Collect.Version)
+
+	// Dispara comandos on-demand (coleta imediata)
+	for _, cmd := range collectNow {
+		// non-blocking para não travar o loop
+		select {
+		case uc.commands <- cmd:
+		default:
+			uc.log.Info("command channel full, dropping command: " + cmd)
+		}
+	}
 	return nil
 }

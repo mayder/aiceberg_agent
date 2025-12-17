@@ -11,4 +11,5 @@ type Envelope struct {
 	Meta          map[string]string `json:"meta,omitempty"`
 	Body          any               `json:"body"`
 	AuthHeader    string            `json:"-"`
+	Endpoint      string            `json:"-"`
 }

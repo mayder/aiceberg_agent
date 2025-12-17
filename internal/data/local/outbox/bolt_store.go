@@ -26,6 +26,7 @@ type BoltStore struct {
 type storedEnvelope struct {
 	Env        entities.Envelope `json:"env"`
 	AuthHeader string            `json:"auth_header,omitempty"`
+	Endpoint   string            `json:"endpoint,omitempty"`
 }
 
 func NewBoltStore(path string, maxMB int) (*BoltStore, error) {
@@ -63,7 +64,7 @@ func (b *BoltStore) Close() error {
 }
 
 func (b *BoltStore) Push(e entities.Envelope) error {
-	raw, err := json.Marshal(storedEnvelope{Env: e, AuthHeader: e.AuthHeader})
+	raw, err := json.Marshal(storedEnvelope{Env: e, AuthHeader: e.AuthHeader, Endpoint: e.Endpoint})
 	if err != nil {
 		return err
 	}
@@ -97,6 +98,9 @@ func (b *BoltStore) Peek(n int) ([]entities.Envelope, error) {
 			}
 			env := stored.Env
 			env.AuthHeader = stored.AuthHeader
+			if env.Endpoint == "" {
+				env.Endpoint = stored.Endpoint
+			}
 			out = append(out, env)
 		}
 		return nil

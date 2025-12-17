@@ -14,17 +14,22 @@ import (
 type hubClient struct {
 	cl  *http.Client
 	cfg config.Config
+	end string
 }
 
 func NewHubClient(cfg config.Config) ports.Transport {
 	return &hubClient{
 		cl:  httpx.NewClient(cfg, 10*time.Second),
 		cfg: cfg,
+		end: "/v1/ingest",
 	}
 }
 
-func (h *hubClient) SendWithAuth(batch []entities.Envelope, authHeader string) error {
-	url := h.cfg.HubURL + "/v1/ingest"
+func (h *hubClient) SendWithAuth(batch []entities.Envelope, authHeader string, endpoint string) error {
+	url := h.cfg.HubURL + h.end
+	if endpoint != "" {
+		url = h.cfg.HubURL + endpoint
+	}
 	req, err := buildRequest(url, batch, h.cfg)
 	if err != nil {
 		return err

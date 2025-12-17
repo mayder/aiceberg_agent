@@ -17,10 +17,11 @@ type CollectAndBuffer struct {
 	outbox     ports.OutboxRepo
 	log        logger.Logger
 	authHeader string
+	endpoint   string
 }
 
-func NewCollectAndBuffer(c ports.Collector, o ports.OutboxRepo, l logger.Logger, authHeader string) *CollectAndBuffer {
-	return &CollectAndBuffer{collector: c, outbox: o, log: l, authHeader: authHeader}
+func NewCollectAndBuffer(c ports.Collector, o ports.OutboxRepo, l logger.Logger, authHeader string, endpoint string) *CollectAndBuffer {
+	return &CollectAndBuffer{collector: c, outbox: o, log: l, authHeader: authHeader, endpoint: endpoint}
 }
 
 func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
@@ -45,6 +46,7 @@ func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
 		TSUnixMs:      time.Now().UnixMilli(),
 		Body:          json.RawMessage(data), // mantém como JSON bruto
 		AuthHeader:    uc.authHeader,
+		Endpoint:      uc.endpoint,
 	}
 
 	if err := uc.outbox.Append(env); err != nil {

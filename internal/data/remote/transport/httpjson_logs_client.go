@@ -14,17 +14,23 @@ import (
 type logsClient struct {
 	cl  *http.Client
 	cfg config.Config
+	end string
 }
 
 func NewHTTPLogsClient(cfg config.Config) ports.Transport {
 	return &logsClient{
 		cl:  httpx.NewClient(cfg, 10*time.Second),
 		cfg: cfg,
+		end: "/v1/logs/raw",
 	}
 }
 
-func (h *logsClient) SendWithAuth(batch []entities.Envelope, authHeader string) error {
-	req, err := buildRequest(h.cfg.APIEndpoint("/v1/logs/raw"), batch, h.cfg)
+func (h *logsClient) SendWithAuth(batch []entities.Envelope, authHeader string, endpoint string) error {
+	target := h.end
+	if endpoint != "" {
+		target = endpoint
+	}
+	req, err := buildRequest(h.cfg.APIEndpoint(target), batch, h.cfg)
 	if err != nil {
 		return err
 	}

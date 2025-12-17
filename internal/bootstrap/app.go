@@ -68,10 +68,21 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	proc := processHandle()
 
 	collector := sysmetrics.New(outboxRepo.Len, prefStore.Get)
-	collectUC := usecase.NewCollectAndBuffer(collector, outboxRepo, log, authHeader)
+
+	metricsEndpoint := "/v1/ingest/metrics"
+	healthEndpoint := "/v1/ingest/health"
+	inventoryEndpoint := "/v1/ingest/inventory"
+	bootstrapEndpoint := "/v1/ingest/bootstrap"
+
+	metricsUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics", metricsEndpoint, 10*time.Second, metricsKeys()), outboxRepo, log, authHeader, metricsEndpoint)
+	healthUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_health", healthEndpoint, 10*time.Minute, healthKeys()), outboxRepo, log, authHeader, healthEndpoint)
+	inventoryUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_inventory", inventoryEndpoint, 8*time.Hour, inventoryKeys()), outboxRepo, log, authHeader, inventoryEndpoint)
+	bootstrapUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_bootstrap", bootstrapEndpoint, 24*time.Hour, bootstrapKeys()), outboxRepo, log, authHeader, bootstrapEndpoint)
+
 	flushUC := usecase.NewFlushOutbox(outboxRepo, tx, log, authHeader)
 	pingUC := usecase.NewPingBackend(cfg, log)
-	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore)
+	commandChan := make(chan string, 10)
+	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore, commandChan)
 	var counters obsCounters
 
 	var osLogCollectUC *usecase.CollectAndBuffer
@@ -82,7 +93,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	osRepo := repositories.NewOutboxRepository(osStore)
 	osLogRepo = osRepo
 	osCollector := oslogs.New(cfg, prefStore.Get)
-	osLogCollectUC = usecase.NewCollectAndBuffer(osCollector, osRepo, log, authHeader)
+	osLogCollectUC = usecase.NewCollectAndBuffer(osCollector, osRepo, log, authHeader, "/v1/logs/raw")
 	var osTx ports.Transport
 	if mode == "relay" {
 		osTx = transport.NewHubClient(cfg)
@@ -126,7 +137,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		go hub.ServeHub(addr, cfg, outboxRepo, log)
 	}
 
-	tCollect := time.NewTicker(10 * time.Second)
+	tMetrics := time.NewTicker(10 * time.Second)
+	tHealth := time.NewTicker(10 * time.Minute)
+	tInventory := time.NewTicker(8 * time.Hour)
 	tFlush := time.NewTicker(15 * time.Second)
 	var tPing *time.Ticker
 	var tCfgSync *time.Ticker
@@ -136,7 +149,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	if osLogCollectUC != nil {
 		tOsCollect = time.NewTicker(cfg.OSLogInterval)
 	}
-	defer tCollect.Stop()
+	defer tMetrics.Stop()
+	defer tHealth.Stop()
+	defer tInventory.Stop()
 	defer tFlush.Stop()
 	if tPing != nil {
 		defer tPing.Stop()
@@ -150,17 +165,24 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 
 	log.Info("agent started")
 
+	// coleta de bootstrap imediata (host/inventory estático)
+	_ = bootstrapUC.Execute(ctx)
+
 	for {
 		select {
 		case <-ctx.Done():
 			log.Info("shutdown")
 			return nil
-		case <-tCollect.C:
+		case <-tMetrics.C:
 			start := time.Now()
-			if err := collectUC.Execute(ctx); err != nil {
+			if err := metricsUC.Execute(ctx); err != nil {
 				counters.collectErr.Add(1)
 			}
 			counters.lastCollectMs.Store(time.Since(start).Milliseconds())
+		case <-tHealth.C:
+			_ = healthUC.Execute(ctx)
+		case <-tInventory.C:
+			_ = inventoryUC.Execute(ctx)
 		case <-tFlush.C:
 			start := time.Now()
 			if n, err := flushUC.Execute(ctx); err != nil {
@@ -184,6 +206,15 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			_ = pingUC.Execute(ctx)
 		case <-readTick(tCfgSync):
 			_ = configSyncUC.Execute(ctx)
+		case cmd := <-commandChan:
+			switch cmd {
+			case "inventory":
+				_ = inventoryUC.Execute(ctx)
+			case "health":
+				_ = healthUC.Execute(ctx)
+			case "bootstrap":
+				_ = bootstrapUC.Execute(ctx)
+			}
 		case <-readTick(tOsCollect):
 			if osLogCollectUC != nil {
 				_ = osLogCollectUC.Execute(ctx)
@@ -365,6 +396,81 @@ func loadBootstrapState() (bootstrapState, error) {
 		return bootstrapState{}, err
 	}
 	return st, nil
+}
+
+// filteredCollector reusa o coletor base mas mantém apenas chaves do body relevantes para cada endpoint.
+type filteredCollector struct {
+	base     ports.Collector
+	name     string
+	endpoint string
+	interval time.Duration
+	keep     map[string]struct{}
+}
+
+func newFilteredCollector(base ports.Collector, name, endpoint string, interval time.Duration, keys map[string]struct{}) ports.Collector {
+	return &filteredCollector{
+		base:     base,
+		name:     name,
+		endpoint: endpoint,
+		interval: interval,
+		keep:     keys,
+	}
+}
+
+func (f *filteredCollector) Name() string            { return f.name }
+func (f *filteredCollector) Interval() time.Duration { return f.interval }
+func (f *filteredCollector) Collect(ctx context.Context) ([]byte, error) {
+	raw, err := f.base.Collect(ctx)
+	if err != nil || raw == nil || len(raw) == 0 {
+		return raw, err
+	}
+	if len(f.keep) == 0 {
+		return raw, nil
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return raw, nil // fallback: não filtra se não conseguir parsear
+	}
+	for k := range body {
+		if _, ok := f.keep[k]; !ok {
+			delete(body, k)
+		}
+	}
+	return json.Marshal(body)
+}
+
+func setOf(keys ...string) map[string]struct{} {
+	m := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		m[k] = struct{}{}
+	}
+	return m
+}
+
+func metricsKeys() map[string]struct{} {
+	return setOf(
+		"capabilities", "cpu", "memory", "disk", "network", "net_active",
+		"sanity", "services", "processes", "agent", "gpu", "power",
+		"sensors", "time_sync",
+	)
+}
+
+func healthKeys() map[string]struct{} {
+	return setOf(
+		"capabilities", "disk", "updates", "time_sync", "sanity", "vulns", "logs",
+	)
+}
+
+func inventoryKeys() map[string]struct{} {
+	return setOf(
+		"capabilities", "inventory", "host", "agent",
+	)
+}
+
+func bootstrapKeys() map[string]struct{} {
+	return setOf(
+		"capabilities", "inventory", "host", "network",
+	)
 }
 
 func readTick(t *time.Ticker) <-chan time.Time {
