@@ -2,6 +2,7 @@ package outbox
 
 import (
 	"sync"
+	"time"
 
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 )
@@ -55,4 +56,45 @@ outer:
 	}
 	m.queue = keep
 	return nil
+}
+
+func (m *MemStore) Prune(opts PruneOptions) (int, error) {
+	maxPerAgent := opts.MaxPerAgent
+	maxAge := opts.MaxAge
+	now := opts.effectiveNow()
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if len(m.queue) == 0 {
+		return 0, nil
+	}
+
+	removed := 0
+	perAgent := make(map[string]int)
+	keep := make([]entities.Envelope, 0, len(m.queue))
+
+	for i := len(m.queue) - 1; i >= 0; i-- {
+		e := m.queue[i]
+		if maxAge > 0 && e.TSUnixMs > 0 {
+			if now.Sub(time.UnixMilli(e.TSUnixMs)) > maxAge {
+				removed++
+				continue
+			}
+		}
+		if maxPerAgent > 0 {
+			if perAgent[e.AgentID] >= maxPerAgent {
+				removed++
+				continue
+			}
+			perAgent[e.AgentID]++
+		}
+		keep = append(keep, e)
+	}
+
+	for i, j := 0, len(keep)-1; i < j; i, j = i+1, j-1 {
+		keep[i], keep[j] = keep[j], keep[i]
+	}
+	m.queue = keep
+	return removed, nil
 }

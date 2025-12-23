@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"io"
 	"net/http"
 	"time"
 
@@ -25,14 +26,13 @@ func NewHubClient(cfg config.Config) ports.Transport {
 	}
 }
 
-func (h *hubClient) SendWithAuth(batch []entities.Envelope, authHeader string, endpoint string) error {
+func (h *hubClient) SendWithAuth(batch []entities.Envelope, authHeader string, endpoint string) ([]byte, error) {
+	// Sempre envia ao endpoint fixo do hub; o destino real vai dentro do envelope.
+	_ = endpoint
 	url := h.cfg.HubURL + h.end
-	if endpoint != "" {
-		url = h.cfg.HubURL + endpoint
-	}
 	req, err := buildRequest(url, batch, h.cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if authHeader != "" {
 		req.Header.Set("Authorization", authHeader)
@@ -41,11 +41,15 @@ func (h *hubClient) SendWithAuth(batch []entities.Envelope, authHeader string, e
 	}
 	resp, err := h.cl.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return &httpStatusErr{code: resp.StatusCode}
+		return nil, &httpStatusErr{code: resp.StatusCode}
 	}
-	return nil
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	return body, nil
 }

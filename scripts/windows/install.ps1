@@ -69,6 +69,11 @@ if ($HubToken)   { [Environment]::SetEnvironmentVariable("HUB_TOKEN", $HubToken,
 if ($HubListen)  { [Environment]::SetEnvironmentVariable("HUB_LISTEN_ADDR", $HubListen, "Machine") }
 if ($SkipBootstrap) { [Environment]::SetEnvironmentVariable("SKIP_BOOTSTRAP", "true", "Machine") }
 
+Write-Host "Registrando fonte de log no Windows Event Log..."
+if (-not [System.Diagnostics.EventLog]::SourceExists($ServiceName)) {
+  New-EventLog -LogName Application -Source $ServiceName
+}
+
 $installSvc = Join-Path $PSScriptRoot "install-service.ps1"
 if (-not (Test-Path $installSvc)) {
   Write-Error "install-service.ps1 não encontrado em $PSScriptRoot."

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -43,6 +44,31 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	_, _ = prefStore.Load()
 
 	mode := cfg.Mode()
+
+	pruneOpts := outbox.PruneOptions{MaxPerAgent: 10}
+	if mode == "hub" {
+		pruneOpts.MaxPerAgent = 100
+		pruneOpts.MaxAge = 10 * time.Minute
+	}
+	pruneStore := func(store repositories.Store, label string) {
+		pruner, ok := store.(interface {
+			Prune(outbox.PruneOptions) (int, error)
+		})
+		if !ok {
+			return
+		}
+		opts := pruneOpts
+		opts.Now = time.Now()
+		removed, err := pruner.Prune(opts)
+		if err != nil {
+			log.Error("outbox prune failed: " + err.Error() + " target=" + label)
+			return
+		}
+		if removed > 0 {
+			log.Info("outbox pruned removed=" + strconv.Itoa(removed) + " target=" + label)
+		}
+	}
+	pruneStore(store, "main")
 
 	if !cfg.SkipBootstrap {
 		if err := bootstrap(ctx, cfg, log); err != nil {
@@ -79,10 +105,45 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	inventoryUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_inventory", inventoryEndpoint, 8*time.Hour, inventoryKeys()), outboxRepo, log, authHeader, inventoryEndpoint)
 	bootstrapUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_bootstrap", bootstrapEndpoint, 24*time.Hour, bootstrapKeys()), outboxRepo, log, authHeader, bootstrapEndpoint)
 
-	flushUC := usecase.NewFlushOutbox(outboxRepo, tx, log, authHeader)
-	pingUC := usecase.NewPingBackend(cfg, log)
 	commandChan := make(chan string, 10)
 	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore, commandChan)
+
+	var pendingCfg *hub.PendingConfigStore
+	onIngestConfig := func(auth string, cfg usecase.IngestConfig) {
+		if cfg.Payload == nil {
+			return
+		}
+		version, applied, err := usecase.ApplyConfigPayload(log, prefStore, commandChan, *cfg.Payload)
+		if err != nil {
+			log.Error("ingest config persist failed: " + err.Error())
+			return
+		}
+		if applied {
+			log.Info("ingest config applied version=" + version)
+		}
+	}
+	if mode == "hub" {
+		pendingCfg = hub.NewPendingConfigStore()
+		onIngestConfig = func(auth string, cfg usecase.IngestConfig) {
+			if len(cfg.Raw) > 0 && auth != authHeader {
+				pendingCfg.Set(auth, cfg.Raw)
+			}
+			if cfg.Payload == nil || auth != authHeader {
+				return
+			}
+			version, applied, err := usecase.ApplyConfigPayload(log, prefStore, commandChan, *cfg.Payload)
+			if err != nil {
+				log.Error("ingest config persist failed: " + err.Error())
+				return
+			}
+			if applied {
+				log.Info("ingest config applied version=" + version)
+			}
+		}
+	}
+
+	flushUC := usecase.NewFlushOutbox(outboxRepo, tx, log, authHeader, onIngestConfig)
+	pingUC := usecase.NewPingBackend(cfg, log)
 	var counters obsCounters
 
 	var osLogCollectUC *usecase.CollectAndBuffer
@@ -100,7 +161,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	} else {
 		osTx = transport.NewHTTPLogsClient(cfg)
 	}
-	osLogFlushUC = usecase.NewFlushOutbox(osRepo, osTx, log, authHeader)
+	osLogFlushUC = usecase.NewFlushOutbox(osRepo, osTx, log, authHeader, onIngestConfig)
+	pruneStore(osStore, "oslogs")
 
 	if cfg.HealthPort > 0 {
 		go health.Serve(cfg.HealthPort, log, func() health.Snapshot {
@@ -134,7 +196,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		if addr == "" {
 			addr = ":9090"
 		}
-		go hub.ServeHub(addr, cfg, outboxRepo, log)
+		go hub.ServeHub(addr, cfg, outboxRepo, log, pendingCfg)
 	}
 
 	tMetrics := time.NewTicker(10 * time.Second)
@@ -184,6 +246,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		case <-tInventory.C:
 			_ = inventoryUC.Execute(ctx)
 		case <-tFlush.C:
+			pruneStore(store, "main")
+			pruneStore(osStore, "oslogs")
 			start := time.Now()
 			if n, err := flushUC.Execute(ctx); err != nil {
 				counters.flushErr.Add(1)

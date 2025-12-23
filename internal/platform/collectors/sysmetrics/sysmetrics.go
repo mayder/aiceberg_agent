@@ -51,23 +51,23 @@ func (c *collector) Interval() time.Duration { return 10 * time.Second }
 
 type snapshot struct {
 	Capabilities map[string]bool `json:"capabilities,omitempty"`
-	CPU          cpuSnapshot     `json:"cpu,omitempty"`
-	Memory       memSnapshot     `json:"memory,omitempty"`
-	Disk         diskSnapshot    `json:"disk,omitempty"`
-	Network      netSnapshot     `json:"network,omitempty"`
-	Host         hostSnapshot    `json:"host,omitempty"`
-	Sensors      sensorsSnap     `json:"sensors,omitempty"`
-	NetActive    netActive       `json:"net_active,omitempty"`
-	Power        powerSnapshot   `json:"power,omitempty"`
-	Sanity       sanitySnapshot  `json:"sanity,omitempty"`
+	CPU          *cpuSnapshot    `json:"cpu,omitempty"`
+	Memory       *memSnapshot    `json:"memory,omitempty"`
+	Disk         *diskSnapshot   `json:"disk,omitempty"`
+	Network      *netSnapshot    `json:"network,omitempty"`
+	Host         *hostSnapshot   `json:"host,omitempty"`
+	Sensors      *sensorsSnap    `json:"sensors,omitempty"`
+	NetActive    *netActive      `json:"net_active,omitempty"`
+	Power        *powerSnapshot  `json:"power,omitempty"`
+	Sanity       *sanitySnapshot `json:"sanity,omitempty"`
 	GPU          []gpuSnapshot   `json:"gpu,omitempty"`
 	Services     []serviceSnap   `json:"services,omitempty"`
-	TimeSync     timeSyncSnap    `json:"time_sync,omitempty"`
-	Vulns        vulnsSnap       `json:"vulns"`
-	Inventory    inventorySnap   `json:"inventory,omitempty"`
+	TimeSync     *timeSyncSnap   `json:"time_sync,omitempty"`
+	Vulns        *vulnsSnap      `json:"vulns,omitempty"`
+	Inventory    *inventorySnap  `json:"inventory,omitempty"`
 	Logs         []logFileSnap   `json:"logs,omitempty"`
 	Updates      []updatesSnap   `json:"updates,omitempty"`
-	Agent        agentSnap       `json:"agent,omitempty"`
+	Agent        *agentSnap      `json:"agent,omitempty"`
 	Processes    []procSnapshot  `json:"processes,omitempty"`
 }
 
@@ -392,30 +392,34 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 
 	if p.CPU {
 		cpuOk := false
+		cpuSnap := &cpuSnapshot{}
 		if totals, err := cpu.PercentWithContext(ctx, 0, false); err == nil && len(totals) > 0 {
-			s.CPU.PercentTotal = totals[0]
+			cpuSnap.PercentTotal = totals[0]
 			cpuOk = true
 		}
 		if perCPU, err := cpu.PercentWithContext(ctx, 0, true); err == nil {
-			s.CPU.PercentPerCPU = perCPU
+			cpuSnap.PercentPerCPU = perCPU
 			cpuOk = true
 		}
 		if l, err := load.AvgWithContext(ctx); err == nil {
-			s.CPU.Load1, s.CPU.Load5, s.CPU.Load15 = l.Load1, l.Load5, l.Load15
+			cpuSnap.Load1, cpuSnap.Load5, cpuSnap.Load15 = l.Load1, l.Load5, l.Load15
 			cpuOk = true
 		}
 		if n, err := cpu.CountsWithContext(ctx, true); err == nil {
-			s.CPU.CoresLogical = n
+			cpuSnap.CoresLogical = n
 			cpuOk = true
 		}
 		if n, err := cpu.CountsWithContext(ctx, false); err == nil {
-			s.CPU.CoresPhysical = n
+			cpuSnap.CoresPhysical = n
 			cpuOk = true
 		}
 		if infos, err := cpu.InfoWithContext(ctx); err == nil && len(infos) > 0 {
-			s.CPU.FreqCurrentMHz = infos[0].Mhz
-			s.CPU.FreqMaxMHz = infos[0].Mhz
+			cpuSnap.FreqCurrentMHz = infos[0].Mhz
+			cpuSnap.FreqMaxMHz = infos[0].Mhz
 			cpuOk = true
+		}
+		if cpuOk {
+			s.CPU = cpuSnap
 		}
 		s.Capabilities["cpu"] = cpuOk
 	} else {
@@ -424,23 +428,25 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 
 	if p.Memory {
 		memOk := false
+		memSnap := &memSnapshot{}
 		if vm, err := mem.VirtualMemoryWithContext(ctx); err == nil {
-			s.Memory = memSnapshot{
-				Total:       vm.Total,
-				Used:        vm.Used,
-				Free:        vm.Free,
-				UsedPercent: vm.UsedPercent,
-				Buffers:     vm.Buffers,
-				Cached:      vm.Cached,
-			}
+			memSnap.Total = vm.Total
+			memSnap.Used = vm.Used
+			memSnap.Free = vm.Free
+			memSnap.UsedPercent = vm.UsedPercent
+			memSnap.Buffers = vm.Buffers
+			memSnap.Cached = vm.Cached
 			memOk = true
 		}
 		if swap, err := mem.SwapMemoryWithContext(ctx); err == nil {
-			s.Memory.SwapTotal = swap.Total
-			s.Memory.SwapUsed = swap.Used
-			s.Memory.SwapFree = swap.Free
-			s.Memory.SwapUsedPerc = swap.UsedPercent
+			memSnap.SwapTotal = swap.Total
+			memSnap.SwapUsed = swap.Used
+			memSnap.SwapFree = swap.Free
+			memSnap.SwapUsedPerc = swap.UsedPercent
 			memOk = true
+		}
+		if memOk {
+			s.Memory = memSnap
 		}
 		s.Capabilities["memory"] = memOk
 	} else {
@@ -449,11 +455,12 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 
 	if p.Disk {
 		diskOk := false
+		diskSnap := &diskSnapshot{}
 		if parts, err := disk.PartitionsWithContext(ctx, true); err == nil {
 			devSeen := make(map[string]struct{})
 			for _, p := range parts {
 				if u, err := disk.UsageWithContext(ctx, p.Mountpoint); err == nil {
-					s.Disk.Filesystems = append(s.Disk.Filesystems, diskFS{
+					diskSnap.Filesystems = append(diskSnap.Filesystems, diskFS{
 						Mount:          p.Mountpoint,
 						FSType:         p.Fstype,
 						Total:          u.Total,
@@ -472,13 +479,13 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 				}
 			}
 			if sm := collectSMART(devSeen); len(sm) > 0 {
-				s.Disk.SMART = sm
+				diskSnap.SMART = sm
 				diskOk = true
 			}
 		}
 		if ioStats, err := disk.IOCountersWithContext(ctx); err == nil {
 			for name, io := range ioStats {
-				s.Disk.IOStats = append(s.Disk.IOStats, diskIO{
+				diskSnap.IOStats = append(diskSnap.IOStats, diskIO{
 					Device:      name,
 					Reads:       io.ReadCount,
 					Writes:      io.WriteCount,
@@ -488,10 +495,13 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 					WriteTimeMs: io.WriteTime,
 				})
 			}
-			if len(s.Disk.IOStats) > 0 {
-				sort.Slice(s.Disk.IOStats, func(i, j int) bool { return s.Disk.IOStats[i].Device < s.Disk.IOStats[j].Device })
+			if len(diskSnap.IOStats) > 0 {
+				sort.Slice(diskSnap.IOStats, func(i, j int) bool { return diskSnap.IOStats[i].Device < diskSnap.IOStats[j].Device })
 				diskOk = true
 			}
+		}
+		if diskOk {
+			s.Disk = diskSnap
 		}
 		s.Capabilities["disk"] = diskOk
 	} else {
@@ -500,6 +510,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 
 	if p.Network {
 		netOk := false
+		netSnap := &netSnapshot{}
 		if ifs, err := gnet.InterfacesWithContext(ctx); err == nil {
 			ioByName := map[string]gnet.IOCountersStat{}
 			if ioStats, err := gnet.IOCountersWithContext(ctx, true); err == nil {
@@ -513,7 +524,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 				for _, a := range inf.Addrs {
 					addrs = append(addrs, a.Addr)
 				}
-				s.Network.Interfaces = append(s.Network.Interfaces, netIf{
+				netSnap.Interfaces = append(netSnap.Interfaces, netIf{
 					Name:        inf.Name,
 					MTU:         inf.MTU,
 					MAC:         inf.HardwareAddr,
@@ -530,9 +541,12 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 					IsUp:        containsFlag(inf.Flags, "up") || containsFlag(inf.Flags, "UP"),
 				})
 			}
-			if len(s.Network.Interfaces) > 0 {
+			if len(netSnap.Interfaces) > 0 {
 				netOk = true
 			}
+		}
+		if netOk {
+			s.Network = netSnap
 		}
 		s.Capabilities["network"] = netOk
 	} else {
@@ -553,9 +567,11 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 					})
 				}
 			}
-			s.NetActive = netActive{
-				ConnectionsByState: stateCount,
-				Listening:          listening,
+			if len(stateCount) > 0 || len(listening) > 0 {
+				s.NetActive = &netActive{
+					ConnectionsByState: stateCount,
+					Listening:          listening,
+				}
 			}
 			s.Capabilities["net_active"] = true
 		} else {
@@ -567,7 +583,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 
 	if p.Host {
 		if hi, err := host.InfoWithContext(ctx); err == nil {
-			s.Host = hostSnapshot{
+			s.Host = &hostSnapshot{
 				Hostname:         hi.Hostname,
 				OS:               hi.OS,
 				Platform:         hi.Platform,
@@ -588,26 +604,32 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	}
 
 	if p.Sensors {
+		sensors := &sensorsSnap{}
 		if temps, err := host.SensorsTemperaturesWithContext(ctx); err == nil {
 			for _, t := range temps {
-				s.Sensors.Temperatures = append(s.Sensors.Temperatures, tempReading{
+				sensors.Temperatures = append(sensors.Temperatures, tempReading{
 					Sensor: t.SensorKey,
 					TempC:  t.Temperature,
 				})
 			}
 		}
 		if fans := readFanSpeeds(); len(fans) > 0 {
-			s.Sensors.Fans = fans
+			sensors.Fans = fans
 		}
-		s.Capabilities["sensors"] = len(s.Sensors.Temperatures) > 0 || len(s.Sensors.Fans) > 0
+		sensorsOk := len(sensors.Temperatures) > 0 || len(sensors.Fans) > 0
+		if sensorsOk {
+			s.Sensors = sensors
+		}
+		s.Capabilities["sensors"] = sensorsOk
 	} else {
 		s.Capabilities["sensors"] = false
 	}
 
 	if p.Power {
+		power := &powerSnapshot{}
 		if bats, err := battery.GetAll(); err == nil {
 			for _, b := range bats {
-				s.Power.Batteries = append(s.Power.Batteries, batterySnapshot{
+				power.Batteries = append(power.Batteries, batterySnapshot{
 					Percent:        b.Current / b.Full * 100,
 					State:          b.State.String(),
 					DesignCapacity: b.Design,
@@ -617,17 +639,25 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 				})
 			}
 		}
-		s.Capabilities["power"] = len(s.Power.Batteries) > 0
+		powerOk := len(power.Batteries) > 0
+		if powerOk {
+			s.Power = power
+		}
+		s.Capabilities["power"] = powerOk
 	} else {
 		s.Capabilities["power"] = false
 	}
 
 	if p.Sanity {
-		s.Sanity = sanitySnapshot{
+		sanity := &sanitySnapshot{
 			Ping: multiPing(pingTargets(), 2*time.Second),
 			DNS:  multiDNS(dnsTargets(), 2*time.Second),
 		}
-		s.Capabilities["sanity"] = len(s.Sanity.Ping) > 0 || len(s.Sanity.DNS) > 0
+		sanityOk := len(sanity.Ping) > 0 || len(sanity.DNS) > 0
+		if sanityOk {
+			s.Sanity = sanity
+		}
+		s.Capabilities["sanity"] = sanityOk
 	} else {
 		s.Capabilities["sanity"] = false
 	}
@@ -655,8 +685,13 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	}
 
 	if p.TimeSync {
-		s.TimeSync = timeSyncCheck("time.google.com", 3*time.Second)
-		s.Capabilities["time_sync"] = s.TimeSync.Source != ""
+		ts := timeSyncCheck("time.google.com", 3*time.Second)
+		if ts.Source != "" {
+			s.TimeSync = &ts
+			s.Capabilities["time_sync"] = true
+		} else {
+			s.Capabilities["time_sync"] = false
+		}
 	} else {
 		s.Capabilities["time_sync"] = false
 	}
@@ -692,22 +727,37 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		} else {
 			s.Capabilities["agent"] = false
 		}
+		s.Agent = &agentInfo
 	} else {
 		s.Capabilities["agent"] = false
 	}
 
-	s.Agent = agentInfo
 	if p.Vulns {
-		s.Vulns = vulnsSnap{CVEs: detectCVEs(ctx, p)}
+		cves := detectCVEs(ctx, p)
+		if len(cves) > 0 {
+			s.Vulns = &vulnsSnap{CVEs: cves}
+		}
 		s.Capabilities["vulns"] = true
 	} else {
-		s.Vulns = vulnsSnap{CVEs: []string{}}
 		s.Capabilities["vulns"] = false
 	}
 	if p.Inventory {
 		inv := collectInventory(ctx)
-		s.Inventory = inv
-		s.Capabilities["inventory"] = len(inv.LinuxRPMPackages) > 0 || len(inv.WinApps) > 0 || len(inv.WinHotfixes) > 0
+		hasInventory := len(inv.LinuxRPMPackages) > 0 ||
+			len(inv.WinApps) > 0 ||
+			len(inv.WinHotfixes) > 0 ||
+			len(inv.WinFeatures) > 0 ||
+			inv.OSRelease.ID != "" ||
+			inv.OSRelease.VersionID != "" ||
+			inv.OSRelease.PrettyName != "" ||
+			inv.Kernel.Running != "" ||
+			len(inv.Kernel.Installed) > 0 ||
+			len(inv.Repos.Enabled) > 0 ||
+			inv.Repos.Raw != ""
+		if hasInventory {
+			s.Inventory = &inv
+		}
+		s.Capabilities["inventory"] = hasInventory
 	} else {
 		s.Capabilities["inventory"] = false
 	}

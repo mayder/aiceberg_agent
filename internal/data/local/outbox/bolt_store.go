@@ -29,6 +29,13 @@ type storedEnvelope struct {
 	Endpoint   string            `json:"endpoint,omitempty"`
 }
 
+type storedEnvelopeMeta struct {
+	Env struct {
+		AgentID  string `json:"agent_id"`
+		TSUnixMs int64  `json:"ts_unix_ms"`
+	} `json:"env"`
+}
+
 func NewBoltStore(path string, maxMB int) (*BoltStore, error) {
 	if path == "" {
 		return nil, errors.New("bolt path obrigatório")
@@ -163,6 +170,49 @@ func (b *BoltStore) withinLimit(nextBytes int64) (bool, error) {
 		return false, err
 	}
 	return curBytes+nextBytes <= b.maxBytes, nil
+}
+
+func (b *BoltStore) Prune(opts PruneOptions) (int, error) {
+	maxPerAgent := opts.MaxPerAgent
+	maxAge := opts.MaxAge
+	now := opts.effectiveNow()
+	removed := 0
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	err := b.db.Update(func(tx *bolt.Tx) error {
+		bk := tx.Bucket(b.bucket)
+		if bk == nil {
+			return nil
+		}
+		perAgent := make(map[string]int)
+		c := bk.Cursor()
+		for k, v := c.Last(); k != nil; k, v = c.Prev() {
+			var stored storedEnvelopeMeta
+			if err := json.Unmarshal(v, &stored); err != nil {
+				continue
+			}
+			env := stored.Env
+			if maxAge > 0 && env.TSUnixMs > 0 {
+				if now.Sub(time.UnixMilli(env.TSUnixMs)) > maxAge {
+					_ = c.Delete()
+					removed++
+					continue
+				}
+			}
+			if maxPerAgent > 0 {
+				if perAgent[env.AgentID] >= maxPerAgent {
+					_ = c.Delete()
+					removed++
+					continue
+				}
+				perAgent[env.AgentID]++
+			}
+		}
+		return nil
+	})
+	return removed, err
 }
 
 func bucketStats(tx *bolt.Tx, bucket []byte) (count int, bytes int64) {

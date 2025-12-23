@@ -15,10 +15,11 @@ type FlushOutbox struct {
 	tx          ports.Transport
 	log         logger.Logger
 	defaultAuth string
+	onConfig    IngestConfigHandler
 }
 
-func NewFlushOutbox(o ports.OutboxRepo, t ports.Transport, l logger.Logger, defaultAuth string) *FlushOutbox {
-	return &FlushOutbox{o, t, l, defaultAuth}
+func NewFlushOutbox(o ports.OutboxRepo, t ports.Transport, l logger.Logger, defaultAuth string, onConfig IngestConfigHandler) *FlushOutbox {
+	return &FlushOutbox{o, t, l, defaultAuth, onConfig}
 }
 
 // Execute envia um lote da outbox; retorna quantos envelopes foram ackados.
@@ -47,9 +48,19 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 
 	for auth, byEndpoint := range grouped {
 		for endpoint, list := range byEndpoint {
-			if err := uc.tx.SendWithAuth(list, auth, endpoint); err != nil {
+			respBody, err := uc.tx.SendWithAuth(list, auth, endpoint)
+			if err != nil {
 				uc.log.Error("transport failed: " + err.Error())
 				return 0, err
+			}
+			if uc.onConfig != nil {
+				cfg, err := parseIngestConfig(respBody)
+				if err != nil {
+					uc.log.Error("ingest config parse failed: " + err.Error())
+				}
+				if cfg != nil {
+					uc.onConfig(auth, *cfg)
+				}
 			}
 		}
 	}

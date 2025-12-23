@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"io"
 	"net/http"
 	"time"
 
@@ -25,14 +26,14 @@ func NewHTTPLogsClient(cfg config.Config) ports.Transport {
 	}
 }
 
-func (h *logsClient) SendWithAuth(batch []entities.Envelope, authHeader string, endpoint string) error {
+func (h *logsClient) SendWithAuth(batch []entities.Envelope, authHeader string, endpoint string) ([]byte, error) {
 	target := h.end
 	if endpoint != "" {
 		target = endpoint
 	}
 	req, err := buildRequest(h.cfg.APIEndpoint(target), batch, h.cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if authHeader != "" {
 		req.Header.Set("Authorization", authHeader)
@@ -43,11 +44,15 @@ func (h *logsClient) SendWithAuth(batch []entities.Envelope, authHeader string, 
 	}
 	resp, err := h.cl.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return &httpStatusErr{code: resp.StatusCode}
+		return nil, &httpStatusErr{code: resp.StatusCode}
 	}
-	return nil
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	return body, nil
 }

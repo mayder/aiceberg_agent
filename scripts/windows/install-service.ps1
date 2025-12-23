@@ -5,5 +5,8 @@ param(
 
 $serviceName = 'AIcebergAgent'
 $cmd = '"' + $BinPath + '" -config "' + $ConfigPath + '"'
+if (-not [System.Diagnostics.EventLog]::SourceExists($serviceName)) {
+  New-EventLog -LogName Application -Source $serviceName
+}
 sc.exe create $serviceName binPath= $cmd start= auto
 sc.exe start $serviceName

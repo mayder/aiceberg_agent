@@ -16,10 +16,10 @@ import (
 )
 
 // ServeHub inicia o listener HTTP para receber ingest de agentes em modo hub.
-func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logger.Logger) {
+func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, pendingCfg *PendingConfigStore) {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/v1/ingest", func(w http.ResponseWriter, r *http.Request) {
+	ingestHandler := func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -47,12 +47,29 @@ func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logge
 				batch[i].Meta = map[string]string{}
 			}
 			batch[i].Meta["via"] = "hub"
+			if batch[i].Endpoint == "" {
+				batch[i].Endpoint = r.URL.Path
+			}
 			batch[i].AuthHeader = auth
 			_ = outbox.Append(batch[i])
 		}
-		log.Info("hub ingest buffered n=" + strconv.Itoa(len(batch)))
+		log.Info("hub ingest buffered n=" + strconv.Itoa(len(batch)) + " path=" + r.URL.Path)
+		if pendingCfg != nil {
+			if cfgRaw, ok := pendingCfg.Pop(auth); ok {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusAccepted)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"status": "ok",
+					"config": cfgRaw,
+				})
+				return
+			}
+		}
 		w.WriteHeader(http.StatusAccepted)
-	})
+	}
+
+	mux.HandleFunc("/v1/ingest", ingestHandler)
+	mux.HandleFunc("/v1/ingest/", ingestHandler)
 
 	mux.HandleFunc("/v1/agent/config", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

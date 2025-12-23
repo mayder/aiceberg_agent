@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
@@ -17,15 +18,15 @@ func NewTransportAdapter(repo TelemetryRepository) *TransportAdapter {
 }
 
 // Implementa ports.Transport
-func (a *TransportAdapter) SendWithAuth(batch []entities.Envelope, authHeader string, endpoint string) error {
+func (a *TransportAdapter) SendWithAuth(batch []entities.Envelope, authHeader string, endpoint string) ([]byte, error) {
 	impl, ok := a.repo.(*telemetryRepoImpl)
 	if !ok {
-		return nil
+		return nil, nil
 	}
 
 	payload, err := json.Marshal(batch)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	headers := map[string]string{"Content-Type": "application/json"}
@@ -35,8 +36,14 @@ func (a *TransportAdapter) SendWithAuth(batch []entities.Envelope, authHeader st
 	if endpoint == "" {
 		endpoint = "/v1/ingest"
 	}
-	_, _, err = impl.ingest.SendBatch(endpoint, payload, headers)
-	return err
+	status, resp, err := impl.ingest.SendBatch(endpoint, payload, headers)
+	if err != nil {
+		return resp, err
+	}
+	if status < 200 || status >= 300 {
+		return resp, fmt.Errorf("http %d", status)
+	}
+	return resp, nil
 }
 
 // Garante conformidade
