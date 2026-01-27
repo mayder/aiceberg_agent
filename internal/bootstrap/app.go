@@ -23,8 +23,10 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/common/version"
+	agentlessstore "github.com/you/aiceberg_agent/internal/data/local/agentless"
 	"github.com/you/aiceberg_agent/internal/data/local/outbox"
 	"github.com/you/aiceberg_agent/internal/data/local/prefs"
+	agentlessremote "github.com/you/aiceberg_agent/internal/data/remote"
 	"github.com/you/aiceberg_agent/internal/data/remote/transport"
 	"github.com/you/aiceberg_agent/internal/data/repositories"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
@@ -149,6 +151,10 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var osLogCollectUC *usecase.CollectAndBuffer
 	var osLogFlushUC *usecase.FlushOutbox
 	var osLogRepo ports.OutboxRepo
+	var agentlessUC *usecase.AgentlessHub
+	var agentlessLastPoll time.Time
+	var agentlessLastFlush time.Time
+	var agentlessRepo ports.AgentlessOutboxRepo
 	// Inicializa coletor de logs do SO; o gating agora é feito pelas prefs (collect_logs e flags avançados).
 	osStore := outbox.NewMemStore()
 	osRepo := repositories.NewOutboxRepository(osStore)
@@ -163,6 +169,51 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	}
 	osLogFlushUC = usecase.NewFlushOutbox(osRepo, osTx, log, authHeader, onIngestConfig)
 	pruneStore(osStore, "oslogs")
+
+	agentlessSettings := func() usecase.AgentlessSettings {
+		p := prefStore.Get()
+		enabled := cfg.AgentlessEnabled
+		if p.AgentlessEnabled {
+			enabled = true
+		}
+		pollSec := p.AgentlessPollSec
+		if pollSec <= 0 {
+			pollSec = int(cfg.AgentlessPollInterval.Seconds())
+		}
+		flushSec := p.AgentlessFlushSec
+		if flushSec <= 0 {
+			flushSec = int(cfg.AgentlessFlushInterval.Seconds())
+		}
+		jobsLimit := p.AgentlessJobsLimit
+		if jobsLimit <= 0 {
+			jobsLimit = cfg.AgentlessJobsLimit
+		}
+		lockSec := p.AgentlessLockSec
+		if lockSec <= 0 {
+			lockSec = cfg.AgentlessLockSec
+		}
+		flushBatch := p.AgentlessFlushBatch
+		if flushBatch <= 0 {
+			flushBatch = cfg.AgentlessFlushBatch
+		}
+		return usecase.AgentlessSettings{
+			Enabled:    enabled,
+			PollSec:    pollSec,
+			FlushSec:   flushSec,
+			JobsLimit:  jobsLimit,
+			LockSec:    lockSec,
+			FlushBatch: flushBatch,
+		}
+	}
+
+	if mode == "hub" && cfg.AgentlessEnabled {
+		agentlessStore := selectAgentlessOutbox(cfg, log)
+		agentlessRepo = repositories.NewAgentlessOutboxRepository(agentlessStore)
+		agentlessClient := agentlessremote.NewAgentlessHubClient(cfg)
+		agentlessUC = usecase.NewAgentlessHub(cfg, log, agentlessClient, agentlessRepo, agentlessSettings)
+		agentlessLastPoll = time.Now().Add(-cfg.AgentlessPollInterval)
+		agentlessLastFlush = time.Now().Add(-cfg.AgentlessFlushInterval)
+	}
 
 	if cfg.HealthPort > 0 {
 		go health.Serve(cfg.HealthPort, log, func() health.Snapshot {
@@ -206,10 +257,14 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var tPing *time.Ticker
 	var tCfgSync *time.Ticker
 	var tOsCollect *time.Ticker
+	var tAgentlessTick *time.Ticker
 	tPing = time.NewTicker(cfg.PingInterval)
 	tCfgSync = time.NewTicker(cfg.ConfigSyncInterval)
 	if osLogCollectUC != nil {
 		tOsCollect = time.NewTicker(cfg.OSLogInterval)
+	}
+	if agentlessUC != nil {
+		tAgentlessTick = time.NewTicker(5 * time.Second)
 	}
 	defer tMetrics.Stop()
 	defer tHealth.Stop()
@@ -223,6 +278,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	}
 	if tOsCollect != nil {
 		defer tOsCollect.Stop()
+	}
+	if tAgentlessTick != nil {
+		defer tAgentlessTick.Stop()
 	}
 
 	log.Info("agent started")
@@ -278,10 +336,27 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				_ = healthUC.Execute(ctx)
 			case "bootstrap":
 				_ = bootstrapUC.Execute(ctx)
+			case "agentless":
+				if agentlessUC != nil {
+					agentlessUC.CollectNow(ctx)
+				}
 			}
 		case <-readTick(tOsCollect):
 			if osLogCollectUC != nil {
 				_ = osLogCollectUC.Execute(ctx)
+			}
+		case <-readTick(tAgentlessTick):
+			if agentlessUC != nil {
+				st := agentlessSettings()
+				now := time.Now()
+				if st.Enabled && (agentlessLastPoll.IsZero() || now.Sub(agentlessLastPoll) >= time.Duration(st.PollSec)*time.Second) {
+					_ = agentlessUC.PollAndRun(ctx)
+					agentlessLastPoll = now
+				}
+				if agentlessLastFlush.IsZero() || now.Sub(agentlessLastFlush) >= time.Duration(st.FlushSec)*time.Second {
+					_ = agentlessUC.Flush(ctx)
+					agentlessLastFlush = now
+				}
 			}
 		}
 	}
@@ -390,6 +465,21 @@ func selectOutbox(cfg config.Config, log logger.Logger) repositories.Store {
 	}
 	log.Info("outbox=memory")
 	return outbox.NewMemStore()
+}
+
+func selectAgentlessOutbox(cfg config.Config, log logger.Logger) repositories.AgentlessStore {
+	maxMB := cfg.AgentlessOutboxMaxMB
+	path := cfg.AgentlessOutboxPath
+	if path != "" {
+		if bs, err := agentlessstore.NewBoltStore(path, maxMB); err == nil {
+			log.Info("agentless_outbox=bolt path=" + path)
+			return bs
+		} else {
+			log.Error("agentless outbox bolt fallback to memory: " + err.Error())
+		}
+	}
+	log.Info("agentless_outbox=memory")
+	return agentlessstore.NewMemStore()
 }
 
 type obsCounters struct {

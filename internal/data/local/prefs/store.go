@@ -46,6 +46,7 @@ func Default() config.CollectPrefs {
 		OSLogDiag:        false,
 		OSLogWinChannels: true,
 		OSLogFiles:       true,
+		AgentlessEnabled: false,
 	}
 }
 

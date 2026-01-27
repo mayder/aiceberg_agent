@@ -19,68 +19,82 @@ type AgentCfg struct {
 }
 
 type Config struct {
-	Agent              AgentCfg
-	APIBaseURL         string
-	APIKey             string
-	HTTPGzip           bool
-	HTTPIdempotency    bool
-	TLSInsecureSkip    bool
-	OutboxPath         string
-	OutboxMaxMB        int
-	HealthPort         int
-	PingInterval       time.Duration
-	ConfigSyncInterval time.Duration
-	PrefsPath          string
-	AgentMode          string
-	HubURL             string
-	HubToken           string
-	HubListenAddr      string
-	SkipBootstrap      bool
-	OSLogEnabled       bool
-	OSLogFiles         []string
-	OSLogCursorPath    string
-	OSLogBatchLines    int
-	OSLogMaxBytes      int
-	OSLogInterval      time.Duration
-	OSLogWinChannels   []string
-	OSLogEnrich        bool
-	OSLogDetections    bool
-	OSLogDiag          bool
+	Agent                  AgentCfg
+	APIBaseURL             string
+	APIKey                 string
+	HTTPGzip               bool
+	HTTPIdempotency        bool
+	TLSInsecureSkip        bool
+	OutboxPath             string
+	OutboxMaxMB            int
+	HealthPort             int
+	PingInterval           time.Duration
+	ConfigSyncInterval     time.Duration
+	PrefsPath              string
+	AgentMode              string
+	HubURL                 string
+	HubToken               string
+	HubListenAddr          string
+	SkipBootstrap          bool
+	OSLogEnabled           bool
+	OSLogFiles             []string
+	OSLogCursorPath        string
+	OSLogBatchLines        int
+	OSLogMaxBytes          int
+	OSLogInterval          time.Duration
+	OSLogWinChannels       []string
+	OSLogEnrich            bool
+	OSLogDetections        bool
+	OSLogDiag              bool
+	AgentlessEnabled       bool
+	AgentlessPollInterval  time.Duration
+	AgentlessFlushInterval time.Duration
+	AgentlessOutboxPath    string
+	AgentlessOutboxMaxMB   int
+	AgentlessJobsLimit     int
+	AgentlessLockSec       int
+	AgentlessFlushBatch    int
 }
 
 type CollectPrefs struct {
-	Version          string   `json:"version,omitempty"`
-	Paused           bool     `json:"paused,omitempty"`
-	CPU              bool     `json:"cpu"`
-	Memory           bool     `json:"memory"`
-	Disk             bool     `json:"disk"`
-	Network          bool     `json:"network"`
-	NetActive        bool     `json:"net_active"`
-	Host             bool     `json:"host"`
-	Sensors          bool     `json:"sensors"`
-	Power            bool     `json:"power"`
-	Sanity           bool     `json:"sanity"`
-	GPU              bool     `json:"gpu"`
-	Services         bool     `json:"services"`
-	TimeSync         bool     `json:"time_sync"`
-	Logs             bool     `json:"logs"`
-	Updates          bool     `json:"updates"`
-	Agent            bool     `json:"agent"`
-	Processes        bool     `json:"processes"`
-	Vulns            bool     `json:"vulns"`
-	Inventory        bool     `json:"inventory"`
-	OSLogEnrich      bool     `json:"oslog_enrich"`
-	OSLogDetections  bool     `json:"oslog_detections"`
-	OSLogDiag        bool     `json:"oslog_diag"`
-	OSLogWinChannels bool     `json:"oslog_win_channels"`
-	OSLogFiles       bool     `json:"oslog_files"`
-	CollectNow       []string `json:"collect_now,omitempty"`
-	CVESignaturesURL string   `json:"cve_signatures_url,omitempty"`
-	OSLogWinChList   []string `json:"oslog_win_channels_list,omitempty"`
-	OSLogFilesList   []string `json:"oslog_files_list,omitempty"`
-	OSLogBatchLines  int      `json:"oslog_batch_lines,omitempty"`
-	OSLogMaxBytes    int      `json:"oslog_max_bytes,omitempty"`
-	OSLogIntervalSec int      `json:"oslog_interval,omitempty"`
+	Version             string   `json:"version,omitempty"`
+	Paused              bool     `json:"paused,omitempty"`
+	CPU                 bool     `json:"cpu"`
+	Memory              bool     `json:"memory"`
+	Disk                bool     `json:"disk"`
+	Network             bool     `json:"network"`
+	NetActive           bool     `json:"net_active"`
+	Host                bool     `json:"host"`
+	Sensors             bool     `json:"sensors"`
+	Power               bool     `json:"power"`
+	Sanity              bool     `json:"sanity"`
+	GPU                 bool     `json:"gpu"`
+	Services            bool     `json:"services"`
+	TimeSync            bool     `json:"time_sync"`
+	Logs                bool     `json:"logs"`
+	Updates             bool     `json:"updates"`
+	Agent               bool     `json:"agent"`
+	Processes           bool     `json:"processes"`
+	Vulns               bool     `json:"vulns"`
+	Inventory           bool     `json:"inventory"`
+	OSLogEnrich         bool     `json:"oslog_enrich"`
+	OSLogDetections     bool     `json:"oslog_detections"`
+	OSLogDiag           bool     `json:"oslog_diag"`
+	OSLogWinChannels    bool     `json:"oslog_win_channels"`
+	OSLogFiles          bool     `json:"oslog_files"`
+	CollectNow          []string `json:"collect_now,omitempty"`
+	CVESignaturesURL    string   `json:"cve_signatures_url,omitempty"`
+	OSLogWinChList      []string `json:"oslog_win_channels_list,omitempty"`
+	OSLogFilesList      []string `json:"oslog_files_list,omitempty"`
+	OSLogBatchLines     int      `json:"oslog_batch_lines,omitempty"`
+	OSLogMaxBytes       int      `json:"oslog_max_bytes,omitempty"`
+	OSLogIntervalSec    int      `json:"oslog_interval,omitempty"`
+	AgentlessEnabled    bool     `json:"agentless_enabled,omitempty"`
+	AgentlessPollSec    int      `json:"agentless_poll_interval,omitempty"`
+	AgentlessFlushSec   int      `json:"agentless_flush_interval,omitempty"`
+	AgentlessJobsLimit  int      `json:"agentless_jobs_limit,omitempty"`
+	AgentlessLockSec    int      `json:"agentless_lock_sec,omitempty"`
+	AgentlessFlushBatch int      `json:"agentless_flush_batch,omitempty"`
 }
 
 func Load(configPath string) (Config, error) {
@@ -100,32 +114,40 @@ func Load(configPath string) (Config, error) {
 	}
 	pingInterval := time.Duration(intEnv("PING_INTERVAL", 5)) * time.Second
 	cfgSyncInterval := time.Duration(intEnv("CONFIG_SYNC_INTERVAL", 30)) * time.Second
+	agentlessPoll := time.Duration(intEnv("AGENTLESS_POLL_INTERVAL", 30)) * time.Second
+	agentlessFlush := time.Duration(intEnv("AGENTLESS_FLUSH_INTERVAL", 15)) * time.Second
 	cfg := Config{
-		Agent:            AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
-		APIBaseURL:       getenv("API_BASE_URL", "https://api.aiceberg.com.br"),
-		APIKey:           getenv("API_KEY", ""),
-		HTTPGzip:         strings.ToLower(getenv("HTTP_GZIP", "")) == "true",
-		HTTPIdempotency:  strings.ToLower(getenv("HTTP_IDEMPOTENCY", "true")) == "true",
-		TLSInsecureSkip:  strings.ToLower(getenv("TLS_INSECURE_SKIP_VERIFY", "")) == "true",
-		OutboxPath:       getenv("OUTBOX_PATH", "./data/outbox.db"),
-		OutboxMaxMB:      intEnv("OUTBOX_MAX_MB", 200),
-		HealthPort:       port,
-		PrefsPath:        getenv("PREFS_PATH", "./data/collect_prefs.json"),
-		AgentMode:        strings.ToLower(getenv("AGENT_MODE", "direct")),
-		HubURL:           getenv("HUB_URL", ""),
-		HubToken:         getenv("HUB_TOKEN", ""),
-		HubListenAddr:    getenv("HUB_LISTEN_ADDR", ""),
-		SkipBootstrap:    strings.ToLower(getenv("SKIP_BOOTSTRAP", "")) == "true",
-		OSLogEnabled:     strings.ToLower(getenv("OSLOG_ENABLED", "")) == "true",
-		OSLogFiles:       splitCsv(getenv("OSLOG_FILES", "")),
-		OSLogCursorPath:  getenv("OSLOG_CURSOR_PATH", "./data/oslogs.cursor"),
-		OSLogBatchLines:  intEnv("OSLOG_BATCH_LINES", 200),
-		OSLogMaxBytes:    intEnv("OSLOG_MAX_BYTES", 256*1024),
-		OSLogInterval:    time.Duration(intEnv("OSLOG_INTERVAL", 15)) * time.Second,
-		OSLogWinChannels: splitCsv(getenv("OSLOG_WIN_CHANNELS", "")),
-		OSLogEnrich:      strings.ToLower(getenv("OSLOG_ENRICH", "")) == "true",
-		OSLogDetections:  strings.ToLower(getenv("OSLOG_DETECTIONS", "")) == "true",
-		OSLogDiag:        strings.ToLower(getenv("OSLOG_DIAG", "")) == "true",
+		Agent:                AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
+		APIBaseURL:           getenv("API_BASE_URL", "https://api.aiceberg.com.br"),
+		APIKey:               getenv("API_KEY", ""),
+		HTTPGzip:             strings.ToLower(getenv("HTTP_GZIP", "")) == "true",
+		HTTPIdempotency:      strings.ToLower(getenv("HTTP_IDEMPOTENCY", "true")) == "true",
+		TLSInsecureSkip:      strings.ToLower(getenv("TLS_INSECURE_SKIP_VERIFY", "")) == "true",
+		OutboxPath:           getenv("OUTBOX_PATH", "./data/outbox.db"),
+		OutboxMaxMB:          intEnv("OUTBOX_MAX_MB", 200),
+		HealthPort:           port,
+		PrefsPath:            getenv("PREFS_PATH", "./data/collect_prefs.json"),
+		AgentMode:            strings.ToLower(getenv("AGENT_MODE", "direct")),
+		HubURL:               getenv("HUB_URL", ""),
+		HubToken:             getenv("HUB_TOKEN", ""),
+		HubListenAddr:        getenv("HUB_LISTEN_ADDR", ""),
+		SkipBootstrap:        strings.ToLower(getenv("SKIP_BOOTSTRAP", "")) == "true",
+		OSLogEnabled:         strings.ToLower(getenv("OSLOG_ENABLED", "")) == "true",
+		OSLogFiles:           splitCsv(getenv("OSLOG_FILES", "")),
+		OSLogCursorPath:      getenv("OSLOG_CURSOR_PATH", "./data/oslogs.cursor"),
+		OSLogBatchLines:      intEnv("OSLOG_BATCH_LINES", 200),
+		OSLogMaxBytes:        intEnv("OSLOG_MAX_BYTES", 256*1024),
+		OSLogInterval:        time.Duration(intEnv("OSLOG_INTERVAL", 15)) * time.Second,
+		OSLogWinChannels:     splitCsv(getenv("OSLOG_WIN_CHANNELS", "")),
+		OSLogEnrich:          strings.ToLower(getenv("OSLOG_ENRICH", "")) == "true",
+		OSLogDetections:      strings.ToLower(getenv("OSLOG_DETECTIONS", "")) == "true",
+		OSLogDiag:            strings.ToLower(getenv("OSLOG_DIAG", "")) == "true",
+		AgentlessEnabled:     strings.ToLower(getenv("AGENTLESS_ENABLED", "true")) == "true",
+		AgentlessOutboxPath:  getenv("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"),
+		AgentlessOutboxMaxMB: intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),
+		AgentlessJobsLimit:   intEnv("AGENTLESS_JOBS_LIMIT", 50),
+		AgentlessLockSec:     intEnv("AGENTLESS_LOCK_SEC", 60),
+		AgentlessFlushBatch:  intEnv("AGENTLESS_FLUSH_BATCH", 100),
 		PingInterval: func() time.Duration {
 			if pingInterval <= 0 {
 				return 5 * time.Second
@@ -137,6 +159,18 @@ func Load(configPath string) (Config, error) {
 				return 30 * time.Second
 			}
 			return cfgSyncInterval
+		}(),
+		AgentlessPollInterval: func() time.Duration {
+			if agentlessPoll <= 0 {
+				return 30 * time.Second
+			}
+			return agentlessPoll
+		}(),
+		AgentlessFlushInterval: func() time.Duration {
+			if agentlessFlush <= 0 {
+				return 15 * time.Second
+			}
+			return agentlessFlush
 		}(),
 	}
 	if cfg.Agent.Token == "" {

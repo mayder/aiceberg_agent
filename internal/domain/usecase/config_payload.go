@@ -7,9 +7,9 @@ import (
 )
 
 type ConfigPayload struct {
-	Version    string              `json:"version,omitempty"`
-	Collect    config.CollectPrefs `json:"collect"`
-	Vulns      struct {
+	Version string              `json:"version,omitempty"`
+	Collect config.CollectPrefs `json:"collect"`
+	Vulns   struct {
 		SignaturesURL string `json:"signatures_url"`
 	} `json:"vulns"`
 	Logs struct {
@@ -20,6 +20,14 @@ type ConfigPayload struct {
 		Interval    int      `json:"interval"`
 	} `json:"logs"`
 	CollectNow *[]string `json:"collect_now,omitempty"`
+	Agentless  struct {
+		Enabled    *bool `json:"enabled,omitempty"`
+		PollSec    int   `json:"poll_interval,omitempty"`
+		FlushSec   int   `json:"flush_interval,omitempty"`
+		JobsLimit  int   `json:"jobs_limit,omitempty"`
+		LockSec    int   `json:"lock_sec,omitempty"`
+		FlushBatch int   `json:"flush_batch,omitempty"`
+	} `json:"agentless,omitempty"`
 }
 
 func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- string, payload ConfigPayload) (string, bool, error) {
@@ -36,6 +44,24 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- s
 	}
 	if payload.Logs.Interval > 0 {
 		collect.OSLogIntervalSec = payload.Logs.Interval
+	}
+	if payload.Agentless.Enabled != nil {
+		collect.AgentlessEnabled = *payload.Agentless.Enabled
+	}
+	if payload.Agentless.PollSec > 0 {
+		collect.AgentlessPollSec = payload.Agentless.PollSec
+	}
+	if payload.Agentless.FlushSec > 0 {
+		collect.AgentlessFlushSec = payload.Agentless.FlushSec
+	}
+	if payload.Agentless.JobsLimit > 0 {
+		collect.AgentlessJobsLimit = payload.Agentless.JobsLimit
+	}
+	if payload.Agentless.LockSec > 0 {
+		collect.AgentlessLockSec = payload.Agentless.LockSec
+	}
+	if payload.Agentless.FlushBatch > 0 {
+		collect.AgentlessFlushBatch = payload.Agentless.FlushBatch
 	}
 
 	collectNow := collect.CollectNow
