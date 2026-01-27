@@ -49,6 +49,10 @@ func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
 		Endpoint:      uc.endpoint,
 	}
 
+	if env.ID == "" {
+		HandleInvalidEnvelope(uc.log, env, "missing_envelope_id")
+		return nil
+	}
 	if err := uc.outbox.Append(env); err != nil {
 		uc.log.Error("outbox append failed: " + err.Error())
 		return err

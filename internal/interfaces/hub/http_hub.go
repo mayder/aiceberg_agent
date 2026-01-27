@@ -13,6 +13,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
+	"github.com/you/aiceberg_agent/internal/domain/usecase"
 )
 
 // ServeHub inicia o listener HTTP para receber ingest de agentes em modo hub.
@@ -42,7 +43,12 @@ func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logge
 			http.Error(w, "invalid payload", http.StatusBadRequest)
 			return
 		}
+		buffered := 0
 		for i := range batch {
+			if batch[i].ID == "" {
+				usecase.HandleInvalidEnvelope(log, batch[i], "missing_envelope_id")
+				continue
+			}
 			if batch[i].Meta == nil {
 				batch[i].Meta = map[string]string{}
 			}
@@ -51,9 +57,13 @@ func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logge
 				batch[i].Endpoint = r.URL.Path
 			}
 			batch[i].AuthHeader = auth
-			_ = outbox.Append(batch[i])
+			if err := outbox.Append(batch[i]); err != nil {
+				log.Error("outbox append failed: " + err.Error())
+				continue
+			}
+			buffered++
 		}
-		log.Info("hub ingest buffered n=" + strconv.Itoa(len(batch)) + " path=" + r.URL.Path)
+		log.Info("hub ingest buffered n=" + strconv.Itoa(buffered) + " path=" + r.URL.Path)
 		if pendingCfg != nil {
 			if cfgRaw, ok := pendingCfg.Pop(auth); ok {
 				w.Header().Set("Content-Type", "application/json")

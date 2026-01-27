@@ -31,7 +31,14 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 
 	start := time.Now()
 	grouped := make(map[string]map[string][]entities.Envelope) // auth -> endpoint -> list
+	validIDs := make([]string, 0, len(batch))
+	invalidIDs := make([]string, 0, 1)
 	for _, e := range batch {
+		if e.ID == "" {
+			HandleInvalidEnvelope(uc.log, e, "missing_envelope_id")
+			invalidIDs = append(invalidIDs, e.ID)
+			continue
+		}
 		h := e.AuthHeader
 		if h == "" {
 			h = uc.defaultAuth
@@ -44,6 +51,16 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 			grouped[h] = make(map[string][]entities.Envelope)
 		}
 		grouped[h][end] = append(grouped[h][end], e)
+		validIDs = append(validIDs, e.ID)
+	}
+
+	if len(invalidIDs) > 0 {
+		if err := uc.outbox.Ack(invalidIDs); err != nil {
+			uc.log.Error("ack invalid envelopes failed: " + err.Error())
+		}
+	}
+	if len(validIDs) == 0 {
+		return 0, nil
 	}
 
 	for auth, byEndpoint := range grouped {
@@ -65,14 +82,10 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 		}
 	}
 
-	ids := make([]string, 0, len(batch))
-	for _, e := range batch {
-		ids = append(ids, e.ID)
-	}
-	if err := uc.outbox.Ack(ids); err != nil {
+	if err := uc.outbox.Ack(validIDs); err != nil {
 		uc.log.Error("ack failed: " + err.Error())
 		return 0, err
 	}
-	uc.log.Info("flushed ack=" + strconv.Itoa(len(ids)) + " duration_ms=" + strconv.FormatInt(time.Since(start).Milliseconds(), 10))
-	return len(ids), nil
+	uc.log.Info("flushed ack=" + strconv.Itoa(len(validIDs)) + " duration_ms=" + strconv.FormatInt(time.Since(start).Milliseconds(), 10))
+	return len(validIDs), nil
 }
