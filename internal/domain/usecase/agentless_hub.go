@@ -8,6 +8,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/data/remote"
+	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 	"github.com/you/aiceberg_agent/internal/platform/agentless"
 )
@@ -57,13 +58,21 @@ func (uc *AgentlessHub) PollAndRun(ctx context.Context) error {
 		uc.log.Error("agentless jobs failed: " + err.Error())
 		return err
 	}
+	if uc.cfg.AgentlessDebug {
+		uc.log.Info("agentless jobs fetched n=" + strconv.Itoa(len(jobs)) + " limit=" + strconv.Itoa(limit) + " lock_sec=" + strconv.Itoa(lockSec))
+	}
 	if len(jobs) == 0 {
 		return nil
 	}
 	for _, job := range jobs {
+		if uc.cfg.AgentlessDebug {
+			uc.log.Info(formatAgentlessJob("agentless job start", job))
+		}
 		obs := agentless.RunJob(ctx, job)
 		if err := uc.outbox.Append(obs); err != nil {
 			uc.log.Error("agentless outbox append failed: " + err.Error())
+		} else if uc.cfg.AgentlessDebug {
+			uc.log.Info(formatAgentlessObs("agentless job result", job, obs))
 		}
 	}
 	uc.log.Info("agentless jobs executed n=" + strconv.Itoa(len(jobs)))
@@ -95,6 +104,9 @@ func (uc *AgentlessHub) Flush(ctx context.Context) error {
 		uc.log.Error("agentless outbox ack failed: " + err.Error())
 		return err
 	}
+	if uc.cfg.AgentlessDebug {
+		uc.log.Info("agentless flushed batch n=" + strconv.Itoa(len(ids)))
+	}
 	uc.log.Info("agentless flushed ack=" + strconv.Itoa(len(ids)))
 	return nil
 }
@@ -121,4 +133,26 @@ func (uc *AgentlessHub) getSettings() AgentlessSettings {
 		return AgentlessSettings{Enabled: true}
 	}
 	return uc.settings()
+}
+
+func formatAgentlessJob(prefix string, job entities.AgentlessJob) string {
+	endpoint := ""
+	if job.Endpoint != nil {
+		endpoint = job.Endpoint.Tipo + ":" + job.Endpoint.Endereco
+		if job.Endpoint.Porta != nil && *job.Endpoint.Porta > 0 {
+			endpoint += ":" + strconv.Itoa(*job.Endpoint.Porta)
+		}
+		if job.Endpoint.TLSSNI != "" {
+			endpoint += " sni=" + job.Endpoint.TLSSNI
+		}
+	}
+	return prefix + " check_id=" + strconv.Itoa(job.CheckID) + " tipo=" + job.Tipo + " endpoint=" + endpoint
+}
+
+func formatAgentlessObs(prefix string, job entities.AgentlessJob, obs entities.AgentlessObservation) string {
+	msg := obs.Message
+	if len(msg) > 120 {
+		msg = msg[:120]
+	}
+	return prefix + " check_id=" + strconv.Itoa(job.CheckID) + " status=" + obs.Status + " code=" + obs.Code + " latency_ms=" + strconv.Itoa(obs.LatencyMs) + " msg=" + msg
 }

@@ -54,6 +54,7 @@ type Config struct {
 	AgentlessJobsLimit     int
 	AgentlessLockSec       int
 	AgentlessFlushBatch    int
+	AgentlessDebug         bool
 }
 
 type CollectPrefs struct {
@@ -148,6 +149,7 @@ func Load(configPath string) (Config, error) {
 		AgentlessJobsLimit:   intEnv("AGENTLESS_JOBS_LIMIT", 50),
 		AgentlessLockSec:     intEnv("AGENTLESS_LOCK_SEC", 60),
 		AgentlessFlushBatch:  intEnv("AGENTLESS_FLUSH_BATCH", 100),
+		AgentlessDebug:       strings.ToLower(getenv("AGENTLESS_DEBUG", "")) == "true",
 		PingInterval: func() time.Duration {
 			if pingInterval <= 0 {
 				return 5 * time.Second
