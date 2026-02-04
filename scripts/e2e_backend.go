@@ -15,15 +15,17 @@ import (
 )
 
 type state struct {
-	mu           sync.Mutex
-	hits         map[string]int
-	ingested     map[string]int
-	ingestedAuth map[string]int
-	pingGet      int
-	pingPost     int
-	bootstraps   int
-	configGets   int
-	configServed bool
+	mu            sync.Mutex
+	hits          map[string]int
+	ingested      map[string]int
+	ingestedAuth  map[string]int
+	pingGet       int
+	pingPost      int
+	bootstraps    int
+	configGets    int
+	configServed  bool
+	agentlessJobs int
+	agentlessObs  int
 }
 
 func newState() *state {
@@ -79,6 +81,18 @@ func (s *state) incConfigGet() bool {
 	return true
 }
 
+func (s *state) addAgentlessJobs(n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.agentlessJobs += n
+}
+
+func (s *state) addAgentlessObs(n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.agentlessObs += n
+}
+
 func main() {
 	port := envInt("E2E_BACKEND_PORT", 8082)
 	addr := ":" + strconv.Itoa(port)
@@ -98,6 +112,10 @@ func main() {
 			"ping_post":   st.pingPost,
 			"bootstraps":  st.bootstraps,
 			"config_gets": st.configGets,
+			"agentless": map[string]int{
+				"jobs": st.agentlessJobs,
+				"obs":  st.agentlessObs,
+			},
 		})
 	})
 
@@ -143,6 +161,54 @@ func main() {
 			return
 		}
 		st.incBootstrap()
+		w.WriteHeader(http.StatusOK)
+	})
+
+	mux.HandleFunc("/v1/hub-agentless/jobs", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		st.hit(r.URL.Path)
+		jobs := []map[string]any{
+			{
+				"check_id": 101,
+				"tipo":     "tcp",
+				"endpoint": map[string]any{
+					"tipo":     "ip",
+					"endereco": "127.0.0.1",
+					"porta":    80,
+				},
+			},
+		}
+		st.addAgentlessJobs(len(jobs))
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "ok",
+			"count":  len(jobs),
+			"jobs":   jobs,
+		})
+	})
+
+	mux.HandleFunc("/v1/hub-agentless/observations", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		body, err := io.ReadAll(io.LimitReader(r.Body, 10<<20))
+		if err != nil {
+			http.Error(w, "read error", http.StatusBadRequest)
+			return
+		}
+		_ = r.Body.Close()
+		var payload struct {
+			Observations []json.RawMessage `json:"observations"`
+		}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			http.Error(w, "invalid payload", http.StatusBadRequest)
+			return
+		}
+		st.addAgentlessObs(len(payload.Observations))
 		w.WriteHeader(http.StatusOK)
 	})
 

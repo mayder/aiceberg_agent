@@ -76,6 +76,9 @@ ok = ok and has("Token token-hub")
 ok = ok and has("Token token-relay")
 ok = ok and s.get("ping_get",0) >= 1
 ok = ok and s.get("bootstraps",0) >= 1
+agentless=s.get("agentless",{})
+ok = ok and agentless.get("jobs",0) >= 1
+ok = ok and agentless.get("obs",0) >= 1
 sys.exit(0 if ok else 1)
 PY
       then
@@ -161,6 +164,7 @@ start_agent() {
   API_BASE_URL="http://127.0.0.1:${BACKEND_PORT}" \
   HUB_LISTEN_ADDR="${hub_listen}" \
   HUB_URL="${hub_url}" \
+  HUB_TOKEN="token-hub" \
   HEALTH_PORT="${health_port}" \
   PING_INTERVAL=2 \
   CONFIG_SYNC_INTERVAL=5 \
@@ -168,7 +172,10 @@ start_agent() {
   OUTBOX_MAX_MB=5 \
   AGENTLESS_OUTBOX_PATH="${dir}/agentless_outbox.db" \
   AGENTLESS_OUTBOX_MAX_MB=5 \
-  AGENTLESS_ENABLED=false \
+  AGENTLESS_ENABLED=true \
+  AGENTLESS_POLL_INTERVAL=2 \
+  AGENTLESS_FLUSH_INTERVAL=2 \
+  AGENTLESS_JOBS_LIMIT=2 \
   PREFS_PATH="${dir}/prefs.json" \
   AGENT_TOKEN_PATH="${dir}/agent.token" \
   AGENT_STATE_PATH="${dir}/bootstrap.ok" \
