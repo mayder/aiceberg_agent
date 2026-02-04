@@ -7,6 +7,7 @@ import (
 
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/common/metrics"
 	"github.com/you/aiceberg_agent/internal/data/remote"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
@@ -55,11 +56,19 @@ func (uc *AgentlessHub) PollAndRun(ctx context.Context) error {
 	}
 	jobs, err := uc.client.FetchJobs(ctx, limit, true, lockSec)
 	if err != nil {
-		uc.log.Error("agentless jobs failed: " + err.Error())
+		uc.log.Error(logger.KV("agentless jobs failed",
+			"limit", limit,
+			"lock_sec", lockSec,
+			"err", err,
+		))
 		return err
 	}
 	if uc.cfg.AgentlessDebug {
-		uc.log.Info("agentless jobs fetched n=" + strconv.Itoa(len(jobs)) + " limit=" + strconv.Itoa(limit) + " lock_sec=" + strconv.Itoa(lockSec))
+		uc.log.Info(logger.KV("agentless jobs fetched",
+			"batch_size", len(jobs),
+			"limit", limit,
+			"lock_sec", lockSec,
+		))
 	}
 	if len(jobs) == 0 {
 		return nil
@@ -70,12 +79,19 @@ func (uc *AgentlessHub) PollAndRun(ctx context.Context) error {
 		}
 		obs := agentless.RunJob(ctx, job)
 		if err := uc.outbox.Append(obs); err != nil {
-			uc.log.Error("agentless outbox append failed: " + err.Error())
+			uc.log.Error(logger.KV("agentless outbox append failed",
+				"job_id", job.CheckID,
+				"job_type", job.Tipo,
+				"err", err,
+			))
 		} else if uc.cfg.AgentlessDebug {
 			uc.log.Info(formatAgentlessObs("agentless job result", job, obs))
 		}
 	}
-	uc.log.Info("agentless jobs executed n=" + strconv.Itoa(len(jobs)))
+	metrics.AddAgentlessJobs(len(jobs))
+	uc.log.Info(logger.KV("agentless jobs executed",
+		"batch_size", len(jobs),
+	))
 	return nil
 }
 
@@ -93,7 +109,10 @@ func (uc *AgentlessHub) Flush(ctx context.Context) error {
 		return err
 	}
 	if err := uc.client.SendObservations(ctx, batch); err != nil {
-		uc.log.Error("agentless send failed: " + err.Error())
+		uc.log.Error(logger.KV("agentless send failed",
+			"batch_size", len(batch),
+			"err", err,
+		))
 		return err
 	}
 	ids := make([]string, 0, len(batch))
@@ -101,13 +120,20 @@ func (uc *AgentlessHub) Flush(ctx context.Context) error {
 		ids = append(ids, o.ID)
 	}
 	if err := uc.outbox.Ack(ids); err != nil {
-		uc.log.Error("agentless outbox ack failed: " + err.Error())
+		uc.log.Error(logger.KV("agentless outbox ack failed",
+			"batch_size", len(ids),
+			"err", err,
+		))
 		return err
 	}
 	if uc.cfg.AgentlessDebug {
-		uc.log.Info("agentless flushed batch n=" + strconv.Itoa(len(ids)))
+		uc.log.Info(logger.KV("agentless flushed batch",
+			"batch_size", len(ids),
+		))
 	}
-	uc.log.Info("agentless flushed ack=" + strconv.Itoa(len(ids)))
+	uc.log.Info(logger.KV("agentless flushed ack",
+		"batch_size", len(ids),
+	))
 	return nil
 }
 
@@ -146,7 +172,12 @@ func formatAgentlessJob(prefix string, job entities.AgentlessJob) string {
 			endpoint += " sni=" + job.Endpoint.TLSSNI
 		}
 	}
-	return prefix + " check_id=" + strconv.Itoa(job.CheckID) + " tipo=" + job.Tipo + " endpoint=" + endpoint
+	return logger.KV(prefix,
+		"job_id", job.CheckID,
+		"job_type", job.Tipo,
+		"job", job.Tipo,
+		"endpoint", endpoint,
+	)
 }
 
 func formatAgentlessObs(prefix string, job entities.AgentlessJob, obs entities.AgentlessObservation) string {
@@ -154,5 +185,13 @@ func formatAgentlessObs(prefix string, job entities.AgentlessJob, obs entities.A
 	if len(msg) > 120 {
 		msg = msg[:120]
 	}
-	return prefix + " check_id=" + strconv.Itoa(job.CheckID) + " status=" + obs.Status + " code=" + obs.Code + " latency_ms=" + strconv.Itoa(obs.LatencyMs) + " msg=" + msg
+	return logger.KV(prefix,
+		"job_id", job.CheckID,
+		"job_type", job.Tipo,
+		"job", job.Tipo,
+		"status", obs.Status,
+		"code", obs.Code,
+		"latency_ms", obs.LatencyMs,
+		"msg", msg,
+	)
 }

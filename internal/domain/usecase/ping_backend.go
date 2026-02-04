@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -37,16 +36,27 @@ func (uc *PingBackend) Execute(ctx context.Context) error {
 	challenge, err := uc.fetchChallenge(ctx)
 	if err != nil || challenge == "" {
 		if err != nil {
-			uc.log.Error("ping challenge failed: " + err.Error())
+			uc.log.Error(logger.KV("ping challenge failed",
+				"route", "/v1/agent/ping",
+				"err", err,
+			))
 		}
 		return err
 	}
 	err = uc.sendAck(ctx, challenge)
 	if err != nil {
-		uc.log.Error("ping ack failed: " + err.Error())
+		uc.log.Error(logger.KV("ping ack failed",
+			"route", "/v1/agent/ping",
+			"err", err,
+		))
 		return err
 	}
-	uc.log.Info("ping ack sent challenge=" + challenge + " duration_ms=" + strconv.FormatInt(time.Since(start).Milliseconds(), 10))
+	durationMs := time.Since(start).Milliseconds()
+	uc.log.Info(logger.KV("ping ack sent",
+		"route", "/v1/agent/ping",
+		"challenge", challenge,
+		"duration_ms", durationMs,
+	))
 	return nil
 }
 
@@ -111,7 +121,10 @@ func (uc *PingBackend) sendAck(ctx context.Context, challenge string) error {
 	if resp.StatusCode >= 300 {
 		return &httpStatusErr{code: resp.StatusCode}
 	}
-	uc.log.Info("ping ack sent challenge=" + challenge)
+	uc.log.Info(logger.KV("ping ack sent",
+		"route", "/v1/agent/ping",
+		"challenge", challenge,
+	))
 	return nil
 }
 

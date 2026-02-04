@@ -102,9 +102,11 @@ func (s *agentService) Execute(_ []string, r <-chan svc.ChangeRequest, changes c
 			}
 		case err := <-done:
 			if err != nil {
-				s.log.Error("service stopped unexpectedly: " + err.Error())
+				s.log.Error(logger.KV("service stopped unexpectedly",
+					"err", err,
+				))
 			} else {
-				s.log.Info("service stopped")
+				s.log.Info(logger.KV("service stopped"))
 			}
 			changes <- svc.Status{State: svc.Stopped}
 			return false, 0

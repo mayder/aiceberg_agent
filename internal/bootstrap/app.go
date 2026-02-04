@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/common/metrics"
 	"github.com/you/aiceberg_agent/internal/common/version"
 	agentlessstore "github.com/you/aiceberg_agent/internal/data/local/agentless"
 	"github.com/you/aiceberg_agent/internal/data/local/outbox"
@@ -63,11 +63,17 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		opts.Now = time.Now()
 		removed, err := pruner.Prune(opts)
 		if err != nil {
-			log.Error("outbox prune failed: " + err.Error() + " target=" + label)
+			log.Error(logger.KV("outbox prune failed",
+				"target", label,
+				"err", err,
+			))
 			return
 		}
 		if removed > 0 {
-			log.Info("outbox pruned removed=" + strconv.Itoa(removed) + " target=" + label)
+			log.Info(logger.KV("outbox pruned",
+				"target", label,
+				"removed", removed,
+			))
 		}
 	}
 	pruneStore(store, "main")
@@ -117,11 +123,16 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		}
 		version, applied, err := usecase.ApplyConfigPayload(log, prefStore, commandChan, *cfg.Payload)
 		if err != nil {
-			log.Error("ingest config persist failed: " + err.Error())
+			log.Error(logger.KV("ingest config persist failed",
+				"version", version,
+				"err", err,
+			))
 			return
 		}
 		if applied {
-			log.Info("ingest config applied version=" + version)
+			log.Info(logger.KV("ingest config applied",
+				"version", version,
+			))
 		}
 	}
 	if mode == "hub" {
@@ -135,11 +146,16 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			}
 			version, applied, err := usecase.ApplyConfigPayload(log, prefStore, commandChan, *cfg.Payload)
 			if err != nil {
-				log.Error("ingest config persist failed: " + err.Error())
+				log.Error(logger.KV("ingest config persist failed",
+					"version", version,
+					"err", err,
+				))
 				return
 			}
 			if applied {
-				log.Info("ingest config applied version=" + version)
+				log.Info(logger.KV("ingest config applied",
+					"version", version,
+				))
 			}
 		}
 	}
@@ -231,6 +247,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				FlushOK:        counters.flushOK.Load(),
 				FlushErr:       counters.flushErr.Load(),
 				CollectErr:     counters.collectErr.Load(),
+				InvalidEnv:     metrics.InvalidEnvelopesTotal(),
+				AgentlessJobs:  metrics.AgentlessJobsTotal(),
 				UptimeSec:      int64(time.Since(startedAt).Seconds()),
 				ProcRSS:        procRSS,
 				ProcCPU:        procCPU,
@@ -283,7 +301,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		defer tAgentlessTick.Stop()
 	}
 
-	log.Info("agent started")
+	log.Info(logger.KV("agent started",
+		"mode", mode,
+	))
 
 	// coleta de bootstrap imediata (host/inventory estático)
 	_ = bootstrapUC.Execute(ctx)
@@ -291,7 +311,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Info("shutdown")
+			log.Info(logger.KV("shutdown"))
 			return nil
 		case <-tMetrics.C:
 			start := time.Now()
@@ -372,7 +392,9 @@ func bootstrap(ctx context.Context, cfg config.Config, log logger.Logger) error 
 	// Se já existe estado persistido com mesmo token/host, pula bootstrap.
 	if st, err := loadBootstrapState(); err == nil {
 		if st.Token == cfg.Agent.Token {
-			log.Info("bootstrap skipped (state found)")
+			log.Info(logger.KV("bootstrap skipped",
+				"reason", "state_found",
+			))
 			return nil
 		}
 		return errors.New("bootstrap state mismatch: token diferente; limpe data/bootstrap.ok se deseja revalidar")
@@ -413,7 +435,7 @@ func bootstrap(ctx context.Context, cfg config.Config, log logger.Logger) error 
 	}
 	_ = persistToken(cfg.Agent.Token)
 	_ = persistBootstrapState(cfg.Agent.Token, hi.HostID)
-	log.Info("bootstrap ok")
+	log.Info(logger.KV("bootstrap ok"))
 	return nil
 }
 
@@ -457,13 +479,17 @@ func selectOutbox(cfg config.Config, log logger.Logger) repositories.Store {
 	path := cfg.OutboxPath
 	if path != "" {
 		if bs, err := outbox.NewBoltStore(path, maxMB); err == nil {
-			log.Info("outbox=bolt path=" + path)
+			log.Info(logger.KV("outbox bolt enabled",
+				"path", path,
+			))
 			return bs
 		} else {
-			log.Error("outbox bolt fallback to memory: " + err.Error())
+			log.Error(logger.KV("outbox bolt fallback to memory",
+				"err", err,
+			))
 		}
 	}
-	log.Info("outbox=memory")
+	log.Info(logger.KV("outbox memory enabled"))
 	return outbox.NewMemStore()
 }
 
@@ -472,13 +498,17 @@ func selectAgentlessOutbox(cfg config.Config, log logger.Logger) repositories.Ag
 	path := cfg.AgentlessOutboxPath
 	if path != "" {
 		if bs, err := agentlessstore.NewBoltStore(path, maxMB); err == nil {
-			log.Info("agentless_outbox=bolt path=" + path)
+			log.Info(logger.KV("agentless outbox bolt enabled",
+				"path", path,
+			))
 			return bs
 		} else {
-			log.Error("agentless outbox bolt fallback to memory: " + err.Error())
+			log.Error(logger.KV("agentless outbox bolt fallback to memory",
+				"err", err,
+			))
 		}
 	}
-	log.Info("agentless_outbox=memory")
+	log.Info(logger.KV("agentless outbox memory enabled"))
 	return agentlessstore.NewMemStore()
 }
 

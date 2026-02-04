@@ -17,6 +17,8 @@ type Snapshot struct {
 	FlushOK        int64   `json:"flush_ok,omitempty"`
 	FlushErr       int64   `json:"flush_err,omitempty"`
 	CollectErr     int64   `json:"collect_err,omitempty"`
+	InvalidEnv     int64   `json:"invalid_envelopes,omitempty"`
+	AgentlessJobs  int64   `json:"agentless_jobs,omitempty"`
 	UptimeSec      int64   `json:"uptime_sec,omitempty"`
 	ProcRSS        int64   `json:"proc_rss_bytes,omitempty"`
 	ProcCPU        float64 `json:"proc_cpu_percent,omitempty"`
@@ -59,6 +61,8 @@ func Serve(port int, log logger.Logger, stats func() Snapshot) {
 		writeMetric(w, "agent_flush_ok_total", float64(snap.FlushOK))
 		writeMetric(w, "agent_flush_err_total", float64(snap.FlushErr))
 		writeMetric(w, "agent_collect_err_total", float64(snap.CollectErr))
+		writeMetric(w, "agent_invalid_envelopes_total", float64(snap.InvalidEnv))
+		writeMetric(w, "agent_agentless_jobs_total", float64(snap.AgentlessJobs))
 		writeMetric(w, "agent_uptime_seconds", float64(snap.UptimeSec))
 		writeMetric(w, "agent_proc_rss_bytes", float64(snap.ProcRSS))
 		writeMetric(w, "agent_proc_cpu_percent", snap.ProcCPU)
@@ -68,7 +72,9 @@ func Serve(port int, log logger.Logger, stats func() Snapshot) {
 		writeMetric(w, "agent_last_flush_batch", float64(snap.LastFlushBatch))
 		writeLabelMetric(w, "agent_info", 1, map[string]string{"version": snap.Version, "status": snap.Status})
 	})
-	log.Info("health on " + addr)
+	log.Info(logger.KV("health on",
+		"addr", addr,
+	))
 	_ = http.ListenAndServe(addr, nil)
 }
 

@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/common/metrics"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 )
 
@@ -10,16 +11,12 @@ func HandleInvalidEnvelope(log logger.Logger, env entities.Envelope, reason stri
 	if log == nil {
 		return
 	}
-	msg := "invalid envelope dropped reason=" + reason
-	if env.ID != "" {
-		msg += " envelope_id=" + env.ID
-	}
-	if env.AgentID != "" {
-		msg += " agent_id=" + env.AgentID
-	}
-	if env.Endpoint != "" {
-		msg += " endpoint=" + env.Endpoint
-	}
-	log.Error(msg)
+	metrics.IncInvalidEnvelope()
+	log.Error(logger.KV("invalid envelope dropped",
+		"reason", reason,
+		"event_id", env.ID,
+		"agent_id", env.AgentID,
+		"route", env.Endpoint,
+	))
 	// TODO: send invalid envelope to a quarantine endpoint when it exists.
 }

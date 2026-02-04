@@ -21,6 +21,12 @@ log() {
   echo "[check] $*"
 }
 
+CGO_CFLAGS="${CGO_CFLAGS:-}"
+if [[ "$CGO_CFLAGS" != *-Wno-gnu-folding-constant* ]]; then
+  CGO_CFLAGS="${CGO_CFLAGS} -Wno-gnu-folding-constant"
+fi
+export CGO_CFLAGS
+
 GOLANGCI_LINT_VERSION="${GOLANGCI_LINT_VERSION:-v1.62.2}"
 TOOLS_DIR="$ROOT_DIR/.tools"
 TOOLS_BIN="$TOOLS_DIR/bin"

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -58,12 +57,20 @@ func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logge
 			}
 			batch[i].AuthHeader = auth
 			if err := outbox.Append(batch[i]); err != nil {
-				log.Error("outbox append failed: " + err.Error())
+				log.Error(logger.KV("outbox append failed",
+					"event_id", batch[i].ID,
+					"agent_id", batch[i].AgentID,
+					"route", batch[i].Endpoint,
+					"err", err,
+				))
 				continue
 			}
 			buffered++
 		}
-		log.Info("hub ingest buffered n=" + strconv.Itoa(buffered) + " path=" + r.URL.Path)
+		log.Info(logger.KV("hub ingest buffered",
+			"route", r.URL.Path,
+			"batch_size", buffered,
+		))
 		if pendingCfg != nil {
 			if cfgRaw, ok := pendingCfg.Pop(auth); ok {
 				w.Header().Set("Content-Type", "application/json")
@@ -168,6 +175,8 @@ func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logge
 		_, _ = io.Copy(w, resp.Body)
 	})
 
-	log.Info("hub listener on " + addr)
+	log.Info(logger.KV("hub listener on",
+		"addr", addr,
+	))
 	_ = http.ListenAndServe(addr, mux)
 }

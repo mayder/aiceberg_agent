@@ -20,6 +20,18 @@ Escopo: agente Go (cmd/, internal/, configs/, scripts/).
 6. Testes minimos para handlers/servicos alterados.
 7. ./check.sh deve passar antes de qualquer commit.
 
+## Padrao Unico de Logs
+
+1. Sempre usar `logger.KV("mensagem", "chave", valor, ...)`.
+2. Campos obrigatorios por contexto:
+Envelopes: `event_id`, `agent_id`, `route`.
+HTTP/transport: `route`, `batch_size`, `duration_ms`, `err`.
+Agentless: `job_id`, `job_type`, `status`, `latency_ms`, `err`.
+Config/prefs: `version`, `err`.
+3. Mensagem base curta e estavel (ex.: `collect buffered`, `transport failed`).
+4. Debug em arquivo: quando `LOG_LEVEL=debug`, os logs tambem sao gravados em `LOG_FILE_PATH` (default `./data/agent.debug.log`).
+5. Rotacao por tamanho: `LOG_FILE_MAX_MB` (default 10) e `LOG_FILE_MAX_BACKUPS` (default 3).
+
 ## Definition of Done (Checklist Obrigatorio)
 
 1. Camadas respeitadas e imports corretos.
@@ -37,9 +49,10 @@ Escopo: agente Go (cmd/, internal/, configs/, scripts/).
 
 ## Roadmap local
 
-- [ ] Definir check.sh (go test + lint)
-- [ ] Padronizar contratos de interfaces (ports)
-- [ ] Consolidar observabilidade (logs + metricas)
+- [x] Definir check.sh (go test + lint)
+- [x] Criar .githooks/pre-commit para bloquear commit sem check
+- [x] Padronizar contratos de interfaces (ports)
+- [x] Consolidar observabilidade (logs + metricas)
 
 ## Como rodar checks (atalhos)
 

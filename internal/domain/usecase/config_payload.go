@@ -88,7 +88,9 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- s
 		select {
 		case commands <- cmd:
 		default:
-			log.Info("command channel full, dropping command: " + cmd)
+			log.Info(logger.KV("command channel full, dropping command",
+				"command", cmd,
+			))
 		}
 	}
 	return collect.Version, true, nil

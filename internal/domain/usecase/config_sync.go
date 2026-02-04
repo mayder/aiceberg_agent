@@ -44,7 +44,10 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 
 	resp, err := uc.cl.Do(req)
 	if err != nil {
-		uc.log.Error("config sync failed: " + err.Error())
+		uc.log.Error(logger.KV("config sync failed",
+			"route", "/v1/agent/config",
+			"err", err,
+		))
 		return err
 	}
 	defer resp.Body.Close()
@@ -62,11 +65,16 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 	}
 	version, applied, err := ApplyConfigPayload(uc.log, uc.store, uc.commands, payload)
 	if err != nil {
-		uc.log.Error("config persist failed: " + err.Error())
+		uc.log.Error(logger.KV("config persist failed",
+			"version", version,
+			"err", err,
+		))
 		return err
 	}
 	if applied {
-		uc.log.Info("config sync ok version=" + version)
+		uc.log.Info(logger.KV("config sync ok",
+			"version", version,
+		))
 	}
 	return nil
 }

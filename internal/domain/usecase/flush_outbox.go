@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
@@ -56,7 +55,9 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 
 	if len(invalidIDs) > 0 {
 		if err := uc.outbox.Ack(invalidIDs); err != nil {
-			uc.log.Error("ack invalid envelopes failed: " + err.Error())
+			uc.log.Error(logger.KV("ack invalid envelopes failed",
+				"err", err,
+			))
 		}
 	}
 	if len(validIDs) == 0 {
@@ -67,13 +68,20 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 		for endpoint, list := range byEndpoint {
 			respBody, err := uc.tx.SendWithAuth(list, auth, endpoint)
 			if err != nil {
-				uc.log.Error("transport failed: " + err.Error())
+				uc.log.Error(logger.KV("transport failed",
+					"route", endpoint,
+					"batch_size", len(list),
+					"err", err,
+				))
 				return 0, err
 			}
 			if uc.onConfig != nil {
 				cfg, err := parseIngestConfig(respBody)
 				if err != nil {
-					uc.log.Error("ingest config parse failed: " + err.Error())
+					uc.log.Error(logger.KV("ingest config parse failed",
+						"route", endpoint,
+						"err", err,
+					))
 				}
 				if cfg != nil {
 					uc.onConfig(auth, *cfg)
@@ -83,9 +91,16 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 	}
 
 	if err := uc.outbox.Ack(validIDs); err != nil {
-		uc.log.Error("ack failed: " + err.Error())
+		uc.log.Error(logger.KV("ack failed",
+			"batch_size", len(validIDs),
+			"err", err,
+		))
 		return 0, err
 	}
-	uc.log.Info("flushed ack=" + strconv.Itoa(len(validIDs)) + " duration_ms=" + strconv.FormatInt(time.Since(start).Milliseconds(), 10))
+	durationMs := time.Since(start).Milliseconds()
+	uc.log.Info(logger.KV("flushed",
+		"batch_size", len(validIDs),
+		"duration_ms", durationMs,
+	))
 	return len(validIDs), nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
@@ -28,13 +27,18 @@ func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
 	start := time.Now()
 	data, err := uc.collector.Collect(ctx) // []byte
 	if err != nil {
-		uc.log.Error("collect failed: " + err.Error())
+		uc.log.Error(logger.KV("collect failed",
+			"collector", uc.collector.Name(),
+			"err", err,
+		))
 		return err
 	}
 
 	hostname, _ := os.Hostname()
 	if data == nil {
-		uc.log.Info("collect empty")
+		uc.log.Info(logger.KV("collect empty",
+			"collector", uc.collector.Name(),
+		))
 		return nil
 	}
 	env := entities.Envelope{
@@ -54,10 +58,21 @@ func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
 		return nil
 	}
 	if err := uc.outbox.Append(env); err != nil {
-		uc.log.Error("outbox append failed: " + err.Error())
+		uc.log.Error(logger.KV("outbox append failed",
+			"event_id", env.ID,
+			"agent_id", env.AgentID,
+			"route", env.Endpoint,
+			"err", err,
+		))
 		return err
 	}
-	uc.log.Info("collect buffered id=" + env.ID + " duration_ms=" + strconv.FormatInt(time.Since(start).Milliseconds(), 10))
+	durationMs := time.Since(start).Milliseconds()
+	uc.log.Info(logger.KV("collect buffered",
+		"event_id", env.ID,
+		"agent_id", env.AgentID,
+		"route", env.Endpoint,
+		"duration_ms", durationMs,
+	))
 	return nil
 }
 
