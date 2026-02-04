@@ -92,6 +92,30 @@ O agente carregará o arquivo de configuração `./configs/config.example.yml`, 
 
 ---
 
+## 🧪 Teste E2E local (sem servidores)
+
+O script abaixo sobe um backend fake e roda **direct**, **hub** e **relay** localmente, validando ingestão, ping/bootstraps e métricas:
+
+```bash
+scripts/e2e.sh
+```
+
+Opções úteis:
+
+1. Manter os logs e diretórios temporários:
+   ```bash
+   E2E_KEEP=1 scripts/e2e.sh
+   ```
+2. Fixar portas (caso precise):
+   ```bash
+   E2E_BACKEND_PORT=8082 E2E_HUB_PORT=9090 scripts/e2e.sh
+   ```
+
+O script cria um workdir temporário com logs de cada instância e um backend fake em Go.
+Se precisar inspecionar falhas, rode com `E2E_KEEP=1` e verifique os arquivos em `E2E_WORKDIR`.
+
+---
+
 ## 🚀 Execução com vínculo por token (modo direto)
 
 Enquanto não temos instalador, use este fluxo para rodar localmente com token do painel:
