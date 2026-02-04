@@ -177,7 +177,7 @@ func runTLS(ctx context.Context, job entities.AgentlessJob) Result {
 	payload := map[string]any{}
 	if len(state.PeerCertificates) > 0 {
 		cert := state.PeerCertificates[0]
-		days := int(cert.NotAfter.Sub(time.Now()).Hours() / 24)
+		days := int(time.Until(cert.NotAfter).Hours() / 24)
 		payload["subject"] = cert.Subject.String()
 		payload["issuer"] = cert.Issuer.String()
 		payload["not_before"] = cert.NotBefore.Format(time.RFC3339)

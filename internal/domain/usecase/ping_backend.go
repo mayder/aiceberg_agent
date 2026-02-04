@@ -115,14 +115,6 @@ func (uc *PingBackend) sendAck(ctx context.Context, challenge string) error {
 	return nil
 }
 
-func applyAuth(req *http.Request, cfg config.Config) {
-	if cfg.Agent.Token != "" {
-		req.Header.Set("Authorization", "Token "+cfg.Agent.Token)
-	} else if cfg.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
-	}
-}
-
 type httpStatusErr struct{ code int }
 
 func (e *httpStatusErr) Error() string { return http.StatusText(e.code) }

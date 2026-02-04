@@ -3,3 +3,6 @@ dist/
 
 # OS cruft
 .DS_Store
+
+# Local tools
+.tools/

@@ -1,0 +1,20 @@
+# Project map for Codex (authoritative paths)
+
+[flutter_app]
+root = "/Users/brenomayder/projects/app/aiceberg_app"
+roadmap = "/Users/brenomayder/projects/app/aiceberg_app/QUALITY_ROADMAP.md"
+check = "./check.sh"
+env = "/Users/brenomayder/projects/app/aiceberg_app/.env.dev"
+env_example = "/Users/brenomayder/projects/app/aiceberg_app/.env.example"
+
+[yii2_web]
+root = "/Users/brenomayder/projects/web/public/aiceberg_web"
+roadmap = "/Users/brenomayder/projects/web/public/aiceberg_web/QUALITY_ROADMAP.md"
+check = "./check.sh"
+env = "/Users/brenomayder/projects/web/public/aiceberg_web/common/config/main-local.php"
+
+[go_agent]
+root = "/Users/brenomayder/projects/desktop/aiceberg_agent"
+roadmap = "/Users/brenomayder/projects/desktop/aiceberg_agent/QUALITY_ROADMAP.md"
+check = "./check.sh"
+env = "/Users/brenomayder/projects/desktop/aiceberg_agent/configs/agent.env.example"
