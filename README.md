@@ -116,6 +116,22 @@ Se precisar inspecionar falhas, rode com `E2E_KEEP=1` e verifique os arquivos em
 
 ---
 
+## 🔎 Smoke test local (Linux/macOS e Windows)
+
+Smoke test rápido para validar health, metrics e pipeline de oslogs em um único host:
+
+```bash
+scripts/smoke.sh
+```
+
+No Windows:
+
+```powershell
+.\scripts\smoke.ps1
+```
+
+---
+
 ## 🚀 Execução com vínculo por token (modo direto)
 
 Enquanto não temos instalador, use este fluxo para rodar localmente com token do painel:
