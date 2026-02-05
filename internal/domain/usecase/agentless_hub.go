@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -20,6 +21,9 @@ type AgentlessHub struct {
 	client   *remote.AgentlessHubClient
 	outbox   ports.AgentlessOutboxRepo
 	settings func() AgentlessSettings
+	store    AgentlessTargetsStore
+	mu       sync.RWMutex
+	targets  []entities.AgentlessJob
 }
 
 type AgentlessSettings struct {
@@ -31,8 +35,20 @@ type AgentlessSettings struct {
 	FlushBatch int
 }
 
-func NewAgentlessHub(cfg config.Config, log logger.Logger, client *remote.AgentlessHubClient, outbox ports.AgentlessOutboxRepo, settings func() AgentlessSettings) *AgentlessHub {
-	return &AgentlessHub{cfg: cfg, log: log, client: client, outbox: outbox, settings: settings}
+type AgentlessTargetsStore interface {
+	Load() ([]entities.AgentlessJob, error)
+	Save(jobs []entities.AgentlessJob) error
+	Clear() error
+}
+
+func NewAgentlessHub(cfg config.Config, log logger.Logger, client *remote.AgentlessHubClient, outbox ports.AgentlessOutboxRepo, settings func() AgentlessSettings, store AgentlessTargetsStore) *AgentlessHub {
+	uc := &AgentlessHub{cfg: cfg, log: log, client: client, outbox: outbox, settings: settings, store: store}
+	if store != nil {
+		if jobs, err := store.Load(); err == nil && len(jobs) > 0 {
+			uc.targets = jobs
+		}
+	}
+	return uc
 }
 
 func (uc *AgentlessHub) PollAndRun(ctx context.Context) error {
@@ -40,36 +56,7 @@ func (uc *AgentlessHub) PollAndRun(ctx context.Context) error {
 	if !st.Enabled {
 		return nil
 	}
-	limit := st.JobsLimit
-	if limit <= 0 {
-		limit = uc.cfg.AgentlessJobsLimit
-		if limit <= 0 {
-			limit = 50
-		}
-	}
-	lockSec := st.LockSec
-	if lockSec <= 0 {
-		lockSec = uc.cfg.AgentlessLockSec
-		if lockSec <= 0 {
-			lockSec = 60
-		}
-	}
-	jobs, err := uc.client.FetchJobs(ctx, limit, true, lockSec)
-	if err != nil {
-		uc.log.Error(logger.KV("agentless jobs failed",
-			"limit", limit,
-			"lock_sec", lockSec,
-			"err", err,
-		))
-		return err
-	}
-	if uc.cfg.AgentlessDebug {
-		uc.log.Info(logger.KV("agentless jobs fetched",
-			"batch_size", len(jobs),
-			"limit", limit,
-			"lock_sec", lockSec,
-		))
-	}
+	jobs := uc.targetsSnapshot()
 	if len(jobs) == 0 {
 		return nil
 	}
@@ -154,11 +141,74 @@ func (uc *AgentlessHub) CollectNow(ctx context.Context) {
 	_ = uc.Flush(ctx)
 }
 
+func (uc *AgentlessHub) SyncTargets(ctx context.Context) error {
+	st := uc.getSettings()
+	if !st.Enabled {
+		return nil
+	}
+	limit := st.JobsLimit
+	if limit <= 0 {
+		limit = uc.cfg.AgentlessJobsLimit
+		if limit <= 0 {
+			limit = 50
+		}
+	}
+	lockSec := st.LockSec
+	if lockSec <= 0 {
+		lockSec = uc.cfg.AgentlessLockSec
+		if lockSec <= 0 {
+			lockSec = 60
+		}
+	}
+	jobs, err := uc.client.FetchJobs(ctx, limit, true, lockSec)
+	if err != nil {
+		uc.log.Error(logger.KV("agentless jobs failed",
+			"limit", limit,
+			"lock_sec", lockSec,
+			"err", err,
+		))
+		return err
+	}
+	if uc.cfg.AgentlessDebug {
+		uc.log.Info(logger.KV("agentless jobs fetched",
+			"batch_size", len(jobs),
+			"limit", limit,
+			"lock_sec", lockSec,
+		))
+	}
+	uc.setTargets(jobs)
+	if uc.store != nil {
+		if err := uc.store.Save(jobs); err != nil {
+			uc.log.Error(logger.KV("agentless targets save failed",
+				"err", err,
+			))
+		}
+	}
+	return nil
+}
+
 func (uc *AgentlessHub) getSettings() AgentlessSettings {
 	if uc.settings == nil {
 		return AgentlessSettings{Enabled: true}
 	}
 	return uc.settings()
+}
+
+func (uc *AgentlessHub) setTargets(jobs []entities.AgentlessJob) {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+	uc.targets = jobs
+}
+
+func (uc *AgentlessHub) targetsSnapshot() []entities.AgentlessJob {
+	uc.mu.RLock()
+	defer uc.mu.RUnlock()
+	if len(uc.targets) == 0 {
+		return nil
+	}
+	cp := make([]entities.AgentlessJob, len(uc.targets))
+	copy(cp, uc.targets)
+	return cp
 }
 
 func formatAgentlessJob(prefix string, job entities.AgentlessJob) string {

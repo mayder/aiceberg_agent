@@ -226,7 +226,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		agentlessStore := selectAgentlessOutbox(cfg, log)
 		agentlessRepo = repositories.NewAgentlessOutboxRepository(agentlessStore)
 		agentlessClient := agentlessremote.NewAgentlessHubClient(cfg)
-		agentlessUC = usecase.NewAgentlessHub(cfg, log, agentlessClient, agentlessRepo, agentlessSettings)
+		targetsStore := selectAgentlessTargetsStore(log)
+		agentlessUC = usecase.NewAgentlessHub(cfg, log, agentlessClient, agentlessRepo, agentlessSettings, targetsStore)
 		agentlessLastPoll = time.Now().Add(-cfg.AgentlessPollInterval)
 		agentlessLastFlush = time.Now().Add(-cfg.AgentlessFlushInterval)
 	}
@@ -358,6 +359,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				_ = bootstrapUC.Execute(ctx)
 			case "agentless":
 				if agentlessUC != nil {
+					if err := agentlessUC.SyncTargets(ctx); err != nil {
+						log.Error(logger.KV("agentless targets sync failed",
+							"err", err,
+						))
+					}
 					agentlessUC.CollectNow(ctx)
 				}
 			}
@@ -510,6 +516,17 @@ func selectAgentlessOutbox(cfg config.Config, log logger.Logger) repositories.Ag
 	}
 	log.Info(logger.KV("agentless outbox memory enabled"))
 	return agentlessstore.NewMemStore()
+}
+
+func selectAgentlessTargetsStore(log logger.Logger) *agentlessstore.TargetsStore {
+	path := os.Getenv("AGENTLESS_TARGETS_PATH")
+	if path == "" {
+		path = "./data/agentless_targets.json"
+	}
+	log.Info(logger.KV("agentless targets store enabled",
+		"path", path,
+	))
+	return agentlessstore.NewTargetsStore(path)
 }
 
 type obsCounters struct {
