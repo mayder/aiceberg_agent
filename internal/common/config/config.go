@@ -27,6 +27,7 @@ type Config struct {
 	TLSInsecureSkip        bool
 	OutboxPath             string
 	OutboxMaxMB            int
+	OutboxMaxPerAgent      int
 	HealthPort             int
 	PingInterval           time.Duration
 	ConfigSyncInterval     time.Duration
@@ -126,6 +127,7 @@ func Load(configPath string) (Config, error) {
 		TLSInsecureSkip:      strings.ToLower(getenv("TLS_INSECURE_SKIP_VERIFY", "")) == "true",
 		OutboxPath:           getenv("OUTBOX_PATH", "./data/outbox.db"),
 		OutboxMaxMB:          intEnv("OUTBOX_MAX_MB", 200),
+		OutboxMaxPerAgent:    intEnv("OUTBOX_MAX_PER_AGENT", 0),
 		HealthPort:           port,
 		PrefsPath:            getenv("PREFS_PATH", "./data/collect_prefs.json"),
 		AgentMode:            strings.ToLower(getenv("AGENT_MODE", "direct")),

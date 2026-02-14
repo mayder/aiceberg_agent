@@ -68,11 +68,20 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 		for endpoint, list := range byEndpoint {
 			respBody, err := uc.tx.SendWithAuth(list, auth, endpoint)
 			if err != nil {
-				uc.log.Error(logger.KV("transport failed",
-					"route", endpoint,
-					"batch_size", len(list),
-					"err", err,
-				))
+				if se, ok := err.(interface{ StatusCode() int }); ok {
+					uc.log.Error(logger.KV("transport failed",
+						"route", endpoint,
+						"batch_size", len(list),
+						"status", se.StatusCode(),
+						"err", err,
+					))
+				} else {
+					uc.log.Error(logger.KV("transport failed",
+						"route", endpoint,
+						"batch_size", len(list),
+						"err", err,
+					))
+				}
 				return 0, err
 			}
 			if uc.onConfig != nil {

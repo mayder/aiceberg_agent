@@ -52,6 +52,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		pruneOpts.MaxPerAgent = 100
 		pruneOpts.MaxAge = 10 * time.Minute
 	}
+	if cfg.OutboxMaxPerAgent > 0 {
+		pruneOpts.MaxPerAgent = cfg.OutboxMaxPerAgent
+	}
 	pruneStore := func(store repositories.Store, label string) {
 		pruner, ok := store.(interface {
 			Prune(outbox.PruneOptions) (int, error)
@@ -171,6 +174,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var agentlessLastPoll time.Time
 	var agentlessLastFlush time.Time
 	var agentlessRepo ports.AgentlessOutboxRepo
+	var agentlessBusy atomic.Bool
 	// Inicializa coletor de logs do SO; o gating agora é feito pelas prefs (collect_logs e flags avançados).
 	osStore := outbox.NewMemStore()
 	osRepo := repositories.NewOutboxRepository(osStore)
@@ -375,13 +379,29 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			if agentlessUC != nil {
 				st := agentlessSettings()
 				now := time.Now()
-				if st.Enabled && (agentlessLastPoll.IsZero() || now.Sub(agentlessLastPoll) >= time.Duration(st.PollSec)*time.Second) {
-					_ = agentlessUC.PollAndRun(ctx)
-					agentlessLastPoll = now
-				}
-				if agentlessLastFlush.IsZero() || now.Sub(agentlessLastFlush) >= time.Duration(st.FlushSec)*time.Second {
-					_ = agentlessUC.Flush(ctx)
-					agentlessLastFlush = now
+				shouldPoll := st.Enabled && (agentlessLastPoll.IsZero() || now.Sub(agentlessLastPoll) >= time.Duration(st.PollSec)*time.Second)
+				shouldFlush := agentlessLastFlush.IsZero() || now.Sub(agentlessLastFlush) >= time.Duration(st.FlushSec)*time.Second
+				if (shouldPoll || shouldFlush) && agentlessBusy.CompareAndSwap(false, true) {
+					if shouldPoll {
+						agentlessLastPoll = now
+					}
+					if shouldFlush {
+						agentlessLastFlush = now
+					}
+					go func(runPoll, runFlush bool) {
+						defer agentlessBusy.Store(false)
+						if runPoll {
+							if err := agentlessUC.SyncTargets(ctx); err != nil {
+								log.Error(logger.KV("agentless targets sync failed",
+									"err", err,
+								))
+							}
+							_ = agentlessUC.PollAndRun(ctx)
+						}
+						if runFlush {
+							_ = agentlessUC.Flush(ctx)
+						}
+					}(shouldPoll, shouldFlush)
 				}
 			}
 		}

@@ -3,6 +3,7 @@ package transport
 import (
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -69,4 +70,7 @@ func (h *httpClient) SendWithAuth(batch []entities.Envelope, authHeader string, 
 
 type httpStatusErr struct{ code int }
 
-func (e *httpStatusErr) Error() string { return http.StatusText(e.code) }
+func (e *httpStatusErr) Error() string { return "http status " + strconv.Itoa(e.code) }
+func (e *httpStatusErr) StatusCode() int {
+	return e.code
+}
