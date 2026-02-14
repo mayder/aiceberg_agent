@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -112,7 +111,7 @@ func runHTTP(ctx context.Context, job entities.AgentlessJob, tlsOnly bool) Resul
 	if err != nil {
 		return Result{Status: "fail", Code: "invalid_url", Message: err.Error()}
 	}
-	method := getString(job.Config, "method", "GET")
+	method := getString(map[string]any(job.Config), "method", "GET")
 	client := http.Client{Timeout: time.Millisecond * time.Duration(maxInt(job.TimeoutMs, 5000))}
 	start := time.Now()
 	req, err := http.NewRequestWithContext(ctx, method, endpointURL, nil)
@@ -191,76 +190,7 @@ func runTLS(ctx context.Context, job entities.AgentlessJob) Result {
 }
 
 func runSNMP(ctx context.Context, job entities.AgentlessJob) Result {
-	if job.SNMP == nil {
-		return Result{Status: "fail", Code: "snmp_no_profile", Message: "perfil SNMP ausente"}
-	}
-	host := endpointHost(job)
-	if host == "" {
-		return Result{Status: "fail", Code: "missing_endpoint", Message: "endpoint ausente"}
-	}
-	port := job.SNMP.Port
-	if port == 0 {
-		port = 161
-	}
-	timeout := time.Millisecond * time.Duration(maxInt(job.SNMP.TimeoutMs, job.TimeoutMs))
-	if timeout == 0 {
-		timeout = 5 * time.Second
-	}
-
-	sn := &gosnmp.GoSNMP{
-		Target:         host,
-		Port:           uint16(port),
-		Timeout:        timeout,
-		Retries:        maxInt(job.SNMP.Retries, job.Retries),
-		MaxRepetitions: 1,
-	}
-
-	if strings.ToLower(job.SNMP.Version) == "v3" {
-		sn.Version = gosnmp.Version3
-		authProto := mapSNMPAuth(job.SNMP.V3AuthProtocol)
-		privProto := mapSNMPPriv(job.SNMP.V3PrivProtocol)
-		secParams := &gosnmp.UsmSecurityParameters{
-			UserName:                 job.SNMP.V3User,
-			AuthenticationProtocol:   authProto,
-			AuthenticationPassphrase: job.SNMP.V3AuthPassword,
-			PrivacyProtocol:          privProto,
-			PrivacyPassphrase:        job.SNMP.V3PrivPassword,
-		}
-		sn.SecurityParameters = secParams
-		sn.SecurityModel = gosnmp.UserSecurityModel
-		if authProto == gosnmp.NoAuth {
-			sn.MsgFlags = gosnmp.NoAuthNoPriv
-		} else if privProto == gosnmp.NoPriv {
-			sn.MsgFlags = gosnmp.AuthNoPriv
-		} else {
-			sn.MsgFlags = gosnmp.AuthPriv
-		}
-	} else {
-		sn.Version = gosnmp.Version2c
-		sn.Community = job.SNMP.Community
-	}
-
-	start := time.Now()
-	if err := sn.Connect(); err != nil {
-		return Result{Status: "fail", Code: "snmp_connect", Message: err.Error()}
-	}
-	defer sn.Conn.Close()
-
-	oid := "1.3.6.1.2.1.1.3.0"
-	resp, err := sn.Get([]string{oid})
-	latency := int(time.Since(start).Milliseconds())
-	if err != nil || resp == nil || len(resp.Variables) == 0 {
-		if err == nil {
-			err = errors.New("SNMP empty response")
-		}
-		return Result{Status: "fail", LatencyMs: latency, Code: "snmp_fail", Message: err.Error()}
-	}
-
-	payload := map[string]any{"oids": map[string]any{}}
-	for _, v := range resp.Variables {
-		payload["oids"].(map[string]any)[v.Name] = fmt.Sprintf("%v", v.Value)
-	}
-	return Result{Status: "ok", LatencyMs: latency, Payload: payload}
+	return runSNMPCollection(ctx, job)
 }
 
 func endpointHost(job entities.AgentlessJob) string {
@@ -307,16 +237,16 @@ func buildHTTPURL(job entities.AgentlessJob, forceTLS bool) (string, error) {
 		}
 		return u, nil
 	}
-	scheme := getString(job.Config, "scheme", "http")
+	scheme := getString(map[string]any(job.Config), "scheme", "http")
 	if forceTLS {
 		scheme = "https"
 	}
-	if v, ok := getBool(job.Config, "https"); ok && v {
+	if v, ok := getBool(map[string]any(job.Config), "https"); ok && v {
 		scheme = "https"
 	}
 	host := job.Endpoint.Endereco
 	port := endpointPort(job, 0)
-	path := getString(job.Config, "path", "/")
+	path := getString(map[string]any(job.Config), "path", "/")
 	if path == "" {
 		path = "/"
 	}

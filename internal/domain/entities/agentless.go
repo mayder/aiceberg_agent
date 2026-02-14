@@ -1,6 +1,45 @@
 package entities
 
-import "time"
+import (
+	"bytes"
+	"encoding/json"
+	"time"
+)
+
+type AgentlessConfig map[string]any
+
+func (c *AgentlessConfig) UnmarshalJSON(b []byte) error {
+	raw := bytes.TrimSpace(b)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		*c = nil
+		return nil
+	}
+	switch raw[0] {
+	case '{':
+		var m map[string]any
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return err
+		}
+		*c = AgentlessConfig(m)
+		return nil
+	case '[':
+		// Backend pode enviar lista vazia. Para o agente, tratamos como config vazia.
+		var arr []any
+		if err := json.Unmarshal(raw, &arr); err != nil {
+			return err
+		}
+		*c = AgentlessConfig{}
+		return nil
+	default:
+		// fallback: tenta mapa
+		var m map[string]any
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return err
+		}
+		*c = AgentlessConfig(m)
+		return nil
+	}
+}
 
 type AgentlessEndpoint struct {
 	ID       int    `json:"id"`
@@ -37,7 +76,7 @@ type AgentlessJob struct {
 	Retries       int                   `json:"retries"`
 	FailThreshold int                   `json:"fail_threshold"`
 	SuccessThresh int                   `json:"success_threshold"`
-	Config        map[string]any        `json:"config"`
+	Config        AgentlessConfig       `json:"config"`
 	Endpoint      *AgentlessEndpoint    `json:"endpoint,omitempty"`
 	SNMP          *AgentlessSnmpProfile `json:"snmp,omitempty"`
 }
