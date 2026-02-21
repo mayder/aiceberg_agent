@@ -17,25 +17,29 @@ import (
 )
 
 const (
-	defaultWindow   = 15 * time.Second
-	defaultInterval = 1 * time.Second
-	defaultMaxFlows = 1000
-	defaultMaxPeers = 300
+	defaultWindow       = 15 * time.Second
+	defaultInterval     = 1 * time.Second
+	defaultMaxFlows     = 1000
+	defaultMaxPeers     = 300
+	defaultMaxListeners = 300
+	maxCmdlineLength    = 240
 )
 
 type collector struct {
-	prefs    func() config.CollectPrefs
-	window   time.Duration
-	interval time.Duration
-	maxFlows int
-	maxPeers int
+	prefs        func() config.CollectPrefs
+	window       time.Duration
+	interval     time.Duration
+	maxFlows     int
+	maxPeers     int
+	maxListeners int
 }
 
 type capturePayload struct {
-	Capture    captureMeta  `json:"capture"`
-	Flows      []flowRow    `json:"flows,omitempty"`
-	Peers      []peerRow    `json:"peers,omitempty"`
-	Interfaces []ifaceDelta `json:"interfaces,omitempty"`
+	Capture    captureMeta   `json:"capture"`
+	Flows      []flowRow     `json:"flows,omitempty"`
+	Peers      []peerRow     `json:"peers,omitempty"`
+	Listeners  []listenerRow `json:"listeners,omitempty"`
+	Interfaces []ifaceDelta  `json:"interfaces,omitempty"`
 }
 
 type captureMeta struct {
@@ -60,17 +64,34 @@ type flowRow struct {
 	State       string `json:"state,omitempty"`
 	PID         int32  `json:"pid,omitempty"`
 	Process     string `json:"process,omitempty"`
+	ProcessUser string `json:"process_user,omitempty"`
+	ProcessExe  string `json:"process_exe,omitempty"`
+	ProcessCmd  string `json:"process_cmdline,omitempty"`
 	Samples     int    `json:"samples"`
 }
 
 type peerRow struct {
-	Protocol    string   `json:"protocol,omitempty"`
-	Direction   string   `json:"direction,omitempty"`
-	RemoteIP    string   `json:"remote_ip,omitempty"`
-	RemotePort  uint32   `json:"remote_port,omitempty"`
-	RemoteScope string   `json:"remote_scope,omitempty"`
-	Samples     int      `json:"samples"`
-	Processes   []string `json:"processes,omitempty"`
+	Protocol     string   `json:"protocol,omitempty"`
+	Direction    string   `json:"direction,omitempty"`
+	RemoteIP     string   `json:"remote_ip,omitempty"`
+	RemotePort   uint32   `json:"remote_port,omitempty"`
+	RemoteScope  string   `json:"remote_scope,omitempty"`
+	Samples      int      `json:"samples"`
+	Processes    []string `json:"processes,omitempty"`
+	ProcessUsers []string `json:"process_users,omitempty"`
+}
+
+type listenerRow struct {
+	Protocol    string `json:"protocol,omitempty"`
+	LocalIP     string `json:"local_ip,omitempty"`
+	LocalPort   uint32 `json:"local_port,omitempty"`
+	State       string `json:"state,omitempty"`
+	PID         int32  `json:"pid,omitempty"`
+	Process     string `json:"process,omitempty"`
+	ProcessUser string `json:"process_user,omitempty"`
+	ProcessExe  string `json:"process_exe,omitempty"`
+	ProcessCmd  string `json:"process_cmdline,omitempty"`
+	Samples     int    `json:"samples"`
 }
 
 type ifaceDelta struct {
@@ -86,14 +107,17 @@ type ifaceDelta struct {
 }
 
 type flowKey struct {
-	proto      string
-	direction  string
-	localIP    string
-	localPort  uint32
-	remoteIP   string
-	remotePort uint32
-	pid        int32
-	process    string
+	proto       string
+	direction   string
+	localIP     string
+	localPort   uint32
+	remoteIP    string
+	remotePort  uint32
+	pid         int32
+	process     string
+	processUser string
+	processExe  string
+	processCmd  string
 }
 
 type flowAgg struct {
@@ -111,17 +135,42 @@ type peerKey struct {
 }
 
 type peerAgg struct {
-	samples   int
-	processes map[string]struct{}
+	samples      int
+	processes    map[string]struct{}
+	processUsers map[string]struct{}
+}
+
+type listenerKey struct {
+	proto       string
+	localIP     string
+	localPort   uint32
+	state       string
+	pid         int32
+	process     string
+	processUser string
+	processExe  string
+	processCmd  string
+}
+
+type listenerAgg struct {
+	samples int
+}
+
+type processMeta struct {
+	name     string
+	username string
+	exe      string
+	cmdline  string
 }
 
 func New(prefsProvider func() config.CollectPrefs) ports.Collector {
 	return &collector{
-		prefs:    prefsProvider,
-		window:   defaultWindow,
-		interval: defaultInterval,
-		maxFlows: defaultMaxFlows,
-		maxPeers: defaultMaxPeers,
+		prefs:        prefsProvider,
+		window:       defaultWindow,
+		interval:     defaultInterval,
+		maxFlows:     defaultMaxFlows,
+		maxPeers:     defaultMaxPeers,
+		maxListeners: defaultMaxListeners,
 	}
 }
 
@@ -149,7 +198,8 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 
 	flows := make(map[flowKey]*flowAgg)
 	peers := make(map[peerKey]*peerAgg)
-	procCache := make(map[int32]string)
+	listeners := make(map[listenerKey]*listenerAgg)
+	procCache := make(map[int32]processMeta)
 	localIPs := localIPSet(ctx)
 
 	sample := func() {
@@ -159,31 +209,57 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 			return
 		}
 		for _, conn := range conns {
-			if conn.Raddr.IP == "" || isSpecialIP(conn.Raddr.IP) {
-				continue
-			}
-			processName := ""
+			proc := processMeta{}
 			if conn.Pid > 0 {
 				if cached, ok := procCache[conn.Pid]; ok {
-					processName = cached
-				} else if p, e := process.NewProcessWithContext(ctx, conn.Pid); e == nil {
-					if name, ne := p.NameWithContext(ctx); ne == nil {
-						processName = strings.TrimSpace(name)
-					}
-					procCache[conn.Pid] = processName
+					proc = cached
+				} else {
+					proc = resolveProcessMeta(ctx, conn.Pid)
+					procCache[conn.Pid] = proc
 				}
 			}
+
+			if conn.Raddr.IP == "" {
+				if conn.Status == "LISTEN" || conn.Raddr.Port == 0 {
+					lk := listenerKey{
+						proto:       protoName(conn.Type),
+						localIP:     conn.Laddr.IP,
+						localPort:   conn.Laddr.Port,
+						state:       conn.Status,
+						pid:         conn.Pid,
+						process:     proc.name,
+						processUser: proc.username,
+						processExe:  proc.exe,
+						processCmd:  proc.cmdline,
+					}
+					agg, ok := listeners[lk]
+					if !ok {
+						agg = &listenerAgg{}
+						listeners[lk] = agg
+					}
+					agg.samples++
+				}
+				continue
+			}
+
+			if isSpecialIP(conn.Raddr.IP) {
+				continue
+			}
+
 			direction := inferDirection(conn.Status, conn.Laddr.Port, conn.Raddr.Port)
 			scope := remoteScope(conn.Raddr.IP, localIPs)
 			key := flowKey{
-				proto:      protoName(conn.Type),
-				direction:  direction,
-				localIP:    conn.Laddr.IP,
-				localPort:  conn.Laddr.Port,
-				remoteIP:   conn.Raddr.IP,
-				remotePort: conn.Raddr.Port,
-				pid:        conn.Pid,
-				process:    processName,
+				proto:       protoName(conn.Type),
+				direction:   direction,
+				localIP:     conn.Laddr.IP,
+				localPort:   conn.Laddr.Port,
+				remoteIP:    conn.Raddr.IP,
+				remotePort:  conn.Raddr.Port,
+				pid:         conn.Pid,
+				process:     proc.name,
+				processUser: proc.username,
+				processExe:  proc.exe,
+				processCmd:  proc.cmdline,
 			}
 			agg, ok := flows[key]
 			if !ok {
@@ -203,12 +279,18 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 			}
 			peer, ok := peers[pk]
 			if !ok {
-				peer = &peerAgg{processes: make(map[string]struct{})}
+				peer = &peerAgg{
+					processes:    make(map[string]struct{}),
+					processUsers: make(map[string]struct{}),
+				}
 				peers[pk] = peer
 			}
 			peer.samples++
-			if processName != "" {
-				peer.processes[processName] = struct{}{}
+			if proc.name != "" {
+				peer.processes[proc.name] = struct{}{}
+			}
+			if proc.username != "" {
+				peer.processUsers[proc.username] = struct{}{}
 			}
 		}
 	}
@@ -228,6 +310,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 				Capture:    meta,
 				Flows:      c.sortedFlows(flows),
 				Peers:      c.sortedPeers(peers),
+				Listeners:  c.sortedListeners(listeners),
 				Interfaces: ioDelta(startIO, nil),
 			}
 			payload.Capture.EndedAtUnix = end.Unix()
@@ -243,6 +326,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 				Capture:    meta,
 				Flows:      c.sortedFlows(flows),
 				Peers:      c.sortedPeers(peers),
+				Listeners:  c.sortedListeners(listeners),
 				Interfaces: ioDelta(startIO, endIO),
 			}
 			return json.Marshal(payload)
@@ -266,6 +350,9 @@ func (c *collector) sortedFlows(flows map[flowKey]*flowAgg) []flowRow {
 			State:       v.state,
 			PID:         k.pid,
 			Process:     k.process,
+			ProcessUser: k.processUser,
+			ProcessExe:  k.processExe,
+			ProcessCmd:  k.processCmd,
 			Samples:     v.samples,
 		})
 	}
@@ -295,14 +382,25 @@ func (c *collector) sortedPeers(peers map[peerKey]*peerAgg) []peerRow {
 		if len(processes) > 5 {
 			processes = processes[:5]
 		}
+
+		processUsers := make([]string, 0, len(v.processUsers))
+		for username := range v.processUsers {
+			processUsers = append(processUsers, username)
+		}
+		sort.Strings(processUsers)
+		if len(processUsers) > 5 {
+			processUsers = processUsers[:5]
+		}
+
 		out = append(out, peerRow{
-			Protocol:    k.proto,
-			Direction:   k.direction,
-			RemoteIP:    k.remoteIP,
-			RemotePort:  k.remotePort,
-			RemoteScope: k.scope,
-			Samples:     v.samples,
-			Processes:   processes,
+			Protocol:     k.proto,
+			Direction:    k.direction,
+			RemoteIP:     k.remoteIP,
+			RemotePort:   k.remotePort,
+			RemoteScope:  k.scope,
+			Samples:      v.samples,
+			Processes:    processes,
+			ProcessUsers: processUsers,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -316,6 +414,37 @@ func (c *collector) sortedPeers(peers map[peerKey]*peerAgg) []peerRow {
 	})
 	if len(out) > c.maxPeers {
 		out = out[:c.maxPeers]
+	}
+	return out
+}
+
+func (c *collector) sortedListeners(listeners map[listenerKey]*listenerAgg) []listenerRow {
+	out := make([]listenerRow, 0, len(listeners))
+	for k, v := range listeners {
+		out = append(out, listenerRow{
+			Protocol:    k.proto,
+			LocalIP:     k.localIP,
+			LocalPort:   k.localPort,
+			State:       k.state,
+			PID:         k.pid,
+			Process:     k.process,
+			ProcessUser: k.processUser,
+			ProcessExe:  k.processExe,
+			ProcessCmd:  k.processCmd,
+			Samples:     v.samples,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Samples == out[j].Samples {
+			if out[i].LocalPort == out[j].LocalPort {
+				return out[i].Protocol < out[j].Protocol
+			}
+			return out[i].LocalPort < out[j].LocalPort
+		}
+		return out[i].Samples > out[j].Samples
+	})
+	if len(out) > c.maxListeners {
+		out = out[:c.maxListeners]
 	}
 	return out
 }
@@ -443,4 +572,32 @@ func protoName(t uint32) string {
 	default:
 		return "ip"
 	}
+}
+
+func resolveProcessMeta(ctx context.Context, pid int32) processMeta {
+	meta := processMeta{}
+	if pid <= 0 {
+		return meta
+	}
+	p, err := process.NewProcessWithContext(ctx, pid)
+	if err != nil {
+		return meta
+	}
+	if name, e := p.NameWithContext(ctx); e == nil {
+		meta.name = strings.TrimSpace(name)
+	}
+	if username, e := p.UsernameWithContext(ctx); e == nil {
+		meta.username = strings.TrimSpace(username)
+	}
+	if exe, e := p.ExeWithContext(ctx); e == nil {
+		meta.exe = strings.TrimSpace(exe)
+	}
+	if cmdline, e := p.CmdlineWithContext(ctx); e == nil {
+		cmdline = strings.Join(strings.Fields(strings.TrimSpace(cmdline)), " ")
+		if len(cmdline) > maxCmdlineLength {
+			cmdline = cmdline[:maxCmdlineLength]
+		}
+		meta.cmdline = cmdline
+	}
+	return meta
 }
