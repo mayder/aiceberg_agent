@@ -179,6 +179,7 @@ Notas:
 - Saúde local: `http://localhost:8081/health` (configurável via `HEALTH_PORT`).
 - Ping remoto: o agente faz long-polling em `/v1/agent/ping` a cada `PING_INTERVAL` segundos (default 5s); ao receber um desafio `{challenge}`, responde com `POST /v1/agent/ping` incluindo hostname, versão e timestamp.
 - Configuração remota: o agente puxa `/v1/agent/config` a cada `CONFIG_SYNC_INTERVAL` (default 30s), salva em `PREFS_PATH` (default `./data/collect_prefs.json`) e passa a coletar somente o que estiver marcado; o payload retornado deve conter os flags de coleta e uma `version` para evitar reprocesso.
+- Auto-update remoto (opcional): se `AUTO_UPDATE_ENABLED=true`, o payload de `/v1/agent/config` pode incluir `update = { version, url, sha256, force }`. O agente baixa o artefato e executa `AUTO_UPDATE_COMMAND` com `AICEBERG_UPDATE_FILE` e variáveis relacionadas.
 - A coleta envia um pacote único (`metric/sub=sysmetrics`) com CPU, memória, disco (I/O + SMART), rede, host, sensores/fans, bateria, GPU (NVIDIA), serviços, time sync (NTP), sanity (ping/DNS), backlog da fila, logs (.log em ./logs), updates (apt/softwareupdate), top processos.
 
 Quando formos criar instaladores, este fluxo servirá de base: validar token, gravar localmente e evitar reuso.

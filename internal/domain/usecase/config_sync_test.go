@@ -35,6 +35,7 @@ func TestConfigSync_NoContent(t *testing.T) {
 }
 
 func TestConfigSync_AppliesPayload(t *testing.T) {
+	const checksum = "2689367b205c16ce32ca6f3d2f0a21f9923f5f0f68e6f4f7638f353cec3588f3"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/agent/config" {
 			http.NotFound(w, r)
@@ -45,6 +46,11 @@ func TestConfigSync_AppliesPayload(t *testing.T) {
 			"collect": map[string]any{},
 			"collect_now": []string{
 				"health",
+			},
+			"update": map[string]any{
+				"version": "7.0.6",
+				"url":     "https://example.org/aiceberg-agent-linux-amd64.tar.gz",
+				"sha256":  checksum,
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -58,7 +64,7 @@ func TestConfigSync_AppliesPayload(t *testing.T) {
 	}
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}
-	cmd := make(chan string, 1)
+	cmd := make(chan ControlCommand, 2)
 	uc := NewConfigSync(cfg, log, store, cmd)
 	if err := uc.Execute(context.Background()); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -68,10 +74,27 @@ func TestConfigSync_AppliesPayload(t *testing.T) {
 	}
 	select {
 	case got := <-cmd:
-		if got != "health" {
-			t.Fatalf("expected command health, got %q", got)
+		if got.Name != "health" {
+			t.Fatalf("expected command health, got %q", got.Name)
 		}
 	default:
 		t.Fatalf("expected command in channel")
+	}
+	select {
+	case got := <-cmd:
+		if got.Name != "self_update" {
+			t.Fatalf("expected command self_update, got %q", got.Name)
+		}
+		if got.Update == nil {
+			t.Fatalf("expected update payload")
+		}
+		if got.Update.Version != "7.0.6" {
+			t.Fatalf("expected update version 7.0.6, got %q", got.Update.Version)
+		}
+		if got.Update.SHA256 != checksum {
+			t.Fatalf("expected checksum %q, got %q", checksum, got.Update.SHA256)
+		}
+	default:
+		t.Fatalf("expected self_update command in channel")
 	}
 }

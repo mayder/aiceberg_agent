@@ -18,10 +18,10 @@ type ConfigSync struct {
 	log      logger.Logger
 	store    *prefs.Store
 	cl       *http.Client
-	commands chan<- string
+	commands chan<- ControlCommand
 }
 
-func NewConfigSync(cfg config.Config, log logger.Logger, store *prefs.Store, commands chan<- string) *ConfigSync {
+func NewConfigSync(cfg config.Config, log logger.Logger, store *prefs.Store, commands chan<- ControlCommand) *ConfigSync {
 	return &ConfigSync{
 		cfg:      cfg,
 		log:      log,

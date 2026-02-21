@@ -116,7 +116,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	inventoryUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_inventory", inventoryEndpoint, 8*time.Hour, inventoryKeys()), outboxRepo, log, authHeader, inventoryEndpoint)
 	bootstrapUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_bootstrap", bootstrapEndpoint, 24*time.Hour, bootstrapKeys()), outboxRepo, log, authHeader, bootstrapEndpoint)
 
-	commandChan := make(chan string, 10)
+	commandChan := make(chan usecase.ControlCommand, 10)
 	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore, commandChan)
 
 	var pendingCfg *hub.PendingConfigStore
@@ -165,6 +165,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 
 	flushUC := usecase.NewFlushOutbox(outboxRepo, tx, log, authHeader, onIngestConfig)
 	pingUC := usecase.NewPingBackend(cfg, log)
+	selfUpdateUC := usecase.NewSelfUpdate(cfg, log)
 	var counters obsCounters
 
 	var osLogCollectUC *usecase.CollectAndBuffer
@@ -354,7 +355,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		case <-readTick(tCfgSync):
 			_ = configSyncUC.Execute(ctx)
 		case cmd := <-commandChan:
-			switch cmd {
+			switch cmd.Name {
 			case "inventory":
 				_ = inventoryUC.Execute(ctx)
 			case "health":
@@ -369,6 +370,17 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 						))
 					}
 					agentlessUC.CollectNow(ctx)
+				}
+			case "self_update":
+				if err := selfUpdateUC.Execute(ctx, cmd.Update); err != nil {
+					ver := ""
+					if cmd.Update != nil {
+						ver = cmd.Update.Version
+					}
+					log.Error(logger.KV("self update failed",
+						"version", ver,
+						"err", err,
+					))
 				}
 			}
 		case <-readTick(tOsCollect):

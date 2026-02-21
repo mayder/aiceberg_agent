@@ -19,43 +19,51 @@ type AgentCfg struct {
 }
 
 type Config struct {
-	Agent                  AgentCfg
-	APIBaseURL             string
-	APIKey                 string
-	HTTPGzip               bool
-	HTTPIdempotency        bool
-	TLSInsecureSkip        bool
-	OutboxPath             string
-	OutboxMaxMB            int
-	OutboxMaxPerAgent      int
-	HealthPort             int
-	PingInterval           time.Duration
-	ConfigSyncInterval     time.Duration
-	PrefsPath              string
-	AgentMode              string
-	HubURL                 string
-	HubToken               string
-	HubListenAddr          string
-	SkipBootstrap          bool
-	OSLogEnabled           bool
-	OSLogFiles             []string
-	OSLogCursorPath        string
-	OSLogBatchLines        int
-	OSLogMaxBytes          int
-	OSLogInterval          time.Duration
-	OSLogWinChannels       []string
-	OSLogEnrich            bool
-	OSLogDetections        bool
-	OSLogDiag              bool
-	AgentlessEnabled       bool
-	AgentlessPollInterval  time.Duration
-	AgentlessFlushInterval time.Duration
-	AgentlessOutboxPath    string
-	AgentlessOutboxMaxMB   int
-	AgentlessJobsLimit     int
-	AgentlessLockSec       int
-	AgentlessFlushBatch    int
-	AgentlessDebug         bool
+	Agent                   AgentCfg
+	APIBaseURL              string
+	APIKey                  string
+	HTTPGzip                bool
+	HTTPIdempotency         bool
+	TLSInsecureSkip         bool
+	OutboxPath              string
+	OutboxMaxMB             int
+	OutboxMaxPerAgent       int
+	HealthPort              int
+	PingInterval            time.Duration
+	ConfigSyncInterval      time.Duration
+	PrefsPath               string
+	AgentMode               string
+	HubURL                  string
+	HubToken                string
+	HubListenAddr           string
+	SkipBootstrap           bool
+	OSLogEnabled            bool
+	OSLogFiles              []string
+	OSLogCursorPath         string
+	OSLogBatchLines         int
+	OSLogMaxBytes           int
+	OSLogInterval           time.Duration
+	OSLogWinChannels        []string
+	OSLogEnrich             bool
+	OSLogDetections         bool
+	OSLogDiag               bool
+	AgentlessEnabled        bool
+	AgentlessPollInterval   time.Duration
+	AgentlessFlushInterval  time.Duration
+	AgentlessOutboxPath     string
+	AgentlessOutboxMaxMB    int
+	AgentlessJobsLimit      int
+	AgentlessLockSec        int
+	AgentlessFlushBatch     int
+	AgentlessDebug          bool
+	AutoUpdateEnabled       bool
+	AutoUpdateDir           string
+	AutoUpdateCommand       string
+	AutoUpdateWorkDir       string
+	AutoUpdateTimeout       time.Duration
+	AutoUpdateRetryInterval time.Duration
+	AutoUpdateMaxMB         int
+	AutoUpdateUseAgentAuth  bool
 }
 
 type CollectPrefs struct {
@@ -118,40 +126,48 @@ func Load(configPath string) (Config, error) {
 	cfgSyncInterval := time.Duration(intEnv("CONFIG_SYNC_INTERVAL", 30)) * time.Second
 	agentlessPoll := time.Duration(intEnv("AGENTLESS_POLL_INTERVAL", 30)) * time.Second
 	agentlessFlush := time.Duration(intEnv("AGENTLESS_FLUSH_INTERVAL", 15)) * time.Second
+	autoUpdateTimeout := time.Duration(intEnv("AUTO_UPDATE_TIMEOUT", 300)) * time.Second
+	autoUpdateRetry := time.Duration(intEnv("AUTO_UPDATE_RETRY_INTERVAL", 1800)) * time.Second
 	cfg := Config{
-		Agent:                AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
-		APIBaseURL:           getenv("API_BASE_URL", "https://api.aiceberg.com.br"),
-		APIKey:               getenv("API_KEY", ""),
-		HTTPGzip:             strings.ToLower(getenv("HTTP_GZIP", "")) == "true",
-		HTTPIdempotency:      strings.ToLower(getenv("HTTP_IDEMPOTENCY", "true")) == "true",
-		TLSInsecureSkip:      strings.ToLower(getenv("TLS_INSECURE_SKIP_VERIFY", "")) == "true",
-		OutboxPath:           getenv("OUTBOX_PATH", "./data/outbox.db"),
-		OutboxMaxMB:          intEnv("OUTBOX_MAX_MB", 200),
-		OutboxMaxPerAgent:    intEnv("OUTBOX_MAX_PER_AGENT", 0),
-		HealthPort:           port,
-		PrefsPath:            getenv("PREFS_PATH", "./data/collect_prefs.json"),
-		AgentMode:            strings.ToLower(getenv("AGENT_MODE", "direct")),
-		HubURL:               getenv("HUB_URL", ""),
-		HubToken:             getenv("HUB_TOKEN", ""),
-		HubListenAddr:        getenv("HUB_LISTEN_ADDR", ""),
-		SkipBootstrap:        strings.ToLower(getenv("SKIP_BOOTSTRAP", "")) == "true",
-		OSLogEnabled:         strings.ToLower(getenv("OSLOG_ENABLED", "")) == "true",
-		OSLogFiles:           splitCsv(getenv("OSLOG_FILES", "")),
-		OSLogCursorPath:      getenv("OSLOG_CURSOR_PATH", "./data/oslogs.cursor"),
-		OSLogBatchLines:      intEnv("OSLOG_BATCH_LINES", 200),
-		OSLogMaxBytes:        intEnv("OSLOG_MAX_BYTES", 256*1024),
-		OSLogInterval:        time.Duration(intEnv("OSLOG_INTERVAL", 15)) * time.Second,
-		OSLogWinChannels:     splitCsv(getenv("OSLOG_WIN_CHANNELS", "")),
-		OSLogEnrich:          strings.ToLower(getenv("OSLOG_ENRICH", "")) == "true",
-		OSLogDetections:      strings.ToLower(getenv("OSLOG_DETECTIONS", "")) == "true",
-		OSLogDiag:            strings.ToLower(getenv("OSLOG_DIAG", "")) == "true",
-		AgentlessEnabled:     strings.ToLower(getenv("AGENTLESS_ENABLED", "true")) == "true",
-		AgentlessOutboxPath:  getenv("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"),
-		AgentlessOutboxMaxMB: intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),
-		AgentlessJobsLimit:   intEnv("AGENTLESS_JOBS_LIMIT", 50),
-		AgentlessLockSec:     intEnv("AGENTLESS_LOCK_SEC", 60),
-		AgentlessFlushBatch:  intEnv("AGENTLESS_FLUSH_BATCH", 100),
-		AgentlessDebug:       strings.ToLower(getenv("AGENTLESS_DEBUG", "")) == "true",
+		Agent:                  AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
+		APIBaseURL:             getenv("API_BASE_URL", "https://api.aiceberg.com.br"),
+		APIKey:                 getenv("API_KEY", ""),
+		HTTPGzip:               strings.ToLower(getenv("HTTP_GZIP", "")) == "true",
+		HTTPIdempotency:        strings.ToLower(getenv("HTTP_IDEMPOTENCY", "true")) == "true",
+		TLSInsecureSkip:        strings.ToLower(getenv("TLS_INSECURE_SKIP_VERIFY", "")) == "true",
+		OutboxPath:             getenv("OUTBOX_PATH", "./data/outbox.db"),
+		OutboxMaxMB:            intEnv("OUTBOX_MAX_MB", 200),
+		OutboxMaxPerAgent:      intEnv("OUTBOX_MAX_PER_AGENT", 0),
+		HealthPort:             port,
+		PrefsPath:              getenv("PREFS_PATH", "./data/collect_prefs.json"),
+		AgentMode:              strings.ToLower(getenv("AGENT_MODE", "direct")),
+		HubURL:                 getenv("HUB_URL", ""),
+		HubToken:               getenv("HUB_TOKEN", ""),
+		HubListenAddr:          getenv("HUB_LISTEN_ADDR", ""),
+		SkipBootstrap:          strings.ToLower(getenv("SKIP_BOOTSTRAP", "")) == "true",
+		OSLogEnabled:           strings.ToLower(getenv("OSLOG_ENABLED", "")) == "true",
+		OSLogFiles:             splitCsv(getenv("OSLOG_FILES", "")),
+		OSLogCursorPath:        getenv("OSLOG_CURSOR_PATH", "./data/oslogs.cursor"),
+		OSLogBatchLines:        intEnv("OSLOG_BATCH_LINES", 200),
+		OSLogMaxBytes:          intEnv("OSLOG_MAX_BYTES", 256*1024),
+		OSLogInterval:          time.Duration(intEnv("OSLOG_INTERVAL", 15)) * time.Second,
+		OSLogWinChannels:       splitCsv(getenv("OSLOG_WIN_CHANNELS", "")),
+		OSLogEnrich:            strings.ToLower(getenv("OSLOG_ENRICH", "")) == "true",
+		OSLogDetections:        strings.ToLower(getenv("OSLOG_DETECTIONS", "")) == "true",
+		OSLogDiag:              strings.ToLower(getenv("OSLOG_DIAG", "")) == "true",
+		AgentlessEnabled:       strings.ToLower(getenv("AGENTLESS_ENABLED", "true")) == "true",
+		AgentlessOutboxPath:    getenv("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"),
+		AgentlessOutboxMaxMB:   intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),
+		AgentlessJobsLimit:     intEnv("AGENTLESS_JOBS_LIMIT", 50),
+		AgentlessLockSec:       intEnv("AGENTLESS_LOCK_SEC", 60),
+		AgentlessFlushBatch:    intEnv("AGENTLESS_FLUSH_BATCH", 100),
+		AgentlessDebug:         strings.ToLower(getenv("AGENTLESS_DEBUG", "")) == "true",
+		AutoUpdateEnabled:      strings.ToLower(getenv("AUTO_UPDATE_ENABLED", "")) == "true",
+		AutoUpdateDir:          getenv("AUTO_UPDATE_DIR", "./data/updates"),
+		AutoUpdateCommand:      getenv("AUTO_UPDATE_COMMAND", ""),
+		AutoUpdateWorkDir:      getenv("AUTO_UPDATE_WORKDIR", ""),
+		AutoUpdateMaxMB:        intEnv("AUTO_UPDATE_MAX_MB", 300),
+		AutoUpdateUseAgentAuth: strings.ToLower(getenv("AUTO_UPDATE_USE_AGENT_AUTH", "")) == "true",
 		PingInterval: func() time.Duration {
 			if pingInterval <= 0 {
 				return 5 * time.Second
@@ -175,6 +191,18 @@ func Load(configPath string) (Config, error) {
 				return 15 * time.Second
 			}
 			return agentlessFlush
+		}(),
+		AutoUpdateTimeout: func() time.Duration {
+			if autoUpdateTimeout <= 0 {
+				return 5 * time.Minute
+			}
+			return autoUpdateTimeout
+		}(),
+		AutoUpdateRetryInterval: func() time.Duration {
+			if autoUpdateRetry <= 0 {
+				return 30 * time.Minute
+			}
+			return autoUpdateRetry
 		}(),
 	}
 	if cfg.Agent.Token == "" {

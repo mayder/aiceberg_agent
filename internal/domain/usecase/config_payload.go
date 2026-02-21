@@ -6,6 +6,26 @@ import (
 	"github.com/you/aiceberg_agent/internal/data/local/prefs"
 )
 
+type ControlCommand struct {
+	Name   string
+	Update *UpdatePayload
+}
+
+type UpdatePayload struct {
+	Version string `json:"version,omitempty"`
+	URL     string `json:"url,omitempty"`
+	SHA256  string `json:"sha256,omitempty"`
+	Force   bool   `json:"force,omitempty"`
+}
+
+func (u *UpdatePayload) Clone() *UpdatePayload {
+	if u == nil {
+		return nil
+	}
+	cp := *u
+	return &cp
+}
+
 type ConfigPayload struct {
 	Version string              `json:"version,omitempty"`
 	Collect config.CollectPrefs `json:"collect"`
@@ -19,7 +39,8 @@ type ConfigPayload struct {
 		MaxBytes    int      `json:"max_bytes"`
 		Interval    int      `json:"interval"`
 	} `json:"logs"`
-	CollectNow *[]string `json:"collect_now,omitempty"`
+	CollectNow *[]string      `json:"collect_now,omitempty"`
+	Update     *UpdatePayload `json:"update,omitempty"`
 	Agentless  struct {
 		Enabled    *bool `json:"enabled,omitempty"`
 		PollSec    int   `json:"poll_interval,omitempty"`
@@ -30,7 +51,7 @@ type ConfigPayload struct {
 	} `json:"agentless,omitempty"`
 }
 
-func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- string, payload ConfigPayload) (string, bool, error) {
+func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- ControlCommand, payload ConfigPayload) (string, bool, error) {
 	collect := payload.Collect
 	collect.Version = payload.Version
 	collect.CVESignaturesURL = payload.Vulns.SignaturesURL
@@ -70,8 +91,9 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- s
 	}
 	collect.CollectNow = nil
 
+	hasUpdate := payload.Update != nil && payload.Update.Version != "" && payload.Update.URL != ""
 	cur := store.Get()
-	if cur.Version == collect.Version && collect.Version != "" && len(collectNow) == 0 {
+	if cur.Version == collect.Version && collect.Version != "" && len(collectNow) == 0 && !hasUpdate {
 		return collect.Version, false, nil
 	}
 
@@ -86,10 +108,21 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- s
 	for _, cmd := range collectNow {
 		// non-blocking para não travar o loop
 		select {
-		case commands <- cmd:
+		case commands <- ControlCommand{Name: cmd}:
 		default:
 			log.Info(logger.KV("command channel full, dropping command",
 				"command", cmd,
+			))
+		}
+	}
+
+	if hasUpdate {
+		select {
+		case commands <- ControlCommand{Name: "self_update", Update: payload.Update.Clone()}:
+		default:
+			log.Info(logger.KV("command channel full, dropping command",
+				"command", "self_update",
+				"version", payload.Update.Version,
 			))
 		}
 	}
