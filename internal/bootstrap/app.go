@@ -33,6 +33,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
 	"github.com/you/aiceberg_agent/internal/interfaces/health"
 	"github.com/you/aiceberg_agent/internal/interfaces/hub"
+	"github.com/you/aiceberg_agent/internal/platform/collectors/networkcapture"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/oslogs"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/sysmetrics"
 )
@@ -110,11 +111,13 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	healthEndpoint := "/v1/ingest/health"
 	inventoryEndpoint := "/v1/ingest/inventory"
 	bootstrapEndpoint := "/v1/ingest/bootstrap"
+	networkCaptureEndpoint := "/v1/ingest/network_capture"
 
 	metricsUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics", metricsEndpoint, 10*time.Second, metricsKeys()), outboxRepo, log, authHeader, metricsEndpoint)
 	healthUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_health", healthEndpoint, 10*time.Minute, healthKeys()), outboxRepo, log, authHeader, healthEndpoint)
 	inventoryUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_inventory", inventoryEndpoint, 8*time.Hour, inventoryKeys()), outboxRepo, log, authHeader, inventoryEndpoint)
 	bootstrapUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_bootstrap", bootstrapEndpoint, 24*time.Hour, bootstrapKeys()), outboxRepo, log, authHeader, bootstrapEndpoint)
+	networkCaptureUC := usecase.NewCollectAndBuffer(networkcapture.New(prefStore.Get), outboxRepo, log, authHeader, networkCaptureEndpoint)
 
 	commandChan := make(chan usecase.ControlCommand, 10)
 	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore, commandChan)
@@ -362,6 +365,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				_ = healthUC.Execute(ctx)
 			case "bootstrap":
 				_ = bootstrapUC.Execute(ctx)
+			case "network_capture":
+				_ = networkCaptureUC.Execute(ctx)
 			case "agentless":
 				if agentlessUC != nil {
 					if err := agentlessUC.SyncTargets(ctx); err != nil {
