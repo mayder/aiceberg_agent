@@ -1,6 +1,9 @@
 package networkcapture
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestInferDirection(t *testing.T) {
 	tests := []struct {
@@ -35,6 +38,54 @@ func TestSafeDelta(t *testing.T) {
 	}
 	if got := safeDelta(90, 100); got != 0 {
 		t.Fatalf("safeDelta negative = %d, want 0", got)
+	}
+}
+
+func TestApplyEstimatedTrafficPropagatesToPeers(t *testing.T) {
+	flowOneKey := flowKey{
+		proto:      "tcp",
+		direction:  "egress",
+		remoteIP:   "198.51.100.10",
+		remotePort: 443,
+	}
+	flowTwoKey := flowKey{
+		proto:      "tcp",
+		direction:  "ingress",
+		remoteIP:   "198.51.100.20",
+		remotePort: 8443,
+	}
+	flows := map[flowKey]*flowAgg{
+		flowOneKey: {samples: 2, scope: "public"},
+		flowTwoKey: {samples: 1, scope: "private"},
+	}
+	peers := map[peerKey]*peerAgg{
+		{proto: "tcp", direction: "egress", remoteIP: "198.51.100.10", remotePort: 443, scope: "public"}:    {},
+		{proto: "tcp", direction: "ingress", remoteIP: "198.51.100.20", remotePort: 8443, scope: "private"}: {},
+	}
+
+	applyEstimatedTraffic(flows, peers, []ifaceDelta{
+		{
+			BytesSent:   3000,
+			BytesRecv:   1500,
+			PacketsSent: 300,
+			PacketsRecv: 150,
+		},
+	})
+
+	if flows[flowOneKey].bytesOut <= 0 || flows[flowOneKey].packetsOut <= 0 {
+		t.Fatalf("expected egress flow to receive estimated outbound traffic, got bytes_out=%d packets_out=%d", flows[flowOneKey].bytesOut, flows[flowOneKey].packetsOut)
+	}
+	if flows[flowTwoKey].bytesIn <= 0 || flows[flowTwoKey].packetsIn <= 0 {
+		t.Fatalf("expected ingress flow to receive estimated inbound traffic, got bytes_in=%d packets_in=%d", flows[flowTwoKey].bytesIn, flows[flowTwoKey].packetsIn)
+	}
+
+	peerOne := peers[peerKey{proto: "tcp", direction: "egress", remoteIP: "198.51.100.10", remotePort: 443, scope: "public"}]
+	if peerOne.bytesOut != flows[flowOneKey].bytesOut || peerOne.packetsOut != flows[flowOneKey].packetsOut {
+		t.Fatalf("peer egress traffic mismatch: peer bytes_out=%d packets_out=%d flow bytes_out=%d packets_out=%d", peerOne.bytesOut, peerOne.packetsOut, flows[flowOneKey].bytesOut, flows[flowOneKey].packetsOut)
+	}
+	peerTwo := peers[peerKey{proto: "tcp", direction: "ingress", remoteIP: "198.51.100.20", remotePort: 8443, scope: "private"}]
+	if peerTwo.bytesIn != flows[flowTwoKey].bytesIn || peerTwo.packetsIn != flows[flowTwoKey].packetsIn {
+		t.Fatalf("peer ingress traffic mismatch: peer bytes_in=%d packets_in=%d flow bytes_in=%d packets_in=%d", peerTwo.bytesIn, peerTwo.packetsIn, flows[flowTwoKey].bytesIn, flows[flowTwoKey].packetsIn)
 	}
 }
 
@@ -106,6 +157,74 @@ func TestClassifyNetworkRiskUncommonProtocol(t *testing.T) {
 	}
 }
 
+func TestClassifyNetworkFailureRiskAdminPortPublic(t *testing.T) {
+	risk := classifyNetworkFailureRisk(22, "public", "egress", "tcp", "ESTABLISHED", "", "", 5, 0, 0)
+	if !risk.problematic {
+		t.Fatalf("expected admin public exposure as problematic")
+	}
+	foundReason := false
+	for _, reason := range risk.reasons {
+		if reason == "porta administrativa exposta em escopo público" {
+			foundReason = true
+			break
+		}
+	}
+	if !foundReason {
+		t.Fatalf("expected admin exposure reason, got %v", risk.reasons)
+	}
+}
+
+func TestClassifyNetworkFailureRiskDNSInstability(t *testing.T) {
+	risk := classifyNetworkFailureRisk(53, "private", "egress", "udp", "NONE", "dns.corp.local", "10.0.0.53", 6, 0, 3)
+	if !risk.problematic {
+		t.Fatalf("expected dns instability as problematic")
+	}
+	foundReason := false
+	for _, reason := range risk.reasons {
+		if reason == "dns instável com timeout recorrente" {
+			foundReason = true
+			break
+		}
+	}
+	if !foundReason {
+		t.Fatalf("expected dns instability reason, got %v", risk.reasons)
+	}
+}
+
+func TestClassifyNetworkFailureRiskFailedHandshake(t *testing.T) {
+	risk := classifyNetworkFailureRisk(443, "public", "egress", "tcp", "SYN_SENT", "api.example.com", "203.0.113.10", 5, 0, 3)
+	if !risk.problematic {
+		t.Fatalf("expected failed handshake as problematic")
+	}
+	foundReason := false
+	for _, reason := range risk.reasons {
+		if reason == "handshake recorrente sem sessão estabelecida" {
+			foundReason = true
+			break
+		}
+	}
+	if !foundReason {
+		t.Fatalf("expected failed handshake reason, got %v", risk.reasons)
+	}
+}
+
+func TestClassifyNetworkFailureRiskUnknownReputationIP(t *testing.T) {
+	risk := classifyNetworkFailureRisk(443, "public", "egress", "tcp", "ESTABLISHED", "", "203.0.113.55", 4, 0, 0)
+	if !risk.problematic {
+		t.Fatalf("expected unknown public ip reputation as problematic")
+	}
+	foundReason := false
+	for _, reason := range risk.reasons {
+		if reason == "tráfego para IP público sem contexto de reputação" {
+			foundReason = true
+			break
+		}
+	}
+	if !foundReason {
+		t.Fatalf("expected unknown reputation reason, got %v", risk.reasons)
+	}
+}
+
 func TestParseResolvConfNameServers(t *testing.T) {
 	content := `
 # comment
@@ -152,5 +271,126 @@ func TestParseProcNetARP(t *testing.T) {
 	}
 	if neighbors[0].AddressFamily != "ipv4" {
 		t.Fatalf("unexpected family: %q", neighbors[0].AddressFamily)
+	}
+}
+
+func TestBuildSocketSnapshotAggregatesBySocketTuple(t *testing.T) {
+	c := &collector{maxFlows: 50}
+	flows := map[flowKey]*flowAgg{
+		{
+			proto:      "tcp",
+			direction:  "egress",
+			localIP:    "10.0.0.10",
+			localPort:  51000,
+			remoteIP:   "8.8.8.8",
+			remotePort: 53,
+			process:    "proc-a",
+		}: {
+			state:     "ESTABLISHED",
+			samples:   2,
+			firstSeen: 100,
+			lastSeen:  140,
+		},
+		{
+			proto:      "tcp",
+			direction:  "egress",
+			localIP:    "10.0.0.10",
+			localPort:  51000,
+			remoteIP:   "8.8.8.8",
+			remotePort: 53,
+			process:    "proc-b",
+		}: {
+			state:     "ESTABLISHED",
+			samples:   3,
+			firstSeen: 90,
+			lastSeen:  180,
+		},
+		{
+			proto:      "udp",
+			direction:  "egress",
+			localIP:    "10.0.0.10",
+			localPort:  53000,
+			remoteIP:   "1.1.1.1",
+			remotePort: 53,
+			process:    "proc-c",
+		}: {
+			state:     "NONE",
+			samples:   1,
+			firstSeen: 120,
+			lastSeen:  125,
+		},
+	}
+
+	got := c.buildSocketSnapshot(flows)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 snapshot rows, got %d", len(got))
+	}
+	if got[0].Protocol != "tcp" || got[0].Direction != "egress" {
+		t.Fatalf("unexpected first row protocol/direction: %#v", got[0])
+	}
+	if got[0].Samples != 5 {
+		t.Fatalf("expected tcp samples=5, got %d", got[0].Samples)
+	}
+	if got[0].FirstSeenUnix != 90 || got[0].LastSeenUnix != 180 {
+		t.Fatalf("unexpected first/last seen: first=%d last=%d", got[0].FirstSeenUnix, got[0].LastSeenUnix)
+	}
+	if got[0].State != "ESTABLISHED" {
+		t.Fatalf("unexpected state: %q", got[0].State)
+	}
+}
+
+func TestExtractHostFromCmdlineURL(t *testing.T) {
+	cmdline := `curl --max-time 3 https://api.example.com:443/health`
+	got := extractHostFromCmdline(cmdline)
+	if got != "api.example.com" {
+		t.Fatalf("extractHostFromCmdline() = %q, want %q", got, "api.example.com")
+	}
+}
+
+func TestInferResolutionContextTLS(t *testing.T) {
+	dnsQuery, dnsAnswer, sni, tlsSubject := inferResolutionContext(
+		`wget https://edge.acme.local/login`,
+		"edge.acme.local.",
+		"203.0.113.11",
+		443,
+		"tcp",
+	)
+
+	if dnsQuery != "edge.acme.local" {
+		t.Fatalf("dns_query = %q, want %q", dnsQuery, "edge.acme.local")
+	}
+	if dnsAnswer != "203.0.113.11" {
+		t.Fatalf("dns_answer = %q, want %q", dnsAnswer, "203.0.113.11")
+	}
+	if sni != "edge.acme.local" {
+		t.Fatalf("sni = %q, want %q", sni, "edge.acme.local")
+	}
+	if tlsSubject != "edge.acme.local" {
+		t.Fatalf("tls_subject = %q, want %q", tlsSubject, "edge.acme.local")
+	}
+}
+
+func TestConnectionQualityHelpers(t *testing.T) {
+	if !isResetLikeState("CLOSE_WAIT") {
+		t.Fatalf("expected CLOSE_WAIT as reset-like state")
+	}
+	if isResetLikeState("ESTABLISHED") {
+		t.Fatalf("ESTABLISHED must not be reset-like state")
+	}
+	if !isTimeoutLikeState("SYN_SENT") {
+		t.Fatalf("expected SYN_SENT as timeout-like state")
+	}
+	if isTimeoutLikeState("ESTABLISHED") {
+		t.Fatalf("ESTABLISHED must not be timeout-like state")
+	}
+}
+
+func TestEstimateAvgDurationSec(t *testing.T) {
+	got := estimateAvgDurationSec(100, 110, time.Second)
+	if got != 11 {
+		t.Fatalf("estimateAvgDurationSec() = %v, want 11", got)
+	}
+	if got = estimateAvgDurationSec(0, 10, time.Second); got != 0 {
+		t.Fatalf("estimateAvgDurationSec() invalid firstSeen = %v, want 0", got)
 	}
 }

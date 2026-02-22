@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -26,6 +27,8 @@ const (
 	defaultMaxPeers     = 300
 	defaultMaxListeners = 300
 	maxCmdlineLength    = 240
+	maxResolutionLen    = 255
+	maxTLSSubjectLen    = 512
 	maxServiceNameLen   = 120
 	reverseDNSCacheTTL  = 10 * time.Minute
 	reverseDNSFailTTL   = 2 * time.Minute
@@ -43,6 +46,25 @@ var legacyPlaintextPorts = map[uint32]struct{}{
 	21: {}, 23: {}, 110: {}, 143: {}, 389: {},
 }
 
+var adminPorts = map[uint32]struct{}{
+	22: {}, 23: {}, 139: {}, 445: {}, 1433: {}, 1521: {}, 2375: {}, 2376: {}, 3306: {},
+	3389: {}, 5432: {}, 5985: {}, 5986: {}, 6443: {}, 27017: {},
+}
+
+var dnsServicePorts = map[uint32]struct{}{
+	53: {}, 853: {},
+}
+
+var handshakeNoSessionStates = map[string]struct{}{
+	"SYN_SENT": {}, "SYN_RECV": {}, "SYN_RCVD": {}, "FIN_WAIT1": {}, "FIN_WAIT2": {}, "CLOSING": {},
+}
+
+var tlsLikelyPorts = map[uint32]struct{}{
+	443: {}, 465: {}, 587: {}, 636: {}, 853: {}, 993: {}, 995: {}, 8443: {}, 9443: {},
+}
+
+var urlHostRegex = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+\-.]*://([a-z0-9\.\-]+)`)
+
 type collector struct {
 	prefs        func() config.CollectPrefs
 	window       time.Duration
@@ -53,12 +75,13 @@ type collector struct {
 }
 
 type capturePayload struct {
-	Capture    captureMeta   `json:"capture"`
-	Flows      []flowRow     `json:"flows,omitempty"`
-	Peers      []peerRow     `json:"peers,omitempty"`
-	Listeners  []listenerRow `json:"listeners,omitempty"`
-	Interfaces []ifaceDelta  `json:"interfaces,omitempty"`
-	LocalCtx   *localContext `json:"local_context,omitempty"`
+	Capture        captureMeta         `json:"capture"`
+	Flows          []flowRow           `json:"flows,omitempty"`
+	SocketSnapshot []socketSnapshotRow `json:"socket_snapshot,omitempty"`
+	Peers          []peerRow           `json:"peers,omitempty"`
+	Listeners      []listenerRow       `json:"listeners,omitempty"`
+	Interfaces     []ifaceDelta        `json:"interfaces,omitempty"`
+	LocalCtx       *localContext       `json:"local_context,omitempty"`
 }
 
 type captureMeta struct {
@@ -79,6 +102,10 @@ type flowRow struct {
 	LocalPort         uint32   `json:"local_port,omitempty"`
 	RemoteIP          string   `json:"remote_ip,omitempty"`
 	ReverseDNS        string   `json:"reverse_dns,omitempty"`
+	DNSQuery          string   `json:"dns_query,omitempty"`
+	DNSAnswer         string   `json:"dns_answer,omitempty"`
+	SNI               string   `json:"sni,omitempty"`
+	TLSSubject        string   `json:"tls_subject,omitempty"`
 	FirstSeenUnix     int64    `json:"first_seen_unix,omitempty"`
 	LastSeenUnix      int64    `json:"last_seen_unix,omitempty"`
 	RemotePort        uint32   `json:"remote_port,omitempty"`
@@ -91,6 +118,13 @@ type flowRow struct {
 	ProcessUser       string   `json:"process_user,omitempty"`
 	ProcessExe        string   `json:"process_exe,omitempty"`
 	ProcessCmd        string   `json:"process_cmdline,omitempty"`
+	BytesIn           int      `json:"bytes_in,omitempty"`
+	BytesOut          int      `json:"bytes_out,omitempty"`
+	PacketsIn         int      `json:"packets_in,omitempty"`
+	PacketsOut        int      `json:"packets_out,omitempty"`
+	ResetHits         int      `json:"reset_hits,omitempty"`
+	TimeoutHits       int      `json:"timeout_hits,omitempty"`
+	AvgDurationSec    float64  `json:"avg_duration_sec,omitempty"`
 	IsProblematic     bool     `json:"is_problematic,omitempty"`
 	ProblematicReason string   `json:"problematic_reason,omitempty"`
 	RiskTags          []string `json:"problematic_tags,omitempty"`
@@ -102,6 +136,10 @@ type peerRow struct {
 	Direction         string   `json:"direction,omitempty"`
 	RemoteIP          string   `json:"remote_ip,omitempty"`
 	ReverseDNS        string   `json:"reverse_dns,omitempty"`
+	DNSQuery          string   `json:"dns_query,omitempty"`
+	DNSAnswer         string   `json:"dns_answer,omitempty"`
+	SNI               string   `json:"sni,omitempty"`
+	TLSSubject        string   `json:"tls_subject,omitempty"`
 	FirstSeenUnix     int64    `json:"first_seen_unix,omitempty"`
 	LastSeenUnix      int64    `json:"last_seen_unix,omitempty"`
 	RemotePort        uint32   `json:"remote_port,omitempty"`
@@ -110,6 +148,13 @@ type peerRow struct {
 	Processes         []string `json:"processes,omitempty"`
 	ServiceNames      []string `json:"service_names,omitempty"`
 	ProcessUsers      []string `json:"process_users,omitempty"`
+	BytesIn           int      `json:"bytes_in,omitempty"`
+	BytesOut          int      `json:"bytes_out,omitempty"`
+	PacketsIn         int      `json:"packets_in,omitempty"`
+	PacketsOut        int      `json:"packets_out,omitempty"`
+	ResetHits         int      `json:"reset_hits,omitempty"`
+	TimeoutHits       int      `json:"timeout_hits,omitempty"`
+	AvgDurationSec    float64  `json:"avg_duration_sec,omitempty"`
 	IsProblematic     bool     `json:"is_problematic,omitempty"`
 	ProblematicReason string   `json:"problematic_reason,omitempty"`
 	RiskTags          []string `json:"problematic_tags,omitempty"`
@@ -201,11 +246,73 @@ type flowAgg struct {
 	samples     int
 	scope       string
 	reverseDNS  string
+	dnsQuery    string
+	dnsAnswer   string
+	sni         string
+	tlsSubject  string
 	firstSeen   int64
 	lastSeen    int64
+	bytesIn     int
+	bytesOut    int
+	packetsIn   int
+	packetsOut  int
+	resetHits   int
+	timeoutHits int
 	problematic bool
 	reasons     map[string]struct{}
 	tags        map[string]struct{}
+}
+
+type socketSnapshotRow struct {
+	Protocol       string  `json:"protocol,omitempty"`
+	Direction      string  `json:"direction,omitempty"`
+	LocalIP        string  `json:"local_ip,omitempty"`
+	LocalPort      uint32  `json:"local_port,omitempty"`
+	RemoteIP       string  `json:"remote_ip,omitempty"`
+	RemotePort     uint32  `json:"remote_port,omitempty"`
+	DNSQuery       string  `json:"dns_query,omitempty"`
+	DNSAnswer      string  `json:"dns_answer,omitempty"`
+	SNI            string  `json:"sni,omitempty"`
+	TLSSubject     string  `json:"tls_subject,omitempty"`
+	State          string  `json:"state,omitempty"`
+	BytesIn        int     `json:"bytes_in,omitempty"`
+	BytesOut       int     `json:"bytes_out,omitempty"`
+	PacketsIn      int     `json:"packets_in,omitempty"`
+	PacketsOut     int     `json:"packets_out,omitempty"`
+	ResetHits      int     `json:"reset_hits,omitempty"`
+	TimeoutHits    int     `json:"timeout_hits,omitempty"`
+	AvgDurationSec float64 `json:"avg_duration_sec,omitempty"`
+	FirstSeenUnix  int64   `json:"first_seen_unix,omitempty"`
+	LastSeenUnix   int64   `json:"last_seen_unix,omitempty"`
+	Samples        int     `json:"samples"`
+}
+
+type socketSnapshotKey struct {
+	proto      string
+	direction  string
+	localIP    string
+	localPort  uint32
+	remoteIP   string
+	remotePort uint32
+	state      string
+}
+
+type socketSnapshotAgg struct {
+	samples          int
+	firstSeen        int64
+	lastSeen         int64
+	dnsQuery         string
+	dnsAnswer        string
+	sni              string
+	tlsSubject       string
+	bytesIn          int
+	bytesOut         int
+	packetsIn        int
+	packetsOut       int
+	resetHits        int
+	timeoutHits      int
+	durationWeighted float64
+	durationWeight   float64
 }
 
 type peerKey struct {
@@ -219,8 +326,18 @@ type peerKey struct {
 type peerAgg struct {
 	samples      int
 	reverseDNS   string
+	dnsQuery     string
+	dnsAnswer    string
+	sni          string
+	tlsSubject   string
 	firstSeen    int64
 	lastSeen     int64
+	bytesIn      int
+	bytesOut     int
+	packetsIn    int
+	packetsOut   int
+	resetHits    int
+	timeoutHits  int
 	processes    map[string]struct{}
 	serviceNames map[string]struct{}
 	processUsers map[string]struct{}
@@ -359,16 +476,18 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 				continue
 			}
 
+			proto := protoName(conn.Type)
 			direction := inferDirection(conn.Status, conn.Laddr.Port, conn.Raddr.Port)
 			scope := remoteScope(conn.Raddr.IP, localIPs)
-			risk := classifyNetworkRisk(conn.Raddr.Port, scope, direction, protoName(conn.Type))
 			reverseDNS, ok := captureReverseDNSCache[conn.Raddr.IP]
 			if !ok {
 				reverseDNS = resolveReverseDNSWithCache(ctx, conn.Raddr.IP)
 				captureReverseDNSCache[conn.Raddr.IP] = reverseDNS
 			}
+			dnsQuery, dnsAnswer, sni, tlsSubject := inferResolutionContext(proc.cmdline, reverseDNS, conn.Raddr.IP, conn.Raddr.Port, proto)
+			baseRisk := classifyNetworkRisk(conn.Raddr.Port, scope, direction, proto)
 			key := flowKey{
-				proto:       protoName(conn.Type),
+				proto:       proto,
 				direction:   direction,
 				localIP:     conn.Laddr.IP,
 				localPort:   conn.Laddr.Port,
@@ -397,20 +516,43 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 			if sampleUnix > agg.lastSeen {
 				agg.lastSeen = sampleUnix
 			}
+			if isResetLikeState(conn.Status) {
+				agg.resetHits++
+			}
+			if isTimeoutLikeState(conn.Status) {
+				agg.timeoutHits++
+			}
 			agg.state = conn.Status
 			agg.scope = scope
 			if agg.reverseDNS == "" && reverseDNS != "" {
 				agg.reverseDNS = reverseDNS
 			}
-			if risk.problematic {
-				agg.problematic = true
+			if agg.dnsQuery == "" && dnsQuery != "" {
+				agg.dnsQuery = dnsQuery
 			}
-			for _, reason := range risk.reasons {
-				agg.reasons[reason] = struct{}{}
+			if agg.dnsAnswer == "" && dnsAnswer != "" {
+				agg.dnsAnswer = dnsAnswer
 			}
-			for _, tag := range risk.tags {
-				agg.tags[tag] = struct{}{}
+			if agg.sni == "" && sni != "" {
+				agg.sni = sni
 			}
+			if agg.tlsSubject == "" && tlsSubject != "" {
+				agg.tlsSubject = tlsSubject
+			}
+			mergeNetworkRisk(&agg.problematic, agg.reasons, agg.tags, baseRisk)
+			flowFailureRisk := classifyNetworkFailureRisk(
+				conn.Raddr.Port,
+				scope,
+				direction,
+				proto,
+				agg.state,
+				agg.dnsQuery,
+				agg.dnsAnswer,
+				agg.samples,
+				agg.resetHits,
+				agg.timeoutHits,
+			)
+			mergeNetworkRisk(&agg.problematic, agg.reasons, agg.tags, flowFailureRisk)
 
 			pk := peerKey{
 				proto:      key.proto,
@@ -437,18 +579,41 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 			if sampleUnix > peer.lastSeen {
 				peer.lastSeen = sampleUnix
 			}
+			if isResetLikeState(conn.Status) {
+				peer.resetHits++
+			}
+			if isTimeoutLikeState(conn.Status) {
+				peer.timeoutHits++
+			}
 			if peer.reverseDNS == "" && reverseDNS != "" {
 				peer.reverseDNS = reverseDNS
 			}
-			if risk.problematic {
-				peer.problematic = true
+			if peer.dnsQuery == "" && dnsQuery != "" {
+				peer.dnsQuery = dnsQuery
 			}
-			for _, reason := range risk.reasons {
-				peer.reasons[reason] = struct{}{}
+			if peer.dnsAnswer == "" && dnsAnswer != "" {
+				peer.dnsAnswer = dnsAnswer
 			}
-			for _, tag := range risk.tags {
-				peer.tags[tag] = struct{}{}
+			if peer.sni == "" && sni != "" {
+				peer.sni = sni
 			}
+			if peer.tlsSubject == "" && tlsSubject != "" {
+				peer.tlsSubject = tlsSubject
+			}
+			mergeNetworkRisk(&peer.problematic, peer.reasons, peer.tags, baseRisk)
+			peerFailureRisk := classifyNetworkFailureRisk(
+				conn.Raddr.Port,
+				scope,
+				direction,
+				proto,
+				conn.Status,
+				peer.dnsQuery,
+				peer.dnsAnswer,
+				peer.samples,
+				peer.resetHits,
+				peer.timeoutHits,
+			)
+			mergeNetworkRisk(&peer.problematic, peer.reasons, peer.tags, peerFailureRisk)
 			if proc.name != "" {
 				peer.processes[proc.name] = struct{}{}
 			}
@@ -472,30 +637,37 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		case <-ctx.Done():
 			meta.Warnings = append(meta.Warnings, "coleta interrompida por contexto")
 			end = time.Now().UTC()
+			applyEstimatedTraffic(flows, peers, nil)
+			flowRows := c.sortedFlows(flows)
 			payload := capturePayload{
-				Capture:    meta,
-				Flows:      c.sortedFlows(flows),
-				Peers:      c.sortedPeers(peers),
-				Listeners:  c.sortedListeners(listeners),
-				Interfaces: ioDelta(startIO, nil),
-				LocalCtx:   localCtx,
+				Capture:        meta,
+				Flows:          flowRows,
+				SocketSnapshot: c.buildSocketSnapshot(flows),
+				Peers:          c.sortedPeers(peers),
+				Listeners:      c.sortedListeners(listeners),
+				Interfaces:     ioDelta(startIO, nil),
+				LocalCtx:       localCtx,
 			}
 			payload.Capture.EndedAtUnix = end.Unix()
 			return json.Marshal(payload)
 		case <-deadline.C:
 			end = time.Now().UTC()
 			endIO, e := gnet.IOCountersWithContext(ctx, true)
+			deltas := ioDelta(startIO, endIO)
 			if e != nil {
 				meta.Warnings = append(meta.Warnings, "network io counters indisponiveis no final")
 			}
 			meta.EndedAtUnix = end.Unix()
+			applyEstimatedTraffic(flows, peers, deltas)
+			flowRows := c.sortedFlows(flows)
 			payload := capturePayload{
-				Capture:    meta,
-				Flows:      c.sortedFlows(flows),
-				Peers:      c.sortedPeers(peers),
-				Listeners:  c.sortedListeners(listeners),
-				Interfaces: ioDelta(startIO, endIO),
-				LocalCtx:   localCtx,
+				Capture:        meta,
+				Flows:          flowRows,
+				SocketSnapshot: c.buildSocketSnapshot(flows),
+				Peers:          c.sortedPeers(peers),
+				Listeners:      c.sortedListeners(listeners),
+				Interfaces:     deltas,
+				LocalCtx:       localCtx,
 			}
 			return json.Marshal(payload)
 		case <-ticker.C:
@@ -514,6 +686,10 @@ func (c *collector) sortedFlows(flows map[flowKey]*flowAgg) []flowRow {
 			LocalPort:         k.localPort,
 			RemoteIP:          k.remoteIP,
 			ReverseDNS:        v.reverseDNS,
+			DNSQuery:          v.dnsQuery,
+			DNSAnswer:         v.dnsAnswer,
+			SNI:               v.sni,
+			TLSSubject:        v.tlsSubject,
 			FirstSeenUnix:     v.firstSeen,
 			LastSeenUnix:      v.lastSeen,
 			RemotePort:        k.remotePort,
@@ -526,6 +702,13 @@ func (c *collector) sortedFlows(flows map[flowKey]*flowAgg) []flowRow {
 			ProcessUser:       k.processUser,
 			ProcessExe:        k.processExe,
 			ProcessCmd:        k.processCmd,
+			BytesIn:           v.bytesIn,
+			BytesOut:          v.bytesOut,
+			PacketsIn:         v.packetsIn,
+			PacketsOut:        v.packetsOut,
+			ResetHits:         v.resetHits,
+			TimeoutHits:       v.timeoutHits,
+			AvgDurationSec:    estimateAvgDurationSec(v.firstSeen, v.lastSeen, c.interval),
 			IsProblematic:     v.problematic,
 			ProblematicReason: joinSortedSet(v.reasons, " | "),
 			RiskTags:          sortedSetValues(v.tags, 6),
@@ -535,6 +718,104 @@ func (c *collector) sortedFlows(flows map[flowKey]*flowAgg) []flowRow {
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Samples == out[j].Samples {
 			if out[i].RemoteIP == out[j].RemoteIP {
+				return out[i].RemotePort < out[j].RemotePort
+			}
+			return out[i].RemoteIP < out[j].RemoteIP
+		}
+		return out[i].Samples > out[j].Samples
+	})
+	if len(out) > c.maxFlows {
+		out = out[:c.maxFlows]
+	}
+	return out
+}
+
+func (c *collector) buildSocketSnapshot(flows map[flowKey]*flowAgg) []socketSnapshotRow {
+	merged := make(map[socketSnapshotKey]*socketSnapshotAgg)
+	for k, v := range flows {
+		sk := socketSnapshotKey{
+			proto:      k.proto,
+			direction:  k.direction,
+			localIP:    k.localIP,
+			localPort:  k.localPort,
+			remoteIP:   k.remoteIP,
+			remotePort: k.remotePort,
+			state:      v.state,
+		}
+		agg, ok := merged[sk]
+		if !ok {
+			agg = &socketSnapshotAgg{}
+			merged[sk] = agg
+		}
+		agg.samples += v.samples
+		if v.firstSeen > 0 && (agg.firstSeen == 0 || v.firstSeen < agg.firstSeen) {
+			agg.firstSeen = v.firstSeen
+		}
+		if v.lastSeen > agg.lastSeen {
+			agg.lastSeen = v.lastSeen
+		}
+		if agg.dnsQuery == "" && v.dnsQuery != "" {
+			agg.dnsQuery = v.dnsQuery
+		}
+		if agg.dnsAnswer == "" && v.dnsAnswer != "" {
+			agg.dnsAnswer = v.dnsAnswer
+		}
+		if agg.sni == "" && v.sni != "" {
+			agg.sni = v.sni
+		}
+		if agg.tlsSubject == "" && v.tlsSubject != "" {
+			agg.tlsSubject = v.tlsSubject
+		}
+		agg.resetHits += v.resetHits
+		agg.timeoutHits += v.timeoutHits
+		agg.bytesIn += v.bytesIn
+		agg.bytesOut += v.bytesOut
+		agg.packetsIn += v.packetsIn
+		agg.packetsOut += v.packetsOut
+		avgDurationSec := estimateAvgDurationSec(v.firstSeen, v.lastSeen, c.interval)
+		if avgDurationSec > 0 {
+			weight := float64(maxInt(v.samples, 1))
+			agg.durationWeighted += avgDurationSec * weight
+			agg.durationWeight += weight
+		}
+	}
+
+	out := make([]socketSnapshotRow, 0, len(merged))
+	for k, v := range merged {
+		out = append(out, socketSnapshotRow{
+			Protocol:       k.proto,
+			Direction:      k.direction,
+			LocalIP:        k.localIP,
+			LocalPort:      k.localPort,
+			RemoteIP:       k.remoteIP,
+			RemotePort:     k.remotePort,
+			DNSQuery:       v.dnsQuery,
+			DNSAnswer:      v.dnsAnswer,
+			SNI:            v.sni,
+			TLSSubject:     v.tlsSubject,
+			State:          k.state,
+			BytesIn:        v.bytesIn,
+			BytesOut:       v.bytesOut,
+			PacketsIn:      v.packetsIn,
+			PacketsOut:     v.packetsOut,
+			ResetHits:      v.resetHits,
+			TimeoutHits:    v.timeoutHits,
+			AvgDurationSec: averageDuration(v.durationWeighted, v.durationWeight),
+			FirstSeenUnix:  v.firstSeen,
+			LastSeenUnix:   v.lastSeen,
+			Samples:        v.samples,
+		})
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Samples == out[j].Samples {
+			if out[i].RemoteIP == out[j].RemoteIP {
+				if out[i].RemotePort == out[j].RemotePort {
+					if out[i].LocalIP == out[j].LocalIP {
+						return out[i].LocalPort < out[j].LocalPort
+					}
+					return out[i].LocalIP < out[j].LocalIP
+				}
 				return out[i].RemotePort < out[j].RemotePort
 			}
 			return out[i].RemoteIP < out[j].RemoteIP
@@ -582,6 +863,10 @@ func (c *collector) sortedPeers(peers map[peerKey]*peerAgg) []peerRow {
 			Direction:         k.direction,
 			RemoteIP:          k.remoteIP,
 			ReverseDNS:        v.reverseDNS,
+			DNSQuery:          v.dnsQuery,
+			DNSAnswer:         v.dnsAnswer,
+			SNI:               v.sni,
+			TLSSubject:        v.tlsSubject,
 			FirstSeenUnix:     v.firstSeen,
 			LastSeenUnix:      v.lastSeen,
 			RemotePort:        k.remotePort,
@@ -590,6 +875,13 @@ func (c *collector) sortedPeers(peers map[peerKey]*peerAgg) []peerRow {
 			Processes:         processes,
 			ServiceNames:      serviceNames,
 			ProcessUsers:      processUsers,
+			BytesIn:           v.bytesIn,
+			BytesOut:          v.bytesOut,
+			PacketsIn:         v.packetsIn,
+			PacketsOut:        v.packetsOut,
+			ResetHits:         v.resetHits,
+			TimeoutHits:       v.timeoutHits,
+			AvgDurationSec:    estimateAvgDurationSec(v.firstSeen, v.lastSeen, c.interval),
 			IsProblematic:     v.problematic,
 			ProblematicReason: joinSortedSet(v.reasons, " | "),
 			RiskTags:          sortedSetValues(v.tags, 6),
@@ -678,6 +970,89 @@ func safeDelta(cur, prev uint64) uint64 {
 		return 0
 	}
 	return cur - prev
+}
+
+func applyEstimatedTraffic(flows map[flowKey]*flowAgg, peers map[peerKey]*peerAgg, deltas []ifaceDelta) {
+	if len(flows) == 0 || len(deltas) == 0 {
+		return
+	}
+	var totalBytesSent uint64
+	var totalBytesRecv uint64
+	var totalPacketsSent uint64
+	var totalPacketsRecv uint64
+	for _, delta := range deltas {
+		totalBytesSent += delta.BytesSent
+		totalBytesRecv += delta.BytesRecv
+		totalPacketsSent += delta.PacketsSent
+		totalPacketsRecv += delta.PacketsRecv
+	}
+	totalSamples := 0
+	for _, flow := range flows {
+		totalSamples += maxInt(flow.samples, 1)
+	}
+	if totalSamples <= 0 {
+		return
+	}
+
+	for key, flow := range flows {
+		weight := float64(maxInt(flow.samples, 1)) / float64(totalSamples)
+		direction := strings.ToLower(strings.TrimSpace(key.direction))
+		var bytesIn uint64
+		var bytesOut uint64
+		var packetsIn uint64
+		var packetsOut uint64
+		switch direction {
+		case "egress":
+			bytesOut = scaleUint64(totalBytesSent, weight)
+			packetsOut = scaleUint64(totalPacketsSent, weight)
+			bytesIn = scaleUint64(totalBytesRecv, weight*0.35)
+			packetsIn = scaleUint64(totalPacketsRecv, weight*0.35)
+		case "ingress":
+			bytesIn = scaleUint64(totalBytesRecv, weight)
+			packetsIn = scaleUint64(totalPacketsRecv, weight)
+			bytesOut = scaleUint64(totalBytesSent, weight*0.35)
+			packetsOut = scaleUint64(totalPacketsSent, weight*0.35)
+		default:
+			bytesIn = scaleUint64(totalBytesRecv, weight*0.5)
+			packetsIn = scaleUint64(totalPacketsRecv, weight*0.5)
+			bytesOut = scaleUint64(totalBytesSent, weight*0.5)
+			packetsOut = scaleUint64(totalPacketsSent, weight*0.5)
+		}
+
+		flow.bytesIn = clampUint64ToInt(bytesIn)
+		flow.bytesOut = clampUint64ToInt(bytesOut)
+		flow.packetsIn = clampUint64ToInt(packetsIn)
+		flow.packetsOut = clampUint64ToInt(packetsOut)
+
+		peerKeyRef := peerKey{
+			proto:      key.proto,
+			direction:  key.direction,
+			remoteIP:   key.remoteIP,
+			remotePort: key.remotePort,
+			scope:      flow.scope,
+		}
+		if peer, ok := peers[peerKeyRef]; ok {
+			peer.bytesIn += flow.bytesIn
+			peer.bytesOut += flow.bytesOut
+			peer.packetsIn += flow.packetsIn
+			peer.packetsOut += flow.packetsOut
+		}
+	}
+}
+
+func scaleUint64(total uint64, weight float64) uint64 {
+	if total == 0 || weight <= 0 {
+		return 0
+	}
+	return uint64(float64(total) * weight)
+}
+
+func clampUint64ToInt(value uint64) int {
+	maxIntValue := uint64(^uint(0) >> 1)
+	if value > maxIntValue {
+		return int(maxIntValue)
+	}
+	return int(value)
 }
 
 func collectLocalContext(ctx context.Context, hostname string) (*localContext, []string) {
@@ -1084,6 +1459,49 @@ func inferDirection(state string, localPort, remotePort uint32) string {
 	return "unknown"
 }
 
+func isResetLikeState(state string) bool {
+	switch strings.ToUpper(strings.TrimSpace(state)) {
+	case "CLOSE", "CLOSED", "CLOSE_WAIT", "CLOSING", "LAST_ACK":
+		return true
+	default:
+		return false
+	}
+}
+
+func isTimeoutLikeState(state string) bool {
+	switch strings.ToUpper(strings.TrimSpace(state)) {
+	case "SYN_SENT", "SYN_RECV", "FIN_WAIT1", "FIN_WAIT2", "TIME_WAIT":
+		return true
+	default:
+		return false
+	}
+}
+
+func estimateAvgDurationSec(firstSeen, lastSeen int64, sampleInterval time.Duration) float64 {
+	if firstSeen <= 0 || lastSeen <= 0 || lastSeen < firstSeen {
+		return 0
+	}
+	spanSec := float64(lastSeen-firstSeen) + sampleInterval.Seconds()
+	if spanSec < sampleInterval.Seconds() {
+		spanSec = sampleInterval.Seconds()
+	}
+	return spanSec
+}
+
+func maxInt(a, b int) int {
+	if a >= b {
+		return a
+	}
+	return b
+}
+
+func averageDuration(weighted, weight float64) float64 {
+	if weight <= 0 {
+		return 0
+	}
+	return weighted / weight
+}
+
 func protoName(t uint32) string {
 	switch t {
 	case 1:
@@ -1099,6 +1517,22 @@ type networkRisk struct {
 	problematic bool
 	reasons     []string
 	tags        []string
+}
+
+func mergeNetworkRisk(problematic *bool, reasons map[string]struct{}, tags map[string]struct{}, risk networkRisk) {
+	if problematic != nil && risk.problematic {
+		*problematic = true
+	}
+	if reasons != nil {
+		for _, reason := range risk.reasons {
+			reasons[reason] = struct{}{}
+		}
+	}
+	if tags != nil {
+		for _, tag := range risk.tags {
+			tags[tag] = struct{}{}
+		}
+	}
 }
 
 func classifyNetworkRisk(remotePort uint32, remoteScope, direction, protocol string) networkRisk {
@@ -1141,6 +1575,70 @@ func classifyNetworkRisk(remotePort uint32, remoteScope, direction, protocol str
 	}
 	if isUncommonProtocol {
 		reasons = append(reasons, "protocolo incomum")
+	}
+
+	return networkRisk{
+		problematic: len(reasons) > 0,
+		reasons:     uniqueStrings(reasons, 5),
+		tags:        uniqueStrings(tags, 6),
+	}
+}
+
+func classifyNetworkFailureRisk(
+	remotePort uint32,
+	remoteScope, direction, protocol, state, dnsQuery, dnsAnswer string,
+	samples, resetHits, timeoutHits int,
+) networkRisk {
+	scope := strings.ToLower(strings.TrimSpace(remoteScope))
+	dir := strings.ToLower(strings.TrimSpace(direction))
+	proto := strings.ToLower(strings.TrimSpace(protocol))
+	stateValue := strings.ToUpper(strings.TrimSpace(state))
+	query := strings.TrimSpace(dnsQuery)
+	answer := strings.TrimSpace(dnsAnswer)
+	isPublic := scope == "public"
+	isUnknownScope := scope == "" || scope == "unknown"
+	_, isAdminPort := adminPorts[remotePort]
+	_, isDNSPort := dnsServicePorts[remotePort]
+	_, isHandshakeNoSession := handshakeNoSessionStates[stateValue]
+
+	sampleCount := maxInt(samples, 1)
+	timeoutRate := float64(timeoutHits) / float64(sampleCount)
+	resetRate := float64(resetHits) / float64(sampleCount)
+	unstableRate := timeoutRate + resetRate
+	hasUnknownDirection := dir == "" || dir == "unknown"
+
+	reasons := make([]string, 0, 4)
+	tags := make([]string, 0, 4)
+
+	if isAdminPort && (isPublic || isUnknownScope) {
+		if isPublic {
+			reasons = append(reasons, "porta administrativa exposta em escopo público")
+		} else {
+			reasons = append(reasons, "porta administrativa exposta em escopo não confiável")
+		}
+		tags = append(tags, "admin_port_exposure")
+	}
+
+	if isDNSPort && samples >= 3 {
+		if timeoutHits >= 2 || timeoutRate >= 0.4 {
+			reasons = append(reasons, "dns instável com timeout recorrente")
+			tags = append(tags, "dns_instability")
+		} else if query != "" && answer == "" {
+			reasons = append(reasons, "dns instável sem resposta consistente")
+			tags = append(tags, "dns_instability")
+		}
+	}
+
+	if (isPublic || isUnknownScope) && samples >= 3 && query == "" && answer != "" {
+		reasons = append(reasons, "tráfego para IP público sem contexto de reputação")
+		tags = append(tags, "unknown_reputation_ip")
+	}
+
+	if proto == "tcp" && isHandshakeNoSession && samples >= 3 {
+		if timeoutHits >= 2 || resetHits >= 2 || unstableRate >= 0.4 || hasUnknownDirection {
+			reasons = append(reasons, "handshake recorrente sem sessão estabelecida")
+			tags = append(tags, "failed_handshake")
+		}
 	}
 
 	return networkRisk{
@@ -1362,4 +1860,136 @@ func normalizeReverseDNSName(value string) string {
 		host = host[:idx]
 	}
 	return host
+}
+
+func inferResolutionContext(cmdline, reverseDNS, remoteIP string, remotePort uint32, protocol string) (dnsQuery, dnsAnswer, sni, tlsSubject string) {
+	remote := strings.TrimSpace(remoteIP)
+	reverse := normalizeReverseDNSName(reverseDNS)
+	cmdlineHost := extractHostFromCmdline(cmdline)
+
+	dnsQuery = cmdlineHost
+	if dnsQuery == "" {
+		dnsQuery = reverse
+	}
+	dnsQuery = normalizeResolutionHost(dnsQuery)
+
+	if remote != "" {
+		dnsAnswer = trimToLen(remote, maxResolutionLen)
+	}
+
+	if isLikelyTLSEndpoint(protocol, remotePort) {
+		if dnsQuery != "" {
+			sni = dnsQuery
+		}
+		if reverse != "" {
+			tlsSubject = trimToLen(reverse, maxTLSSubjectLen)
+		} else if sni != "" {
+			tlsSubject = trimToLen(sni, maxTLSSubjectLen)
+		}
+	}
+
+	return
+}
+
+func extractHostFromCmdline(cmdline string) string {
+	line := strings.TrimSpace(cmdline)
+	if line == "" {
+		return ""
+	}
+	if matches := urlHostRegex.FindStringSubmatch(line); len(matches) >= 2 {
+		if host := normalizeResolutionHost(matches[1]); host != "" {
+			return host
+		}
+	}
+	for _, tokenRaw := range strings.Fields(line) {
+		token := strings.Trim(tokenRaw, "\"'`,;()[]{}")
+		if token == "" {
+			continue
+		}
+		if strings.Contains(token, "://") {
+			if matches := urlHostRegex.FindStringSubmatch(token); len(matches) >= 2 {
+				if host := normalizeResolutionHost(matches[1]); host != "" {
+					return host
+				}
+			}
+		}
+		if idx := strings.Index(token, "="); idx > 0 && idx < len(token)-1 {
+			token = token[idx+1:]
+		}
+		hostCandidate := strings.Trim(token, "\"'`,;()[]{}")
+		if at := strings.LastIndex(hostCandidate, "@"); at >= 0 && at < len(hostCandidate)-1 {
+			hostCandidate = hostCandidate[at+1:]
+		}
+		if slash := strings.IndexAny(hostCandidate, "/?"); slash >= 0 {
+			hostCandidate = hostCandidate[:slash]
+		}
+		hostCandidate = strings.TrimSpace(hostCandidate)
+		if hostCandidate == "" {
+			continue
+		}
+		if host, port, err := net.SplitHostPort(hostCandidate); err == nil {
+			if _, convErr := strconv.Atoi(port); convErr == nil {
+				hostCandidate = host
+			}
+		} else if strings.Count(hostCandidate, ":") == 1 && !strings.Contains(hostCandidate, "]") {
+			parts := strings.SplitN(hostCandidate, ":", 2)
+			if len(parts) == 2 {
+				if _, convErr := strconv.Atoi(parts[1]); convErr == nil {
+					hostCandidate = parts[0]
+				}
+			}
+		}
+		if host := normalizeResolutionHost(hostCandidate); host != "" {
+			return host
+		}
+	}
+	return ""
+}
+
+func normalizeResolutionHost(raw string) string {
+	host := normalizeReverseDNSName(raw)
+	if host == "" {
+		return ""
+	}
+	if parsed := net.ParseIP(host); parsed != nil {
+		return ""
+	}
+	if !strings.Contains(host, ".") {
+		return ""
+	}
+	parts := strings.Split(host, ".")
+	for _, part := range parts {
+		if part == "" || len(part) > 63 {
+			return ""
+		}
+		if strings.HasPrefix(part, "-") || strings.HasSuffix(part, "-") {
+			return ""
+		}
+		for _, ch := range part {
+			if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-' {
+				continue
+			}
+			return ""
+		}
+	}
+	return trimToLen(host, maxResolutionLen)
+}
+
+func isLikelyTLSEndpoint(protocol string, remotePort uint32) bool {
+	if strings.ToLower(strings.TrimSpace(protocol)) != "tcp" {
+		return false
+	}
+	_, ok := tlsLikelyPorts[remotePort]
+	return ok
+}
+
+func trimToLen(value string, maxLen int) string {
+	s := strings.TrimSpace(value)
+	if s == "" || maxLen <= 0 {
+		return ""
+	}
+	if len(s) > maxLen {
+		return s[:maxLen]
+	}
+	return s
 }
