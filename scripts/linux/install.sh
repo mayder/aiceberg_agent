@@ -11,10 +11,14 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_SRC="$DIR/aiceberg_agent"
 ENV_SRC="$DIR/agent.env.example"
 SERVICE_SRC="$DIR/service/aiceberg-agent.service"
+UPDATE_LAUNCHER_SRC="$DIR/service/aiceberg-agent-update-launcher.sh"
+UPDATE_APPLY_SRC="$DIR/service/aiceberg-agent-apply-update.sh"
 
 BIN_DST="/usr/local/bin/aiceberg_agent"
 ENV_DST="/etc/aiceberg/agent.env"
 SERVICE_DST="/etc/systemd/system/aiceberg-agent.service"
+UPDATE_LAUNCHER_DST="/usr/local/sbin/aiceberg-agent-update-launcher.sh"
+UPDATE_APPLY_DST="/usr/local/sbin/aiceberg-agent-apply-update.sh"
 
 echo "Instalando binário em $BIN_DST"
 install -m 0755 "$BIN_SRC" "$BIN_DST"
@@ -33,9 +37,20 @@ fi
 echo "Instalando service em $SERVICE_DST"
 cp "$SERVICE_SRC" "$SERVICE_DST"
 
+if [[ -f "$UPDATE_LAUNCHER_SRC" && -f "$UPDATE_APPLY_SRC" ]]; then
+  echo "Instalando scripts de update em /usr/local/sbin..."
+  install -m 0755 "$UPDATE_LAUNCHER_SRC" "$UPDATE_LAUNCHER_DST"
+  install -m 0755 "$UPDATE_APPLY_SRC" "$UPDATE_APPLY_DST"
+else
+  echo "Scripts de update não encontrados no pacote (seguindo sem instalar update helper)."
+fi
+
 echo "Recarregando systemd e iniciando serviço..."
 systemctl daemon-reload
 systemctl enable --now aiceberg-agent
 
 echo "Pronto. Verifique status com: systemctl status aiceberg-agent"
 echo "Edite $ENV_DST para configurar AGENT_TOKEN e demais variáveis."
+echo "Para update remoto robusto, use no env:"
+echo "  AUTO_UPDATE_ENABLED=true"
+echo "  AUTO_UPDATE_COMMAND=/usr/local/sbin/aiceberg-agent-update-launcher.sh"

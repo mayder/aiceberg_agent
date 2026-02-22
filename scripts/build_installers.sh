@@ -71,7 +71,10 @@ build_unix() {
   fi
   if [[ "$os" == "linux" ]]; then
     cp "$ROOT/scripts/linux/install.sh" "$outdir/install.sh"
+    cp "$ROOT/scripts/linux/aiceberg-agent-update-launcher.sh" "$outdir/service/aiceberg-agent-update-launcher.sh"
+    cp "$ROOT/scripts/linux/aiceberg-agent-apply-update.sh" "$outdir/service/aiceberg-agent-apply-update.sh"
     chmod +x "$outdir/install.sh"
+    chmod +x "$outdir/service/aiceberg-agent-update-launcher.sh" "$outdir/service/aiceberg-agent-apply-update.sh"
   fi
   write_unix_readme "$outdir/README_INSTALL.txt"
   (cd "$DIST" && tar -czf "aiceberg-agent-${os}-${arch}.${ext}" "aiceberg-agent-${os}-${arch}")

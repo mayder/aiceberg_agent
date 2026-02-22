@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -113,5 +115,81 @@ func TestSelfUpdate_RunCommand(t *testing.T) {
 
 	if err := uc.Execute(context.Background(), payload); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestSelfUpdate_RelayDownloadsViaHubProxy(t *testing.T) {
+	pkg := []byte("relay package bytes")
+	sum := sha256.Sum256(pkg)
+
+	var directHits int32
+	direct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&directHits, 1)
+		http.Error(w, "should not call direct first", http.StatusBadGateway)
+	}))
+	defer direct.Close()
+
+	relayToken := "relay-token"
+	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/agent/update/download" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.Header.Get("Authorization"); got != "Token "+relayToken {
+			http.Error(w, "missing auth", http.StatusUnauthorized)
+			return
+		}
+		if got := r.URL.Query().Get("url"); got != direct.URL+"/pkg.bin" {
+			http.Error(w, "invalid source url", http.StatusBadRequest)
+			return
+		}
+		if got := r.URL.Query().Get("use_agent_auth"); got != "1" {
+			http.Error(w, "missing use_agent_auth", http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(pkg)
+	}))
+	defer hub.Close()
+
+	cfg := config.Config{
+		Agent:                  config.AgentCfg{Token: relayToken},
+		AgentMode:              "relay",
+		HubURL:                 hub.URL,
+		AutoUpdateEnabled:      true,
+		AutoUpdateDir:          t.TempDir(),
+		AutoUpdateTimeout:      2 * time.Second,
+		AutoUpdateMaxMB:        5,
+		AutoUpdateUseAgentAuth: true,
+	}
+
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	targetVersion := testUpdateVersion()
+	payload := &UpdatePayload{
+		Version: targetVersion,
+		URL:     direct.URL + "/pkg.bin",
+		SHA256:  hex.EncodeToString(sum[:]),
+	}
+
+	if err := uc.Execute(context.Background(), payload); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if got := atomic.LoadInt32(&directHits); got != 0 {
+		t.Fatalf("expected direct source to not be hit, got %d", got)
+	}
+
+	path := filepath.Join(cfg.AutoUpdateDir, targetVersion, "pkg.bin")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected downloaded file at %s: %v", path, err)
+	}
+
+	proxyURL := buildHubUpdateProxyURL(hub.URL, direct.URL+"/pkg.bin", true)
+	parsed, err := neturl.Parse(proxyURL)
+	if err != nil {
+		t.Fatalf("parse proxy url: %v", err)
+	}
+	if parsed.Path != "/v1/agent/update/download" {
+		t.Fatalf("unexpected proxy path: %s", parsed.Path)
 	}
 }

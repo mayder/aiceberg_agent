@@ -33,6 +33,12 @@ type SelfUpdate struct {
 	lastAttempt time.Time
 }
 
+type updateDownloadSource struct {
+	URL     string
+	Name    string
+	UseAuth bool
+}
+
 func NewSelfUpdate(cfg config.Config, log logger.Logger) *SelfUpdate {
 	timeout := cfg.AutoUpdateTimeout
 	if timeout <= 0 {
@@ -145,71 +151,113 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload) (str
 	finalPath := filepath.Join(targetDir, name)
 	tmpPath := finalPath + ".part"
 
-	req, err := http.NewRequestWithContext(dlCtx, http.MethodGet, payload.URL, nil)
-	if err != nil {
-		return "", err
-	}
-	if uc.cfg.AutoUpdateUseAgentAuth {
-		httpx.SetAuth(req, uc.cfg)
-	}
-
-	resp, err := uc.cl.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("download update: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("download update status: %s", resp.Status)
-	}
-
 	maxMB := uc.cfg.AutoUpdateMaxMB
 	if maxMB <= 0 {
 		maxMB = 300
 	}
 	maxBytes := int64(maxMB) * 1024 * 1024
+	expectedSHA := normalizeSHA256(payload.SHA256)
+	sources := uc.downloadSources(payload.URL)
+	var errs []string
 
-	f, err := os.Create(tmpPath)
-	if err != nil {
-		return "", fmt.Errorf("create temp update file: %w", err)
-	}
-	defer func() {
-		_ = f.Close()
-	}()
-	defer func() {
+	for _, source := range sources {
+		if err := os.Remove(tmpPath); err != nil && !os.IsNotExist(err) {
+			return "", fmt.Errorf("cleanup temp update file: %w", err)
+		}
+
+		req, err := http.NewRequestWithContext(dlCtx, http.MethodGet, source.URL, nil)
 		if err != nil {
-			_ = os.Remove(tmpPath)
+			errs = append(errs, fmt.Sprintf("%s request: %v", source.Name, err))
+			continue
 		}
-	}()
-
-	hash := sha256.New()
-	limited := io.LimitReader(resp.Body, maxBytes+1)
-	written, copyErr := io.Copy(io.MultiWriter(f, hash), limited)
-	if copyErr != nil {
-		err = fmt.Errorf("download update body: %w", copyErr)
-		return "", err
-	}
-	if written > maxBytes {
-		err = fmt.Errorf("update package too large: %d bytes (limit %d)", written, maxBytes)
-		return "", err
-	}
-	if closeErr := f.Close(); closeErr != nil {
-		err = fmt.Errorf("flush update file: %w", closeErr)
-		return "", err
-	}
-
-	if expected := normalizeSHA256(payload.SHA256); expected != "" {
-		got := hex.EncodeToString(hash.Sum(nil))
-		if got != expected {
-			err = fmt.Errorf("sha256 mismatch: got=%s expected=%s", got, expected)
-			return "", err
+		if source.UseAuth {
+			httpx.SetAuth(req, uc.cfg)
 		}
+
+		resp, err := uc.cl.Do(req)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s download: %v", source.Name, err))
+			continue
+		}
+
+		downloadErr := func() error {
+			defer resp.Body.Close()
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				return fmt.Errorf("status %s", resp.Status)
+			}
+
+			f, err := os.Create(tmpPath)
+			if err != nil {
+				return fmt.Errorf("create temp update file: %w", err)
+			}
+			defer func() { _ = f.Close() }()
+
+			hash := sha256.New()
+			limited := io.LimitReader(resp.Body, maxBytes+1)
+			written, copyErr := io.Copy(io.MultiWriter(f, hash), limited)
+			if copyErr != nil {
+				return fmt.Errorf("download body: %w", copyErr)
+			}
+			if written > maxBytes {
+				return fmt.Errorf("update package too large: %d bytes (limit %d)", written, maxBytes)
+			}
+			if closeErr := f.Close(); closeErr != nil {
+				return fmt.Errorf("flush update file: %w", closeErr)
+			}
+
+			if expectedSHA != "" {
+				got := hex.EncodeToString(hash.Sum(nil))
+				if got != expectedSHA {
+					return fmt.Errorf("sha256 mismatch: got=%s expected=%s", got, expectedSHA)
+				}
+			}
+
+			if err := os.Rename(tmpPath, finalPath); err != nil {
+				return fmt.Errorf("finalize update file: %w", err)
+			}
+			return nil
+		}()
+
+		if downloadErr == nil {
+			uc.log.Info(logger.KV("self update download source",
+				"source", source.Name,
+			))
+			return finalPath, nil
+		}
+		errs = append(errs, fmt.Sprintf("%s %v", source.Name, downloadErr))
 	}
 
-	if err = os.Rename(tmpPath, finalPath); err != nil {
-		return "", fmt.Errorf("finalize update file: %w", err)
+	if len(errs) == 0 {
+		return "", errors.New("download update failed: no source")
 	}
-	return finalPath, nil
+	return "", fmt.Errorf("download update failed: %s", strings.Join(errs, " | "))
+}
+
+func (uc *SelfUpdate) downloadSources(rawURL string) []updateDownloadSource {
+	sources := []updateDownloadSource{{
+		URL:     rawURL,
+		Name:    "direct",
+		UseAuth: uc.cfg.AutoUpdateUseAgentAuth,
+	}}
+	if strings.EqualFold(uc.cfg.AgentMode, "relay") && strings.TrimSpace(uc.cfg.HubURL) != "" {
+		proxyURL := buildHubUpdateProxyURL(uc.cfg.HubURL, rawURL, uc.cfg.AutoUpdateUseAgentAuth)
+		sources = append([]updateDownloadSource{{
+			URL:     proxyURL,
+			Name:    "hub_proxy",
+			UseAuth: true,
+		}}, sources...)
+	}
+	return sources
+}
+
+func buildHubUpdateProxyURL(hubBaseURL, targetURL string, useAgentAuth bool) string {
+	base := strings.TrimRight(strings.TrimSpace(hubBaseURL), "/")
+	q := neturl.Values{}
+	q.Set("url", targetURL)
+	if useAgentAuth {
+		q.Set("use_agent_auth", "1")
+	}
+	return base + "/v1/agent/update/download?" + q.Encode()
 }
 
 func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, filePath string) error {

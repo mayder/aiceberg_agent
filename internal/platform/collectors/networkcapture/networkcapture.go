@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	gnet "github.com/shirou/gopsutil/v3/net"
@@ -23,7 +26,22 @@ const (
 	defaultMaxPeers     = 300
 	defaultMaxListeners = 300
 	maxCmdlineLength    = 240
+	maxServiceNameLen   = 120
+	reverseDNSCacheTTL  = 10 * time.Minute
+	reverseDNSFailTTL   = 2 * time.Minute
+	reverseDNSTimeout   = 450 * time.Millisecond
+	maxReverseDNSCache  = 4096
 )
+
+var highRiskPorts = map[uint32]struct{}{
+	21: {}, 22: {}, 23: {}, 25: {}, 53: {}, 110: {}, 135: {}, 137: {}, 138: {}, 139: {},
+	143: {}, 389: {}, 445: {}, 1433: {}, 1521: {}, 3306: {}, 3389: {}, 5432: {}, 5900: {},
+	6379: {}, 8080: {}, 9200: {}, 11211: {}, 27017: {},
+}
+
+var legacyPlaintextPorts = map[uint32]struct{}{
+	21: {}, 23: {}, 110: {}, 143: {}, 389: {},
+}
 
 type collector struct {
 	prefs        func() config.CollectPrefs
@@ -40,6 +58,7 @@ type capturePayload struct {
 	Peers      []peerRow     `json:"peers,omitempty"`
 	Listeners  []listenerRow `json:"listeners,omitempty"`
 	Interfaces []ifaceDelta  `json:"interfaces,omitempty"`
+	LocalCtx   *localContext `json:"local_context,omitempty"`
 }
 
 type captureMeta struct {
@@ -54,31 +73,46 @@ type captureMeta struct {
 }
 
 type flowRow struct {
-	Protocol    string `json:"protocol,omitempty"`
-	Direction   string `json:"direction,omitempty"`
-	LocalIP     string `json:"local_ip,omitempty"`
-	LocalPort   uint32 `json:"local_port,omitempty"`
-	RemoteIP    string `json:"remote_ip,omitempty"`
-	RemotePort  uint32 `json:"remote_port,omitempty"`
-	RemoteScope string `json:"remote_scope,omitempty"`
-	State       string `json:"state,omitempty"`
-	PID         int32  `json:"pid,omitempty"`
-	Process     string `json:"process,omitempty"`
-	ProcessUser string `json:"process_user,omitempty"`
-	ProcessExe  string `json:"process_exe,omitempty"`
-	ProcessCmd  string `json:"process_cmdline,omitempty"`
-	Samples     int    `json:"samples"`
+	Protocol          string   `json:"protocol,omitempty"`
+	Direction         string   `json:"direction,omitempty"`
+	LocalIP           string   `json:"local_ip,omitempty"`
+	LocalPort         uint32   `json:"local_port,omitempty"`
+	RemoteIP          string   `json:"remote_ip,omitempty"`
+	ReverseDNS        string   `json:"reverse_dns,omitempty"`
+	FirstSeenUnix     int64    `json:"first_seen_unix,omitempty"`
+	LastSeenUnix      int64    `json:"last_seen_unix,omitempty"`
+	RemotePort        uint32   `json:"remote_port,omitempty"`
+	RemoteScope       string   `json:"remote_scope,omitempty"`
+	State             string   `json:"state,omitempty"`
+	PID               int32    `json:"pid,omitempty"`
+	ParentPID         int32    `json:"parent_pid,omitempty"`
+	Process           string   `json:"process,omitempty"`
+	ServiceName       string   `json:"service_name,omitempty"`
+	ProcessUser       string   `json:"process_user,omitempty"`
+	ProcessExe        string   `json:"process_exe,omitempty"`
+	ProcessCmd        string   `json:"process_cmdline,omitempty"`
+	IsProblematic     bool     `json:"is_problematic,omitempty"`
+	ProblematicReason string   `json:"problematic_reason,omitempty"`
+	RiskTags          []string `json:"problematic_tags,omitempty"`
+	Samples           int      `json:"samples"`
 }
 
 type peerRow struct {
-	Protocol     string   `json:"protocol,omitempty"`
-	Direction    string   `json:"direction,omitempty"`
-	RemoteIP     string   `json:"remote_ip,omitempty"`
-	RemotePort   uint32   `json:"remote_port,omitempty"`
-	RemoteScope  string   `json:"remote_scope,omitempty"`
-	Samples      int      `json:"samples"`
-	Processes    []string `json:"processes,omitempty"`
-	ProcessUsers []string `json:"process_users,omitempty"`
+	Protocol          string   `json:"protocol,omitempty"`
+	Direction         string   `json:"direction,omitempty"`
+	RemoteIP          string   `json:"remote_ip,omitempty"`
+	ReverseDNS        string   `json:"reverse_dns,omitempty"`
+	FirstSeenUnix     int64    `json:"first_seen_unix,omitempty"`
+	LastSeenUnix      int64    `json:"last_seen_unix,omitempty"`
+	RemotePort        uint32   `json:"remote_port,omitempty"`
+	RemoteScope       string   `json:"remote_scope,omitempty"`
+	Samples           int      `json:"samples"`
+	Processes         []string `json:"processes,omitempty"`
+	ServiceNames      []string `json:"service_names,omitempty"`
+	ProcessUsers      []string `json:"process_users,omitempty"`
+	IsProblematic     bool     `json:"is_problematic,omitempty"`
+	ProblematicReason string   `json:"problematic_reason,omitempty"`
+	RiskTags          []string `json:"problematic_tags,omitempty"`
 }
 
 type listenerRow struct {
@@ -87,7 +121,9 @@ type listenerRow struct {
 	LocalPort   uint32 `json:"local_port,omitempty"`
 	State       string `json:"state,omitempty"`
 	PID         int32  `json:"pid,omitempty"`
+	ParentPID   int32  `json:"parent_pid,omitempty"`
 	Process     string `json:"process,omitempty"`
+	ServiceName string `json:"service_name,omitempty"`
 	ProcessUser string `json:"process_user,omitempty"`
 	ProcessExe  string `json:"process_exe,omitempty"`
 	ProcessCmd  string `json:"process_cmdline,omitempty"`
@@ -106,6 +142,44 @@ type ifaceDelta struct {
 	DropOut     uint64 `json:"drop_out"`
 }
 
+type localContext struct {
+	CapturedAtUnix int64           `json:"captured_at_unix,omitempty"`
+	Hostname       string          `json:"hostname,omitempty"`
+	DefaultGateway string          `json:"default_gateway,omitempty"`
+	DNSServers     []string        `json:"dns_servers,omitempty"`
+	Interfaces     []localIfaceRow `json:"interfaces,omitempty"`
+	Routes         []localRouteRow `json:"routes,omitempty"`
+	Neighbors      []localNeighRow `json:"neighbors,omitempty"`
+}
+
+type localIfaceRow struct {
+	Name         string   `json:"name,omitempty"`
+	Mtu          int      `json:"mtu,omitempty"`
+	HardwareAddr string   `json:"hardware_addr,omitempty"`
+	IsUp         bool     `json:"is_up,omitempty"`
+	Flags        []string `json:"flags,omitempty"`
+	Addrs        []string `json:"addrs,omitempty"`
+}
+
+type localRouteRow struct {
+	Interface     string `json:"interface,omitempty"`
+	Destination   string `json:"destination,omitempty"`
+	Mask          string `json:"mask,omitempty"`
+	Gateway       string `json:"gateway,omitempty"`
+	Metric        int    `json:"metric,omitempty"`
+	IsDefault     bool   `json:"is_default,omitempty"`
+	Protocol      string `json:"protocol,omitempty"`
+	AddressFamily string `json:"address_family,omitempty"`
+}
+
+type localNeighRow struct {
+	IP            string `json:"ip,omitempty"`
+	MAC           string `json:"mac,omitempty"`
+	Interface     string `json:"interface,omitempty"`
+	State         string `json:"state,omitempty"`
+	AddressFamily string `json:"address_family,omitempty"`
+}
+
 type flowKey struct {
 	proto       string
 	direction   string
@@ -114,16 +188,24 @@ type flowKey struct {
 	remoteIP    string
 	remotePort  uint32
 	pid         int32
+	parentPID   int32
 	process     string
+	serviceName string
 	processUser string
 	processExe  string
 	processCmd  string
 }
 
 type flowAgg struct {
-	state   string
-	samples int
-	scope   string
+	state       string
+	samples     int
+	scope       string
+	reverseDNS  string
+	firstSeen   int64
+	lastSeen    int64
+	problematic bool
+	reasons     map[string]struct{}
+	tags        map[string]struct{}
 }
 
 type peerKey struct {
@@ -136,8 +218,27 @@ type peerKey struct {
 
 type peerAgg struct {
 	samples      int
+	reverseDNS   string
+	firstSeen    int64
+	lastSeen     int64
 	processes    map[string]struct{}
+	serviceNames map[string]struct{}
 	processUsers map[string]struct{}
+	problematic  bool
+	reasons      map[string]struct{}
+	tags         map[string]struct{}
+}
+
+type reverseDNSCacheEntry struct {
+	host      string
+	expiresAt time.Time
+}
+
+var reverseDNSCache = struct {
+	mu      sync.Mutex
+	entries map[string]reverseDNSCacheEntry
+}{
+	entries: make(map[string]reverseDNSCacheEntry),
 }
 
 type listenerKey struct {
@@ -146,7 +247,9 @@ type listenerKey struct {
 	localPort   uint32
 	state       string
 	pid         int32
+	parentPID   int32
 	process     string
+	serviceName string
 	processUser string
 	processExe  string
 	processCmd  string
@@ -158,9 +261,11 @@ type listenerAgg struct {
 
 type processMeta struct {
 	name     string
+	service  string
 	username string
 	exe      string
 	cmdline  string
+	parentID int32
 }
 
 func New(prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -195,14 +300,20 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		meta.Warnings = append(meta.Warnings, "network io counters indisponiveis no inicio")
 	}
+	localCtx, localCtxWarnings := collectLocalContext(ctx, hostname)
+	if len(localCtxWarnings) > 0 {
+		meta.Warnings = append(meta.Warnings, localCtxWarnings...)
+	}
 
 	flows := make(map[flowKey]*flowAgg)
 	peers := make(map[peerKey]*peerAgg)
 	listeners := make(map[listenerKey]*listenerAgg)
 	procCache := make(map[int32]processMeta)
+	captureReverseDNSCache := make(map[string]string)
 	localIPs := localIPSet(ctx)
 
 	sample := func() {
+		sampleUnix := time.Now().UTC().Unix()
 		conns, e := gnet.ConnectionsWithContext(ctx, "inet")
 		if e != nil {
 			meta.Warnings = append(meta.Warnings, "connections snapshot indisponivel")
@@ -227,7 +338,9 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 						localPort:   conn.Laddr.Port,
 						state:       conn.Status,
 						pid:         conn.Pid,
+						parentPID:   proc.parentID,
 						process:     proc.name,
+						serviceName: proc.service,
 						processUser: proc.username,
 						processExe:  proc.exe,
 						processCmd:  proc.cmdline,
@@ -248,6 +361,12 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 
 			direction := inferDirection(conn.Status, conn.Laddr.Port, conn.Raddr.Port)
 			scope := remoteScope(conn.Raddr.IP, localIPs)
+			risk := classifyNetworkRisk(conn.Raddr.Port, scope, direction, protoName(conn.Type))
+			reverseDNS, ok := captureReverseDNSCache[conn.Raddr.IP]
+			if !ok {
+				reverseDNS = resolveReverseDNSWithCache(ctx, conn.Raddr.IP)
+				captureReverseDNSCache[conn.Raddr.IP] = reverseDNS
+			}
 			key := flowKey{
 				proto:       protoName(conn.Type),
 				direction:   direction,
@@ -256,19 +375,42 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 				remoteIP:    conn.Raddr.IP,
 				remotePort:  conn.Raddr.Port,
 				pid:         conn.Pid,
+				parentPID:   proc.parentID,
 				process:     proc.name,
+				serviceName: proc.service,
 				processUser: proc.username,
 				processExe:  proc.exe,
 				processCmd:  proc.cmdline,
 			}
 			agg, ok := flows[key]
 			if !ok {
-				agg = &flowAgg{}
+				agg = &flowAgg{
+					reasons: make(map[string]struct{}),
+					tags:    make(map[string]struct{}),
+				}
 				flows[key] = agg
 			}
 			agg.samples++
+			if agg.firstSeen == 0 || sampleUnix < agg.firstSeen {
+				agg.firstSeen = sampleUnix
+			}
+			if sampleUnix > agg.lastSeen {
+				agg.lastSeen = sampleUnix
+			}
 			agg.state = conn.Status
 			agg.scope = scope
+			if agg.reverseDNS == "" && reverseDNS != "" {
+				agg.reverseDNS = reverseDNS
+			}
+			if risk.problematic {
+				agg.problematic = true
+			}
+			for _, reason := range risk.reasons {
+				agg.reasons[reason] = struct{}{}
+			}
+			for _, tag := range risk.tags {
+				agg.tags[tag] = struct{}{}
+			}
 
 			pk := peerKey{
 				proto:      key.proto,
@@ -281,13 +423,37 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 			if !ok {
 				peer = &peerAgg{
 					processes:    make(map[string]struct{}),
+					serviceNames: make(map[string]struct{}),
 					processUsers: make(map[string]struct{}),
+					reasons:      make(map[string]struct{}),
+					tags:         make(map[string]struct{}),
 				}
 				peers[pk] = peer
 			}
 			peer.samples++
+			if peer.firstSeen == 0 || sampleUnix < peer.firstSeen {
+				peer.firstSeen = sampleUnix
+			}
+			if sampleUnix > peer.lastSeen {
+				peer.lastSeen = sampleUnix
+			}
+			if peer.reverseDNS == "" && reverseDNS != "" {
+				peer.reverseDNS = reverseDNS
+			}
+			if risk.problematic {
+				peer.problematic = true
+			}
+			for _, reason := range risk.reasons {
+				peer.reasons[reason] = struct{}{}
+			}
+			for _, tag := range risk.tags {
+				peer.tags[tag] = struct{}{}
+			}
 			if proc.name != "" {
 				peer.processes[proc.name] = struct{}{}
+			}
+			if proc.service != "" {
+				peer.serviceNames[proc.service] = struct{}{}
 			}
 			if proc.username != "" {
 				peer.processUsers[proc.username] = struct{}{}
@@ -312,6 +478,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 				Peers:      c.sortedPeers(peers),
 				Listeners:  c.sortedListeners(listeners),
 				Interfaces: ioDelta(startIO, nil),
+				LocalCtx:   localCtx,
 			}
 			payload.Capture.EndedAtUnix = end.Unix()
 			return json.Marshal(payload)
@@ -328,6 +495,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 				Peers:      c.sortedPeers(peers),
 				Listeners:  c.sortedListeners(listeners),
 				Interfaces: ioDelta(startIO, endIO),
+				LocalCtx:   localCtx,
 			}
 			return json.Marshal(payload)
 		case <-ticker.C:
@@ -340,20 +508,28 @@ func (c *collector) sortedFlows(flows map[flowKey]*flowAgg) []flowRow {
 	out := make([]flowRow, 0, len(flows))
 	for k, v := range flows {
 		out = append(out, flowRow{
-			Protocol:    k.proto,
-			Direction:   k.direction,
-			LocalIP:     k.localIP,
-			LocalPort:   k.localPort,
-			RemoteIP:    k.remoteIP,
-			RemotePort:  k.remotePort,
-			RemoteScope: v.scope,
-			State:       v.state,
-			PID:         k.pid,
-			Process:     k.process,
-			ProcessUser: k.processUser,
-			ProcessExe:  k.processExe,
-			ProcessCmd:  k.processCmd,
-			Samples:     v.samples,
+			Protocol:          k.proto,
+			Direction:         k.direction,
+			LocalIP:           k.localIP,
+			LocalPort:         k.localPort,
+			RemoteIP:          k.remoteIP,
+			ReverseDNS:        v.reverseDNS,
+			FirstSeenUnix:     v.firstSeen,
+			LastSeenUnix:      v.lastSeen,
+			RemotePort:        k.remotePort,
+			RemoteScope:       v.scope,
+			State:             v.state,
+			PID:               k.pid,
+			ParentPID:         k.parentPID,
+			Process:           k.process,
+			ServiceName:       k.serviceName,
+			ProcessUser:       k.processUser,
+			ProcessExe:        k.processExe,
+			ProcessCmd:        k.processCmd,
+			IsProblematic:     v.problematic,
+			ProblematicReason: joinSortedSet(v.reasons, " | "),
+			RiskTags:          sortedSetValues(v.tags, 6),
+			Samples:           v.samples,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -383,6 +559,15 @@ func (c *collector) sortedPeers(peers map[peerKey]*peerAgg) []peerRow {
 			processes = processes[:5]
 		}
 
+		serviceNames := make([]string, 0, len(v.serviceNames))
+		for serviceName := range v.serviceNames {
+			serviceNames = append(serviceNames, serviceName)
+		}
+		sort.Strings(serviceNames)
+		if len(serviceNames) > 5 {
+			serviceNames = serviceNames[:5]
+		}
+
 		processUsers := make([]string, 0, len(v.processUsers))
 		for username := range v.processUsers {
 			processUsers = append(processUsers, username)
@@ -393,14 +578,21 @@ func (c *collector) sortedPeers(peers map[peerKey]*peerAgg) []peerRow {
 		}
 
 		out = append(out, peerRow{
-			Protocol:     k.proto,
-			Direction:    k.direction,
-			RemoteIP:     k.remoteIP,
-			RemotePort:   k.remotePort,
-			RemoteScope:  k.scope,
-			Samples:      v.samples,
-			Processes:    processes,
-			ProcessUsers: processUsers,
+			Protocol:          k.proto,
+			Direction:         k.direction,
+			RemoteIP:          k.remoteIP,
+			ReverseDNS:        v.reverseDNS,
+			FirstSeenUnix:     v.firstSeen,
+			LastSeenUnix:      v.lastSeen,
+			RemotePort:        k.remotePort,
+			RemoteScope:       k.scope,
+			Samples:           v.samples,
+			Processes:         processes,
+			ServiceNames:      serviceNames,
+			ProcessUsers:      processUsers,
+			IsProblematic:     v.problematic,
+			ProblematicReason: joinSortedSet(v.reasons, " | "),
+			RiskTags:          sortedSetValues(v.tags, 6),
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -427,7 +619,9 @@ func (c *collector) sortedListeners(listeners map[listenerKey]*listenerAgg) []li
 			LocalPort:   k.localPort,
 			State:       k.state,
 			PID:         k.pid,
+			ParentPID:   k.parentPID,
 			Process:     k.process,
+			ServiceName: k.serviceName,
 			ProcessUser: k.processUser,
 			ProcessExe:  k.processExe,
 			ProcessCmd:  k.processCmd,
@@ -484,6 +678,333 @@ func safeDelta(cur, prev uint64) uint64 {
 		return 0
 	}
 	return cur - prev
+}
+
+func collectLocalContext(ctx context.Context, hostname string) (*localContext, []string) {
+	out := &localContext{
+		CapturedAtUnix: time.Now().UTC().Unix(),
+		Hostname:       strings.TrimSpace(hostname),
+	}
+	warnings := make([]string, 0, 3)
+
+	out.Interfaces = collectLocalIfaces(ctx)
+
+	routes, routeWarning := collectLocalRoutes()
+	if routeWarning != "" {
+		warnings = append(warnings, routeWarning)
+	}
+	out.Routes = routes
+	for _, route := range routes {
+		if route.IsDefault && route.Gateway != "" {
+			out.DefaultGateway = route.Gateway
+			break
+		}
+	}
+
+	dnsServers, dnsErr := readResolvConfDNSServers("/etc/resolv.conf")
+	if dnsErr != nil && runtime.GOOS == "linux" {
+		warnings = append(warnings, "dns local indisponivel")
+	}
+	out.DNSServers = dnsServers
+
+	neighbors, neighWarnings := collectLocalNeighbors()
+	out.Neighbors = neighbors
+	warnings = append(warnings, neighWarnings...)
+
+	return out, warnings
+}
+
+func collectLocalIfaces(ctx context.Context) []localIfaceRow {
+	ifaces, err := gnet.InterfacesWithContext(ctx)
+	if err != nil {
+		return nil
+	}
+	out := make([]localIfaceRow, 0, len(ifaces))
+	for _, inf := range ifaces {
+		row := localIfaceRow{
+			Name:         strings.TrimSpace(inf.Name),
+			Mtu:          int(inf.MTU),
+			HardwareAddr: strings.TrimSpace(inf.HardwareAddr),
+			Flags:        append([]string(nil), inf.Flags...),
+		}
+		sort.Strings(row.Flags)
+		for _, flag := range row.Flags {
+			if strings.EqualFold(strings.TrimSpace(flag), "up") {
+				row.IsUp = true
+				break
+			}
+		}
+		addrs := make([]string, 0, len(inf.Addrs))
+		for _, addr := range inf.Addrs {
+			value := strings.TrimSpace(addr.Addr)
+			if value == "" {
+				continue
+			}
+			addrs = append(addrs, value)
+		}
+		sort.Strings(addrs)
+		if len(addrs) > 12 {
+			addrs = addrs[:12]
+		}
+		row.Addrs = addrs
+		if row.Name == "" {
+			continue
+		}
+		out = append(out, row)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	if len(out) > 64 {
+		out = out[:64]
+	}
+	return out
+}
+
+func collectLocalRoutes() ([]localRouteRow, string) {
+	if runtime.GOOS != "linux" {
+		return nil, ""
+	}
+	content, err := os.ReadFile("/proc/net/route")
+	if err != nil {
+		return nil, "rotas locais indisponiveis"
+	}
+	return parseProcNetRoute(string(content)), ""
+}
+
+func readResolvConfDNSServers(path string) ([]string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return parseResolvConfNameServers(string(content)), nil
+}
+
+func parseResolvConfNameServers(content string) []string {
+	lines := strings.Split(content, "\n")
+	servers := make([]string, 0, 6)
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if idx := strings.Index(line, "#"); idx >= 0 {
+			line = strings.TrimSpace(line[:idx])
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		if !strings.EqualFold(fields[0], "nameserver") {
+			continue
+		}
+		server := strings.TrimSpace(fields[1])
+		if server == "" {
+			continue
+		}
+		servers = append(servers, server)
+	}
+	return uniqueStrings(servers, 12)
+}
+
+func parseProcNetRoute(content string) []localRouteRow {
+	lines := strings.Split(content, "\n")
+	if len(lines) <= 1 {
+		return nil
+	}
+	out := make([]localRouteRow, 0, len(lines)-1)
+	for i := 1; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 8 {
+			continue
+		}
+		iface := strings.TrimSpace(fields[0])
+		destination := parseLinuxRouteHexIPv4(fields[1])
+		gateway := parseLinuxRouteHexIPv4(fields[2])
+		mask := parseLinuxRouteHexIPv4(fields[7])
+		if iface == "" || destination == "" || mask == "" {
+			continue
+		}
+		flags, _ := strconv.ParseUint(strings.TrimSpace(fields[3]), 16, 32)
+		metric, _ := strconv.Atoi(strings.TrimSpace(fields[6]))
+		if flags&0x1 == 0 {
+			continue
+		}
+		isDefault := destination == "0.0.0.0" && mask == "0.0.0.0"
+		out = append(out, localRouteRow{
+			Interface:     iface,
+			Destination:   destination,
+			Mask:          mask,
+			Gateway:       gateway,
+			Metric:        metric,
+			IsDefault:     isDefault,
+			Protocol:      "kernel",
+			AddressFamily: "ipv4",
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].IsDefault != out[j].IsDefault {
+			return out[i].IsDefault
+		}
+		if out[i].Metric != out[j].Metric {
+			return out[i].Metric < out[j].Metric
+		}
+		if out[i].Interface != out[j].Interface {
+			return out[i].Interface < out[j].Interface
+		}
+		return out[i].Destination < out[j].Destination
+	})
+	if len(out) > 256 {
+		out = out[:256]
+	}
+	return out
+}
+
+func parseLinuxRouteHexIPv4(raw string) string {
+	value := strings.TrimSpace(raw)
+	value = strings.TrimPrefix(strings.ToLower(value), "0x")
+	if value == "" {
+		return ""
+	}
+	parsed, err := strconv.ParseUint(value, 16, 32)
+	if err != nil {
+		return ""
+	}
+	ip := net.IPv4(byte(parsed), byte(parsed>>8), byte(parsed>>16), byte(parsed>>24))
+	return ip.String()
+}
+
+func collectLocalNeighbors() ([]localNeighRow, []string) {
+	if runtime.GOOS != "linux" {
+		return nil, nil
+	}
+	warnings := make([]string, 0, 1)
+	neighbors := make([]localNeighRow, 0, 48)
+
+	arpContent, arpErr := os.ReadFile("/proc/net/arp")
+	if arpErr != nil {
+		warnings = append(warnings, "arp local indisponivel")
+	} else {
+		neighbors = append(neighbors, parseProcNetARP(string(arpContent))...)
+	}
+
+	if ndpContent, ndpErr := os.ReadFile("/proc/net/ndisc_cache"); ndpErr == nil {
+		neighbors = append(neighbors, parseProcNetNDiscCache(string(ndpContent))...)
+	}
+
+	deduped := make([]localNeighRow, 0, len(neighbors))
+	seen := make(map[string]struct{}, len(neighbors))
+	for _, neighbor := range neighbors {
+		key := strings.ToLower(strings.TrimSpace(neighbor.AddressFamily)) + "|" +
+			strings.ToLower(strings.TrimSpace(neighbor.Interface)) + "|" +
+			strings.ToLower(strings.TrimSpace(neighbor.IP)) + "|" +
+			strings.ToLower(strings.TrimSpace(neighbor.MAC))
+		if key == "|||" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduped = append(deduped, neighbor)
+	}
+	sort.Slice(deduped, func(i, j int) bool {
+		if deduped[i].Interface != deduped[j].Interface {
+			return deduped[i].Interface < deduped[j].Interface
+		}
+		if deduped[i].AddressFamily != deduped[j].AddressFamily {
+			return deduped[i].AddressFamily < deduped[j].AddressFamily
+		}
+		return deduped[i].IP < deduped[j].IP
+	})
+	if len(deduped) > 512 {
+		deduped = deduped[:512]
+	}
+	return deduped, warnings
+}
+
+func parseProcNetARP(content string) []localNeighRow {
+	lines := strings.Split(content, "\n")
+	if len(lines) <= 1 {
+		return nil
+	}
+	out := make([]localNeighRow, 0, len(lines)-1)
+	for i := 1; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 6 {
+			continue
+		}
+		ip := strings.TrimSpace(fields[0])
+		if net.ParseIP(ip) == nil {
+			continue
+		}
+		flagsRaw := strings.TrimSpace(fields[2])
+		flagsValue, _ := strconv.ParseUint(strings.TrimPrefix(strings.ToLower(flagsRaw), "0x"), 16, 32)
+		state := "incomplete"
+		if flagsValue&0x2 != 0 {
+			state = "reachable"
+		}
+		mac := strings.TrimSpace(fields[3])
+		if strings.EqualFold(mac, "(incomplete)") {
+			mac = ""
+		}
+		out = append(out, localNeighRow{
+			IP:            ip,
+			MAC:           mac,
+			Interface:     strings.TrimSpace(fields[5]),
+			State:         state,
+			AddressFamily: "ipv4",
+		})
+	}
+	return out
+}
+
+func parseProcNetNDiscCache(content string) []localNeighRow {
+	lines := strings.Split(content, "\n")
+	out := make([]localNeighRow, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		ip := strings.TrimSpace(fields[0])
+		ipParsed := net.ParseIP(ip)
+		if ipParsed == nil || !strings.Contains(ip, ":") {
+			continue
+		}
+		neighbor := localNeighRow{
+			IP:            ipParsed.String(),
+			AddressFamily: "ipv6",
+		}
+		for i := 1; i < len(fields); i++ {
+			token := strings.ToLower(strings.TrimSpace(fields[i]))
+			if token == "dev" && i+1 < len(fields) {
+				neighbor.Interface = strings.TrimSpace(fields[i+1])
+				i++
+				continue
+			}
+			if token == "lladdr" && i+1 < len(fields) {
+				neighbor.MAC = strings.TrimSpace(fields[i+1])
+				i++
+				continue
+			}
+		}
+		if neighbor.State == "" {
+			neighbor.State = strings.ToLower(strings.TrimSpace(fields[len(fields)-1]))
+		}
+		out = append(out, neighbor)
+	}
+	return out
 }
 
 func localIPSet(ctx context.Context) map[string]struct{} {
@@ -574,6 +1095,111 @@ func protoName(t uint32) string {
 	}
 }
 
+type networkRisk struct {
+	problematic bool
+	reasons     []string
+	tags        []string
+}
+
+func classifyNetworkRisk(remotePort uint32, remoteScope, direction, protocol string) networkRisk {
+	scope := strings.ToLower(strings.TrimSpace(remoteScope))
+	dir := strings.ToLower(strings.TrimSpace(direction))
+	proto := strings.ToLower(strings.TrimSpace(protocol))
+	isPublic := scope == "public"
+	isUnknownScope := scope == "" || scope == "unknown"
+	isUnknownDirection := dir == "" || dir == "unknown"
+	_, isSensitivePort := highRiskPorts[remotePort]
+	_, isLegacyPlaintext := legacyPlaintextPorts[remotePort]
+	isUncommonProtocol := proto != "tcp" && proto != "udp"
+
+	reasons := make([]string, 0, 4)
+	tags := make([]string, 0, 4)
+
+	if isPublic {
+		tags = append(tags, "public_exposure")
+	}
+	if isSensitivePort {
+		tags = append(tags, "sensitive_port")
+	}
+	if isUnknownDirection {
+		tags = append(tags, "unknown_direction")
+	}
+	if isUncommonProtocol {
+		tags = append(tags, "uncommon_protocol")
+	}
+
+	if isPublic && isSensitivePort {
+		reasons = append(reasons, "porta sensível em escopo público")
+	} else if (isPublic || isUnknownScope) && remotePort > 0 && isSensitivePort {
+		reasons = append(reasons, "porta sensível em escopo não confiável")
+	}
+	if isLegacyPlaintext {
+		reasons = append(reasons, "porta legada sem criptografia forte")
+	}
+	if isUnknownDirection {
+		reasons = append(reasons, "direção de tráfego indefinida")
+	}
+	if isUncommonProtocol {
+		reasons = append(reasons, "protocolo incomum")
+	}
+
+	return networkRisk{
+		problematic: len(reasons) > 0,
+		reasons:     uniqueStrings(reasons, 5),
+		tags:        uniqueStrings(tags, 6),
+	}
+}
+
+func uniqueStrings(items []string, limit int) []string {
+	if len(items) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(items))
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		normalized := strings.TrimSpace(item)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out
+}
+
+func sortedSetValues(set map[string]struct{}, limit int) []string {
+	if len(set) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(set))
+	for value := range set {
+		v := strings.TrimSpace(value)
+		if v == "" {
+			continue
+		}
+		out = append(out, v)
+	}
+	sort.Strings(out)
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
+func joinSortedSet(set map[string]struct{}, sep string) string {
+	values := sortedSetValues(set, 0)
+	if len(values) == 0 {
+		return ""
+	}
+	return strings.Join(values, sep)
+}
+
 func resolveProcessMeta(ctx context.Context, pid int32) processMeta {
 	meta := processMeta{}
 	if pid <= 0 {
@@ -585,6 +1211,9 @@ func resolveProcessMeta(ctx context.Context, pid int32) processMeta {
 	}
 	if name, e := p.NameWithContext(ctx); e == nil {
 		meta.name = strings.TrimSpace(name)
+	}
+	if parentID, e := p.PpidWithContext(ctx); e == nil {
+		meta.parentID = parentID
 	}
 	if username, e := p.UsernameWithContext(ctx); e == nil {
 		meta.username = strings.TrimSpace(username)
@@ -599,5 +1228,138 @@ func resolveProcessMeta(ctx context.Context, pid int32) processMeta {
 		}
 		meta.cmdline = cmdline
 	}
+	meta.service = resolveServiceName(pid, meta.name, meta.exe)
 	return meta
+}
+
+func resolveServiceName(pid int32, processName, processExe string) string {
+	if fromCgroup := serviceNameFromCgroup(pid); fromCgroup != "" {
+		return fromCgroup
+	}
+	base := strings.TrimSpace(processName)
+	if base == "" {
+		base = strings.TrimSpace(processExe)
+		if base != "" {
+			if i := strings.LastIndexAny(base, "/\\"); i >= 0 && i < len(base)-1 {
+				base = base[i+1:]
+			}
+		}
+	}
+	if len(base) > maxServiceNameLen {
+		base = base[:maxServiceNameLen]
+	}
+	return base
+}
+
+func serviceNameFromCgroup(pid int32) string {
+	if pid <= 0 {
+		return ""
+	}
+	path := "/proc/" + strconv.FormatInt(int64(pid), 10) + "/cgroup"
+	// Mountpoint inexistente fora de Linux; nesse caso retorna vazio.
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return parseServiceNameFromCgroup(string(content))
+}
+
+func parseServiceNameFromCgroup(content string) string {
+	if strings.TrimSpace(content) == "" {
+		return ""
+	}
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || !strings.Contains(line, ".service") {
+			continue
+		}
+		fields := strings.Split(line, "/")
+		for i := len(fields) - 1; i >= 0; i-- {
+			part := strings.TrimSpace(fields[i])
+			if part == "" || !strings.HasSuffix(part, ".service") {
+				continue
+			}
+			if len(part) > maxServiceNameLen {
+				part = part[:maxServiceNameLen]
+			}
+			return part
+		}
+	}
+	return ""
+}
+
+func resolveReverseDNSWithCache(ctx context.Context, ipRaw string) string {
+	ip := strings.TrimSpace(ipRaw)
+	if ip == "" {
+		return ""
+	}
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return ""
+	}
+	normalizedIP := parsed.String()
+	now := time.Now()
+
+	reverseDNSCache.mu.Lock()
+	if cached, ok := reverseDNSCache.entries[normalizedIP]; ok && now.Before(cached.expiresAt) {
+		reverseDNSCache.mu.Unlock()
+		return cached.host
+	}
+	reverseDNSCache.mu.Unlock()
+
+	lookupCtx, cancel := context.WithTimeout(ctx, reverseDNSTimeout)
+	defer cancel()
+
+	names, err := net.DefaultResolver.LookupAddr(lookupCtx, normalizedIP)
+	host := pickReverseDNSName(names)
+	ttl := reverseDNSCacheTTL
+	if err != nil || host == "" {
+		host = ""
+		ttl = reverseDNSFailTTL
+	}
+
+	reverseDNSCache.mu.Lock()
+	if len(reverseDNSCache.entries) >= maxReverseDNSCache {
+		for key, entry := range reverseDNSCache.entries {
+			if now.After(entry.expiresAt) {
+				delete(reverseDNSCache.entries, key)
+			}
+		}
+		if len(reverseDNSCache.entries) >= maxReverseDNSCache {
+			for key := range reverseDNSCache.entries {
+				delete(reverseDNSCache.entries, key)
+				break
+			}
+		}
+	}
+	reverseDNSCache.entries[normalizedIP] = reverseDNSCacheEntry{
+		host:      host,
+		expiresAt: now.Add(ttl),
+	}
+	reverseDNSCache.mu.Unlock()
+
+	return host
+}
+
+func pickReverseDNSName(candidates []string) string {
+	for _, candidate := range candidates {
+		normalized := normalizeReverseDNSName(candidate)
+		if normalized != "" {
+			return normalized
+		}
+	}
+	return ""
+}
+
+func normalizeReverseDNSName(value string) string {
+	host := strings.ToLower(strings.TrimSpace(value))
+	host = strings.Trim(host, ". \t\n\r")
+	if host == "" {
+		return ""
+	}
+	if idx := strings.Index(host, "%"); idx > 0 {
+		host = host[:idx]
+	}
+	return host
 }

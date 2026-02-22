@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	neturl "net/url"
+	"strings"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -175,8 +177,80 @@ func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logge
 		_, _ = io.Copy(w, resp.Body)
 	})
 
+	mux.HandleFunc("/v1/agent/update/download", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" {
+			http.Error(w, "missing Authorization", http.StatusUnauthorized)
+			return
+		}
+
+		rawURL := strings.TrimSpace(r.URL.Query().Get("url"))
+		if rawURL == "" {
+			http.Error(w, "missing url", http.StatusBadRequest)
+			return
+		}
+		targetURL, err := neturl.Parse(rawURL)
+		if err != nil || targetURL == nil || !targetURL.IsAbs() {
+			http.Error(w, "invalid url", http.StatusBadRequest)
+			return
+		}
+		if targetURL.Scheme != "http" && targetURL.Scheme != "https" {
+			http.Error(w, "unsupported url scheme", http.StatusBadRequest)
+			return
+		}
+
+		upReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, targetURL.String(), nil)
+		if err != nil {
+			http.Error(w, "upstream build error", http.StatusInternalServerError)
+			return
+		}
+
+		useAgentAuth := strings.EqualFold(r.URL.Query().Get("use_agent_auth"), "1") ||
+			strings.EqualFold(r.URL.Query().Get("use_agent_auth"), "true")
+		if useAgentAuth && sameHost(targetURL.String(), cfg.APIBaseURL) {
+			upReq.Header.Set("Authorization", auth)
+		}
+
+		timeout := cfg.AutoUpdateTimeout
+		if timeout <= 0 {
+			timeout = 5 * time.Minute
+		}
+		cl := httpx.NewClient(cfg, timeout)
+		resp, err := cl.Do(upReq)
+		if err != nil {
+			http.Error(w, "upstream error", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		if ct := resp.Header.Get("Content-Type"); ct != "" {
+			w.Header().Set("Content-Type", ct)
+		}
+		if cd := resp.Header.Get("Content-Disposition"); cd != "" {
+			w.Header().Set("Content-Disposition", cd)
+		}
+		if clh := resp.Header.Get("Content-Length"); clh != "" {
+			w.Header().Set("Content-Length", clh)
+		}
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	})
+
 	log.Info(logger.KV("hub listener on",
 		"addr", addr,
 	))
 	_ = http.ListenAndServe(addr, mux)
+}
+
+func sameHost(rawA, rawB string) bool {
+	a, errA := neturl.Parse(strings.TrimSpace(rawA))
+	b, errB := neturl.Parse(strings.TrimSpace(rawB))
+	if errA != nil || errB != nil || a == nil || b == nil {
+		return false
+	}
+	return strings.EqualFold(a.Host, b.Host)
 }
