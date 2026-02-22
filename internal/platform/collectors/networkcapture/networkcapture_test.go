@@ -321,7 +321,7 @@ func TestBuildSocketSnapshotAggregatesBySocketTuple(t *testing.T) {
 		},
 	}
 
-	got := c.buildSocketSnapshot(flows)
+	got := c.buildSocketSnapshot(flows, time.Second, 50)
 	if len(got) != 2 {
 		t.Fatalf("expected 2 snapshot rows, got %d", len(got))
 	}
@@ -392,5 +392,166 @@ func TestEstimateAvgDurationSec(t *testing.T) {
 	}
 	if got = estimateAvgDurationSec(0, 10, time.Second); got != 0 {
 		t.Fatalf("estimateAvgDurationSec() invalid firstSeen = %v, want 0", got)
+	}
+}
+
+func TestNormalizePassiveMode(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{in: "", want: "auto"},
+		{in: "AUTO", want: "auto"},
+		{in: "socket_snapshot", want: "socket"},
+		{in: "socket", want: "socket"},
+		{in: "netlink", want: "netlink"},
+		{in: "pcap", want: "pcap"},
+		{in: "ebpf", want: "ebpf"},
+		{in: "invalid-mode", want: "auto"},
+	}
+	for _, tt := range tests {
+		if got := normalizePassiveMode(tt.in); got != tt.want {
+			t.Fatalf("normalizePassiveMode(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestParseNetlinkLinksJSON(t *testing.T) {
+	raw := []byte(`[
+  {"ifname":"eth0","operstate":"UP","address":"aa:bb:cc:dd:ee:ff","mtu":1500,"stats64":{"rx":{"bytes":10,"packets":2,"errors":0,"dropped":0},"tx":{"bytes":20,"packets":3,"errors":1,"dropped":2}}},
+  {"ifname":"lo","operstate":"UNKNOWN","address":"00:00:00:00:00:00","mtu":65536,"stats":{"rx":{"bytes":1,"packets":1,"errors":0,"dropped":0},"tx":{"bytes":1,"packets":1,"errors":0,"dropped":0}}}
+]`)
+	rows := parseNetlinkLinksJSON(raw)
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+	if rows[0].Name != "eth0" {
+		t.Fatalf("expected first row eth0, got %q", rows[0].Name)
+	}
+	if rows[0].TXDrops != 2 {
+		t.Fatalf("expected tx_drops=2, got %d", rows[0].TXDrops)
+	}
+	if rows[1].Name != "lo" {
+		t.Fatalf("expected second row lo, got %q", rows[1].Name)
+	}
+}
+
+func TestParseTCPDumpOutput(t *testing.T) {
+	raw := `
+IP 10.0.0.10.54000 > 8.8.8.8.53: UDP, length 37
+IP 8.8.8.8.53 > 10.0.0.10.54000: UDP, length 85
+IP 10.0.0.10.51000 > 203.0.113.11.443: Flags [S], seq 1, win 65535
+3 packets captured
+4 packets received by filter
+1 packets dropped by kernel
+`
+	localIPs := map[string]struct{}{"10.0.0.10": {}}
+	parsed := parseTCPDumpOutput(raw, localIPs)
+	if parsed.CapturedPackets != 3 {
+		t.Fatalf("captured_packets=%d, want 3", parsed.CapturedPackets)
+	}
+	if parsed.ReceivedByFilter != 4 {
+		t.Fatalf("received_by_filter=%d, want 4", parsed.ReceivedByFilter)
+	}
+	if parsed.DroppedByKernel != 1 {
+		t.Fatalf("dropped_by_kernel=%d, want 1", parsed.DroppedByKernel)
+	}
+	if len(parsed.Flows) == 0 {
+		t.Fatalf("expected non-empty flow summary")
+	}
+	found := false
+	for _, flow := range parsed.Flows {
+		if flow.RemoteIP == "8.8.8.8" && flow.RemotePort == 53 && flow.Direction == "egress" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected flow to 8.8.8.8:53 in parsed flows: %#v", parsed.Flows)
+	}
+}
+
+func TestParseExternalSourceSpec(t *testing.T) {
+	sourceType, path := parseExternalSourceSpec("netflow:/tmp/netflow.jsonl")
+	if sourceType != "netflow" {
+		t.Fatalf("expected netflow type, got %q", sourceType)
+	}
+	if path != "/tmp/netflow.jsonl" {
+		t.Fatalf("unexpected path: %q", path)
+	}
+
+	sourceType, path = parseExternalSourceSpec("/var/log/firewall.log")
+	if sourceType != "firewall" {
+		t.Fatalf("expected firewall type by filename, got %q", sourceType)
+	}
+	if path != "/var/log/firewall.log" {
+		t.Fatalf("unexpected fallback path: %q", path)
+	}
+}
+
+func TestParseExternalObservationLineJSON(t *testing.T) {
+	line := `{"src_ip":"10.0.0.10","dst_ip":"198.51.100.20","src_port":54000,"dst_port":443,"protocol":"tcp","bytes":1200,"packets":12,"first_seen":1700000000,"last_seen":1700000010,"dns_query":"api.example.com","sni":"api.example.com"}`
+	obs, ok := parseExternalObservationLine("netflow", line)
+	if !ok {
+		t.Fatalf("expected json observation to parse")
+	}
+	if obs.sourceType != "netflow" {
+		t.Fatalf("unexpected source type: %q", obs.sourceType)
+	}
+	if obs.protocol != "tcp" {
+		t.Fatalf("unexpected protocol: %q", obs.protocol)
+	}
+	if obs.srcIP != "10.0.0.10" || obs.dstIP != "198.51.100.20" {
+		t.Fatalf("unexpected src/dst: %q -> %q", obs.srcIP, obs.dstIP)
+	}
+	if obs.bytes != 1200 || obs.packets != 12 {
+		t.Fatalf("unexpected bytes/packets: %d/%d", obs.bytes, obs.packets)
+	}
+}
+
+func TestParseExternalObservationLineKV(t *testing.T) {
+	line := `src_ip=10.0.0.10 dst_ip=198.51.100.20 src_port=53000 dst_port=53 protocol=udp packets=6 bytes=600`
+	obs, ok := parseExternalObservationLine("siem", line)
+	if !ok {
+		t.Fatalf("expected kv observation to parse")
+	}
+	if obs.protocol != "udp" {
+		t.Fatalf("unexpected protocol: %q", obs.protocol)
+	}
+	if obs.srcPort != 53000 || obs.dstPort != 53 {
+		t.Fatalf("unexpected ports: %d -> %d", obs.srcPort, obs.dstPort)
+	}
+}
+
+func TestMergeExternalObservation(t *testing.T) {
+	flows := make(map[flowKey]*flowAgg)
+	peers := make(map[peerKey]*peerAgg)
+	localIPs := map[string]struct{}{"10.0.0.10": {}}
+	obs := externalObservation{
+		sourceType: "ipfix",
+		protocol:   "tcp",
+		srcIP:      "10.0.0.10",
+		dstIP:      "203.0.113.15",
+		srcPort:    51000,
+		dstPort:    443,
+		bytes:      1000,
+		packets:    10,
+		firstSeen:  1700000000,
+		lastSeen:   1700000010,
+	}
+	mergeExternalObservation(obs, localIPs, flows, peers)
+	if len(flows) != 1 {
+		t.Fatalf("expected 1 merged flow, got %d", len(flows))
+	}
+	if len(peers) != 1 {
+		t.Fatalf("expected 1 merged peer, got %d", len(peers))
+	}
+	for key, flow := range flows {
+		if key.process != "ext_ipfix" {
+			t.Fatalf("expected process ext_ipfix, got %q", key.process)
+		}
+		if flow.bytesOut <= 0 {
+			t.Fatalf("expected outbound bytes from external flow, got %d", flow.bytesOut)
+		}
 	}
 }

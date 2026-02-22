@@ -32,24 +32,36 @@ type Result struct {
 }
 
 type discoveryPolicy struct {
-	AllowedCIDRs   []string
-	BlockedCIDRs   []string
-	RateLimitPPS   int
-	MaxHosts       int
-	AllowARP       bool
-	AllowSNMP      bool
-	AllowLLDP      bool
-	AllowCDP       bool
-	WindowStart    string
-	WindowEnd      string
-	WindowTimezone string
-	WindowWeekdays map[time.Weekday]struct{}
-	SNMPCommunity  string
-	SNMPVersion    string
-	SNMPPort       int
-	SNMPTimeoutMs  int
-	SNMPRetries    int
+	Mode                          string
+	ActiveOptIn                   bool
+	AllowedCIDRs                  []string
+	BlockedCIDRs                  []string
+	RateLimitPPS                  int
+	BurstSize                     int
+	MaxHosts                      int
+	AllowARP                      bool
+	AllowSNMP                     bool
+	AllowLLDP                     bool
+	AllowCDP                      bool
+	AllowlistSegments             []string
+	TargetSegments                []string
+	FingerprintProfile            string
+	AggressiveFingerprintApproved bool
+	AllowWidePortScan             bool
+	CollectionID                  string
+	AuditTrailEnabled             bool
+	WindowStart                   string
+	WindowEnd                     string
+	WindowTimezone                string
+	WindowWeekdays                map[time.Weekday]struct{}
+	SNMPCommunity                 string
+	SNMPVersion                   string
+	SNMPPort                      int
+	SNMPTimeoutMs                 int
+	SNMPRetries                   int
 }
+
+var errDiscoverySNMPRowLimit = errors.New("discovery snmp row limit reached")
 
 func RunJob(ctx context.Context, job entities.AgentlessJob) entities.AgentlessObservation {
 	started := time.Now()
@@ -224,6 +236,22 @@ func runDiscoveryAssisted(ctx context.Context, job entities.AgentlessJob) Result
 	if err != nil {
 		return Result{Status: "fail", Code: "discovery_policy_invalid", Message: err.Error()}
 	}
+	startedAt := time.Now().UTC()
+	scope := buildDiscoveryScope(policy)
+	if !policy.ActiveOptIn {
+		return Result{
+			Status:  "ok",
+			Code:    "discovery_passive_only",
+			Message: "descoberta ativa desabilitada por política passiva (active_opt_in=false)",
+			Payload: map[string]any{
+				"scope": scope,
+				"audit": buildDiscoveryAudit(policy, startedAt, map[string]any{
+					"status":         "passive_only",
+					"window_allowed": true,
+				}),
+			},
+		}
+	}
 
 	allowed, reason := discoveryWindowAllowed(policy, time.Now())
 	if !allowed {
@@ -232,13 +260,12 @@ func runDiscoveryAssisted(ctx context.Context, job entities.AgentlessJob) Result
 			Code:    "discovery_window_closed",
 			Message: reason,
 			Payload: map[string]any{
-				"scope": map[string]any{
-					"allowed_cidrs": policy.AllowedCIDRs,
-					"blocked_cidrs": policy.BlockedCIDRs,
-					"window_start":  policy.WindowStart,
-					"window_end":    policy.WindowEnd,
-					"timezone":      policy.WindowTimezone,
-				},
+				"scope": scope,
+				"audit": buildDiscoveryAudit(policy, startedAt, map[string]any{
+					"status":         "window_blocked",
+					"window_allowed": false,
+					"reason":         reason,
+				}),
 			},
 		}
 	}
@@ -250,11 +277,11 @@ func runDiscoveryAssisted(ctx context.Context, job entities.AgentlessJob) Result
 			Code:    "discovery_scope_empty",
 			Message: "nenhum host elegivel para descoberta",
 			Payload: map[string]any{
-				"scope": map[string]any{
-					"allowed_cidrs": policy.AllowedCIDRs,
-					"blocked_cidrs": policy.BlockedCIDRs,
-					"max_hosts":     policy.MaxHosts,
-				},
+				"scope": scope,
+				"audit": buildDiscoveryAudit(policy, startedAt, map[string]any{
+					"status":         "scope_empty",
+					"window_allowed": true,
+				}),
 			},
 		}
 	}
@@ -275,11 +302,10 @@ func runDiscoveryAssisted(ctx context.Context, job entities.AgentlessJob) Result
 	if timeout < 500*time.Millisecond {
 		timeout = 500 * time.Millisecond
 	}
-	throttle := time.Duration(0)
-	if policy.RateLimitPPS > 0 {
-		throttle = time.Second / time.Duration(policy.RateLimitPPS)
-	}
-	nextAllowed := time.Now()
+	ratePerSec := float64(maxInt(policy.RateLimitPPS, 1))
+	burstLimit := maxInt(policy.BurstSize, 1)
+	tokens := float64(burstLimit)
+	lastRefill := time.Now()
 
 	for _, host := range hosts {
 		select {
@@ -289,28 +315,60 @@ func runDiscoveryAssisted(ctx context.Context, job entities.AgentlessJob) Result
 				Code:    "discovery_canceled",
 				Message: ctx.Err().Error(),
 				Payload: map[string]any{
+					"scope": scope,
 					"stats": map[string]any{
 						"scanned_hosts":    scanned,
 						"discovered_hosts": discovered,
 					},
+					"audit": buildDiscoveryAudit(policy, startedAt, map[string]any{
+						"status":         "canceled",
+						"window_allowed": true,
+					}),
 				},
 			}
 		default:
 		}
 
-		if throttle > 0 {
+		for {
 			now := time.Now()
-			if now.Before(nextAllowed) {
-				wait := nextAllowed.Sub(now)
-				timer := time.NewTimer(wait)
-				select {
-				case <-ctx.Done():
-					timer.Stop()
-					return Result{Status: "fail", Code: "discovery_canceled", Message: ctx.Err().Error()}
-				case <-timer.C:
+			elapsed := now.Sub(lastRefill).Seconds()
+			if elapsed > 0 {
+				tokens += elapsed * ratePerSec
+				if tokens > float64(burstLimit) {
+					tokens = float64(burstLimit)
 				}
+				lastRefill = now
 			}
-			nextAllowed = time.Now().Add(throttle)
+			if tokens >= 1 {
+				tokens -= 1
+				break
+			}
+			waitSec := (1 - tokens) / ratePerSec
+			if waitSec < 0.001 {
+				waitSec = 0.001
+			}
+			timer := time.NewTimer(time.Duration(waitSec * float64(time.Second)))
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return Result{
+					Status:  "fail",
+					Code:    "discovery_canceled",
+					Message: ctx.Err().Error(),
+					Payload: map[string]any{
+						"scope": scope,
+						"stats": map[string]any{
+							"scanned_hosts":    scanned,
+							"discovered_hosts": discovered,
+						},
+						"audit": buildDiscoveryAudit(policy, startedAt, map[string]any{
+							"status":         "canceled",
+							"window_allowed": true,
+						}),
+					},
+				}
+			case <-timer.C:
+			}
 		}
 
 		scanned++
@@ -342,21 +400,45 @@ func runDiscoveryAssisted(ctx context.Context, job entities.AgentlessJob) Result
 			case "fail":
 				snmpFail++
 			}
-		}
-
-		if policy.AllowLLDP {
-			row["lldp"] = map[string]any{
-				"status":  "unsupported",
-				"message": "coleta LLDP ainda não implementada no agente",
+			if policy.AllowLLDP {
+				lldpProbe := map[string]any{
+					"status":  "skipped",
+					"message": "LLDP sem dados no probe SNMP",
+				}
+				if rawLLDP, ok := snmpProbe["lldp"].(map[string]any); ok {
+					lldpProbe = rawLLDP
+				}
+				row["lldp"] = lldpProbe
+				if statusLLDP, _ := lldpProbe["status"].(string); statusLLDP == "unsupported" {
+					unsupported++
+				}
 			}
-			unsupported++
-		}
-		if policy.AllowCDP {
-			row["cdp"] = map[string]any{
-				"status":  "unsupported",
-				"message": "coleta CDP ainda não implementada no agente",
+			if policy.AllowCDP {
+				cdpProbe := map[string]any{
+					"status":  "skipped",
+					"message": "CDP sem dados no probe SNMP",
+				}
+				if rawCDP, ok := snmpProbe["cdp"].(map[string]any); ok {
+					cdpProbe = rawCDP
+				}
+				row["cdp"] = cdpProbe
+				if statusCDP, _ := cdpProbe["status"].(string); statusCDP == "unsupported" {
+					unsupported++
+				}
 			}
-			unsupported++
+		} else {
+			if policy.AllowLLDP {
+				row["lldp"] = map[string]any{
+					"status":  "skipped",
+					"message": "LLDP exige SNMP habilitado pela política",
+				}
+			}
+			if policy.AllowCDP {
+				row["cdp"] = map[string]any{
+					"status":  "skipped",
+					"message": "CDP exige SNMP habilitado pela política",
+				}
+			}
 		}
 
 		if hostFound {
@@ -369,19 +451,7 @@ func runDiscoveryAssisted(ctx context.Context, job entities.AgentlessJob) Result
 	}
 
 	payload := map[string]any{
-		"scope": map[string]any{
-			"allowed_cidrs":   policy.AllowedCIDRs,
-			"blocked_cidrs":   policy.BlockedCIDRs,
-			"rate_limit_pps":  policy.RateLimitPPS,
-			"max_hosts":       policy.MaxHosts,
-			"allow_arp":       policy.AllowARP,
-			"allow_snmp":      policy.AllowSNMP,
-			"allow_lldp":      policy.AllowLLDP,
-			"allow_cdp":       policy.AllowCDP,
-			"window_start":    policy.WindowStart,
-			"window_end":      policy.WindowEnd,
-			"window_timezone": policy.WindowTimezone,
-		},
+		"scope": scope,
 		"stats": map[string]any{
 			"scanned_hosts":      scanned,
 			"discovered_hosts":   discovered,
@@ -391,9 +461,15 @@ func runDiscoveryAssisted(ctx context.Context, job entities.AgentlessJob) Result
 			"unsupported_probes": unsupported,
 			"truncated_hosts":    truncated,
 			"sampled_hosts":      len(hostRows),
+			"rate_limit_pps":     policy.RateLimitPPS,
+			"burst_size":         policy.BurstSize,
 		},
 		"discovered_ips": discoveredIPs,
 		"hosts":          hostRows,
+		"audit": buildDiscoveryAudit(policy, startedAt, map[string]any{
+			"status":         "completed",
+			"window_allowed": true,
+		}),
 	}
 
 	if discovered == 0 {
@@ -415,18 +491,23 @@ func runDiscoveryAssisted(ctx context.Context, job entities.AgentlessJob) Result
 
 func parseDiscoveryPolicy(cfg map[string]any, timeoutMs int) (discoveryPolicy, error) {
 	p := discoveryPolicy{
-		RateLimitPPS:   20,
-		MaxHosts:       512,
-		AllowARP:       true,
-		AllowSNMP:      true,
-		AllowLLDP:      false,
-		AllowCDP:       false,
-		WindowTimezone: "UTC",
-		SNMPVersion:    "2c",
-		SNMPPort:       161,
-		SNMPTimeoutMs:  maxInt(timeoutMs, 1200),
-		SNMPRetries:    0,
-		WindowWeekdays: map[time.Weekday]struct{}{},
+		Mode:               "passive_only",
+		ActiveOptIn:        false,
+		RateLimitPPS:       20,
+		BurstSize:          1,
+		MaxHosts:           512,
+		AllowARP:           false,
+		AllowSNMP:          false,
+		AllowLLDP:          false,
+		AllowCDP:           false,
+		FingerprintProfile: "safe",
+		AuditTrailEnabled:  true,
+		WindowTimezone:     "UTC",
+		SNMPVersion:        "2c",
+		SNMPPort:           161,
+		SNMPTimeoutMs:      maxInt(timeoutMs, 1200),
+		SNMPRetries:        0,
+		WindowWeekdays:     map[time.Weekday]struct{}{},
 	}
 	if p.SNMPTimeoutMs <= 0 {
 		p.SNMPTimeoutMs = 1200
@@ -439,10 +520,45 @@ func parseDiscoveryPolicy(cfg map[string]any, timeoutMs int) (discoveryPolicy, e
 		source = mergeMap(copyMap(cfg), nested)
 	}
 
+	modeRaw := strings.ToLower(strings.TrimSpace(getString(source, "mode", getString(source, "discovery_mode", ""))))
+	modeRaw = strings.ReplaceAll(modeRaw, "-", "_")
+	mode := ""
+	switch modeRaw {
+	case "", "passive", "passive_only":
+		mode = "passive_only"
+	case "active", "active_assisted", "assisted", "discovery_assisted":
+		mode = "active_assisted"
+	default:
+		return p, fmt.Errorf("mode inválido: %s", modeRaw)
+	}
+	activeOptIn := false
+	if v, ok := getBool(source, "active_opt_in"); ok {
+		activeOptIn = v
+	}
+	if v, ok := getBool(source, "allow_active_discovery"); ok && v {
+		activeOptIn = true
+	}
+	if v, ok := getBool(source, "discovery_active_opt_in"); ok && v {
+		activeOptIn = true
+	}
+	if mode == "active_assisted" && !activeOptIn {
+		return p, errors.New("active_opt_in é obrigatório para descoberta ativa")
+	}
+	if mode == "passive_only" {
+		activeOptIn = false
+	}
+	if activeOptIn {
+		p.Mode = "active_assisted"
+		p.ActiveOptIn = true
+	} else {
+		p.Mode = "passive_only"
+		p.ActiveOptIn = false
+	}
+
 	p.AllowedCIDRs = normalizeCIDRList(stringSliceFromAny(firstNonNil(source["allowed_cidrs"], source["cidrs"])))
 	p.BlockedCIDRs = normalizeCIDRList(stringSliceFromAny(source["blocked_cidrs"]))
 
-	if len(p.AllowedCIDRs) == 0 {
+	if p.ActiveOptIn && len(p.AllowedCIDRs) == 0 {
 		return p, errors.New("allowed_cidrs é obrigatório para descoberta assistida")
 	}
 	for _, cidr := range p.AllowedCIDRs {
@@ -465,6 +581,15 @@ func parseDiscoveryPolicy(cfg map[string]any, timeoutMs int) (discoveryPolicy, e
 		}
 		p.RateLimitPPS = v
 	}
+	if v, ok := toInt(firstNonNil(source["burst_size"], source["rate_limit_burst"], source["burst_control"])); ok {
+		if v < 1 {
+			v = 1
+		}
+		if v > 500 {
+			v = 500
+		}
+		p.BurstSize = v
+	}
 	if v, ok := toInt(source["max_hosts"]); ok {
 		if v < 1 {
 			v = 1
@@ -474,21 +599,99 @@ func parseDiscoveryPolicy(cfg map[string]any, timeoutMs int) (discoveryPolicy, e
 		}
 		p.MaxHosts = v
 	}
-	if v, ok := getBool(source, "allow_arp"); ok {
-		p.AllowARP = v
+	allowArpValue, allowArpSet := getBool(source, "allow_arp")
+	allowSnmpValue, allowSnmpSet := getBool(source, "allow_snmp")
+	allowLldpValue, allowLldpSet := getBool(source, "allow_lldp")
+	allowCdpValue, allowCdpSet := getBool(source, "allow_cdp")
+	if !p.ActiveOptIn && ((allowArpSet && allowArpValue) || (allowSnmpSet && allowSnmpValue) || (allowLldpSet && allowLldpValue) || (allowCdpSet && allowCdpValue)) {
+		return p, errors.New("active_opt_in é obrigatório para habilitar probes ativas")
 	}
-	if v, ok := getBool(source, "allow_snmp"); ok {
-		p.AllowSNMP = v
+	if p.ActiveOptIn {
+		p.AllowARP = true
+		p.AllowSNMP = true
 	}
-	if v, ok := getBool(source, "allow_lldp"); ok {
-		p.AllowLLDP = v
+	if allowArpSet {
+		p.AllowARP = allowArpValue
 	}
-	if v, ok := getBool(source, "allow_cdp"); ok {
-		p.AllowCDP = v
+	if allowSnmpSet {
+		p.AllowSNMP = allowSnmpValue
 	}
-	p.WindowStart = strings.TrimSpace(getString(source, "window_start", ""))
-	p.WindowEnd = strings.TrimSpace(getString(source, "window_end", ""))
-	p.WindowTimezone = strings.TrimSpace(getString(source, "window_timezone", p.WindowTimezone))
+	if allowLldpSet {
+		p.AllowLLDP = allowLldpValue
+	}
+	if allowCdpSet {
+		p.AllowCDP = allowCdpValue
+	}
+	if p.ActiveOptIn && !p.AllowARP && !p.AllowSNMP && !p.AllowLLDP && !p.AllowCDP {
+		return p, errors.New("descoberta ativa sem probes habilitadas")
+	}
+	p.AllowlistSegments = normalizeStringList(stringSliceFromAny(firstNonNil(source["allowlist_segments"], source["allowed_segments"])))
+	p.TargetSegments = normalizeStringList(stringSliceFromAny(firstNonNil(source["target_segments"], source["segments"], source["segment"], source["segment_key"])))
+	if p.ActiveOptIn && len(p.AllowlistSegments) > 0 {
+		if len(p.TargetSegments) == 0 {
+			return p, errors.New("target_segments é obrigatório quando allowlist_segments estiver definido")
+		}
+		for _, segment := range p.TargetSegments {
+			if !isSegmentInAllowlist(segment, p.AllowlistSegments) {
+				return p, fmt.Errorf("segmento fora da allowlist: %s", segment)
+			}
+		}
+	}
+	fingerprintProfile := strings.ToLower(strings.TrimSpace(getString(source, "fingerprint_profile", getString(source, "fingerprint_mode", "safe"))))
+	if fingerprintProfile == "" {
+		fingerprintProfile = "safe"
+	}
+	switch fingerprintProfile {
+	case "passive", "safe", "aggressive":
+	default:
+		return p, fmt.Errorf("fingerprint_profile inválido: %s", fingerprintProfile)
+	}
+	if v, ok := getBool(source, "allow_aggressive_fingerprint"); ok && v {
+		fingerprintProfile = "aggressive"
+	}
+	if v, ok := getBool(source, "aggressive_fingerprint_approved"); ok {
+		p.AggressiveFingerprintApproved = v
+	} else if v, ok := getBool(source, "fingerprint_approval"); ok {
+		p.AggressiveFingerprintApproved = v
+	}
+	if fingerprintProfile == "aggressive" && !p.ActiveOptIn {
+		return p, errors.New("fingerprint agressivo exige active_opt_in=true")
+	}
+	if fingerprintProfile == "aggressive" && !p.AggressiveFingerprintApproved {
+		return p, errors.New("fingerprint agressivo exige aggressive_fingerprint_approved=true")
+	}
+	p.FingerprintProfile = fingerprintProfile
+	if v, ok := getBool(source, "allow_wide_port_scan"); ok {
+		p.AllowWidePortScan = v
+	}
+	if p.AllowWidePortScan && !p.ActiveOptIn {
+		return p, errors.New("allow_wide_port_scan exige active_opt_in=true")
+	}
+	if p.AllowWidePortScan && !p.AggressiveFingerprintApproved {
+		return p, errors.New("allow_wide_port_scan exige aggressive_fingerprint_approved=true")
+	}
+	if v, ok := getBool(source, "audit_trail_enabled"); ok {
+		p.AuditTrailEnabled = v
+	}
+	p.CollectionID = strings.TrimSpace(getString(source, "collection_id", ""))
+	if p.CollectionID == "" {
+		p.CollectionID = newID("disc")
+	}
+	if !p.ActiveOptIn {
+		p.AllowARP = false
+		p.AllowSNMP = false
+		p.AllowLLDP = false
+		p.AllowCDP = false
+	}
+	if !p.ActiveOptIn {
+		p.WindowStart = strings.TrimSpace(getString(source, "window_start", ""))
+		p.WindowEnd = strings.TrimSpace(getString(source, "window_end", ""))
+		p.WindowTimezone = strings.TrimSpace(getString(source, "window_timezone", p.WindowTimezone))
+	} else {
+		p.WindowStart = strings.TrimSpace(getString(source, "window_start", ""))
+		p.WindowEnd = strings.TrimSpace(getString(source, "window_end", ""))
+		p.WindowTimezone = strings.TrimSpace(getString(source, "window_timezone", p.WindowTimezone))
+	}
 	if p.WindowTimezone == "" {
 		p.WindowTimezone = "UTC"
 	}
@@ -525,6 +728,66 @@ func parseDiscoveryPolicy(cfg map[string]any, timeoutMs int) (discoveryPolicy, e
 		p.SNMPRetries = v
 	}
 	return p, nil
+}
+
+func sortedWeekdayInts(days map[time.Weekday]struct{}) []int {
+	if len(days) == 0 {
+		return nil
+	}
+	out := make([]int, 0, len(days))
+	for day := range days {
+		out = append(out, int(day))
+	}
+	sort.Ints(out)
+	return out
+}
+
+func buildDiscoveryScope(policy discoveryPolicy) map[string]any {
+	return map[string]any{
+		"mode":                            policy.Mode,
+		"active_opt_in":                   policy.ActiveOptIn,
+		"allowed_cidrs":                   policy.AllowedCIDRs,
+		"blocked_cidrs":                   policy.BlockedCIDRs,
+		"rate_limit_pps":                  policy.RateLimitPPS,
+		"burst_size":                      policy.BurstSize,
+		"max_hosts":                       policy.MaxHosts,
+		"allow_arp":                       policy.AllowARP,
+		"allow_snmp":                      policy.AllowSNMP,
+		"allow_lldp":                      policy.AllowLLDP,
+		"allow_cdp":                       policy.AllowCDP,
+		"allowlist_segments":              policy.AllowlistSegments,
+		"target_segments":                 policy.TargetSegments,
+		"fingerprint_profile":             policy.FingerprintProfile,
+		"allow_aggressive_fingerprint":    policy.FingerprintProfile == "aggressive",
+		"aggressive_fingerprint_approved": policy.AggressiveFingerprintApproved,
+		"allow_wide_port_scan":            policy.AllowWidePortScan,
+		"window_start":                    policy.WindowStart,
+		"window_end":                      policy.WindowEnd,
+		"window_timezone":                 policy.WindowTimezone,
+		"window_weekdays":                 sortedWeekdayInts(policy.WindowWeekdays),
+		"snmp_community":                  policy.SNMPCommunity != "",
+		"snmp_version":                    policy.SNMPVersion,
+		"snmp_port":                       policy.SNMPPort,
+		"snmp_timeout_ms":                 policy.SNMPTimeoutMs,
+		"snmp_retries":                    policy.SNMPRetries,
+		"collection_id":                   policy.CollectionID,
+		"audit_trail_enabled":             policy.AuditTrailEnabled,
+	}
+}
+
+func buildDiscoveryAudit(policy discoveryPolicy, startedAt time.Time, extras map[string]any) map[string]any {
+	finishedAt := time.Now().UTC()
+	out := map[string]any{
+		"collection_id":       policy.CollectionID,
+		"audit_trail_enabled": policy.AuditTrailEnabled,
+		"started_at":          startedAt.UTC().Format(time.RFC3339Nano),
+		"finished_at":         finishedAt.Format(time.RFC3339Nano),
+		"duration_ms":         int(finishedAt.Sub(startedAt.UTC()).Milliseconds()),
+	}
+	for k, v := range extras {
+		out[k] = v
+	}
+	return out
 }
 
 func discoveryWindowAllowed(policy discoveryPolicy, now time.Time) (bool, string) {
@@ -753,7 +1016,155 @@ func probeDiscoverySNMP(ctx context.Context, host string, policy discoveryPolicy
 			out["sys_descr"] = val
 		}
 	}
+	if policy.AllowLLDP {
+		out["lldp"] = probeDiscoveryNeighborsSNMP(
+			sn,
+			"lldp",
+			"1.0.8802.1.1.2.1.4.1.1.9",
+			"1.0.8802.1.1.2.1.4.1.1.8",
+		)
+	}
+	if policy.AllowCDP {
+		out["cdp"] = probeDiscoveryNeighborsSNMP(
+			sn,
+			"cdp",
+			"1.3.6.1.4.1.9.9.23.1.2.1.1.6",
+			"1.3.6.1.4.1.9.9.23.1.2.1.1.7",
+		)
+	}
 	return out
+}
+
+func probeDiscoveryNeighborsSNMP(sn *gosnmp.GoSNMP, protocol, nameRootOID, portRootOID string) map[string]any {
+	names, err := walkSNMPStringTable(sn, nameRootOID, 64)
+	if err != nil {
+		status := "fail"
+		if isSNMPUnsupportedError(err) {
+			status = "unsupported"
+		}
+		return map[string]any{
+			"status":  status,
+			"message": trimString(err.Error(), 255),
+		}
+	}
+	if len(names) == 0 {
+		return map[string]any{
+			"status":         "empty",
+			"message":        strings.ToUpper(protocol) + " sem vizinhos retornados",
+			"neighbor_names": []string{},
+			"neighbors":      []map[string]any{},
+		}
+	}
+
+	ports, _ := walkSNMPStringTable(sn, portRootOID, 64)
+	keys := make([]string, 0, len(names))
+	for key := range names {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	neighborNames := make([]string, 0, len(keys))
+	neighbors := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		name := strings.TrimSpace(names[key])
+		if name == "" {
+			continue
+		}
+		item := map[string]any{
+			"id":   key,
+			"name": name,
+		}
+		if port := strings.TrimSpace(ports[key]); port != "" {
+			item["port"] = port
+		}
+		neighborNames = append(neighborNames, name)
+		neighbors = append(neighbors, item)
+		if len(neighborNames) >= 12 {
+			break
+		}
+	}
+
+	if len(neighborNames) == 0 {
+		return map[string]any{
+			"status":         "empty",
+			"message":        strings.ToUpper(protocol) + " sem nomes válidos de vizinhos",
+			"neighbor_names": []string{},
+			"neighbors":      []map[string]any{},
+		}
+	}
+
+	return map[string]any{
+		"status":          "ok",
+		"total_neighbors": len(names),
+		"neighbor_names":  neighborNames,
+		"neighbors":       neighbors,
+	}
+}
+
+func walkSNMPStringTable(sn *gosnmp.GoSNMP, rootOID string, maxRows int) (map[string]string, error) {
+	rows := make(map[string]string)
+	walkErr := sn.BulkWalk(rootOID, func(variable gosnmp.SnmpPDU) error {
+		suffix := snmpOidSuffix(variable.Name, rootOID)
+		if suffix == "" {
+			return nil
+		}
+		value := strings.TrimSpace(snmpStringValue(snmpValueToAny(variable)))
+		if value == "" {
+			return nil
+		}
+		rows[suffix] = value
+		if maxRows > 0 && len(rows) >= maxRows {
+			return errDiscoverySNMPRowLimit
+		}
+		return nil
+	})
+	if errors.Is(walkErr, errDiscoverySNMPRowLimit) {
+		walkErr = nil
+	}
+	return rows, walkErr
+}
+
+func snmpOidSuffix(oid, root string) string {
+	normalizedOID := strings.TrimPrefix(strings.TrimSpace(oid), ".")
+	normalizedRoot := strings.TrimPrefix(strings.TrimSpace(root), ".")
+	if normalizedOID == "" || normalizedRoot == "" || normalizedOID == normalizedRoot {
+		return ""
+	}
+	prefix := normalizedRoot + "."
+	if !strings.HasPrefix(normalizedOID, prefix) {
+		return ""
+	}
+	return strings.TrimPrefix(normalizedOID, prefix)
+}
+
+func snmpStringValue(value any) string {
+	switch t := value.(type) {
+	case string:
+		return t
+	case []byte:
+		return string(t)
+	default:
+		return fmt.Sprintf("%v", t)
+	}
+}
+
+func isSNMPUnsupportedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, token := range []string{
+		"no such",
+		"unknown object",
+		"unknown oid",
+		"no more variables left in this mib view",
+		"not supported",
+	} {
+		if strings.Contains(msg, token) {
+			return true
+		}
+	}
+	return false
 }
 
 func isIPInBlocked(ip net.IP, blocked []*net.IPNet) bool {
@@ -780,6 +1191,37 @@ func normalizeCIDRList(list []string) []string {
 		out = append(out, cidr)
 	}
 	return out
+}
+
+func normalizeStringList(list []string) []string {
+	out := make([]string, 0, len(list))
+	seen := map[string]struct{}{}
+	for _, item := range list {
+		entry := strings.TrimSpace(item)
+		if entry == "" {
+			continue
+		}
+		key := strings.ToLower(entry)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func isSegmentInAllowlist(segment string, allowlist []string) bool {
+	segment = strings.ToLower(strings.TrimSpace(segment))
+	if segment == "" {
+		return false
+	}
+	for _, allowed := range allowlist {
+		if segment == strings.ToLower(strings.TrimSpace(allowed)) {
+			return true
+		}
+	}
+	return false
 }
 
 func stringSliceFromAny(v any) []string {

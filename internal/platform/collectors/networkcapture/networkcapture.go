@@ -1,10 +1,13 @@
 package networkcapture
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"net"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"sort"
@@ -26,6 +29,18 @@ const (
 	defaultMaxFlows     = 1000
 	defaultMaxPeers     = 300
 	defaultMaxListeners = 300
+	minWindow           = 5 * time.Second
+	maxWindow           = 5 * time.Minute
+	minInterval         = 1 * time.Second
+	maxInterval         = 30 * time.Second
+	minMaxRows          = 50
+	maxMaxRows          = 5000
+	defaultPCAPDuration = 3 * time.Second
+	defaultPCAPPackets  = 160
+	maxPCAPDuration     = 15 * time.Second
+	maxPCAPPackets      = 2000
+	defaultExternalMax  = 1000
+	maxExternalMax      = 10000
 	maxCmdlineLength    = 240
 	maxResolutionLen    = 255
 	maxTLSSubjectLen    = 512
@@ -64,6 +79,7 @@ var tlsLikelyPorts = map[uint32]struct{}{
 }
 
 var urlHostRegex = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+\-.]*://([a-z0-9\.\-]+)`)
+var tcpdumpLineRegex = regexp.MustCompile(`^(IP6?)\s+(.+?)\s+>\s+(.+?):\s*(.*)$`)
 
 type collector struct {
 	prefs        func() config.CollectPrefs
@@ -75,13 +91,14 @@ type collector struct {
 }
 
 type capturePayload struct {
-	Capture        captureMeta         `json:"capture"`
-	Flows          []flowRow           `json:"flows,omitempty"`
-	SocketSnapshot []socketSnapshotRow `json:"socket_snapshot,omitempty"`
-	Peers          []peerRow           `json:"peers,omitempty"`
-	Listeners      []listenerRow       `json:"listeners,omitempty"`
-	Interfaces     []ifaceDelta        `json:"interfaces,omitempty"`
-	LocalCtx       *localContext       `json:"local_context,omitempty"`
+	Capture         captureMeta             `json:"capture"`
+	Flows           []flowRow               `json:"flows,omitempty"`
+	SocketSnapshot  []socketSnapshotRow     `json:"socket_snapshot,omitempty"`
+	Peers           []peerRow               `json:"peers,omitempty"`
+	Listeners       []listenerRow           `json:"listeners,omitempty"`
+	Interfaces      []ifaceDelta            `json:"interfaces,omitempty"`
+	LocalCtx        *localContext           `json:"local_context,omitempty"`
+	PassiveAdvanced *passiveAdvancedPayload `json:"passive_advanced,omitempty"`
 }
 
 type captureMeta struct {
@@ -93,6 +110,101 @@ type captureMeta struct {
 	EndedAtUnix   int64    `json:"ended_at_unix"`
 	Hostname      string   `json:"hostname,omitempty"`
 	Warnings      []string `json:"warnings,omitempty"`
+}
+
+type passiveAdvancedPayload struct {
+	RequestedMode   string                 `json:"requested_mode,omitempty"`
+	AppliedMode     string                 `json:"applied_mode,omitempty"`
+	Sources         []string               `json:"sources,omitempty"`
+	Capabilities    passiveCapabilities    `json:"capabilities"`
+	NetlinkLinks    []netlinkLinkRow       `json:"netlink_links,omitempty"`
+	PCAP            *pcapSummary           `json:"pcap,omitempty"`
+	ExternalSources []externalSourceStatus `json:"external_sources,omitempty"`
+}
+
+type passiveCapabilities struct {
+	Netlink bool `json:"netlink"`
+	PCAP    bool `json:"pcap"`
+	EBPF    bool `json:"ebpf"`
+}
+
+type netlinkLinkRow struct {
+	Name         string `json:"name,omitempty"`
+	OperState    string `json:"oper_state,omitempty"`
+	HardwareAddr string `json:"hardware_addr,omitempty"`
+	MTU          int    `json:"mtu,omitempty"`
+	RXBytes      uint64 `json:"rx_bytes,omitempty"`
+	RXPackets    uint64 `json:"rx_packets,omitempty"`
+	RXErrors     uint64 `json:"rx_errors,omitempty"`
+	RXDrops      uint64 `json:"rx_drops,omitempty"`
+	TXBytes      uint64 `json:"tx_bytes,omitempty"`
+	TXPackets    uint64 `json:"tx_packets,omitempty"`
+	TXErrors     uint64 `json:"tx_errors,omitempty"`
+	TXDrops      uint64 `json:"tx_drops,omitempty"`
+}
+
+type pcapSummary struct {
+	Interface         string        `json:"interface,omitempty"`
+	RequestedDuration int           `json:"requested_duration_sec,omitempty"`
+	RequestedPackets  int           `json:"requested_packets,omitempty"`
+	CapturedPackets   int           `json:"captured_packets,omitempty"`
+	ReceivedByFilter  int           `json:"received_by_filter,omitempty"`
+	DroppedByKernel   int           `json:"dropped_by_kernel,omitempty"`
+	Flows             []pcapFlowRow `json:"flows,omitempty"`
+}
+
+type pcapFlowRow struct {
+	Protocol   string `json:"protocol,omitempty"`
+	Direction  string `json:"direction,omitempty"`
+	LocalIP    string `json:"local_ip,omitempty"`
+	LocalPort  uint32 `json:"local_port,omitempty"`
+	RemoteIP   string `json:"remote_ip,omitempty"`
+	RemotePort uint32 `json:"remote_port,omitempty"`
+	Samples    int    `json:"samples"`
+}
+
+type passiveCollectOptions struct {
+	requestedMode string
+	window        time.Duration
+	interval      time.Duration
+	maxFlows      int
+	maxPeers      int
+	maxListeners  int
+	pcapEnabled   bool
+	pcapIface     string
+	pcapDuration  time.Duration
+	pcapPackets   int
+	externalSpecs []string
+	externalMax   int
+}
+
+type externalSourceStatus struct {
+	Type      string `json:"type,omitempty"`
+	Path      string `json:"path,omitempty"`
+	Parsed    int    `json:"parsed,omitempty"`
+	Dropped   int    `json:"dropped,omitempty"`
+	LastError string `json:"last_error,omitempty"`
+}
+
+type externalObservation struct {
+	sourceType  string
+	protocol    string
+	direction   string
+	state       string
+	srcIP       string
+	dstIP       string
+	srcPort     uint32
+	dstPort     uint32
+	bytes       int
+	packets     int
+	firstSeen   int64
+	lastSeen    int64
+	dnsQuery    string
+	dnsAnswer   string
+	sni         string
+	tlsSubject  string
+	resetHits   int
+	timeoutHits int
 }
 
 type flowRow struct {
@@ -401,16 +513,22 @@ func (c *collector) Name() string { return "network_capture" }
 func (c *collector) Interval() time.Duration { return 24 * time.Hour }
 
 func (c *collector) Collect(ctx context.Context) ([]byte, error) {
+	options := c.resolveOptions()
 	start := time.Now().UTC()
 	end := start
 	hostname, _ := os.Hostname()
 	meta := captureMeta{
 		Mode:          "passive",
 		Source:        "socket_snapshot",
-		WindowSec:     int(c.window.Seconds()),
-		SampleSeconds: int(c.interval.Seconds()),
+		WindowSec:     int(options.window.Seconds()),
+		SampleSeconds: int(options.interval.Seconds()),
 		StartedAtUnix: start.Unix(),
 		Hostname:      hostname,
+	}
+	advanced := &passiveAdvancedPayload{
+		RequestedMode: options.requestedMode,
+		Capabilities:  detectPassiveCapabilities(),
+		Sources:       []string{"socket_snapshot"},
 	}
 
 	startIO, err := gnet.IOCountersWithContext(ctx, true)
@@ -627,29 +745,52 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	}
 
 	sample()
-	ticker := time.NewTicker(c.interval)
+	ticker := time.NewTicker(options.interval)
 	defer ticker.Stop()
-	deadline := time.NewTimer(c.window)
+	deadline := time.NewTimer(options.window)
 	defer deadline.Stop()
+
+	finalize := func(deltas []ifaceDelta) ([]byte, error) {
+		externalSources := mergeExternalSources(options, localIPs, flows, peers, &meta)
+		if len(externalSources) > 0 {
+			advanced.ExternalSources = externalSources
+			for _, source := range externalSources {
+				if source.Parsed <= 0 {
+					continue
+				}
+				advanced.Sources = append(advanced.Sources, source.Type)
+			}
+		}
+		applyEstimatedTraffic(flows, peers, deltas)
+		flowRows := c.sortedFlows(flows, options.interval, options.maxFlows)
+		payload := capturePayload{
+			Capture:        meta,
+			Flows:          flowRows,
+			SocketSnapshot: c.buildSocketSnapshot(flows, options.interval, options.maxFlows),
+			Peers:          c.sortedPeers(peers, options.interval, options.maxPeers),
+			Listeners:      c.sortedListeners(listeners, options.maxListeners),
+			Interfaces:     deltas,
+			LocalCtx:       localCtx,
+		}
+
+		c.enrichAdvancedPassive(ctx, advanced, options, localCtx, localIPs, &meta)
+		if len(advanced.Sources) > 0 {
+			meta.Source = strings.Join(uniqueStrings(advanced.Sources, 6), "+")
+		}
+		payload.Capture = meta
+		if options.requestedMode != "socket" || options.pcapEnabled || len(advanced.NetlinkLinks) > 0 || advanced.PCAP != nil || len(advanced.ExternalSources) > 0 {
+			payload.PassiveAdvanced = advanced
+		}
+		return json.Marshal(payload)
+	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			meta.Warnings = append(meta.Warnings, "coleta interrompida por contexto")
 			end = time.Now().UTC()
-			applyEstimatedTraffic(flows, peers, nil)
-			flowRows := c.sortedFlows(flows)
-			payload := capturePayload{
-				Capture:        meta,
-				Flows:          flowRows,
-				SocketSnapshot: c.buildSocketSnapshot(flows),
-				Peers:          c.sortedPeers(peers),
-				Listeners:      c.sortedListeners(listeners),
-				Interfaces:     ioDelta(startIO, nil),
-				LocalCtx:       localCtx,
-			}
-			payload.Capture.EndedAtUnix = end.Unix()
-			return json.Marshal(payload)
+			meta.EndedAtUnix = end.Unix()
+			return finalize(ioDelta(startIO, nil))
 		case <-deadline.C:
 			end = time.Now().UTC()
 			endIO, e := gnet.IOCountersWithContext(ctx, true)
@@ -658,25 +799,1057 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 				meta.Warnings = append(meta.Warnings, "network io counters indisponiveis no final")
 			}
 			meta.EndedAtUnix = end.Unix()
-			applyEstimatedTraffic(flows, peers, deltas)
-			flowRows := c.sortedFlows(flows)
-			payload := capturePayload{
-				Capture:        meta,
-				Flows:          flowRows,
-				SocketSnapshot: c.buildSocketSnapshot(flows),
-				Peers:          c.sortedPeers(peers),
-				Listeners:      c.sortedListeners(listeners),
-				Interfaces:     deltas,
-				LocalCtx:       localCtx,
-			}
-			return json.Marshal(payload)
+			return finalize(deltas)
 		case <-ticker.C:
 			sample()
 		}
 	}
 }
 
-func (c *collector) sortedFlows(flows map[flowKey]*flowAgg) []flowRow {
+func (c *collector) resolveOptions() passiveCollectOptions {
+	options := passiveCollectOptions{
+		requestedMode: "auto",
+		window:        c.window,
+		interval:      c.interval,
+		maxFlows:      c.maxFlows,
+		maxPeers:      c.maxPeers,
+		maxListeners:  c.maxListeners,
+		pcapEnabled:   false,
+		pcapDuration:  defaultPCAPDuration,
+		pcapPackets:   defaultPCAPPackets,
+		externalMax:   defaultExternalMax,
+	}
+	if c.prefs == nil {
+		options.window = clampDuration(options.window, minWindow, maxWindow, defaultWindow)
+		options.interval = clampDuration(options.interval, minInterval, maxInterval, defaultInterval)
+		options.maxFlows = clampInt(options.maxFlows, minMaxRows, maxMaxRows, defaultMaxFlows)
+		options.maxPeers = clampInt(options.maxPeers, minMaxRows, maxMaxRows, defaultMaxPeers)
+		options.maxListeners = clampInt(options.maxListeners, minMaxRows, maxMaxRows, defaultMaxListeners)
+		return options
+	}
+
+	prefs := c.prefs()
+	options.requestedMode = normalizePassiveMode(prefs.NetworkPassiveMode)
+	if prefs.NetworkCaptureWindowSec > 0 {
+		options.window = time.Duration(prefs.NetworkCaptureWindowSec) * time.Second
+	}
+	if prefs.NetworkCaptureSampleSec > 0 {
+		options.interval = time.Duration(prefs.NetworkCaptureSampleSec) * time.Second
+	}
+	if prefs.NetworkCaptureMaxFlows > 0 {
+		options.maxFlows = prefs.NetworkCaptureMaxFlows
+	}
+	if prefs.NetworkCaptureMaxPeers > 0 {
+		options.maxPeers = prefs.NetworkCaptureMaxPeers
+	}
+	if prefs.NetworkCaptureMaxListeners > 0 {
+		options.maxListeners = prefs.NetworkCaptureMaxListeners
+	}
+	options.pcapEnabled = prefs.NetworkPCAPEnabled
+	options.pcapIface = strings.TrimSpace(prefs.NetworkPCAPIface)
+	if prefs.NetworkPCAPDurationSec > 0 {
+		options.pcapDuration = time.Duration(prefs.NetworkPCAPDurationSec) * time.Second
+	}
+	if prefs.NetworkPCAPMaxPackets > 0 {
+		options.pcapPackets = prefs.NetworkPCAPMaxPackets
+	}
+	options.externalSpecs = append(options.externalSpecs, prefs.NetworkExternalSources...)
+	if prefs.NetworkExternalMaxRecords > 0 {
+		options.externalMax = prefs.NetworkExternalMaxRecords
+	}
+
+	options.window = clampDuration(options.window, minWindow, maxWindow, defaultWindow)
+	options.interval = clampDuration(options.interval, minInterval, maxInterval, defaultInterval)
+	options.maxFlows = clampInt(options.maxFlows, minMaxRows, maxMaxRows, defaultMaxFlows)
+	options.maxPeers = clampInt(options.maxPeers, minMaxRows, maxMaxRows, defaultMaxPeers)
+	options.maxListeners = clampInt(options.maxListeners, minMaxRows, maxMaxRows, defaultMaxListeners)
+	options.pcapDuration = clampDuration(options.pcapDuration, time.Second, maxPCAPDuration, defaultPCAPDuration)
+	options.pcapPackets = clampInt(options.pcapPackets, 16, maxPCAPPackets, defaultPCAPPackets)
+	options.externalMax = clampInt(options.externalMax, 100, maxExternalMax, defaultExternalMax)
+
+	if options.requestedMode == "pcap" {
+		options.pcapEnabled = true
+	}
+	return options
+}
+
+func normalizePassiveMode(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	switch value {
+	case "", "auto":
+		return "auto"
+	case "socket", "socket_snapshot":
+		return "socket"
+	case "netlink":
+		return "netlink"
+	case "pcap":
+		return "pcap"
+	case "ebpf":
+		return "ebpf"
+	default:
+		return "auto"
+	}
+}
+
+func clampDuration(value, minValue, maxValue, fallback time.Duration) time.Duration {
+	out := value
+	if out <= 0 {
+		out = fallback
+	}
+	if out < minValue {
+		out = minValue
+	}
+	if out > maxValue {
+		out = maxValue
+	}
+	return out
+}
+
+func clampInt(value, minValue, maxValue, fallback int) int {
+	out := value
+	if out <= 0 {
+		out = fallback
+	}
+	if out < minValue {
+		out = minValue
+	}
+	if out > maxValue {
+		out = maxValue
+	}
+	return out
+}
+
+func detectPassiveCapabilities() passiveCapabilities {
+	if runtime.GOOS != "linux" {
+		return passiveCapabilities{}
+	}
+	ebpfAvailable := false
+	if _, err := os.Stat("/sys/fs/bpf"); err == nil {
+		ebpfAvailable = true
+	}
+	if commandExists("bpftool") {
+		ebpfAvailable = true
+	}
+	return passiveCapabilities{
+		Netlink: commandExists("ip"),
+		PCAP:    commandExists("tcpdump"),
+		EBPF:    ebpfAvailable,
+	}
+}
+
+func commandExists(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
+}
+
+func (c *collector) enrichAdvancedPassive(
+	ctx context.Context,
+	advanced *passiveAdvancedPayload,
+	options passiveCollectOptions,
+	localCtx *localContext,
+	localIPs map[string]struct{},
+	meta *captureMeta,
+) {
+	if advanced == nil || meta == nil {
+		return
+	}
+	mode := normalizePassiveMode(options.requestedMode)
+	if mode == "socket" {
+		advanced.Sources = uniqueStrings(advanced.Sources, 8)
+		advanced.AppliedMode = "socket_snapshot"
+		if len(advanced.ExternalSources) > 0 {
+			advanced.AppliedMode += "+external"
+			meta.Mode = "passive_advanced"
+		} else {
+			meta.Mode = "passive"
+		}
+		return
+	}
+
+	runNetlink := false
+	runPCAP := false
+	switch mode {
+	case "auto":
+		runNetlink = true
+		runPCAP = options.pcapEnabled
+	case "netlink":
+		runNetlink = true
+	case "pcap":
+		runPCAP = true
+	case "ebpf":
+		runNetlink = true
+		if !advanced.Capabilities.EBPF {
+			meta.Warnings = append(meta.Warnings, "ebpf indisponível no host; fallback para socket/netlink")
+		} else {
+			meta.Warnings = append(meta.Warnings, "ebpf detectado; usando fallback seguro com socket/netlink nesta versão")
+		}
+	}
+
+	if runNetlink {
+		if !advanced.Capabilities.Netlink {
+			meta.Warnings = append(meta.Warnings, "netlink indisponível: comando ip não encontrado")
+		} else {
+			links, warningMsg := collectNetlinkLinks(ctx)
+			if warningMsg != "" {
+				meta.Warnings = append(meta.Warnings, warningMsg)
+			}
+			if len(links) > 0 {
+				advanced.NetlinkLinks = links
+				advanced.Sources = append(advanced.Sources, "netlink")
+			}
+		}
+	}
+
+	if runPCAP {
+		if !advanced.Capabilities.PCAP {
+			meta.Warnings = append(meta.Warnings, "pcap indisponível: tcpdump não encontrado")
+		} else {
+			iface := strings.TrimSpace(options.pcapIface)
+			if iface == "" {
+				iface = choosePCAPInterface(localCtx)
+			}
+			pcap, warningMsg := collectPCAPSummary(ctx, iface, options.pcapDuration, options.pcapPackets, localIPs)
+			if warningMsg != "" {
+				meta.Warnings = append(meta.Warnings, warningMsg)
+			}
+			if pcap != nil {
+				advanced.PCAP = pcap
+				advanced.Sources = append(advanced.Sources, "pcap")
+			}
+		}
+	}
+
+	advanced.Sources = uniqueStrings(advanced.Sources, 8)
+	advanced.AppliedMode = strings.Join(advanced.Sources, "+")
+	if advanced.AppliedMode == "" {
+		advanced.AppliedMode = "socket_snapshot"
+	}
+	if mode == "ebpf" && advanced.Capabilities.EBPF {
+		advanced.AppliedMode += "+ebpf_probe"
+	}
+	if len(advanced.Sources) > 1 || advanced.PCAP != nil || len(advanced.NetlinkLinks) > 0 || len(advanced.ExternalSources) > 0 || mode == "ebpf" {
+		meta.Mode = "passive_advanced"
+	}
+}
+
+func collectNetlinkLinks(ctx context.Context) ([]netlinkLinkRow, string) {
+	if runtime.GOOS != "linux" {
+		return nil, ""
+	}
+	raw, err := runCommand(ctx, 1500*time.Millisecond, "ip", "-j", "-s", "link", "show")
+	if err != nil {
+		return nil, "netlink indisponível: falha ao executar ip -j -s link"
+	}
+	rows := parseNetlinkLinksJSON(raw)
+	if len(rows) == 0 {
+		return nil, "netlink indisponível: saída vazia ou inválida"
+	}
+	return rows, ""
+}
+
+type netlinkJSONStats struct {
+	Bytes   uint64 `json:"bytes"`
+	Packets uint64 `json:"packets"`
+	Errors  uint64 `json:"errors"`
+	Dropped uint64 `json:"dropped"`
+}
+
+type netlinkJSONStatsPair struct {
+	RX netlinkJSONStats `json:"rx"`
+	TX netlinkJSONStats `json:"tx"`
+}
+
+type netlinkJSONLink struct {
+	IfName    string                `json:"ifname"`
+	OperState string                `json:"operstate"`
+	Address   string                `json:"address"`
+	MTU       int                   `json:"mtu"`
+	Stats64   *netlinkJSONStatsPair `json:"stats64"`
+	Stats     *netlinkJSONStatsPair `json:"stats"`
+}
+
+func parseNetlinkLinksJSON(raw []byte) []netlinkLinkRow {
+	var items []netlinkJSONLink
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return nil
+	}
+	out := make([]netlinkLinkRow, 0, len(items))
+	for _, item := range items {
+		ifName := strings.TrimSpace(item.IfName)
+		if ifName == "" {
+			continue
+		}
+		stats := item.Stats64
+		if stats == nil {
+			stats = item.Stats
+		}
+		row := netlinkLinkRow{
+			Name:         ifName,
+			OperState:    strings.ToLower(strings.TrimSpace(item.OperState)),
+			HardwareAddr: strings.TrimSpace(item.Address),
+			MTU:          item.MTU,
+		}
+		if stats != nil {
+			row.RXBytes = stats.RX.Bytes
+			row.RXPackets = stats.RX.Packets
+			row.RXErrors = stats.RX.Errors
+			row.RXDrops = stats.RX.Dropped
+			row.TXBytes = stats.TX.Bytes
+			row.TXPackets = stats.TX.Packets
+			row.TXErrors = stats.TX.Errors
+			row.TXDrops = stats.TX.Dropped
+		}
+		out = append(out, row)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	if len(out) > 128 {
+		out = out[:128]
+	}
+	return out
+}
+
+func choosePCAPInterface(localCtx *localContext) string {
+	if localCtx != nil {
+		for _, route := range localCtx.Routes {
+			if route.IsDefault && strings.TrimSpace(route.Interface) != "" {
+				return strings.TrimSpace(route.Interface)
+			}
+		}
+		for _, iface := range localCtx.Interfaces {
+			name := strings.TrimSpace(iface.Name)
+			if name == "" || strings.EqualFold(name, "lo") {
+				continue
+			}
+			if iface.IsUp {
+				return name
+			}
+		}
+	}
+	return "any"
+}
+
+func collectPCAPSummary(
+	ctx context.Context,
+	iface string,
+	duration time.Duration,
+	maxPackets int,
+	localIPs map[string]struct{},
+) (*pcapSummary, string) {
+	if runtime.GOOS != "linux" {
+		return nil, ""
+	}
+	iface = strings.TrimSpace(iface)
+	if iface == "" {
+		iface = "any"
+	}
+	duration = clampDuration(duration, time.Second, maxPCAPDuration, defaultPCAPDuration)
+	maxPackets = clampInt(maxPackets, 16, maxPCAPPackets, defaultPCAPPackets)
+	raw, err := runCommand(ctx, duration+1500*time.Millisecond, "tcpdump", "-i", iface, "-nn", "-q", "-l", "-c", strconv.Itoa(maxPackets))
+	summary := parseTCPDumpOutput(string(raw), localIPs)
+	summary.Interface = iface
+	summary.RequestedDuration = int(duration.Seconds())
+	summary.RequestedPackets = maxPackets
+	if err != nil && summary.CapturedPackets == 0 && len(summary.Flows) == 0 {
+		reason := strings.ToLower(string(raw))
+		switch {
+		case strings.Contains(reason, "permission denied"), strings.Contains(reason, "you don't have permission"):
+			return &summary, "pcap indisponível: permissão insuficiente para tcpdump"
+		case strings.Contains(reason, "no such device"):
+			return &summary, "pcap indisponível: interface de captura inválida"
+		default:
+			return &summary, "pcap controlado sem pacotes no período"
+		}
+	}
+	return &summary, ""
+}
+
+func runCommand(ctx context.Context, timeout time.Duration, name string, args ...string) ([]byte, error) {
+	if timeout <= 0 {
+		timeout = 2 * time.Second
+	}
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	cmd := exec.CommandContext(timeoutCtx, name, args...)
+	return cmd.CombinedOutput()
+}
+
+type pcapFlowKey struct {
+	proto      string
+	direction  string
+	localIP    string
+	localPort  uint32
+	remoteIP   string
+	remotePort uint32
+}
+
+func parseTCPDumpOutput(raw string, localIPs map[string]struct{}) pcapSummary {
+	lines := strings.Split(raw, "\n")
+	flows := make(map[pcapFlowKey]int)
+	out := pcapSummary{}
+	for _, line := range lines {
+		clean := strings.TrimSpace(line)
+		if clean == "" {
+			continue
+		}
+		out.CapturedPackets = parseTCPDumpCounter(clean, "packets captured", out.CapturedPackets)
+		out.ReceivedByFilter = parseTCPDumpCounter(clean, "packets received by filter", out.ReceivedByFilter)
+		out.DroppedByKernel = parseTCPDumpCounter(clean, "packets dropped by kernel", out.DroppedByKernel)
+
+		matches := tcpdumpLineRegex.FindStringSubmatch(clean)
+		if len(matches) != 5 {
+			continue
+		}
+		srcIP, srcPort := parseTCPDumpEndpoint(matches[2])
+		dstIP, dstPort := parseTCPDumpEndpoint(matches[3])
+		if srcIP == "" || dstIP == "" {
+			continue
+		}
+		direction, localIP, localPort, remoteIP, remotePort := inferPCAPDirection(srcIP, srcPort, dstIP, dstPort, localIPs)
+		key := pcapFlowKey{
+			proto:      inferPCAPProtocol(matches[4], srcPort, dstPort),
+			direction:  direction,
+			localIP:    localIP,
+			localPort:  localPort,
+			remoteIP:   remoteIP,
+			remotePort: remotePort,
+		}
+		flows[key]++
+	}
+
+	out.Flows = make([]pcapFlowRow, 0, len(flows))
+	for key, samples := range flows {
+		out.Flows = append(out.Flows, pcapFlowRow{
+			Protocol:   key.proto,
+			Direction:  key.direction,
+			LocalIP:    key.localIP,
+			LocalPort:  key.localPort,
+			RemoteIP:   key.remoteIP,
+			RemotePort: key.remotePort,
+			Samples:    samples,
+		})
+	}
+	sort.Slice(out.Flows, func(i, j int) bool {
+		if out.Flows[i].Samples == out.Flows[j].Samples {
+			if out.Flows[i].RemoteIP == out.Flows[j].RemoteIP {
+				return out.Flows[i].RemotePort < out.Flows[j].RemotePort
+			}
+			return out.Flows[i].RemoteIP < out.Flows[j].RemoteIP
+		}
+		return out.Flows[i].Samples > out.Flows[j].Samples
+	})
+	if len(out.Flows) > 200 {
+		out.Flows = out.Flows[:200]
+	}
+	return out
+}
+
+func parseTCPDumpCounter(line, suffix string, fallback int) int {
+	if !strings.HasSuffix(line, suffix) {
+		return fallback
+	}
+	idx := strings.Index(line, " ")
+	if idx <= 0 {
+		return fallback
+	}
+	value, err := strconv.Atoi(strings.TrimSpace(line[:idx]))
+	if err != nil || value < 0 {
+		return fallback
+	}
+	return value
+}
+
+func parseTCPDumpEndpoint(raw string) (string, uint32) {
+	value := strings.TrimSpace(strings.TrimSuffix(raw, ","))
+	value = strings.Trim(value, "[]")
+	if value == "" {
+		return "", 0
+	}
+	if idx := strings.LastIndex(value, "."); idx > 0 {
+		portValue := strings.TrimSpace(value[idx+1:])
+		port, err := strconv.Atoi(portValue)
+		if err == nil && port >= 0 && port <= 65535 {
+			host := strings.TrimSpace(value[:idx])
+			if host != "" {
+				return normalizeEndpointHost(host), uint32(port)
+			}
+		}
+	}
+	return normalizeEndpointHost(value), 0
+}
+
+func normalizeEndpointHost(raw string) string {
+	host := strings.TrimSpace(raw)
+	if i := strings.Index(host, "%"); i > 0 {
+		host = host[:i]
+	}
+	host = strings.Trim(host, "[]")
+	return host
+}
+
+func inferPCAPDirection(
+	srcIP string,
+	srcPort uint32,
+	dstIP string,
+	dstPort uint32,
+	localIPs map[string]struct{},
+) (direction, localIP string, localPort uint32, remoteIP string, remotePort uint32) {
+	srcLocal := isLocalPeerIP(srcIP, localIPs)
+	dstLocal := isLocalPeerIP(dstIP, localIPs)
+	switch {
+	case srcLocal && !dstLocal:
+		return "egress", srcIP, srcPort, dstIP, dstPort
+	case dstLocal && !srcLocal:
+		return "ingress", dstIP, dstPort, srcIP, srcPort
+	case srcLocal && dstLocal:
+		return "lateral", srcIP, srcPort, dstIP, dstPort
+	default:
+		return "unknown", srcIP, srcPort, dstIP, dstPort
+	}
+}
+
+func isLocalPeerIP(ipRaw string, localIPs map[string]struct{}) bool {
+	value := strings.TrimSpace(ipRaw)
+	if value == "" {
+		return false
+	}
+	if _, ok := localIPs[value]; ok {
+		return true
+	}
+	parsed := net.ParseIP(value)
+	return parsed != nil && parsed.IsLoopback()
+}
+
+func inferPCAPProtocol(payload string, srcPort, dstPort uint32) string {
+	upper := strings.ToUpper(strings.TrimSpace(payload))
+	if strings.Contains(upper, "UDP") {
+		return "udp"
+	}
+	if strings.Contains(upper, "ICMP") {
+		return "ip"
+	}
+	if strings.Contains(upper, "FLAGS") || strings.Contains(upper, "SEQ") || strings.Contains(upper, "ACK") {
+		return "tcp"
+	}
+	if srcPort == 53 || dstPort == 53 {
+		return "udp"
+	}
+	if srcPort > 0 || dstPort > 0 {
+		return "tcp"
+	}
+	return "ip"
+}
+
+var externalSourceTypes = map[string]struct{}{
+	"firewall": {},
+	"ndr":      {},
+	"siem":     {},
+	"netflow":  {},
+	"sflow":    {},
+	"ipfix":    {},
+}
+
+func mergeExternalSources(
+	options passiveCollectOptions,
+	localIPs map[string]struct{},
+	flows map[flowKey]*flowAgg,
+	peers map[peerKey]*peerAgg,
+	meta *captureMeta,
+) []externalSourceStatus {
+	if len(options.externalSpecs) == 0 {
+		return nil
+	}
+	statuses := make([]externalSourceStatus, 0, len(options.externalSpecs))
+	for _, rawSpec := range options.externalSpecs {
+		specType, specPath := parseExternalSourceSpec(rawSpec)
+		status := externalSourceStatus{Type: specType, Path: specPath}
+		if specPath == "" {
+			status.LastError = "fonte externa inválida"
+			statuses = append(statuses, status)
+			continue
+		}
+		observations, dropped, err := readExternalSource(specType, specPath, options.externalMax)
+		status.Parsed = len(observations)
+		status.Dropped = dropped
+		if err != nil {
+			status.LastError = err.Error()
+			meta.Warnings = append(meta.Warnings, "fonte externa indisponível: "+specType+" "+specPath)
+		}
+		for _, obs := range observations {
+			mergeExternalObservation(obs, localIPs, flows, peers)
+		}
+		statuses = append(statuses, status)
+	}
+	return statuses
+}
+
+func parseExternalSourceSpec(raw string) (sourceType, path string) {
+	spec := strings.TrimSpace(raw)
+	if spec == "" {
+		return "siem", ""
+	}
+	parts := strings.SplitN(spec, ":", 2)
+	if len(parts) == 2 {
+		rawType := strings.ToLower(strings.TrimSpace(parts[0]))
+		if _, known := externalSourceTypes[rawType]; known {
+			p := strings.TrimSpace(parts[1])
+			if p != "" {
+				return rawType, p
+			}
+		}
+	}
+	detectedType := normalizeExternalTypeFromPath(spec)
+	return detectedType, spec
+}
+
+func normalizeExternalSourceType(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if value == "" || value == "auto" {
+		return "siem"
+	}
+	if _, ok := externalSourceTypes[value]; ok {
+		return value
+	}
+	return "siem"
+}
+
+func normalizeExternalTypeFromPath(path string) string {
+	name := strings.ToLower(strings.TrimSpace(filepath.Base(path)))
+	switch {
+	case strings.Contains(name, "netflow"):
+		return "netflow"
+	case strings.Contains(name, "sflow"):
+		return "sflow"
+	case strings.Contains(name, "ipfix"):
+		return "ipfix"
+	case strings.Contains(name, "firewall"), strings.Contains(name, "fw"):
+		return "firewall"
+	case strings.Contains(name, "ndr"):
+		return "ndr"
+	default:
+		return "siem"
+	}
+}
+
+func readExternalSource(sourceType, path string, maxRows int) ([]externalObservation, int, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	buffer := make([]byte, 0, 1024*64)
+	scanner.Buffer(buffer, 1024*1024)
+	observations := make([]externalObservation, 0, minInt(maxRows, 256))
+	dropped := 0
+	for scanner.Scan() {
+		if len(observations) >= maxRows {
+			dropped++
+			continue
+		}
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		obs, ok := parseExternalObservationLine(sourceType, line)
+		if !ok {
+			dropped++
+			continue
+		}
+		observations = append(observations, obs)
+	}
+	if err := scanner.Err(); err != nil {
+		return observations, dropped, err
+	}
+	return observations, dropped, nil
+}
+
+func parseExternalObservationLine(sourceType, line string) (externalObservation, bool) {
+	var payload map[string]any
+	if strings.HasPrefix(strings.TrimSpace(line), "{") {
+		if err := json.Unmarshal([]byte(line), &payload); err != nil {
+			return externalObservation{}, false
+		}
+		payload = normalizeAnyMapKeys(payload)
+	} else {
+		payload = parseExternalKVLine(line)
+	}
+	if len(payload) == 0 {
+		return externalObservation{}, false
+	}
+	obs := externalObservation{
+		sourceType: normalizeExternalSourceType(sourceType),
+		protocol:   normalizeProtocol(getStringAny(payload, "protocol", "proto", "l4_protocol", "ip_protocol")),
+		direction:  normalizeDirection(getStringAny(payload, "direction", "flow_direction", "traffic_direction")),
+		state:      strings.ToUpper(strings.TrimSpace(getStringAny(payload, "state", "conn_state", "tcp_state"))),
+		srcIP:      strings.TrimSpace(getStringAny(payload, "src_ip", "source_ip", "src_addr", "ipv4_src_addr", "ipv6_src_addr", "client_ip")),
+		dstIP:      strings.TrimSpace(getStringAny(payload, "dst_ip", "destination_ip", "dst_addr", "ipv4_dst_addr", "ipv6_dst_addr", "remote_ip", "server_ip")),
+		srcPort:    uint32(getIntAny(payload, "src_port", "source_port", "l4_src_port", "client_port")),
+		dstPort:    uint32(getIntAny(payload, "dst_port", "destination_port", "l4_dst_port", "remote_port", "server_port")),
+		bytes:      getIntAny(payload, "bytes", "octets", "byte_count", "in_bytes", "out_bytes"),
+		packets:    getIntAny(payload, "packets", "pkts", "packet_count", "in_pkts", "out_pkts"),
+		firstSeen:  getTimeAny(payload, "first_seen", "start_time", "flow_start", "timestamp", "@timestamp", "time"),
+		lastSeen:   getTimeAny(payload, "last_seen", "end_time", "flow_end", "timestamp", "@timestamp", "time"),
+		dnsQuery:   normalizeResolutionHost(getStringAny(payload, "dns_query", "query", "domain", "host")),
+		dnsAnswer:  strings.TrimSpace(getStringAny(payload, "dns_answer", "resolved_ip", "answer")),
+		sni:        normalizeResolutionHost(getStringAny(payload, "sni", "tls_sni")),
+		tlsSubject: normalizeResolutionHost(getStringAny(payload, "tls_subject", "subject", "x509_subject")),
+		resetHits:  getIntAny(payload, "resets", "tcp_resets", "rst_count"),
+		timeoutHits: getIntAny(payload,
+			"timeouts", "timeout_count"),
+	}
+	if obs.firstSeen == 0 {
+		obs.firstSeen = time.Now().UTC().Unix()
+	}
+	if obs.lastSeen == 0 || obs.lastSeen < obs.firstSeen {
+		obs.lastSeen = obs.firstSeen
+	}
+	if obs.srcIP == "" || obs.dstIP == "" {
+		return externalObservation{}, false
+	}
+	return obs, true
+}
+
+func normalizeAnyMapKeys(raw map[string]any) map[string]any {
+	out := make(map[string]any, len(raw))
+	for key, value := range raw {
+		out[strings.ToLower(strings.TrimSpace(key))] = value
+	}
+	return out
+}
+
+func parseExternalKVLine(line string) map[string]any {
+	fields := strings.Fields(line)
+	out := make(map[string]any, len(fields))
+	for _, token := range fields {
+		if !strings.Contains(token, "=") {
+			continue
+		}
+		kv := strings.SplitN(token, "=", 2)
+		key := strings.ToLower(strings.TrimSpace(kv[0]))
+		value := strings.Trim(strings.TrimSpace(kv[1]), `"'`)
+		if key == "" || value == "" {
+			continue
+		}
+		out[key] = value
+	}
+	return out
+}
+
+func getStringAny(payload map[string]any, keys ...string) string {
+	for _, key := range keys {
+		raw, ok := payload[key]
+		if !ok {
+			continue
+		}
+		switch value := raw.(type) {
+		case string:
+			if strings.TrimSpace(value) != "" {
+				return strings.TrimSpace(value)
+			}
+		case float64:
+			return strconv.FormatFloat(value, 'f', -1, 64)
+		case int:
+			return strconv.Itoa(value)
+		case json.Number:
+			return value.String()
+		}
+	}
+	return ""
+}
+
+func getIntAny(payload map[string]any, keys ...string) int {
+	for _, key := range keys {
+		raw, ok := payload[key]
+		if !ok {
+			continue
+		}
+		switch value := raw.(type) {
+		case float64:
+			return int(value)
+		case float32:
+			return int(value)
+		case int:
+			return value
+		case int64:
+			return int(value)
+		case uint64:
+			return int(value)
+		case string:
+			n, err := strconv.Atoi(strings.TrimSpace(value))
+			if err == nil {
+				return n
+			}
+		case json.Number:
+			n, err := value.Int64()
+			if err == nil {
+				return int(n)
+			}
+		}
+	}
+	return 0
+}
+
+func getTimeAny(payload map[string]any, keys ...string) int64 {
+	for _, key := range keys {
+		raw, ok := payload[key]
+		if !ok {
+			continue
+		}
+		switch value := raw.(type) {
+		case float64:
+			return normalizeUnixTime(int64(value))
+		case int:
+			return normalizeUnixTime(int64(value))
+		case int64:
+			return normalizeUnixTime(value)
+		case string:
+			trimmed := strings.TrimSpace(value)
+			if trimmed == "" {
+				continue
+			}
+			if n, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
+				return normalizeUnixTime(n)
+			}
+			if ts, err := time.Parse(time.RFC3339, trimmed); err == nil {
+				return ts.UTC().Unix()
+			}
+		case json.Number:
+			if n, err := value.Int64(); err == nil {
+				return normalizeUnixTime(n)
+			}
+		}
+	}
+	return 0
+}
+
+func normalizeUnixTime(value int64) int64 {
+	if value <= 0 {
+		return 0
+	}
+	if value > 1_000_000_000_000 {
+		return value / 1000
+	}
+	return value
+}
+
+func normalizeProtocol(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	switch value {
+	case "6", "tcp":
+		return "tcp"
+	case "17", "udp":
+		return "udp"
+	case "1", "58", "icmp", "icmpv6":
+		return "ip"
+	case "":
+		return "ip"
+	default:
+		return value
+	}
+}
+
+func normalizeDirection(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	switch value {
+	case "inbound", "ingress", "entrada":
+		return "ingress"
+	case "outbound", "egress", "saida", "saída":
+		return "egress"
+	case "lateral":
+		return "lateral"
+	default:
+		return ""
+	}
+}
+
+func mergeExternalObservation(
+	obs externalObservation,
+	localIPs map[string]struct{},
+	flows map[flowKey]*flowAgg,
+	peers map[peerKey]*peerAgg,
+) {
+	direction := obs.direction
+	localIP := obs.srcIP
+	localPort := obs.srcPort
+	remoteIP := obs.dstIP
+	remotePort := obs.dstPort
+	if direction == "" {
+		direction, localIP, localPort, remoteIP, remotePort = inferPCAPDirection(obs.srcIP, obs.srcPort, obs.dstIP, obs.dstPort, localIPs)
+	}
+	scope := remoteScope(remoteIP, localIPs)
+	reverseDNS := normalizeResolutionHost(obs.dnsQuery)
+	if reverseDNS == "" {
+		reverseDNS = normalizeResolutionHost(obs.sni)
+	}
+	baseRisk := classifyNetworkRisk(remotePort, scope, direction, obs.protocol)
+	failureRisk := classifyNetworkFailureRisk(
+		remotePort,
+		scope,
+		direction,
+		obs.protocol,
+		obs.state,
+		obs.dnsQuery,
+		obs.dnsAnswer,
+		1,
+		obs.resetHits,
+		obs.timeoutHits,
+	)
+	key := flowKey{
+		proto:       normalizeProtocol(obs.protocol),
+		direction:   direction,
+		localIP:     localIP,
+		localPort:   localPort,
+		remoteIP:    remoteIP,
+		remotePort:  remotePort,
+		pid:         0,
+		parentPID:   0,
+		process:     "ext_" + obs.sourceType,
+		serviceName: obs.sourceType,
+	}
+	flow, ok := flows[key]
+	if !ok {
+		flow = &flowAgg{
+			reasons: make(map[string]struct{}),
+			tags:    make(map[string]struct{}),
+		}
+		flows[key] = flow
+	}
+	flow.samples++
+	if flow.firstSeen == 0 || obs.firstSeen < flow.firstSeen {
+		flow.firstSeen = obs.firstSeen
+	}
+	if obs.lastSeen > flow.lastSeen {
+		flow.lastSeen = obs.lastSeen
+	}
+	flow.state = obs.state
+	flow.scope = scope
+	if flow.reverseDNS == "" {
+		flow.reverseDNS = reverseDNS
+	}
+	if flow.dnsQuery == "" {
+		flow.dnsQuery = obs.dnsQuery
+	}
+	if flow.dnsAnswer == "" {
+		flow.dnsAnswer = obs.dnsAnswer
+	}
+	if flow.sni == "" {
+		flow.sni = obs.sni
+	}
+	if flow.tlsSubject == "" {
+		flow.tlsSubject = obs.tlsSubject
+	}
+	if obs.bytes > 0 {
+		if direction == "ingress" {
+			flow.bytesIn += obs.bytes
+		} else if direction == "egress" {
+			flow.bytesOut += obs.bytes
+		} else {
+			half := obs.bytes / 2
+			flow.bytesIn += half
+			flow.bytesOut += obs.bytes - half
+		}
+	}
+	if obs.packets > 0 {
+		if direction == "ingress" {
+			flow.packetsIn += obs.packets
+		} else if direction == "egress" {
+			flow.packetsOut += obs.packets
+		} else {
+			half := obs.packets / 2
+			flow.packetsIn += half
+			flow.packetsOut += obs.packets - half
+		}
+	}
+	deltaBytesIn := 0
+	deltaBytesOut := 0
+	deltaPacketsIn := 0
+	deltaPacketsOut := 0
+	if obs.bytes > 0 {
+		if direction == "ingress" {
+			deltaBytesIn = obs.bytes
+		} else if direction == "egress" {
+			deltaBytesOut = obs.bytes
+		} else {
+			deltaBytesIn = obs.bytes / 2
+			deltaBytesOut = obs.bytes - deltaBytesIn
+		}
+	}
+	if obs.packets > 0 {
+		if direction == "ingress" {
+			deltaPacketsIn = obs.packets
+		} else if direction == "egress" {
+			deltaPacketsOut = obs.packets
+		} else {
+			deltaPacketsIn = obs.packets / 2
+			deltaPacketsOut = obs.packets - deltaPacketsIn
+		}
+	}
+	flow.resetHits += maxInt(obs.resetHits, 0)
+	flow.timeoutHits += maxInt(obs.timeoutHits, 0)
+	mergeNetworkRisk(&flow.problematic, flow.reasons, flow.tags, baseRisk)
+	mergeNetworkRisk(&flow.problematic, flow.reasons, flow.tags, failureRisk)
+
+	pk := peerKey{
+		proto:      key.proto,
+		direction:  direction,
+		remoteIP:   remoteIP,
+		remotePort: remotePort,
+		scope:      scope,
+	}
+	peer, ok := peers[pk]
+	if !ok {
+		peer = &peerAgg{
+			processes:    make(map[string]struct{}),
+			serviceNames: make(map[string]struct{}),
+			processUsers: make(map[string]struct{}),
+			reasons:      make(map[string]struct{}),
+			tags:         make(map[string]struct{}),
+		}
+		peers[pk] = peer
+	}
+	peer.samples++
+	if peer.firstSeen == 0 || obs.firstSeen < peer.firstSeen {
+		peer.firstSeen = obs.firstSeen
+	}
+	if obs.lastSeen > peer.lastSeen {
+		peer.lastSeen = obs.lastSeen
+	}
+	if peer.reverseDNS == "" {
+		peer.reverseDNS = reverseDNS
+	}
+	if peer.dnsQuery == "" {
+		peer.dnsQuery = obs.dnsQuery
+	}
+	if peer.dnsAnswer == "" {
+		peer.dnsAnswer = obs.dnsAnswer
+	}
+	if peer.sni == "" {
+		peer.sni = obs.sni
+	}
+	if peer.tlsSubject == "" {
+		peer.tlsSubject = obs.tlsSubject
+	}
+	peer.bytesIn += deltaBytesIn
+	peer.bytesOut += deltaBytesOut
+	peer.packetsIn += deltaPacketsIn
+	peer.packetsOut += deltaPacketsOut
+	peer.resetHits += maxInt(obs.resetHits, 0)
+	peer.timeoutHits += maxInt(obs.timeoutHits, 0)
+	peer.processes["ext_"+obs.sourceType] = struct{}{}
+	peer.serviceNames[obs.sourceType] = struct{}{}
+	mergeNetworkRisk(&peer.problematic, peer.reasons, peer.tags, baseRisk)
+	mergeNetworkRisk(&peer.problematic, peer.reasons, peer.tags, failureRisk)
+}
+
+func minInt(a, b int) int {
+	if a <= b {
+		return a
+	}
+	return b
+}
+
+func (c *collector) sortedFlows(flows map[flowKey]*flowAgg, sampleInterval time.Duration, maxFlows int) []flowRow {
 	out := make([]flowRow, 0, len(flows))
 	for k, v := range flows {
 		out = append(out, flowRow{
@@ -708,7 +1881,7 @@ func (c *collector) sortedFlows(flows map[flowKey]*flowAgg) []flowRow {
 			PacketsOut:        v.packetsOut,
 			ResetHits:         v.resetHits,
 			TimeoutHits:       v.timeoutHits,
-			AvgDurationSec:    estimateAvgDurationSec(v.firstSeen, v.lastSeen, c.interval),
+			AvgDurationSec:    estimateAvgDurationSec(v.firstSeen, v.lastSeen, sampleInterval),
 			IsProblematic:     v.problematic,
 			ProblematicReason: joinSortedSet(v.reasons, " | "),
 			RiskTags:          sortedSetValues(v.tags, 6),
@@ -724,13 +1897,13 @@ func (c *collector) sortedFlows(flows map[flowKey]*flowAgg) []flowRow {
 		}
 		return out[i].Samples > out[j].Samples
 	})
-	if len(out) > c.maxFlows {
-		out = out[:c.maxFlows]
+	if len(out) > maxFlows {
+		out = out[:maxFlows]
 	}
 	return out
 }
 
-func (c *collector) buildSocketSnapshot(flows map[flowKey]*flowAgg) []socketSnapshotRow {
+func (c *collector) buildSocketSnapshot(flows map[flowKey]*flowAgg, sampleInterval time.Duration, maxFlows int) []socketSnapshotRow {
 	merged := make(map[socketSnapshotKey]*socketSnapshotAgg)
 	for k, v := range flows {
 		sk := socketSnapshotKey{
@@ -772,7 +1945,7 @@ func (c *collector) buildSocketSnapshot(flows map[flowKey]*flowAgg) []socketSnap
 		agg.bytesOut += v.bytesOut
 		agg.packetsIn += v.packetsIn
 		agg.packetsOut += v.packetsOut
-		avgDurationSec := estimateAvgDurationSec(v.firstSeen, v.lastSeen, c.interval)
+		avgDurationSec := estimateAvgDurationSec(v.firstSeen, v.lastSeen, sampleInterval)
 		if avgDurationSec > 0 {
 			weight := float64(maxInt(v.samples, 1))
 			agg.durationWeighted += avgDurationSec * weight
@@ -822,13 +1995,13 @@ func (c *collector) buildSocketSnapshot(flows map[flowKey]*flowAgg) []socketSnap
 		}
 		return out[i].Samples > out[j].Samples
 	})
-	if len(out) > c.maxFlows {
-		out = out[:c.maxFlows]
+	if len(out) > maxFlows {
+		out = out[:maxFlows]
 	}
 	return out
 }
 
-func (c *collector) sortedPeers(peers map[peerKey]*peerAgg) []peerRow {
+func (c *collector) sortedPeers(peers map[peerKey]*peerAgg, sampleInterval time.Duration, maxPeers int) []peerRow {
 	out := make([]peerRow, 0, len(peers))
 	for k, v := range peers {
 		processes := make([]string, 0, len(v.processes))
@@ -881,7 +2054,7 @@ func (c *collector) sortedPeers(peers map[peerKey]*peerAgg) []peerRow {
 			PacketsOut:        v.packetsOut,
 			ResetHits:         v.resetHits,
 			TimeoutHits:       v.timeoutHits,
-			AvgDurationSec:    estimateAvgDurationSec(v.firstSeen, v.lastSeen, c.interval),
+			AvgDurationSec:    estimateAvgDurationSec(v.firstSeen, v.lastSeen, sampleInterval),
 			IsProblematic:     v.problematic,
 			ProblematicReason: joinSortedSet(v.reasons, " | "),
 			RiskTags:          sortedSetValues(v.tags, 6),
@@ -896,13 +2069,13 @@ func (c *collector) sortedPeers(peers map[peerKey]*peerAgg) []peerRow {
 		}
 		return out[i].Samples > out[j].Samples
 	})
-	if len(out) > c.maxPeers {
-		out = out[:c.maxPeers]
+	if len(out) > maxPeers {
+		out = out[:maxPeers]
 	}
 	return out
 }
 
-func (c *collector) sortedListeners(listeners map[listenerKey]*listenerAgg) []listenerRow {
+func (c *collector) sortedListeners(listeners map[listenerKey]*listenerAgg, maxListeners int) []listenerRow {
 	out := make([]listenerRow, 0, len(listeners))
 	for k, v := range listeners {
 		out = append(out, listenerRow{
@@ -929,8 +2102,8 @@ func (c *collector) sortedListeners(listeners map[listenerKey]*listenerAgg) []li
 		}
 		return out[i].Samples > out[j].Samples
 	})
-	if len(out) > c.maxListeners {
-		out = out[:c.maxListeners]
+	if len(out) > maxListeners {
+		out = out[:maxListeners]
 	}
 	return out
 }
@@ -988,6 +2161,9 @@ func applyEstimatedTraffic(flows map[flowKey]*flowAgg, peers map[peerKey]*peerAg
 	}
 	totalSamples := 0
 	for _, flow := range flows {
+		if flow.bytesIn > 0 || flow.bytesOut > 0 || flow.packetsIn > 0 || flow.packetsOut > 0 {
+			continue
+		}
 		totalSamples += maxInt(flow.samples, 1)
 	}
 	if totalSamples <= 0 {
@@ -995,6 +2171,9 @@ func applyEstimatedTraffic(flows map[flowKey]*flowAgg, peers map[peerKey]*peerAg
 	}
 
 	for key, flow := range flows {
+		if flow.bytesIn > 0 || flow.bytesOut > 0 || flow.packetsIn > 0 || flow.packetsOut > 0 {
+			continue
+		}
 		weight := float64(maxInt(flow.samples, 1)) / float64(totalSamples)
 		direction := strings.ToLower(strings.TrimSpace(key.direction))
 		var bytesIn uint64

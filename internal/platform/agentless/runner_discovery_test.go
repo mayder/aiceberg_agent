@@ -10,9 +10,12 @@ import (
 
 func TestParseDiscoveryPolicyBasic(t *testing.T) {
 	cfg := map[string]any{
+		"mode":            "active_assisted",
+		"active_opt_in":   true,
 		"allowed_cidrs":   []any{"172.31.0.0/30"},
 		"blocked_cidrs":   []string{"172.31.0.2/32"},
 		"rate_limit_pps":  99999,
+		"burst_size":      99999,
 		"max_hosts":       99999,
 		"window_start":    "22:00",
 		"window_end":      "06:00",
@@ -34,11 +37,42 @@ func TestParseDiscoveryPolicyBasic(t *testing.T) {
 	if p.RateLimitPPS != 2000 {
 		t.Fatalf("rate_limit_pps deveria ser clampado em 2000, obteve %d", p.RateLimitPPS)
 	}
+	if p.BurstSize != 500 {
+		t.Fatalf("burst_size deveria ser clampado em 500, obteve %d", p.BurstSize)
+	}
 	if p.MaxHosts != 4096 {
 		t.Fatalf("max_hosts deveria ser clampado em 4096, obteve %d", p.MaxHosts)
 	}
 	if p.AllowSNMP {
 		t.Fatalf("allow_snmp deveria ser false")
+	}
+	if !p.ActiveOptIn {
+		t.Fatalf("active_opt_in deveria estar habilitado")
+	}
+	if p.Mode != "active_assisted" {
+		t.Fatalf("mode esperado active_assisted, obteve %q", p.Mode)
+	}
+}
+
+func TestParseDiscoveryPolicyPassiveDefault(t *testing.T) {
+	p, err := parseDiscoveryPolicy(map[string]any{}, 1500)
+	if err != nil {
+		t.Fatalf("erro inesperado no modo passivo padrão: %v", err)
+	}
+	if p.ActiveOptIn {
+		t.Fatalf("active_opt_in deveria ser false por padrão")
+	}
+	if p.Mode != "passive_only" {
+		t.Fatalf("mode esperado passive_only, obteve %q", p.Mode)
+	}
+	if p.AllowARP || p.AllowSNMP || p.AllowLLDP || p.AllowCDP {
+		t.Fatalf("probes ativas devem ficar desabilitadas no modo passivo padrão")
+	}
+	if p.BurstSize != 1 {
+		t.Fatalf("burst_size padrão deveria ser 1, obteve %d", p.BurstSize)
+	}
+	if p.CollectionID == "" {
+		t.Fatalf("collection_id deveria ser preenchido automaticamente")
 	}
 }
 
@@ -94,5 +128,63 @@ func TestRunJobDiscoveryPolicyInvalid(t *testing.T) {
 	}
 	if obs.Code != "discovery_policy_invalid" {
 		t.Fatalf("code esperado discovery_policy_invalid, obteve %s", obs.Code)
+	}
+}
+
+func TestRunJobDiscoveryPassiveOnly(t *testing.T) {
+	job := entities.AgentlessJob{
+		CheckID:   1002,
+		Tipo:      "discovery_assisted",
+		TimeoutMs: 1200,
+		Config: entities.AgentlessConfig{
+			"mode":          "passive_only",
+			"active_opt_in": false,
+		},
+	}
+
+	obs := RunJob(context.Background(), job)
+	if obs.Status != "ok" {
+		t.Fatalf("status esperado ok, obteve %s", obs.Status)
+	}
+	if obs.Code != "discovery_passive_only" {
+		t.Fatalf("code esperado discovery_passive_only, obteve %s", obs.Code)
+	}
+}
+
+func TestParseDiscoveryPolicySegmentAllowlist(t *testing.T) {
+	cfg := map[string]any{
+		"mode":               "active_assisted",
+		"active_opt_in":      true,
+		"allowed_cidrs":      []string{"10.0.0.0/30"},
+		"allowlist_segments": []string{"internal_a", "dmz"},
+		"target_segments":    []string{"internal_a"},
+	}
+	p, err := parseDiscoveryPolicy(cfg, 1200)
+	if err != nil {
+		t.Fatalf("erro inesperado para allowlist válida: %v", err)
+	}
+	if len(p.TargetSegments) != 1 || p.TargetSegments[0] != "internal_a" {
+		t.Fatalf("target_segments inesperado: %#v", p.TargetSegments)
+	}
+}
+
+func TestParseDiscoveryPolicyAggressiveNeedsApproval(t *testing.T) {
+	cfg := map[string]any{
+		"mode":                "active_assisted",
+		"active_opt_in":       true,
+		"allowed_cidrs":       []string{"10.10.10.0/30"},
+		"fingerprint_profile": "aggressive",
+	}
+	if _, err := parseDiscoveryPolicy(cfg, 1200); err == nil {
+		t.Fatalf("esperava erro para fingerprint agressivo sem aprovação")
+	}
+
+	cfg["aggressive_fingerprint_approved"] = true
+	p, err := parseDiscoveryPolicy(cfg, 1200)
+	if err != nil {
+		t.Fatalf("erro inesperado com aprovação de fingerprint agressivo: %v", err)
+	}
+	if p.FingerprintProfile != "aggressive" {
+		t.Fatalf("fingerprint_profile esperado aggressive, obteve %q", p.FingerprintProfile)
 	}
 }

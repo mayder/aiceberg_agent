@@ -12,7 +12,11 @@ usage() {
 Uso:
   scripts/lab-simulacao.sh up
   scripts/lab-simulacao.sh down
+  scripts/lab-simulacao.sh rollback
   scripts/lab-simulacao.sh ps
+  scripts/lab-simulacao.sh guardrails
+  scripts/lab-simulacao.sh validate
+  scripts/lab-simulacao.sh acceptance
   scripts/lab-simulacao.sh logs [service]
   scripts/lab-simulacao.sh shell <service>
   scripts/lab-simulacao.sh restart [service]
@@ -92,7 +96,7 @@ main() {
   require_lab
 
   case "$cmd" in
-    up|down|ps)
+    up|down|rollback|ps|guardrails|validate|acceptance)
       run_lab "$cmd"
       ;;
     logs|restart)
