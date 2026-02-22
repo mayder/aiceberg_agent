@@ -130,6 +130,51 @@ No Windows:
 .\scripts\smoke.ps1
 ```
 
+## 🧪 Lab de Simulação Docker (multi-nós)
+
+Para facilitar os testes de rede/Hub/Relay sem depender de infra externa, use o wrapper:
+
+```bash
+scripts/lab-simulacao.sh up
+scripts/lab-simulacao.sh ps
+```
+
+Comandos principais:
+
+```bash
+# Diagnóstico do ambiente + status
+scripts/lab-simulacao.sh doctor
+
+# Copiar artefato linux-amd64 do dist para o lab
+scripts/lab-simulacao.sh copy-dist
+
+# Instalar e configurar agentes no lab
+scripts/lab-simulacao.sh install node-direct aiceberg-agent-linux-amd64.tar.gz
+scripts/lab-simulacao.sh install node-hub aiceberg-agent-linux-amd64.tar.gz
+scripts/lab-simulacao.sh install node-relay aiceberg-agent-linux-amd64.tar.gz
+
+scripts/lab-simulacao.sh configure node-direct direct TOKEN_DIRECT https://api.aiceberg.com.br
+scripts/lab-simulacao.sh configure node-hub hub TOKEN_HUB https://api.aiceberg.com.br
+scripts/lab-simulacao.sh configure node-relay relay TOKEN_RELAY https://api.aiceberg.com.br http://node-hub:9090 TOKEN_HUB
+
+scripts/lab-simulacao.sh start node-hub
+scripts/lab-simulacao.sh start node-relay
+scripts/lab-simulacao.sh start node-direct
+
+# Ver estado/logs
+scripts/lab-simulacao.sh status node-hub
+scripts/lab-simulacao.sh agent-logs node-hub
+```
+
+Encerrar lab:
+
+```bash
+scripts/lab-simulacao.sh down
+```
+
+Por padrão o wrapper usa `/Users/brenomayder/projects/simulacao/aiceberg_lab`.  
+Se mudar o caminho, use `AICEBERG_LAB_ROOT=/novo/caminho`.
+
 ---
 
 ## 🚀 Execução com vínculo por token (modo direto)

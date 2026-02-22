@@ -18,3 +18,10 @@ root = "/Users/brenomayder/projects/desktop/aiceberg_agent"
 roadmap = "/Users/brenomayder/projects/desktop/aiceberg_agent/QUALITY_ROADMAP.md"
 check = "./check.sh"
 env = "/Users/brenomayder/projects/desktop/aiceberg_agent/configs/agent.env.example"
+
+[simulation_lab]
+root = "/Users/brenomayder/projects/simulacao/aiceberg_lab"
+readme = "/Users/brenomayder/projects/simulacao/aiceberg_lab/README.md"
+orchestrator = "/Users/brenomayder/projects/simulacao/aiceberg_lab/scripts/lab.sh"
+agentctl = "/Users/brenomayder/projects/simulacao/aiceberg_lab/scripts/agentctl.sh"
+wrapper = "/Users/brenomayder/projects/desktop/aiceberg_agent/scripts/lab-simulacao.sh"
