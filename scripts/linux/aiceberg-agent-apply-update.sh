@@ -84,10 +84,10 @@ restart_manual() {
   fi
 
   if [[ -f "$AGENT_ENV_FILE" ]]; then
-    nohup env AGENT_ENV_FILE="$AGENT_ENV_FILE" "$target_bin" >>"$AGENT_STDOUT_LOG" 2>&1 < /dev/null &
+    nohup env AGENT_ENV_FILE="$AGENT_ENV_FILE" "$target_bin" >>"$AGENT_STDOUT_LOG" 2>&1 < /dev/null 9>&- &
   else
     log "AGENT_ENV_FILE não encontrado em $AGENT_ENV_FILE; iniciando sem env file explícito."
-    nohup "$target_bin" >>"$AGENT_STDOUT_LOG" 2>&1 < /dev/null &
+    nohup "$target_bin" >>"$AGENT_STDOUT_LOG" 2>&1 < /dev/null 9>&- &
   fi
   local new_pid="$!"
   echo "$new_pid" > "$AGENT_PID_FILE"

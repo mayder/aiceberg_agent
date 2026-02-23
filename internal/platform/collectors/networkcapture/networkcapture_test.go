@@ -1,8 +1,14 @@
 package networkcapture
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/you/aiceberg_agent/internal/common/config"
 )
 
 func TestInferDirection(t *testing.T) {
@@ -17,6 +23,7 @@ func TestInferDirection(t *testing.T) {
 		{name: "syn recv", state: "SYN_RECV", localPort: 443, remotePort: 54000, want: "ingress"},
 		{name: "listen", state: "LISTEN", localPort: 22, remotePort: 0, want: "listen"},
 		{name: "ephemeral local", state: "ESTABLISHED", localPort: 55000, remotePort: 443, want: "egress"},
+		{name: "linux ephemeral local", state: "ESTABLISHED", localPort: 32780, remotePort: 443, want: "egress"},
 		{name: "ephemeral remote", state: "ESTABLISHED", localPort: 443, remotePort: 55000, want: "ingress"},
 		{name: "same ports", state: "ESTABLISHED", localPort: 8080, remotePort: 8080, want: "lateral"},
 		{name: "fallback", state: "ESTABLISHED", localPort: 443, remotePort: 80, want: "unknown"},
@@ -380,6 +387,9 @@ func TestConnectionQualityHelpers(t *testing.T) {
 	if !isTimeoutLikeState("SYN_SENT") {
 		t.Fatalf("expected SYN_SENT as timeout-like state")
 	}
+	if isTimeoutLikeState("TIME_WAIT") {
+		t.Fatalf("TIME_WAIT must not be timeout-like state")
+	}
 	if isTimeoutLikeState("ESTABLISHED") {
 		t.Fatalf("ESTABLISHED must not be timeout-like state")
 	}
@@ -553,5 +563,178 @@ func TestMergeExternalObservation(t *testing.T) {
 		if flow.bytesOut <= 0 {
 			t.Fatalf("expected outbound bytes from external flow, got %d", flow.bytesOut)
 		}
+	}
+}
+
+func TestResolveOptionsAppliesCaptureTimeoutBounds(t *testing.T) {
+	c := &collector{
+		prefs: func() config.CollectPrefs {
+			return config.CollectPrefs{
+				NetworkCaptureSampleSec: 2,
+				NetworkCaptureTimeoutMs: 22000,
+			}
+		},
+		window:       defaultWindow,
+		interval:     defaultInterval,
+		maxFlows:     defaultMaxFlows,
+		maxPeers:     defaultMaxPeers,
+		maxListeners: defaultMaxListeners,
+	}
+	got := c.resolveOptions()
+	if got.commandTimeout != maxCmdTimeout {
+		t.Fatalf("resolveOptions().commandTimeout = %v, want %v", got.commandTimeout, maxCmdTimeout)
+	}
+
+	c.prefs = func() config.CollectPrefs {
+		return config.CollectPrefs{
+			NetworkCaptureTimeoutMs: 300,
+		}
+	}
+	got = c.resolveOptions()
+	if got.commandTimeout != minCmdTimeout {
+		t.Fatalf("resolveOptions().commandTimeout = %v, want %v", got.commandTimeout, minCmdTimeout)
+	}
+}
+
+func TestBuildCaptureSourceScore(t *testing.T) {
+	options := passiveCollectOptions{
+		requestedMode: "auto",
+		pcapEnabled:   false,
+	}
+	advanced := &passiveAdvancedPayload{
+		Sources: []string{"socket_snapshot", "netlink"},
+	}
+	high := buildCaptureSourceScore(options, advanced, nil)
+	if high.Label != "high" {
+		t.Fatalf("expected high label, got %q", high.Label)
+	}
+	if high.Score < 80 {
+		t.Fatalf("expected score >= 80, got %d", high.Score)
+	}
+
+	advanced.Sources = []string{"socket_snapshot"}
+	low := buildCaptureSourceScore(passiveCollectOptions{
+		requestedMode: "pcap",
+		pcapEnabled:   true,
+	}, advanced, []string{"pcap indisponível"})
+	if low.Label != "low" {
+		t.Fatalf("expected low label, got %q (score=%d)", low.Label, low.Score)
+	}
+	if low.Score >= 50 {
+		t.Fatalf("expected score < 50, got %d", low.Score)
+	}
+	if low.Reason == "" {
+		t.Fatalf("expected non-empty reason")
+	}
+}
+
+func TestParseExternalSourceAdapterSpec(t *testing.T) {
+	tests := []struct {
+		name       string
+		raw        string
+		wantType   string
+		wantSource string
+		wantTarget string
+	}{
+		{
+			name:       "legacy file with explicit type",
+			raw:        "netflow:/tmp/flows.jsonl",
+			wantType:   "netflow",
+			wantSource: "file",
+			wantTarget: "/tmp/flows.jsonl",
+		},
+		{
+			name:       "explicit file adapter",
+			raw:        "ipfix:file:/tmp/ipfix.log",
+			wantType:   "ipfix",
+			wantSource: "file",
+			wantTarget: "/tmp/ipfix.log",
+		},
+		{
+			name:       "http fallback with explicit type",
+			raw:        "sflow:https://collector.local/sflow",
+			wantType:   "sflow",
+			wantSource: "http",
+			wantTarget: "https://collector.local/sflow",
+		},
+		{
+			name:       "http raw url",
+			raw:        "https://collector.local/netflow",
+			wantType:   "netflow",
+			wantSource: "http",
+			wantTarget: "https://collector.local/netflow",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := parseExternalSourceAdapterSpec(tt.raw)
+			if spec.SourceType != tt.wantType {
+				t.Fatalf("source type = %q, want %q", spec.SourceType, tt.wantType)
+			}
+			if spec.Adapter != tt.wantSource {
+				t.Fatalf("adapter = %q, want %q", spec.Adapter, tt.wantSource)
+			}
+			if spec.Target != tt.wantTarget {
+				t.Fatalf("target = %q, want %q", spec.Target, tt.wantTarget)
+			}
+		})
+	}
+}
+
+func TestReadExternalSourceWithAdapterHTTP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{"src_ip":"10.0.0.10","dst_ip":"198.51.100.10","src_port":53000,"dst_port":443,"protocol":"tcp","bytes":900,"packets":9},
+			{"src_ip":"10.0.0.10","dst_ip":"198.51.100.11","src_port":53001,"dst_port":53,"protocol":"udp","bytes":300,"packets":3}
+		]`))
+	}))
+	defer srv.Close()
+
+	spec := externalSourceSpec{
+		SourceType: "netflow",
+		Adapter:    "http",
+		Target:     srv.URL,
+	}
+	rows, dropped, err := readExternalSourceWithAdapter(context.Background(), spec, 100, 2*time.Second)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dropped != 0 {
+		t.Fatalf("unexpected dropped count: %d", dropped)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+	if rows[0].sourceType != "netflow" {
+		t.Fatalf("expected netflow source type, got %q", rows[0].sourceType)
+	}
+}
+
+func TestReadExternalSourceWithAdapterHTTPNDJSON(t *testing.T) {
+	body := strings.Join([]string{
+		`{"src_ip":"10.0.0.10","dst_ip":"203.0.113.10","src_port":54000,"dst_port":443,"protocol":"tcp","bytes":1000,"packets":10}`,
+		`src_ip=10.0.0.10 dst_ip=203.0.113.11 src_port=54001 dst_port=53 protocol=udp packets=5 bytes=500`,
+	}, "\n")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	spec := externalSourceSpec{
+		SourceType: "siem",
+		Adapter:    "http",
+		Target:     srv.URL,
+	}
+	rows, dropped, err := readExternalSourceWithAdapter(context.Background(), spec, 100, 2*time.Second)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dropped != 0 {
+		t.Fatalf("unexpected dropped count: %d", dropped)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
 	}
 }

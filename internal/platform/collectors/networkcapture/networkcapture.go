@@ -4,7 +4,10 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,6 +44,9 @@ const (
 	maxPCAPPackets      = 2000
 	defaultExternalMax  = 1000
 	maxExternalMax      = 10000
+	defaultCmdTimeout   = 1500 * time.Millisecond
+	minCmdTimeout       = 500 * time.Millisecond
+	maxCmdTimeout       = 15 * time.Second
 	maxCmdlineLength    = 240
 	maxResolutionLen    = 255
 	maxTLSSubjectLen    = 512
@@ -49,6 +55,9 @@ const (
 	reverseDNSFailTTL   = 2 * time.Minute
 	reverseDNSTimeout   = 450 * time.Millisecond
 	maxReverseDNSCache  = 4096
+	ephemeralPortMin    = 32768
+	ephemeralPortMax    = 65535
+	wellKnownPortMax    = 1024
 )
 
 var highRiskPorts = map[uint32]struct{}{
@@ -102,14 +111,34 @@ type capturePayload struct {
 }
 
 type captureMeta struct {
-	Mode          string   `json:"mode"`
-	Source        string   `json:"source"`
-	WindowSec     int      `json:"window_sec"`
-	SampleSeconds int      `json:"sample_seconds"`
-	StartedAtUnix int64    `json:"started_at_unix"`
-	EndedAtUnix   int64    `json:"ended_at_unix"`
-	Hostname      string   `json:"hostname,omitempty"`
-	Warnings      []string `json:"warnings,omitempty"`
+	Mode          string             `json:"mode"`
+	Source        string             `json:"source"`
+	AppliedMode   string             `json:"applied_mode,omitempty"`
+	Sources       []string           `json:"sources,omitempty"`
+	WindowSec     int                `json:"window_sec"`
+	SampleSeconds int                `json:"sample_seconds"`
+	StartedAtUnix int64              `json:"started_at_unix"`
+	EndedAtUnix   int64              `json:"ended_at_unix"`
+	Hostname      string             `json:"hostname,omitempty"`
+	Limits        captureLimits      `json:"limits,omitempty"`
+	SourceQuality captureSourceScore `json:"source_quality,omitempty"`
+	Warnings      []string           `json:"warnings,omitempty"`
+}
+
+type captureLimits struct {
+	SamplingSeconds int `json:"sampling_seconds,omitempty"`
+	MaxFlows        int `json:"max_flows,omitempty"`
+	MaxPeers        int `json:"max_peers,omitempty"`
+	MaxListeners    int `json:"max_listeners,omitempty"`
+	MaxPackets      int `json:"max_packets,omitempty"`
+	TimeoutMs       int `json:"timeout_ms,omitempty"`
+	ExternalMax     int `json:"external_max,omitempty"`
+}
+
+type captureSourceScore struct {
+	Score  int    `json:"score,omitempty"`
+	Label  string `json:"label,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 type passiveAdvancedPayload struct {
@@ -164,26 +193,34 @@ type pcapFlowRow struct {
 }
 
 type passiveCollectOptions struct {
-	requestedMode string
-	window        time.Duration
-	interval      time.Duration
-	maxFlows      int
-	maxPeers      int
-	maxListeners  int
-	pcapEnabled   bool
-	pcapIface     string
-	pcapDuration  time.Duration
-	pcapPackets   int
-	externalSpecs []string
-	externalMax   int
+	requestedMode  string
+	window         time.Duration
+	interval       time.Duration
+	maxFlows       int
+	maxPeers       int
+	maxListeners   int
+	commandTimeout time.Duration
+	pcapEnabled    bool
+	pcapIface      string
+	pcapDuration   time.Duration
+	pcapPackets    int
+	externalSpecs  []string
+	externalMax    int
 }
 
 type externalSourceStatus struct {
 	Type      string `json:"type,omitempty"`
+	Adapter   string `json:"adapter,omitempty"`
 	Path      string `json:"path,omitempty"`
 	Parsed    int    `json:"parsed,omitempty"`
 	Dropped   int    `json:"dropped,omitempty"`
 	LastError string `json:"last_error,omitempty"`
+}
+
+type externalSourceSpec struct {
+	SourceType string
+	Adapter    string
+	Target     string
 }
 
 type externalObservation struct {
@@ -524,6 +561,15 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		SampleSeconds: int(options.interval.Seconds()),
 		StartedAtUnix: start.Unix(),
 		Hostname:      hostname,
+		Limits: captureLimits{
+			SamplingSeconds: int(options.interval.Seconds()),
+			MaxFlows:        options.maxFlows,
+			MaxPeers:        options.maxPeers,
+			MaxListeners:    options.maxListeners,
+			MaxPackets:      options.pcapPackets,
+			TimeoutMs:       int(options.commandTimeout / time.Millisecond),
+			ExternalMax:     options.externalMax,
+		},
 	}
 	advanced := &passiveAdvancedPayload{
 		RequestedMode: options.requestedMode,
@@ -751,14 +797,14 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	defer deadline.Stop()
 
 	finalize := func(deltas []ifaceDelta) ([]byte, error) {
-		externalSources := mergeExternalSources(options, localIPs, flows, peers, &meta)
+		externalSources := mergeExternalSources(ctx, options, localIPs, flows, peers, &meta)
 		if len(externalSources) > 0 {
 			advanced.ExternalSources = externalSources
 			for _, source := range externalSources {
 				if source.Parsed <= 0 {
 					continue
 				}
-				advanced.Sources = append(advanced.Sources, source.Type)
+				advanced.Sources = append(advanced.Sources, externalSourceToken(source))
 			}
 		}
 		applyEstimatedTraffic(flows, peers, deltas)
@@ -777,6 +823,9 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		if len(advanced.Sources) > 0 {
 			meta.Source = strings.Join(uniqueStrings(advanced.Sources, 6), "+")
 		}
+		meta.Sources = uniqueStrings(advanced.Sources, 8)
+		meta.AppliedMode = advanced.AppliedMode
+		meta.SourceQuality = buildCaptureSourceScore(options, advanced, meta.Warnings)
 		payload.Capture = meta
 		if options.requestedMode != "socket" || options.pcapEnabled || len(advanced.NetlinkLinks) > 0 || advanced.PCAP != nil || len(advanced.ExternalSources) > 0 {
 			payload.PassiveAdvanced = advanced
@@ -808,16 +857,17 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 
 func (c *collector) resolveOptions() passiveCollectOptions {
 	options := passiveCollectOptions{
-		requestedMode: "auto",
-		window:        c.window,
-		interval:      c.interval,
-		maxFlows:      c.maxFlows,
-		maxPeers:      c.maxPeers,
-		maxListeners:  c.maxListeners,
-		pcapEnabled:   false,
-		pcapDuration:  defaultPCAPDuration,
-		pcapPackets:   defaultPCAPPackets,
-		externalMax:   defaultExternalMax,
+		requestedMode:  "auto",
+		window:         c.window,
+		interval:       c.interval,
+		maxFlows:       c.maxFlows,
+		maxPeers:       c.maxPeers,
+		maxListeners:   c.maxListeners,
+		commandTimeout: defaultCmdTimeout,
+		pcapEnabled:    false,
+		pcapDuration:   defaultPCAPDuration,
+		pcapPackets:    defaultPCAPPackets,
+		externalMax:    defaultExternalMax,
 	}
 	if c.prefs == nil {
 		options.window = clampDuration(options.window, minWindow, maxWindow, defaultWindow)
@@ -825,6 +875,7 @@ func (c *collector) resolveOptions() passiveCollectOptions {
 		options.maxFlows = clampInt(options.maxFlows, minMaxRows, maxMaxRows, defaultMaxFlows)
 		options.maxPeers = clampInt(options.maxPeers, minMaxRows, maxMaxRows, defaultMaxPeers)
 		options.maxListeners = clampInt(options.maxListeners, minMaxRows, maxMaxRows, defaultMaxListeners)
+		options.commandTimeout = clampDuration(options.commandTimeout, minCmdTimeout, maxCmdTimeout, defaultCmdTimeout)
 		return options
 	}
 
@@ -845,6 +896,9 @@ func (c *collector) resolveOptions() passiveCollectOptions {
 	if prefs.NetworkCaptureMaxListeners > 0 {
 		options.maxListeners = prefs.NetworkCaptureMaxListeners
 	}
+	if prefs.NetworkCaptureTimeoutMs > 0 {
+		options.commandTimeout = time.Duration(prefs.NetworkCaptureTimeoutMs) * time.Millisecond
+	}
 	options.pcapEnabled = prefs.NetworkPCAPEnabled
 	options.pcapIface = strings.TrimSpace(prefs.NetworkPCAPIface)
 	if prefs.NetworkPCAPDurationSec > 0 {
@@ -863,6 +917,7 @@ func (c *collector) resolveOptions() passiveCollectOptions {
 	options.maxFlows = clampInt(options.maxFlows, minMaxRows, maxMaxRows, defaultMaxFlows)
 	options.maxPeers = clampInt(options.maxPeers, minMaxRows, maxMaxRows, defaultMaxPeers)
 	options.maxListeners = clampInt(options.maxListeners, minMaxRows, maxMaxRows, defaultMaxListeners)
+	options.commandTimeout = clampDuration(options.commandTimeout, minCmdTimeout, maxCmdTimeout, defaultCmdTimeout)
 	options.pcapDuration = clampDuration(options.pcapDuration, time.Second, maxPCAPDuration, defaultPCAPDuration)
 	options.pcapPackets = clampInt(options.pcapPackets, 16, maxPCAPPackets, defaultPCAPPackets)
 	options.externalMax = clampInt(options.externalMax, 100, maxExternalMax, defaultExternalMax)
@@ -963,6 +1018,8 @@ func (c *collector) enrichAdvancedPassive(
 		} else {
 			meta.Mode = "passive"
 		}
+		meta.AppliedMode = advanced.AppliedMode
+		meta.Sources = append([]string{}, advanced.Sources...)
 		return
 	}
 
@@ -989,7 +1046,7 @@ func (c *collector) enrichAdvancedPassive(
 		if !advanced.Capabilities.Netlink {
 			meta.Warnings = append(meta.Warnings, "netlink indisponível: comando ip não encontrado")
 		} else {
-			links, warningMsg := collectNetlinkLinks(ctx)
+			links, warningMsg := collectNetlinkLinks(ctx, options.commandTimeout)
 			if warningMsg != "" {
 				meta.Warnings = append(meta.Warnings, warningMsg)
 			}
@@ -1008,7 +1065,7 @@ func (c *collector) enrichAdvancedPassive(
 			if iface == "" {
 				iface = choosePCAPInterface(localCtx)
 			}
-			pcap, warningMsg := collectPCAPSummary(ctx, iface, options.pcapDuration, options.pcapPackets, localIPs)
+			pcap, warningMsg := collectPCAPSummary(ctx, iface, options.pcapDuration, options.pcapPackets, options.commandTimeout, localIPs)
 			if warningMsg != "" {
 				meta.Warnings = append(meta.Warnings, warningMsg)
 			}
@@ -1030,13 +1087,118 @@ func (c *collector) enrichAdvancedPassive(
 	if len(advanced.Sources) > 1 || advanced.PCAP != nil || len(advanced.NetlinkLinks) > 0 || len(advanced.ExternalSources) > 0 || mode == "ebpf" {
 		meta.Mode = "passive_advanced"
 	}
+	meta.AppliedMode = advanced.AppliedMode
+	meta.Sources = append([]string{}, advanced.Sources...)
 }
 
-func collectNetlinkLinks(ctx context.Context) ([]netlinkLinkRow, string) {
+func buildCaptureSourceScore(options passiveCollectOptions, advanced *passiveAdvancedPayload, warnings []string) captureSourceScore {
+	sourceSet := make(map[string]struct{})
+	for _, src := range advanced.Sources {
+		normalized := normalizeExternalSourceKey(src)
+		if normalized == "" {
+			continue
+		}
+		sourceSet[normalized] = struct{}{}
+	}
+	if _, ok := sourceSet["socket_snapshot"]; !ok {
+		sourceSet["socket_snapshot"] = struct{}{}
+	}
+
+	score := 100
+	reasons := make([]string, 0, 6)
+	if len(sourceSet) <= 1 {
+		score -= 20
+		reasons = append(reasons, "coleta baseada apenas em socket snapshot")
+	}
+	if options.requestedMode == "netlink" {
+		if _, ok := sourceSet["netlink"]; !ok {
+			score -= 25
+			reasons = append(reasons, "modo netlink solicitado sem dados de netlink")
+		}
+	}
+	if options.requestedMode == "pcap" || options.pcapEnabled {
+		if _, ok := sourceSet["pcap"]; !ok {
+			score -= 30
+			reasons = append(reasons, "pcap habilitado sem amostras úteis")
+		}
+	}
+	if len(options.externalSpecs) > 0 {
+		hasExternal := false
+		for key := range sourceSet {
+			switch key {
+			case "netflow", "sflow", "ipfix", "firewall", "ndr", "siem":
+				hasExternal = true
+			}
+			if hasExternal {
+				break
+			}
+		}
+		if !hasExternal {
+			score -= 12
+			reasons = append(reasons, "fontes externas configuradas sem registros válidos")
+		}
+	}
+	if len(warnings) > 0 {
+		score -= minInt(30, len(warnings)*8)
+		reasons = append(reasons, "warnings de coleta reduziram confiança da fonte")
+	}
+	if score < 0 {
+		score = 0
+	}
+
+	label := "low"
+	switch {
+	case score >= 80:
+		label = "high"
+	case score >= 50:
+		label = "medium"
+	}
+	reason := "coleta multi-fonte dentro dos limites esperados"
+	if len(reasons) > 0 {
+		reason = strings.Join(uniqueStrings(reasons, 3), " | ")
+	}
+
+	return captureSourceScore{
+		Score:  score,
+		Label:  label,
+		Reason: reason,
+	}
+}
+
+func externalSourceToken(source externalSourceStatus) string {
+	sourceType := normalizeExternalSourceType(source.Type)
+	adapter := strings.ToLower(strings.TrimSpace(source.Adapter))
+	if adapter == "" || adapter == "file" {
+		return sourceType
+	}
+	return sourceType + "@" + adapter
+}
+
+func normalizeExternalSourceKey(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if value == "" {
+		return ""
+	}
+	if strings.Contains(value, "@") {
+		parts := strings.SplitN(value, "@", 2)
+		value = strings.TrimSpace(parts[0])
+	}
+	switch value {
+	case "socket_snapshot", "netlink", "pcap", "ebpf", "ebpf_probe":
+		return value
+	}
+	if _, ok := externalSourceTypes[value]; ok {
+		return value
+	}
+	return value
+}
+
+func collectNetlinkLinks(ctx context.Context, timeout time.Duration) ([]netlinkLinkRow, string) {
 	if runtime.GOOS != "linux" {
 		return nil, ""
 	}
-	raw, err := runCommand(ctx, 1500*time.Millisecond, "ip", "-j", "-s", "link", "show")
+	timeout = clampDuration(timeout, minCmdTimeout, maxCmdTimeout, defaultCmdTimeout)
+	raw, err := runCommand(ctx, timeout, "ip", "-j", "-s", "link", "show")
 	if err != nil {
 		return nil, "netlink indisponível: falha ao executar ip -j -s link"
 	}
@@ -1133,6 +1295,7 @@ func collectPCAPSummary(
 	iface string,
 	duration time.Duration,
 	maxPackets int,
+	commandTimeout time.Duration,
 	localIPs map[string]struct{},
 ) (*pcapSummary, string) {
 	if runtime.GOOS != "linux" {
@@ -1144,7 +1307,8 @@ func collectPCAPSummary(
 	}
 	duration = clampDuration(duration, time.Second, maxPCAPDuration, defaultPCAPDuration)
 	maxPackets = clampInt(maxPackets, 16, maxPCAPPackets, defaultPCAPPackets)
-	raw, err := runCommand(ctx, duration+1500*time.Millisecond, "tcpdump", "-i", iface, "-nn", "-q", "-l", "-c", strconv.Itoa(maxPackets))
+	commandTimeout = clampDuration(commandTimeout, minCmdTimeout, maxCmdTimeout, defaultCmdTimeout)
+	raw, err := runCommand(ctx, duration+commandTimeout, "tcpdump", "-i", iface, "-nn", "-q", "-l", "-c", strconv.Itoa(maxPackets))
 	summary := parseTCPDumpOutput(string(raw), localIPs)
 	summary.Interface = iface
 	summary.RequestedDuration = int(duration.Seconds())
@@ -1349,6 +1513,7 @@ var externalSourceTypes = map[string]struct{}{
 }
 
 func mergeExternalSources(
+	ctx context.Context,
 	options passiveCollectOptions,
 	localIPs map[string]struct{},
 	flows map[flowKey]*flowAgg,
@@ -1360,19 +1525,23 @@ func mergeExternalSources(
 	}
 	statuses := make([]externalSourceStatus, 0, len(options.externalSpecs))
 	for _, rawSpec := range options.externalSpecs {
-		specType, specPath := parseExternalSourceSpec(rawSpec)
-		status := externalSourceStatus{Type: specType, Path: specPath}
-		if specPath == "" {
+		spec := parseExternalSourceAdapterSpec(rawSpec)
+		status := externalSourceStatus{
+			Type:    spec.SourceType,
+			Adapter: spec.Adapter,
+			Path:    spec.Target,
+		}
+		if spec.Target == "" {
 			status.LastError = "fonte externa inválida"
 			statuses = append(statuses, status)
 			continue
 		}
-		observations, dropped, err := readExternalSource(specType, specPath, options.externalMax)
+		observations, dropped, err := readExternalSourceWithAdapter(ctx, spec, options.externalMax, options.commandTimeout)
 		status.Parsed = len(observations)
 		status.Dropped = dropped
 		if err != nil {
 			status.LastError = err.Error()
-			meta.Warnings = append(meta.Warnings, "fonte externa indisponível: "+specType+" "+specPath)
+			meta.Warnings = append(meta.Warnings, "fonte externa indisponível: "+spec.SourceType+" "+spec.Target)
 		}
 		for _, obs := range observations {
 			mergeExternalObservation(obs, localIPs, flows, peers)
@@ -1383,22 +1552,77 @@ func mergeExternalSources(
 }
 
 func parseExternalSourceSpec(raw string) (sourceType, path string) {
+	spec := parseExternalSourceAdapterSpec(raw)
+	return spec.SourceType, spec.Target
+}
+
+func parseExternalSourceAdapterSpec(raw string) externalSourceSpec {
 	spec := strings.TrimSpace(raw)
 	if spec == "" {
-		return "siem", ""
+		return externalSourceSpec{
+			SourceType: "siem",
+			Adapter:    "file",
+		}
 	}
+
+	if isHTTPSourceTarget(spec) {
+		return externalSourceSpec{
+			SourceType: normalizeExternalTypeFromPath(spec),
+			Adapter:    "http",
+			Target:     spec,
+		}
+	}
+
 	parts := strings.SplitN(spec, ":", 2)
 	if len(parts) == 2 {
 		rawType := strings.ToLower(strings.TrimSpace(parts[0]))
+		value := strings.TrimSpace(parts[1])
 		if _, known := externalSourceTypes[rawType]; known {
-			p := strings.TrimSpace(parts[1])
-			if p != "" {
-				return rawType, p
+			adapter, target := parseExternalAdapterValue(value)
+			return externalSourceSpec{
+				SourceType: rawType,
+				Adapter:    adapter,
+				Target:     target,
 			}
 		}
 	}
-	detectedType := normalizeExternalTypeFromPath(spec)
-	return detectedType, spec
+
+	adapter, target := parseExternalAdapterValue(spec)
+	return externalSourceSpec{
+		SourceType: normalizeExternalTypeFromPath(target),
+		Adapter:    adapter,
+		Target:     target,
+	}
+}
+
+func parseExternalAdapterValue(raw string) (adapter, target string) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "file", ""
+	}
+	if isHTTPSourceTarget(value) {
+		return "http", value
+	}
+	if strings.HasPrefix(strings.ToLower(value), "http:") {
+		target = strings.TrimSpace(value[len("http:"):])
+		if isHTTPSourceTarget(target) {
+			return "http", target
+		}
+	}
+	if strings.HasPrefix(strings.ToLower(value), "file://") {
+		target = strings.TrimSpace(value[len("file://"):])
+		return "file", target
+	}
+	if strings.HasPrefix(strings.ToLower(value), "file:") {
+		target = strings.TrimSpace(value[len("file:"):])
+		return "file", target
+	}
+	return "file", value
+}
+
+func isHTTPSourceTarget(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	return strings.HasPrefix(normalized, "http://") || strings.HasPrefix(normalized, "https://")
 }
 
 func normalizeExternalSourceType(raw string) string {
@@ -1430,14 +1654,64 @@ func normalizeExternalTypeFromPath(path string) string {
 	}
 }
 
-func readExternalSource(sourceType, path string, maxRows int) ([]externalObservation, int, error) {
+func readExternalSourceWithAdapter(
+	ctx context.Context,
+	spec externalSourceSpec,
+	maxRows int,
+	timeout time.Duration,
+) ([]externalObservation, int, error) {
+	timeout = clampDuration(timeout, minCmdTimeout, maxCmdTimeout, defaultCmdTimeout)
+	switch strings.ToLower(strings.TrimSpace(spec.Adapter)) {
+	case "http":
+		return readExternalSourceHTTP(ctx, spec.SourceType, spec.Target, maxRows, timeout)
+	case "", "file":
+		return readExternalSourceFile(spec.SourceType, spec.Target, maxRows)
+	default:
+		return nil, 0, errors.New("adapter externo não suportado: " + spec.Adapter)
+	}
+}
+
+func readExternalSourceFile(sourceType, path string, maxRows int) ([]externalObservation, int, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer file.Close()
+	return parseExternalObservationStream(sourceType, file, maxRows)
+}
 
-	scanner := bufio.NewScanner(file)
+func readExternalSourceHTTP(
+	ctx context.Context,
+	sourceType string,
+	targetURL string,
+	maxRows int,
+	timeout time.Duration,
+) ([]externalObservation, int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Accept", "application/json, application/x-ndjson, text/plain")
+	req.Header.Set("User-Agent", "aiceberg-agent/network-capture")
+
+	client := &http.Client{Timeout: timeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, 0, errors.New("http status inesperado: " + strconv.Itoa(resp.StatusCode))
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 16*1024*1024))
+	if err != nil {
+		return nil, 0, err
+	}
+	return parseExternalObservationPayload(sourceType, raw, maxRows)
+}
+
+func parseExternalObservationStream(sourceType string, reader io.Reader, maxRows int) ([]externalObservation, int, error) {
+	scanner := bufio.NewScanner(reader)
 	buffer := make([]byte, 0, 1024*64)
 	scanner.Buffer(buffer, 1024*1024)
 	observations := make([]externalObservation, 0, minInt(maxRows, 256))
@@ -1464,19 +1738,65 @@ func readExternalSource(sourceType, path string, maxRows int) ([]externalObserva
 	return observations, dropped, nil
 }
 
-func parseExternalObservationLine(sourceType, line string) (externalObservation, bool) {
-	var payload map[string]any
-	if strings.HasPrefix(strings.TrimSpace(line), "{") {
-		if err := json.Unmarshal([]byte(line), &payload); err != nil {
-			return externalObservation{}, false
-		}
-		payload = normalizeAnyMapKeys(payload)
-	} else {
-		payload = parseExternalKVLine(line)
+func parseExternalObservationPayload(sourceType string, raw []byte, maxRows int) ([]externalObservation, int, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" {
+		return nil, 0, nil
 	}
+	if strings.HasPrefix(trimmed, "[") {
+		var items []map[string]any
+		if err := json.Unmarshal(raw, &items); err == nil {
+			parsed, dropped := parseExternalObservationItems(sourceType, items, maxRows)
+			return parsed, dropped, nil
+		}
+	}
+	if strings.HasPrefix(trimmed, "{") {
+		var payload map[string]any
+		if err := json.Unmarshal(raw, &payload); err == nil {
+			payload = normalizeAnyMapKeys(payload)
+			if itemsRaw, ok := payload["items"].([]any); ok {
+				items := make([]map[string]any, 0, len(itemsRaw))
+				for _, itemRaw := range itemsRaw {
+					itemMap, ok := itemRaw.(map[string]any)
+					if !ok {
+						continue
+					}
+					items = append(items, itemMap)
+				}
+				parsed, dropped := parseExternalObservationItems(sourceType, items, maxRows)
+				return parsed, dropped, nil
+			}
+			if obs, ok := parseExternalObservationMap(sourceType, payload); ok {
+				return []externalObservation{obs}, 0, nil
+			}
+		}
+	}
+	return parseExternalObservationStream(sourceType, strings.NewReader(trimmed), maxRows)
+}
+
+func parseExternalObservationItems(sourceType string, items []map[string]any, maxRows int) ([]externalObservation, int) {
+	out := make([]externalObservation, 0, minInt(len(items), maxRows))
+	dropped := 0
+	for idx, item := range items {
+		if len(out) >= maxRows {
+			dropped += len(items) - idx
+			break
+		}
+		obs, ok := parseExternalObservationMap(sourceType, normalizeAnyMapKeys(item))
+		if !ok {
+			dropped++
+			continue
+		}
+		out = append(out, obs)
+	}
+	return out, dropped
+}
+
+func parseExternalObservationMap(sourceType string, payload map[string]any) (externalObservation, bool) {
 	if len(payload) == 0 {
 		return externalObservation{}, false
 	}
+
 	obs := externalObservation{
 		sourceType: normalizeExternalSourceType(sourceType),
 		protocol:   normalizeProtocol(getStringAny(payload, "protocol", "proto", "l4_protocol", "ip_protocol")),
@@ -1508,6 +1828,19 @@ func parseExternalObservationLine(sourceType, line string) (externalObservation,
 		return externalObservation{}, false
 	}
 	return obs, true
+}
+
+func parseExternalObservationLine(sourceType, line string) (externalObservation, bool) {
+	var payload map[string]any
+	if strings.HasPrefix(strings.TrimSpace(line), "{") {
+		if err := json.Unmarshal([]byte(line), &payload); err != nil {
+			return externalObservation{}, false
+		}
+		payload = normalizeAnyMapKeys(payload)
+	} else {
+		payload = parseExternalKVLine(line)
+	}
+	return parseExternalObservationMap(sourceType, payload)
 }
 
 func normalizeAnyMapKeys(raw map[string]any) map[string]any {
@@ -2626,14 +2959,25 @@ func inferDirection(state string, localPort, remotePort uint32) string {
 	case "LISTEN":
 		return "listen"
 	}
-	if localPort >= 49152 && remotePort < 49152 {
+	if localPort == remotePort && localPort > 0 {
+		return "lateral"
+	}
+
+	// Linux e alguns ambientes usam faixa efêmera iniciando em 32768.
+	if localPort >= ephemeralPortMin && localPort <= ephemeralPortMax && remotePort > 0 && remotePort < ephemeralPortMin {
 		return "egress"
 	}
-	if remotePort >= 49152 && localPort < 49152 {
+	if remotePort >= ephemeralPortMin && remotePort <= ephemeralPortMax && localPort > 0 && localPort < ephemeralPortMin {
 		return "ingress"
 	}
-	if localPort == remotePort {
-		return "lateral"
+
+	// Heurística adicional quando não cai na regra efêmera:
+	// cliente costuma usar porta alta para falar com serviço em porta conhecida.
+	if localPort > wellKnownPortMax && remotePort > 0 && remotePort <= wellKnownPortMax {
+		return "egress"
+	}
+	if remotePort > wellKnownPortMax && localPort > 0 && localPort <= wellKnownPortMax {
+		return "ingress"
 	}
 	return "unknown"
 }
@@ -2649,7 +2993,7 @@ func isResetLikeState(state string) bool {
 
 func isTimeoutLikeState(state string) bool {
 	switch strings.ToUpper(strings.TrimSpace(state)) {
-	case "SYN_SENT", "SYN_RECV", "FIN_WAIT1", "FIN_WAIT2", "TIME_WAIT":
+	case "SYN_SENT", "SYN_RECV", "FIN_WAIT1", "FIN_WAIT2":
 		return true
 	default:
 		return false
