@@ -15,7 +15,7 @@ const (
 )
 
 const (
-	defaultSNMPCollectionProfile = "minimal"
+	defaultSNMPCollectionProfile = "switch_noc"
 	defaultSNMPMaxRows           = 200
 	defaultSNMPTimeBudgetMs      = 15000
 )
@@ -99,6 +99,7 @@ var snmpGroupDefs = map[string]snmpGroupDef{
 	},
 	"vlan": {
 		Tables: []string{
+			"1.3.6.1.2.1.17.1.4.1.2",
 			"1.3.6.1.2.1.17.7.1.4.2.1.4",
 			"1.3.6.1.2.1.17.7.1.4.2.1.5",
 			"1.3.6.1.2.1.17.7.1.4.3.1.1",

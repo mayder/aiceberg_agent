@@ -1,6 +1,7 @@
 package agentless
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/you/aiceberg_agent/internal/domain/entities"
@@ -62,8 +63,8 @@ func TestBuildSNMPPlanDefaults(t *testing.T) {
 	}
 
 	plan := buildSNMPPlan(job, "host.local")
-	if plan.CollectionProfile != "minimal" {
-		t.Fatalf("esperado minimal, obtido %q", plan.CollectionProfile)
+	if plan.CollectionProfile != "switch_noc" {
+		t.Fatalf("esperado switch_noc, obtido %q", plan.CollectionProfile)
 	}
 	if plan.FetchMode != snmpFetchAuto {
 		t.Fatalf("esperado auto, obtido %q", plan.FetchMode)
@@ -75,6 +76,17 @@ func TestBuildSNMPPlanDefaults(t *testing.T) {
 		t.Fatalf("time_budget_ms invalido: %d", plan.TimeBudgetMs)
 	}
 	if len(plan.Groups) == 0 {
-		t.Fatalf("esperava grupos para perfil minimal")
+		t.Fatalf("esperava grupos para perfil switch_noc")
+	}
+}
+
+func TestSNMPVlanGroupIncludesBridgePortIfIndex(t *testing.T) {
+	group, ok := snmpGroupDefs["vlan"]
+	if !ok {
+		t.Fatalf("grupo vlan ausente")
+	}
+	const wantOID = "1.3.6.1.2.1.17.1.4.1.2"
+	if !slices.Contains(group.Tables, wantOID) {
+		t.Fatalf("OID %s ausente no grupo vlan: %#v", wantOID, group.Tables)
 	}
 }

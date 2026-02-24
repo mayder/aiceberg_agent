@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -31,12 +32,51 @@ type SelfUpdate struct {
 	mu          sync.Mutex
 	lastVersion string
 	lastAttempt time.Time
+
+	policyMu sync.RWMutex
+	policy   runtimeAutoUpdateOptions
 }
 
 type updateDownloadSource struct {
 	URL     string
 	Name    string
 	UseAuth bool
+}
+
+type runtimeAutoUpdateOptions struct {
+	enabledSet bool
+	enabled    bool
+	dirSet     bool
+	dir        string
+	maxMBSet   bool
+	maxMB      int
+	timeoutSet bool
+	timeout    time.Duration
+	retrySet   bool
+	retry      time.Duration
+	useAuthSet bool
+	useAuth    bool
+	commandSet bool
+	command    string
+	workDirSet bool
+	workDir    string
+}
+
+type effectiveAutoUpdateOptions struct {
+	enabled bool
+	dir     string
+	maxMB   int
+	timeout time.Duration
+	retry   time.Duration
+	useAuth bool
+	command string
+	workDir string
+}
+
+type pendingUpdateState struct {
+	TargetVersion string `json:"target_version"`
+	FromVersion   string `json:"from_version"`
+	RequestedAtMs int64  `json:"requested_at_ms"`
 }
 
 func NewSelfUpdate(cfg config.Config, log logger.Logger) *SelfUpdate {
@@ -55,11 +95,13 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 	if payload == nil {
 		return errors.New("missing update payload")
 	}
-	if !uc.cfg.AutoUpdateEnabled {
+	opts := uc.effectiveOptions()
+	if !opts.enabled {
 		uc.log.Info(logger.KV("self update ignored",
 			"version", payload.Version,
 			"reason", "feature_disabled",
 		))
+		uc.reportStatusBestEffort(ctx, payload, "skipped", "feature_disabled", "", version.Version)
 		return nil
 	}
 	if payload.Version == "" || payload.URL == "" {
@@ -70,31 +112,45 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 			"version", payload.Version,
 			"reason", "already_current",
 		))
+		uc.reportStatusBestEffort(ctx, payload, "skipped", "already_current", "", version.Version)
 		return nil
 	}
-	if uc.shouldSkip(payload.Version) {
+	if uc.shouldSkip(payload.Version, opts.retry) {
 		uc.log.Info(logger.KV("self update skipped",
 			"version", payload.Version,
 			"reason", "cooldown",
 		))
+		uc.reportStatusBestEffort(ctx, payload, "skipped", "cooldown", "", version.Version)
 		return nil
 	}
 
-	localFile, err := uc.download(ctx, payload)
+	localFile, err := uc.download(ctx, payload, opts)
 	if err != nil {
+		uc.reportStatusBestEffort(ctx, payload, "download_failed", "download_failed", err.Error(), version.Version)
 		return err
 	}
 
-	if strings.TrimSpace(uc.cfg.AutoUpdateCommand) == "" {
+	if strings.TrimSpace(opts.command) == "" {
 		uc.log.Info(logger.KV("self update downloaded",
 			"version", payload.Version,
 			"file", localFile,
 			"reason", "command_not_configured",
 		))
+		uc.reportStatusBestEffort(ctx, payload, "download_ok", "command_not_configured", "", version.Version)
 		return nil
 	}
 
-	if err := uc.runCommand(ctx, payload, localFile); err != nil {
+	if err := uc.savePendingState(opts.dir, payload.Version, version.Version); err != nil {
+		uc.log.Error(logger.KV("self update pending state save failed",
+			"version", payload.Version,
+			"err", err,
+		))
+	}
+	uc.reportStatusBestEffort(ctx, payload, "apply_started", "", "", version.Version)
+
+	if err := uc.runCommand(ctx, payload, localFile, opts); err != nil {
+		_ = uc.clearPendingState(opts.dir)
+		uc.reportStatusBestEffort(ctx, payload, "apply_failed", "command_failed", err.Error(), version.Version)
 		return err
 	}
 
@@ -102,11 +158,11 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 		"version", payload.Version,
 		"file", localFile,
 	))
+	uc.reportStatusBestEffort(ctx, payload, "apply_dispatched", "", "", version.Version)
 	return nil
 }
 
-func (uc *SelfUpdate) shouldSkip(targetVersion string) bool {
-	retry := uc.cfg.AutoUpdateRetryInterval
+func (uc *SelfUpdate) shouldSkip(targetVersion string, retry time.Duration) bool {
 	if retry <= 0 {
 		retry = 30 * time.Minute
 	}
@@ -122,8 +178,8 @@ func (uc *SelfUpdate) shouldSkip(targetVersion string) bool {
 	return false
 }
 
-func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload) (string, error) {
-	timeout := uc.cfg.AutoUpdateTimeout
+func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts effectiveAutoUpdateOptions) (string, error) {
+	timeout := opts.timeout
 	if timeout <= 0 {
 		timeout = 5 * time.Minute
 	}
@@ -140,7 +196,7 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload) (str
 		name = "aiceberg_agent_update.bin"
 	}
 
-	rootDir := uc.cfg.AutoUpdateDir
+	rootDir := opts.dir
 	if strings.TrimSpace(rootDir) == "" {
 		rootDir = "./data/updates"
 	}
@@ -151,13 +207,13 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload) (str
 	finalPath := filepath.Join(targetDir, name)
 	tmpPath := finalPath + ".part"
 
-	maxMB := uc.cfg.AutoUpdateMaxMB
+	maxMB := opts.maxMB
 	if maxMB <= 0 {
 		maxMB = 300
 	}
 	maxBytes := int64(maxMB) * 1024 * 1024
 	expectedSHA := normalizeSHA256(payload.SHA256)
-	sources := uc.downloadSources(payload.URL)
+	sources := uc.downloadSources(payload.URL, opts.useAuth)
 	var errs []string
 
 	for _, source := range sources {
@@ -233,14 +289,14 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload) (str
 	return "", fmt.Errorf("download update failed: %s", strings.Join(errs, " | "))
 }
 
-func (uc *SelfUpdate) downloadSources(rawURL string) []updateDownloadSource {
+func (uc *SelfUpdate) downloadSources(rawURL string, useAuth bool) []updateDownloadSource {
 	sources := []updateDownloadSource{{
 		URL:     rawURL,
 		Name:    "direct",
-		UseAuth: uc.cfg.AutoUpdateUseAgentAuth,
+		UseAuth: useAuth,
 	}}
 	if strings.EqualFold(uc.cfg.AgentMode, "relay") && strings.TrimSpace(uc.cfg.HubURL) != "" {
-		proxyURL := buildHubUpdateProxyURL(uc.cfg.HubURL, rawURL, uc.cfg.AutoUpdateUseAgentAuth)
+		proxyURL := buildHubUpdateProxyURL(uc.cfg.HubURL, rawURL, useAuth)
 		sources = append([]updateDownloadSource{{
 			URL:     proxyURL,
 			Name:    "hub_proxy",
@@ -260,15 +316,15 @@ func buildHubUpdateProxyURL(hubBaseURL, targetURL string, useAgentAuth bool) str
 	return base + "/v1/agent/update/download?" + q.Encode()
 }
 
-func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, filePath string) error {
-	timeout := uc.cfg.AutoUpdateTimeout
+func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, filePath string, opts effectiveAutoUpdateOptions) error {
+	timeout := opts.timeout
 	if timeout <= 0 {
 		timeout = 5 * time.Minute
 	}
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmdLine := strings.TrimSpace(uc.cfg.AutoUpdateCommand)
+	cmdLine := strings.TrimSpace(opts.command)
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
 		cmd = exec.CommandContext(cmdCtx, "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmdLine)
@@ -276,7 +332,7 @@ func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, fi
 		cmd = exec.CommandContext(cmdCtx, "/bin/sh", "-c", cmdLine)
 	}
 
-	workDir := strings.TrimSpace(uc.cfg.AutoUpdateWorkDir)
+	workDir := strings.TrimSpace(opts.workDir)
 	if workDir == "" {
 		workDir = filepath.Dir(filePath)
 	}
@@ -304,6 +360,231 @@ func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, fi
 		return fmt.Errorf("self update command failed: %w", err)
 	}
 	return nil
+}
+
+func (uc *SelfUpdate) ApplyRemoteConfig(payload *AutoUpdatePayload) {
+	if payload == nil {
+		return
+	}
+	uc.policyMu.Lock()
+	defer uc.policyMu.Unlock()
+
+	// O payload remoto é a fonte de verdade para o override em runtime.
+	// Sempre resetamos antes de aplicar para permitir "limpar" campos via backend.
+	uc.policy = runtimeAutoUpdateOptions{}
+
+	if payload.Enabled != nil {
+		uc.policy.enabledSet = true
+		uc.policy.enabled = *payload.Enabled
+	}
+	if payload.Dir != nil {
+		uc.policy.dirSet = true
+		uc.policy.dir = strings.TrimSpace(*payload.Dir)
+	}
+	if payload.MaxMB != nil {
+		uc.policy.maxMBSet = true
+		uc.policy.maxMB = *payload.MaxMB
+	}
+	if payload.TimeoutSec != nil {
+		uc.policy.timeoutSet = true
+		uc.policy.timeout = time.Duration(*payload.TimeoutSec) * time.Second
+	}
+	if payload.RetryIntervalSec != nil {
+		uc.policy.retrySet = true
+		uc.policy.retry = time.Duration(*payload.RetryIntervalSec) * time.Second
+	}
+	if payload.UseAgentAuth != nil {
+		uc.policy.useAuthSet = true
+		uc.policy.useAuth = *payload.UseAgentAuth
+	}
+	if payload.Command != nil {
+		uc.policy.commandSet = true
+		uc.policy.command = strings.TrimSpace(*payload.Command)
+	}
+	if payload.WorkDir != nil {
+		uc.policy.workDirSet = true
+		uc.policy.workDir = strings.TrimSpace(*payload.WorkDir)
+	}
+}
+
+func (uc *SelfUpdate) effectiveOptions() effectiveAutoUpdateOptions {
+	opts := effectiveAutoUpdateOptions{
+		enabled: uc.cfg.AutoUpdateEnabled,
+		dir:     uc.cfg.AutoUpdateDir,
+		maxMB:   uc.cfg.AutoUpdateMaxMB,
+		timeout: uc.cfg.AutoUpdateTimeout,
+		retry:   uc.cfg.AutoUpdateRetryInterval,
+		useAuth: uc.cfg.AutoUpdateUseAgentAuth,
+		command: uc.cfg.AutoUpdateCommand,
+		workDir: uc.cfg.AutoUpdateWorkDir,
+	}
+
+	uc.policyMu.RLock()
+	defer uc.policyMu.RUnlock()
+	if uc.policy.enabledSet {
+		opts.enabled = uc.policy.enabled
+	}
+	if uc.policy.dirSet {
+		opts.dir = uc.policy.dir
+	}
+	if uc.policy.maxMBSet {
+		opts.maxMB = uc.policy.maxMB
+	}
+	if uc.policy.timeoutSet {
+		opts.timeout = uc.policy.timeout
+	}
+	if uc.policy.retrySet {
+		opts.retry = uc.policy.retry
+	}
+	if uc.policy.useAuthSet {
+		opts.useAuth = uc.policy.useAuth
+	}
+	if uc.policy.commandSet {
+		opts.command = uc.policy.command
+	}
+	if uc.policy.workDirSet {
+		opts.workDir = uc.policy.workDir
+	}
+	return opts
+}
+
+func (uc *SelfUpdate) ReportPendingResult(ctx context.Context) error {
+	opts := uc.effectiveOptions()
+	st, err := uc.loadPendingState(opts.dir)
+	if err != nil || st == nil {
+		return err
+	}
+
+	payload := &UpdatePayload{Version: st.TargetVersion}
+	if version.Version == st.TargetVersion {
+		if err := uc.reportStatus(ctx, payload, "apply_ok", "", "", version.Version); err != nil {
+			return err
+		}
+		return uc.clearPendingState(opts.dir)
+	}
+
+	if err := uc.reportStatus(ctx, payload, "apply_failed", "version_mismatch_after_restart", "", version.Version); err != nil {
+		return err
+	}
+	return uc.clearPendingState(opts.dir)
+}
+
+func (uc *SelfUpdate) reportStatusBestEffort(ctx context.Context, payload *UpdatePayload, status, reasonCode, reasonMessage, currentVersion string) {
+	if err := uc.reportStatus(ctx, payload, status, reasonCode, reasonMessage, currentVersion); err != nil {
+		uc.log.Error(logger.KV("self update report failed",
+			"status", status,
+			"version", payloadVersion(payload),
+			"err", err,
+		))
+	}
+}
+
+func (uc *SelfUpdate) reportStatus(ctx context.Context, payload *UpdatePayload, status, reasonCode, reasonMessage, currentVersion string) error {
+	if strings.TrimSpace(status) == "" {
+		return nil
+	}
+	body := map[string]any{
+		"status":          status,
+		"target_version":  payloadVersion(payload),
+		"current_version": strings.TrimSpace(currentVersion),
+		"reason_code":     strings.TrimSpace(reasonCode),
+		"reason_message":  strings.TrimSpace(reasonMessage),
+		"ts_unix_ms":      time.Now().UnixMilli(),
+	}
+	enc, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	urls := []string{}
+	if strings.EqualFold(uc.cfg.AgentMode, "relay") && strings.TrimSpace(uc.cfg.HubURL) != "" {
+		urls = append(urls, strings.TrimRight(strings.TrimSpace(uc.cfg.HubURL), "/")+"/v1/agent/update-report")
+	}
+	urls = append(urls, uc.cfg.APIEndpoint("/v1/agent/update-report"))
+
+	var errs []string
+	for _, url := range urls {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(enc)))
+		if err != nil {
+			errs = append(errs, err.Error())
+			continue
+		}
+		req.Header.Set("Content-Type", "application/json")
+		httpx.SetAuth(req, uc.cfg)
+		resp, err := uc.cl.Do(req)
+		if err != nil {
+			errs = append(errs, err.Error())
+			continue
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil
+		}
+		errs = append(errs, fmt.Sprintf("%s status=%d", url, resp.StatusCode))
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	return errors.New(strings.Join(errs, " | "))
+}
+
+func (uc *SelfUpdate) pendingStatePath(rootDir string) string {
+	dir := strings.TrimSpace(rootDir)
+	if dir == "" {
+		dir = "./data/updates"
+	}
+	return filepath.Join(dir, ".pending_update.json")
+}
+
+func (uc *SelfUpdate) savePendingState(rootDir, targetVersion, fromVersion string) error {
+	path := uc.pendingStatePath(rootDir)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	data := pendingUpdateState{
+		TargetVersion: strings.TrimSpace(targetVersion),
+		FromVersion:   strings.TrimSpace(fromVersion),
+		RequestedAtMs: time.Now().UnixMilli(),
+	}
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, raw, 0o644)
+}
+
+func (uc *SelfUpdate) loadPendingState(rootDir string) (*pendingUpdateState, error) {
+	path := uc.pendingStatePath(rootDir)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out pendingUpdateState
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(out.TargetVersion) == "" {
+		return nil, nil
+	}
+	return &out, nil
+}
+
+func (uc *SelfUpdate) clearPendingState(rootDir string) error {
+	path := uc.pendingStatePath(rootDir)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+func payloadVersion(payload *UpdatePayload) string {
+	if payload == nil {
+		return ""
+	}
+	return strings.TrimSpace(payload.Version)
 }
 
 func sanitizePathSegment(s string) string {

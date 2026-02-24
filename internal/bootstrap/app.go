@@ -169,6 +169,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	flushUC := usecase.NewFlushOutbox(outboxRepo, tx, log, authHeader, onIngestConfig)
 	pingUC := usecase.NewPingBackend(cfg, log)
 	selfUpdateUC := usecase.NewSelfUpdate(cfg, log)
+	if err := selfUpdateUC.ReportPendingResult(ctx); err != nil {
+		log.Error(logger.KV("self update startup report failed",
+			"err", err,
+		))
+	}
 	var counters obsCounters
 
 	var osLogCollectUC *usecase.CollectAndBuffer
@@ -387,6 +392,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 						"err", err,
 					))
 				}
+			case "self_update_policy":
+				selfUpdateUC.ApplyRemoteConfig(cmd.AutoUpdate)
 			}
 		case <-readTick(tOsCollect):
 			if osLogCollectUC != nil {

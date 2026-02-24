@@ -193,3 +193,40 @@ func TestSelfUpdate_RelayDownloadsViaHubProxy(t *testing.T) {
 		t.Fatalf("unexpected proxy path: %s", parsed.Path)
 	}
 }
+
+func TestSelfUpdate_ApplyRemoteConfigResetsOverridesWhenPayloadIsEmpty(t *testing.T) {
+	cfg := config.Config{
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     "/tmp/default-updates",
+		AutoUpdateCommand: "/bin/echo default",
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+
+	enabled := false
+	command := "/bin/echo override"
+	uc.ApplyRemoteConfig(&AutoUpdatePayload{
+		Enabled: &enabled,
+		Command: &command,
+	})
+
+	opts := uc.effectiveOptions()
+	if opts.enabled {
+		t.Fatalf("expected runtime enabled=false after override")
+	}
+	if opts.command != command {
+		t.Fatalf("expected runtime command override, got %q", opts.command)
+	}
+
+	uc.ApplyRemoteConfig(&AutoUpdatePayload{})
+
+	opts = uc.effectiveOptions()
+	if !opts.enabled {
+		t.Fatalf("expected enabled fallback to config default=true")
+	}
+	if opts.command != cfg.AutoUpdateCommand {
+		t.Fatalf("expected command fallback to config default, got %q", opts.command)
+	}
+	if opts.dir != cfg.AutoUpdateDir {
+		t.Fatalf("expected dir fallback to config default, got %q", opts.dir)
+	}
+}

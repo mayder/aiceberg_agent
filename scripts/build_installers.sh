@@ -42,6 +42,8 @@ Conteúdo:
 - agent.exe
 - install-service.ps1 (cria o serviço)
 - install.ps1 (instala tudo: copia binário, grava token/env, cria serviço)
+- aiceberg-agent-update-launcher.ps1 (dispara auto-update em background)
+- aiceberg-agent-apply-update.ps1 (aplica pacote, troca binário e reinicia serviço)
 - LEIA-ME: defina AGENT_TOKEN (variável de ambiente do sistema) e paths opcionais; ou crie C:\ProgramData\AIceberg\agent.token e sete AGENT_TOKEN_PATH.
 
 Passos resumidos (PowerShell como Admin):
@@ -87,6 +89,8 @@ build_windows() {
   GOOS=windows GOARCH="$arch" CGO_ENABLED=0 go build -ldflags "$LD_FLAGS" -o "$outdir/agent.exe" "$ROOT/cmd/agent"
   cp "$ROOT/scripts/windows/install-service.ps1" "$outdir/install-service.ps1"
   cp "$ROOT/scripts/windows/install.ps1" "$outdir/install.ps1"
+  cp "$ROOT/scripts/windows/aiceberg-agent-update-launcher.ps1" "$outdir/aiceberg-agent-update-launcher.ps1"
+  cp "$ROOT/scripts/windows/aiceberg-agent-apply-update.ps1" "$outdir/aiceberg-agent-apply-update.ps1"
   write_win_readme "$outdir/README_INSTALL.txt"
   (cd "$DIST" && zip -qr "aiceberg-agent-windows-${arch}.zip" "aiceberg-agent-windows-${arch}")
 }

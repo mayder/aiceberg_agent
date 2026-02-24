@@ -5,8 +5,10 @@ Instala o AIceberg Agent no Windows com configuração mínima.
 Passos executados:
 - Cria pastas de binário e dados (Program Files + ProgramData).
 - Copia agent.exe para o destino.
+- Copia scripts de auto-update para ProgramData.
 - Grava o token em agent.token (se fornecido) e define AGENT_TOKEN_PATH.
 - Define variáveis de ambiente (API_BASE_URL, AGENT_MODE, HUB_URL/HUB_TOKEN/HUB_LISTEN_ADDR, SKIP_BOOTSTRAP).
+- Define AUTO_UPDATE_* para atualização remota via backend.
 - Cria e inicia o serviço Windows (usa install-service.ps1).
 
 Exemplo:
@@ -41,19 +43,38 @@ $ErrorActionPreference = "Stop"
 
 $binDir = Split-Path $BinPath
 $tokenPath = Join-Path $DataDir "agent.token"
+$updateDir = Join-Path $DataDir "update"
+$updateLauncherDst = Join-Path $updateDir "aiceberg-agent-update-launcher.ps1"
+$updateApplyDst = Join-Path $updateDir "aiceberg-agent-apply-update.ps1"
+$updateLauncherSrc = Join-Path $PSScriptRoot "aiceberg-agent-update-launcher.ps1"
+$updateApplySrc = Join-Path $PSScriptRoot "aiceberg-agent-apply-update.ps1"
+$updateStorageDir = Join-Path $DataDir "updates"
 
 Write-Host "Criando diretórios..."
 New-Item -ItemType Directory -Force -Path $binDir | Out-Null
 New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+New-Item -ItemType Directory -Force -Path $updateDir | Out-Null
+New-Item -ItemType Directory -Force -Path $updateStorageDir | Out-Null
 
 $srcBin = Join-Path $PSScriptRoot "agent.exe"
 if (-not (Test-Path $srcBin)) {
   Write-Error "agent.exe não encontrado em $PSScriptRoot. Extraia o pacote completo antes de rodar."
   exit 1
 }
+if (-not (Test-Path $updateLauncherSrc)) {
+  Write-Error "aiceberg-agent-update-launcher.ps1 não encontrado em $PSScriptRoot. Extraia o pacote completo antes de rodar."
+  exit 1
+}
+if (-not (Test-Path $updateApplySrc)) {
+  Write-Error "aiceberg-agent-apply-update.ps1 não encontrado em $PSScriptRoot. Extraia o pacote completo antes de rodar."
+  exit 1
+}
 
 Write-Host "Copiando binário para $BinPath"
 Copy-Item $srcBin $BinPath -Force
+Write-Host "Copiando scripts de auto-update para $updateDir"
+Copy-Item $updateLauncherSrc $updateLauncherDst -Force
+Copy-Item $updateApplySrc $updateApplyDst -Force
 
 if ($Token) {
   Write-Host "Gravando token em $tokenPath"
@@ -68,6 +89,11 @@ if ($HubUrl)     { [Environment]::SetEnvironmentVariable("HUB_URL", $HubUrl, "Ma
 if ($HubToken)   { [Environment]::SetEnvironmentVariable("HUB_TOKEN", $HubToken, "Machine") }
 if ($HubListen)  { [Environment]::SetEnvironmentVariable("HUB_LISTEN_ADDR", $HubListen, "Machine") }
 if ($SkipBootstrap) { [Environment]::SetEnvironmentVariable("SKIP_BOOTSTRAP", "true", "Machine") }
+[Environment]::SetEnvironmentVariable("AUTO_UPDATE_ENABLED", "true", "Machine")
+[Environment]::SetEnvironmentVariable("AUTO_UPDATE_COMMAND", "& '$updateLauncherDst'", "Machine")
+[Environment]::SetEnvironmentVariable("AUTO_UPDATE_DIR", $updateStorageDir, "Machine")
+[Environment]::SetEnvironmentVariable("AUTO_UPDATE_TIMEOUT", "300", "Machine")
+[Environment]::SetEnvironmentVariable("AUTO_UPDATE_RETRY_INTERVAL", "30", "Machine")
 
 Write-Host "Registrando fonte de log no Windows Event Log..."
 if (-not [System.Diagnostics.EventLog]::SourceExists($ServiceName)) {

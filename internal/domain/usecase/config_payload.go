@@ -7,8 +7,9 @@ import (
 )
 
 type ControlCommand struct {
-	Name   string
-	Update *UpdatePayload
+	Name       string
+	Update     *UpdatePayload
+	AutoUpdate *AutoUpdatePayload
 }
 
 type UpdatePayload struct {
@@ -26,6 +27,39 @@ func (u *UpdatePayload) Clone() *UpdatePayload {
 	return &cp
 }
 
+type AutoUpdatePayload struct {
+	Enabled          *bool   `json:"enabled,omitempty"`
+	Dir              *string `json:"dir,omitempty"`
+	MaxMB            *int    `json:"max_mb,omitempty"`
+	TimeoutSec       *int    `json:"timeout_sec,omitempty"`
+	RetryIntervalSec *int    `json:"retry_interval_sec,omitempty"`
+	UseAgentAuth     *bool   `json:"use_agent_auth,omitempty"`
+	Command          *string `json:"command,omitempty"`
+	WorkDir          *string `json:"workdir,omitempty"`
+}
+
+func (a *AutoUpdatePayload) Clone() *AutoUpdatePayload {
+	if a == nil {
+		return nil
+	}
+	cp := *a
+	return &cp
+}
+
+func (a *AutoUpdatePayload) HasAnyValue() bool {
+	if a == nil {
+		return false
+	}
+	return a.Enabled != nil ||
+		a.Dir != nil ||
+		a.MaxMB != nil ||
+		a.TimeoutSec != nil ||
+		a.RetryIntervalSec != nil ||
+		a.UseAgentAuth != nil ||
+		a.Command != nil ||
+		a.WorkDir != nil
+}
+
 type ConfigPayload struct {
 	Version string              `json:"version,omitempty"`
 	Collect config.CollectPrefs `json:"collect"`
@@ -39,8 +73,9 @@ type ConfigPayload struct {
 		MaxBytes    int      `json:"max_bytes"`
 		Interval    int      `json:"interval"`
 	} `json:"logs"`
-	CollectNow *[]string      `json:"collect_now,omitempty"`
-	Update     *UpdatePayload `json:"update,omitempty"`
+	CollectNow *[]string          `json:"collect_now,omitempty"`
+	Update     *UpdatePayload     `json:"update,omitempty"`
+	AutoUpdate *AutoUpdatePayload `json:"auto_update,omitempty"`
 	Agentless  struct {
 		Enabled    *bool `json:"enabled,omitempty"`
 		PollSec    int   `json:"poll_interval,omitempty"`
@@ -92,8 +127,11 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- C
 	collect.CollectNow = nil
 
 	hasUpdate := payload.Update != nil && payload.Update.Version != "" && payload.Update.URL != ""
+	// Se o objeto auto_update veio no payload, sempre reaplicamos a política.
+	// Isso permite limpar overrides em runtime quando campos voltam para null no backend.
+	hasAutoUpdate := payload.AutoUpdate != nil
 	cur := store.Get()
-	if cur.Version == collect.Version && collect.Version != "" && len(collectNow) == 0 && !hasUpdate {
+	if cur.Version == collect.Version && collect.Version != "" && len(collectNow) == 0 && !hasUpdate && !hasAutoUpdate {
 		return collect.Version, false, nil
 	}
 
@@ -116,6 +154,15 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- C
 		}
 	}
 
+	if hasAutoUpdate {
+		select {
+		case commands <- ControlCommand{Name: "self_update_policy", AutoUpdate: payload.AutoUpdate.Clone()}:
+		default:
+			log.Info(logger.KV("command channel full, dropping command",
+				"command", "self_update_policy",
+			))
+		}
+	}
 	if hasUpdate {
 		select {
 		case commands <- ControlCommand{Name: "self_update", Update: payload.Update.Clone()}:
