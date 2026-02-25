@@ -225,6 +225,10 @@ var (
 	cveSigMu           sync.Mutex
 )
 
+// Compatibilidade defensiva para ambientes com coluna SQL estreita (ex.: MEDIUMINT).
+// Evita perder o snapshot inteiro quando o offset NTP extrapola o range suportado no backend.
+const snapshotTimeOffsetMaxAbsMs int64 = 8_388_607
+
 type gpuSnapshot struct {
 	Vendor       string  `json:"vendor"`
 	Name         string  `json:"name,omitempty"`
@@ -841,9 +845,26 @@ func timeSyncCheck(hostname string, timeout time.Duration) timeSyncSnap {
 		ts.Error = err.Error()
 		return ts
 	}
-	ts.OffsetMs = int64(resp.ClockOffset / time.Millisecond)
+	offsetMs := int64(resp.ClockOffset / time.Millisecond)
+	ts.OffsetMs = clampAbsInt64(offsetMs, snapshotTimeOffsetMaxAbsMs)
+	if ts.OffsetMs != offsetMs {
+		ts.Error = "offset_ms_clamped"
+	}
 	ts.RTTMs = resp.RTT.Milliseconds()
 	return ts
+}
+
+func clampAbsInt64(v, maxAbs int64) int64 {
+	if maxAbs < 0 {
+		maxAbs = -maxAbs
+	}
+	if v > maxAbs {
+		return maxAbs
+	}
+	if v < -maxAbs {
+		return -maxAbs
+	}
+	return v
 }
 
 // collectSMART tenta usar smartctl para retornar health/temperatura das unidades vistas.

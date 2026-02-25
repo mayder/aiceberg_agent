@@ -107,7 +107,7 @@ if (-not (Test-Path $installSvc)) {
 }
 
 Write-Host "Criando serviço $ServiceName..."
-& $installSvc -BinPath $BinPath -ConfigPath "$DataDir\config.yml" | Out-Null
+& $installSvc -BinPath $BinPath -ConfigPath "$DataDir\config.yml" -ServiceName $ServiceName
 
 Write-Host "Serviço criado. Verifique com: sc query $ServiceName"
 Write-Host "Se precisar ajustar variáveis, reabra o shell ou reinicie o serviço após editar."
