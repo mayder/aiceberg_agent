@@ -64,6 +64,23 @@ function Ensure-Service {
   }
 }
 
+function Configure-ServiceRecovery {
+  param([string]$Name)
+  & sc.exe failure $Name reset= 86400 actions= restart/5000/restart/15000/restart/30000 | Out-Null
+  & sc.exe failureflag $Name 1 | Out-Null
+}
+
+function Configure-StartupWatchdogTasks {
+  param([string]$Name)
+
+  $taskBoot = "$Name-AutoStart-OnBoot"
+  $taskMinute = "$Name-AutoStart-EveryMinute"
+  $taskCmd = "cmd.exe /c sc query $Name | find `"RUNNING`" >nul || sc start $Name"
+
+  & schtasks.exe /Create /TN $taskBoot /SC ONSTART /RU SYSTEM /RL HIGHEST /TR $taskCmd /F | Out-Null
+  & schtasks.exe /Create /TN $taskMinute /SC MINUTE /MO 1 /RU SYSTEM /RL HIGHEST /TR $taskCmd /F | Out-Null
+}
+
 $cmd = '"' + $BinPath + '" -config "' + $ConfigPath + '"'
 
 if (-not [System.Diagnostics.EventLog]::SourceExists($ServiceName)) {
@@ -71,6 +88,8 @@ if (-not [System.Diagnostics.EventLog]::SourceExists($ServiceName)) {
 }
 
 Ensure-Service -Name $ServiceName -BinaryPath $cmd -CreateTimeout $CreateTimeoutSec
+Configure-ServiceRecovery -Name $ServiceName
+Configure-StartupWatchdogTasks -Name $ServiceName
 
 $svcObj = Get-ServiceCim -Name $ServiceName
 if ($svcObj -and $svcObj.State -ne "Stopped") {
