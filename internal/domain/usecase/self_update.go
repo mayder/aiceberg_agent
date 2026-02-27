@@ -74,9 +74,24 @@ type effectiveAutoUpdateOptions struct {
 }
 
 type pendingUpdateState struct {
-	TargetVersion string `json:"target_version"`
-	FromVersion   string `json:"from_version"`
-	RequestedAtMs int64  `json:"requested_at_ms"`
+	TargetVersion    string `json:"target_version"`
+	FromVersion      string `json:"from_version"`
+	RequestedAtMs    int64  `json:"requested_at_ms"`
+	DownloadFile     string `json:"download_file,omitempty"`
+	DownloadDir      string `json:"download_dir,omitempty"`
+	DownloadSHA256   string `json:"download_sha256,omitempty"`
+	DownloadSize     int64  `json:"download_size_bytes,omitempty"`
+	LauncherCommand  string `json:"launcher_command,omitempty"`
+	LauncherWorkDir  string `json:"launcher_workdir,omitempty"`
+	LauncherExitCode *int   `json:"launcher_exit_code,omitempty"`
+}
+
+type downloadedArtifact struct {
+	FilePath  string
+	DirPath   string
+	SHA256    string
+	SizeBytes int64
+	Source    string
 }
 
 func NewSelfUpdate(cfg config.Config, log logger.Logger) *SelfUpdate {
@@ -101,7 +116,7 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 			"version", payload.Version,
 			"reason", "feature_disabled",
 		))
-		uc.reportStatusBestEffort(ctx, payload, "skipped", "feature_disabled", "", version.Version)
+		uc.reportStatusBestEffort(ctx, payload, "skipped", "feature_disabled", "", version.Version, nil)
 		return nil
 	}
 	if payload.Version == "" || payload.URL == "" {
@@ -112,7 +127,7 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 			"version", payload.Version,
 			"reason", "already_current",
 		))
-		uc.reportStatusBestEffort(ctx, payload, "skipped", "already_current", "", version.Version)
+		uc.reportStatusBestEffort(ctx, payload, "skipped", "already_current", "", version.Version, nil)
 		return nil
 	}
 	if uc.shouldSkip(payload.Version, opts.retry) {
@@ -120,45 +135,86 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 			"version", payload.Version,
 			"reason", "cooldown",
 		))
-		uc.reportStatusBestEffort(ctx, payload, "skipped", "cooldown", "", version.Version)
+		uc.reportStatusBestEffort(ctx, payload, "skipped", "cooldown", "", version.Version, nil)
 		return nil
 	}
 
-	localFile, err := uc.download(ctx, payload, opts)
+	artifact, err := uc.download(ctx, payload, opts)
 	if err != nil {
-		uc.reportStatusBestEffort(ctx, payload, "download_failed", "download_failed", err.Error(), version.Version)
+		uc.reportStatusBestEffort(ctx, payload, "download_failed", "download_failed", err.Error(), version.Version, nil)
 		return err
 	}
 
 	if strings.TrimSpace(opts.command) == "" {
 		uc.log.Info(logger.KV("self update downloaded",
 			"version", payload.Version,
-			"file", localFile,
+			"file", artifact.FilePath,
 			"reason", "command_not_configured",
 		))
-		uc.reportStatusBestEffort(ctx, payload, "download_ok", "command_not_configured", "", version.Version)
+		uc.reportStatusBestEffort(
+			ctx,
+			payload,
+			"download_ok",
+			"command_not_configured",
+			uc.downloadSummaryMessage(artifact),
+			version.Version,
+			uc.buildUpdateRuntimeEvidence(artifact, opts, nil),
+		)
 		return nil
 	}
 
-	if err := uc.savePendingState(opts.dir, payload.Version, version.Version); err != nil {
+	if err := uc.savePendingState(opts.dir, payload.Version, version.Version, artifact, opts); err != nil {
 		uc.log.Error(logger.KV("self update pending state save failed",
 			"version", payload.Version,
 			"err", err,
 		))
 	}
-	uc.reportStatusBestEffort(ctx, payload, "apply_started", "", "", version.Version)
+	uc.reportStatusBestEffort(
+		ctx,
+		payload,
+		"apply_started",
+		"",
+		uc.applySummaryMessage("apply_started", artifact),
+		version.Version,
+		uc.buildUpdateRuntimeEvidence(artifact, opts, nil),
+	)
 
-	if err := uc.runCommand(ctx, payload, localFile, opts); err != nil {
+	launcherExitCode, err := uc.runCommand(ctx, payload, artifact.FilePath, opts)
+	if err != nil {
 		_ = uc.clearPendingState(opts.dir)
-		uc.reportStatusBestEffort(ctx, payload, "apply_failed", "command_failed", err.Error(), version.Version)
+		uc.reportStatusBestEffort(
+			ctx,
+			payload,
+			"apply_failed",
+			"command_failed",
+			err.Error(),
+			version.Version,
+			uc.buildUpdateRuntimeEvidence(artifact, opts, launcherExitCode),
+		)
 		return err
+	}
+	if launcherExitCode != nil {
+		if err := uc.updatePendingLauncherExitCode(opts.dir, *launcherExitCode); err != nil {
+			uc.log.Error(logger.KV("self update pending state exit code save failed",
+				"version", payload.Version,
+				"err", err,
+			))
+		}
 	}
 
 	uc.log.Info(logger.KV("self update command executed",
 		"version", payload.Version,
-		"file", localFile,
+		"file", artifact.FilePath,
 	))
-	uc.reportStatusBestEffort(ctx, payload, "apply_dispatched", "", "", version.Version)
+	uc.reportStatusBestEffort(
+		ctx,
+		payload,
+		"apply_dispatched",
+		"",
+		uc.applySummaryMessage("apply_dispatched", artifact),
+		version.Version,
+		uc.buildUpdateRuntimeEvidence(artifact, opts, launcherExitCode),
+	)
 	return nil
 }
 
@@ -178,7 +234,7 @@ func (uc *SelfUpdate) shouldSkip(targetVersion string, retry time.Duration) bool
 	return false
 }
 
-func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts effectiveAutoUpdateOptions) (string, error) {
+func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts effectiveAutoUpdateOptions) (downloadedArtifact, error) {
 	timeout := opts.timeout
 	if timeout <= 0 {
 		timeout = 5 * time.Minute
@@ -188,7 +244,7 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts
 
 	parsed, err := neturl.Parse(payload.URL)
 	if err != nil {
-		return "", fmt.Errorf("invalid update url: %w", err)
+		return downloadedArtifact{}, fmt.Errorf("invalid update url: %w", err)
 	}
 
 	name := filepath.Base(parsed.Path)
@@ -202,7 +258,7 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts
 	}
 	targetDir := filepath.Join(rootDir, sanitizePathSegment(payload.Version))
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
-		return "", fmt.Errorf("create update dir: %w", err)
+		return downloadedArtifact{}, fmt.Errorf("create update dir: %w", err)
 	}
 	finalPath := filepath.Join(targetDir, name)
 	tmpPath := finalPath + ".part"
@@ -218,7 +274,7 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts
 
 	for _, source := range sources {
 		if err := os.Remove(tmpPath); err != nil && !os.IsNotExist(err) {
-			return "", fmt.Errorf("cleanup temp update file: %w", err)
+			return downloadedArtifact{}, fmt.Errorf("cleanup temp update file: %w", err)
 		}
 
 		req, err := http.NewRequestWithContext(dlCtx, http.MethodGet, source.URL, nil)
@@ -275,18 +331,38 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts
 		}()
 
 		if downloadErr == nil {
+			gotSHA := normalizeSHA256(expectedSHA)
+			if gotSHA == "" {
+				hashRaw, hashErr := fileSHA256(finalPath)
+				if hashErr != nil {
+					errs = append(errs, fmt.Sprintf("%s compute sha: %v", source.Name, hashErr))
+					continue
+				}
+				gotSHA = normalizeSHA256(hashRaw)
+			}
+			info, statErr := os.Stat(finalPath)
+			if statErr != nil {
+				errs = append(errs, fmt.Sprintf("%s stat file: %v", source.Name, statErr))
+				continue
+			}
 			uc.log.Info(logger.KV("self update download source",
 				"source", source.Name,
 			))
-			return finalPath, nil
+			return downloadedArtifact{
+				FilePath:  finalPath,
+				DirPath:   filepath.Dir(finalPath),
+				SHA256:    gotSHA,
+				SizeBytes: info.Size(),
+				Source:    source.Name,
+			}, nil
 		}
 		errs = append(errs, fmt.Sprintf("%s %v", source.Name, downloadErr))
 	}
 
 	if len(errs) == 0 {
-		return "", errors.New("download update failed: no source")
+		return downloadedArtifact{}, errors.New("download update failed: no source")
 	}
-	return "", fmt.Errorf("download update failed: %s", strings.Join(errs, " | "))
+	return downloadedArtifact{}, fmt.Errorf("download update failed: %s", strings.Join(errs, " | "))
 }
 
 func (uc *SelfUpdate) downloadSources(rawURL string, useAuth bool) []updateDownloadSource {
@@ -316,7 +392,7 @@ func buildHubUpdateProxyURL(hubBaseURL, targetURL string, useAgentAuth bool) str
 	return base + "/v1/agent/update/download?" + q.Encode()
 }
 
-func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, filePath string, opts effectiveAutoUpdateOptions) error {
+func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, filePath string, opts effectiveAutoUpdateOptions) (*int, error) {
 	timeout := opts.timeout
 	if timeout <= 0 {
 		timeout = 5 * time.Minute
@@ -356,10 +432,15 @@ func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, fi
 			"output", truncateForLog(string(out), 1500),
 		))
 	}
+	exitCode := 0
 	if err != nil {
-		return fmt.Errorf("self update command failed: %w", err)
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+			return &exitCode, fmt.Errorf("self update command failed: %w", err)
+		}
+		return nil, fmt.Errorf("self update command failed: %w", err)
 	}
-	return nil
+	return &exitCode, nil
 }
 
 func (uc *SelfUpdate) ApplyRemoteConfig(payload *AutoUpdatePayload) {
@@ -448,6 +529,37 @@ func (uc *SelfUpdate) effectiveOptions() effectiveAutoUpdateOptions {
 	return opts
 }
 
+func (uc *SelfUpdate) Snapshot() map[string]any {
+	opts := uc.effectiveOptions()
+	out := map[string]any{
+		"enabled_effective":  opts.enabled,
+		"download_dir":       strings.TrimSpace(opts.dir),
+		"max_mb":             opts.maxMB,
+		"timeout_sec":        int(opts.timeout.Seconds()),
+		"retry_interval_sec": int(opts.retry.Seconds()),
+		"use_agent_auth":     opts.useAuth,
+		"command":            strings.TrimSpace(opts.command),
+		"workdir":            strings.TrimSpace(opts.workDir),
+	}
+	if st, err := uc.loadPendingState(opts.dir); err == nil && st != nil {
+		out["pending_state"] = map[string]any{
+			"target_version":      strings.TrimSpace(st.TargetVersion),
+			"from_version":        strings.TrimSpace(st.FromVersion),
+			"requested_at_ms":     st.RequestedAtMs,
+			"download_file":       strings.TrimSpace(st.DownloadFile),
+			"download_dir":        strings.TrimSpace(st.DownloadDir),
+			"download_sha256":     normalizeSHA256(st.DownloadSHA256),
+			"download_size_bytes": st.DownloadSize,
+			"launcher_command":    strings.TrimSpace(st.LauncherCommand),
+			"launcher_workdir":    strings.TrimSpace(st.LauncherWorkDir),
+			"launcher_exit_code":  st.LauncherExitCode,
+		}
+	} else if err != nil {
+		out["pending_state_error"] = err.Error()
+	}
+	return out
+}
+
 func (uc *SelfUpdate) ReportPendingResult(ctx context.Context) error {
 	opts := uc.effectiveOptions()
 	st, err := uc.loadPendingState(opts.dir)
@@ -456,21 +568,45 @@ func (uc *SelfUpdate) ReportPendingResult(ctx context.Context) error {
 	}
 
 	payload := &UpdatePayload{Version: st.TargetVersion}
+	artifact := downloadedArtifact{
+		FilePath:  strings.TrimSpace(st.DownloadFile),
+		DirPath:   strings.TrimSpace(st.DownloadDir),
+		SHA256:    strings.TrimSpace(st.DownloadSHA256),
+		SizeBytes: st.DownloadSize,
+		Source:    "pending_state",
+	}
+	reportMeta := uc.buildUpdateRuntimeEvidence(artifact, opts, st.LauncherExitCode)
 	if version.Version == st.TargetVersion {
-		if err := uc.reportStatus(ctx, payload, "apply_ok", "", "", version.Version); err != nil {
+		if err := uc.reportStatus(
+			ctx,
+			payload,
+			"apply_ok",
+			"",
+			uc.applySummaryMessage("apply_ok", artifact),
+			version.Version,
+			reportMeta,
+		); err != nil {
 			return err
 		}
 		return uc.clearPendingState(opts.dir)
 	}
 
-	if err := uc.reportStatus(ctx, payload, "apply_failed", "version_mismatch_after_restart", "", version.Version); err != nil {
+	if err := uc.reportStatus(
+		ctx,
+		payload,
+		"apply_failed",
+		"version_mismatch_after_restart",
+		fmt.Sprintf("expected target=%s current=%s", st.TargetVersion, version.Version),
+		version.Version,
+		reportMeta,
+	); err != nil {
 		return err
 	}
 	return uc.clearPendingState(opts.dir)
 }
 
-func (uc *SelfUpdate) reportStatusBestEffort(ctx context.Context, payload *UpdatePayload, status, reasonCode, reasonMessage, currentVersion string) {
-	if err := uc.reportStatus(ctx, payload, status, reasonCode, reasonMessage, currentVersion); err != nil {
+func (uc *SelfUpdate) reportStatusBestEffort(ctx context.Context, payload *UpdatePayload, status, reasonCode, reasonMessage, currentVersion string, updateMeta map[string]any) {
+	if err := uc.reportStatus(ctx, payload, status, reasonCode, reasonMessage, currentVersion, updateMeta); err != nil {
 		uc.log.Error(logger.KV("self update report failed",
 			"status", status,
 			"version", payloadVersion(payload),
@@ -479,7 +615,7 @@ func (uc *SelfUpdate) reportStatusBestEffort(ctx context.Context, payload *Updat
 	}
 }
 
-func (uc *SelfUpdate) reportStatus(ctx context.Context, payload *UpdatePayload, status, reasonCode, reasonMessage, currentVersion string) error {
+func (uc *SelfUpdate) reportStatus(ctx context.Context, payload *UpdatePayload, status, reasonCode, reasonMessage, currentVersion string, updateMeta map[string]any) error {
 	if strings.TrimSpace(status) == "" {
 		return nil
 	}
@@ -490,6 +626,9 @@ func (uc *SelfUpdate) reportStatus(ctx context.Context, payload *UpdatePayload, 
 		"reason_code":     strings.TrimSpace(reasonCode),
 		"reason_message":  strings.TrimSpace(reasonMessage),
 		"ts_unix_ms":      time.Now().UnixMilli(),
+	}
+	if len(updateMeta) > 0 {
+		body["update"] = updateMeta
 	}
 	enc, err := json.Marshal(body)
 	if err != nil {
@@ -536,15 +675,21 @@ func (uc *SelfUpdate) pendingStatePath(rootDir string) string {
 	return filepath.Join(dir, ".pending_update.json")
 }
 
-func (uc *SelfUpdate) savePendingState(rootDir, targetVersion, fromVersion string) error {
+func (uc *SelfUpdate) savePendingState(rootDir, targetVersion, fromVersion string, artifact downloadedArtifact, opts effectiveAutoUpdateOptions) error {
 	path := uc.pendingStatePath(rootDir)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	data := pendingUpdateState{
-		TargetVersion: strings.TrimSpace(targetVersion),
-		FromVersion:   strings.TrimSpace(fromVersion),
-		RequestedAtMs: time.Now().UnixMilli(),
+		TargetVersion:   strings.TrimSpace(targetVersion),
+		FromVersion:     strings.TrimSpace(fromVersion),
+		RequestedAtMs:   time.Now().UnixMilli(),
+		DownloadFile:    strings.TrimSpace(artifact.FilePath),
+		DownloadDir:     strings.TrimSpace(artifact.DirPath),
+		DownloadSHA256:  normalizeSHA256(artifact.SHA256),
+		DownloadSize:    artifact.SizeBytes,
+		LauncherCommand: strings.TrimSpace(opts.command),
+		LauncherWorkDir: strings.TrimSpace(opts.workDir),
 	}
 	raw, err := json.Marshal(data)
 	if err != nil {
@@ -580,11 +725,96 @@ func (uc *SelfUpdate) clearPendingState(rootDir string) error {
 	return nil
 }
 
+func (uc *SelfUpdate) updatePendingLauncherExitCode(rootDir string, exitCode int) error {
+	st, err := uc.loadPendingState(rootDir)
+	if err != nil || st == nil {
+		return err
+	}
+	st.LauncherExitCode = &exitCode
+	path := uc.pendingStatePath(rootDir)
+	raw, err := json.Marshal(st)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, raw, 0o644)
+}
+
 func payloadVersion(payload *UpdatePayload) string {
 	if payload == nil {
 		return ""
 	}
 	return strings.TrimSpace(payload.Version)
+}
+
+func (uc *SelfUpdate) buildUpdateRuntimeEvidence(artifact downloadedArtifact, opts effectiveAutoUpdateOptions, launcherExitCode *int) map[string]any {
+	out := map[string]any{}
+	if strings.TrimSpace(artifact.FilePath) != "" {
+		out["download_file"] = strings.TrimSpace(artifact.FilePath)
+	}
+	if strings.TrimSpace(artifact.DirPath) != "" {
+		out["download_dir"] = strings.TrimSpace(artifact.DirPath)
+	}
+	if artifact.SizeBytes > 0 {
+		out["download_size_bytes"] = artifact.SizeBytes
+	}
+	if sha := normalizeSHA256(artifact.SHA256); sha != "" {
+		out["download_sha256"] = sha
+	}
+	if strings.TrimSpace(artifact.Source) != "" {
+		out["download_source"] = strings.TrimSpace(artifact.Source)
+	}
+	if strings.TrimSpace(opts.workDir) != "" {
+		out["launcher_workdir"] = strings.TrimSpace(opts.workDir)
+	}
+	if strings.TrimSpace(opts.command) != "" {
+		out["launcher_command"] = strings.TrimSpace(opts.command)
+	}
+	if launcherExitCode != nil {
+		out["launcher_exit_code"] = *launcherExitCode
+	}
+	return out
+}
+
+func (uc *SelfUpdate) downloadSummaryMessage(artifact downloadedArtifact) string {
+	file := strings.TrimSpace(artifact.FilePath)
+	if file == "" {
+		return ""
+	}
+	parts := []string{"downloaded"}
+	parts = append(parts, file)
+	if artifact.SizeBytes > 0 {
+		parts = append(parts, fmt.Sprintf("size=%d", artifact.SizeBytes))
+	}
+	if sha := normalizeSHA256(artifact.SHA256); sha != "" {
+		parts = append(parts, "sha256="+sha)
+	}
+	return strings.Join(parts, " | ")
+}
+
+func (uc *SelfUpdate) applySummaryMessage(status string, artifact downloadedArtifact) string {
+	label := strings.TrimSpace(status)
+	if label == "" {
+		label = "apply"
+	}
+	file := strings.TrimSpace(artifact.FilePath)
+	if file == "" {
+		return label
+	}
+	return fmt.Sprintf("%s | file=%s", label, file)
+}
+
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	hash := sha256.New()
+	if _, err := io.Copy(hash, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 func sanitizePathSegment(s string) string {

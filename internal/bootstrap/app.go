@@ -299,9 +299,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		}
 	}
 
-	// Em modo hub, sempre inicializa o worker agentless.
-	// O enable/disable efetivo é decidido por prefs remotas (agentlessSettings).
-	if mode == "hub" {
+	// Inicializa worker agentless em todos os modos não-relay.
+	// A web (prefs remotas) continua sendo a fonte de verdade para enable/disable em runtime.
+	if mode != "relay" {
 		agentlessStore := selectAgentlessOutbox(cfg, log)
 		agentlessRepo = repositories.NewAgentlessOutboxRepository(agentlessStore)
 		agentlessClient := agentlessremote.NewAgentlessHubClient(cfg)
@@ -345,14 +345,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		RuntimeSnapshot: func() map[string]any {
 			p := prefStore.Get()
 			settings := agentlessSettings()
-			return map[string]any{
-				"agent_mode_runtime":          mode,
-				"agentless_enabled_env":       cfg.AgentlessEnabled,
-				"agentless_enabled_prefs":     p.AgentlessEnabled,
-				"agentless_effective_enabled": settings.Enabled,
-				"prefs_version":               strings.TrimSpace(p.Version),
-				"worker_available":            agentlessUC != nil,
-			}
+			return buildSelfHealRuntimeSnapshot(cfg, mode, p, settings, agentlessUC != nil, selfUpdateUC)
 		},
 	})
 
@@ -539,16 +532,27 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				}
 			case "agentless":
 				if agentlessUC != nil {
-					if err := agentlessUC.SyncTargets(ctx); err != nil {
-						log.Error(logger.KV("agentless targets sync failed",
-							"err", err,
+					if agentlessBusy.CompareAndSwap(false, true) {
+						go func(commandName string) {
+							defer agentlessBusy.Store(false)
+							if err := agentlessUC.SyncTargets(ctx); err != nil {
+								log.Error(logger.KV("agentless targets sync failed",
+									"err", err,
+								))
+								reportWorkerError(ctx, "agentless_sync_failed", "error", "open", err, map[string]any{
+									"source": "command",
+									"name":   commandName,
+								})
+							}
+							agentlessUC.CollectNow(ctx)
+						}(cmd.Name)
+					} else {
+						log.Info(logger.KV("agentless command skipped",
+							"source", "command",
+							"name", cmd.Name,
+							"reason", "busy",
 						))
-						reportWorkerError(ctx, "agentless_sync_failed", "error", "open", err, map[string]any{
-							"source": "command",
-							"name":   cmd.Name,
-						})
 					}
-					agentlessUC.CollectNow(ctx)
 				}
 			case "self_update":
 				if err := selfUpdateUC.Execute(ctx, cmd.Update); err != nil {

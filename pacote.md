@@ -11,7 +11,7 @@ O agente envia um *array* de envelopes JSON (batch). Cada item segue o contrato 
 - [x] Loop principal com polling contínuo de self-healing (`SELFHEAL_POLL_INTERVAL`).
 - [x] Telemetria de erros operacionais do worker/coleta/flush para painel web de saúde.
 - [x] Documentação operacional atualizada no `README.md` (seção de self-healing e error-report).
-- [x] Worker agentless em modo `hub` inicializa independente do env `AGENTLESS_ENABLED`, com enable/disable efetivo controlado por prefs remotas após primeiro config sync.
+- [x] Worker agentless inicializa em modos não-`relay` com governança de enable/disable priorizando prefs remotas da web (fallback de bootstrap por env apenas antes do primeiro config sync válido).
 - [x] Novo comando remoto `inspect_runtime_config` para retornar snapshot sanitizado de runtime (mode, flags env/prefs, estado efetivo e disponibilidade do worker).
 
 ## Estrutura do envelope

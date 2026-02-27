@@ -4,12 +4,16 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	neturl "net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -228,5 +232,129 @@ func TestSelfUpdate_ApplyRemoteConfigResetsOverridesWhenPayloadIsEmpty(t *testin
 	}
 	if opts.dir != cfg.AutoUpdateDir {
 		t.Fatalf("expected dir fallback to config default, got %q", opts.dir)
+	}
+}
+
+func TestSelfUpdate_ReportIncludesDownloadMetadata(t *testing.T) {
+	pkg := []byte("pkg-report-metadata")
+	sum := sha256.Sum256(pkg)
+	var (
+		mu        sync.Mutex
+		received  []map[string]any
+		reqCount  int
+		targetURL string
+	)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/pkg.bin":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(pkg)
+			return
+		case "/v1/agent/update-report":
+			reqCount++
+			raw, _ := io.ReadAll(r.Body)
+			payload := map[string]any{}
+			_ = json.Unmarshal(raw, &payload)
+			mu.Lock()
+			received = append(received, payload)
+			mu.Unlock()
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			return
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	targetURL = srv.URL + "/pkg.bin"
+
+	cfg := config.Config{
+		Agent:             config.AgentCfg{Token: "agent-token"},
+		APIBaseURL:        srv.URL,
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     t.TempDir(),
+		AutoUpdateTimeout: 2 * time.Second,
+		AutoUpdateMaxMB:   5,
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	payload := &UpdatePayload{
+		Version: testUpdateVersion(),
+		URL:     targetURL,
+		SHA256:  hex.EncodeToString(sum[:]),
+	}
+
+	if err := uc.Execute(context.Background(), payload); err != nil {
+		t.Fatalf("execute failed: %v", err)
+	}
+
+	if reqCount == 0 {
+		t.Fatalf("expected update-report request")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	report := received[len(received)-1]
+	if status, _ := report["status"].(string); status != "download_ok" {
+		t.Fatalf("expected status download_ok, got %v", report["status"])
+	}
+	update, ok := report["update"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected update metadata map")
+	}
+	filePath, _ := update["download_file"].(string)
+	if strings.TrimSpace(filePath) == "" {
+		t.Fatalf("expected download_file in update metadata")
+	}
+	if !strings.Contains(filePath, payload.Version) {
+		t.Fatalf("expected download path to include version dir, got %s", filePath)
+	}
+	if sha, _ := update["download_sha256"].(string); sha == "" {
+		t.Fatalf("expected download_sha256")
+	}
+}
+
+func TestSelfUpdate_SnapshotIncludesPendingStateMetadata(t *testing.T) {
+	cfg := config.Config{
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     t.TempDir(),
+		AutoUpdateTimeout: 2 * time.Second,
+		AutoUpdateMaxMB:   5,
+		AutoUpdateCommand: "echo ok",
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	const expectedSHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	artifact := downloadedArtifact{
+		FilePath:  filepath.Join(cfg.AutoUpdateDir, "v-test", "pkg.bin"),
+		DirPath:   filepath.Join(cfg.AutoUpdateDir, "v-test"),
+		SHA256:    expectedSHA,
+		SizeBytes: 321,
+		Source:    "direct",
+	}
+	opts := effectiveAutoUpdateOptions{
+		enabled: true,
+		dir:     cfg.AutoUpdateDir,
+		maxMB:   cfg.AutoUpdateMaxMB,
+		timeout: cfg.AutoUpdateTimeout,
+		retry:   30 * time.Minute,
+		useAuth: false,
+		command: cfg.AutoUpdateCommand,
+		workDir: cfg.AutoUpdateDir,
+	}
+	if err := uc.savePendingState(opts.dir, "v-test", version.Version, artifact, opts); err != nil {
+		t.Fatalf("savePendingState failed: %v", err)
+	}
+	snap := uc.Snapshot()
+	pending, ok := snap["pending_state"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected pending_state snapshot")
+	}
+	if got, _ := pending["target_version"].(string); got != "v-test" {
+		t.Fatalf("unexpected target_version: %v", got)
+	}
+	if got, _ := pending["download_file"].(string); got == "" {
+		t.Fatalf("expected download_file in pending_state")
+	}
+	if got, _ := pending["download_sha256"].(string); got != expectedSHA {
+		t.Fatalf("unexpected download_sha256: %v", got)
 	}
 }
