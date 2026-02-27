@@ -2,6 +2,16 @@
 
 O agente envia um *array* de envelopes JSON (batch). Cada item segue o contrato abaixo.
 
+## Status de entrega (PKG-19 observabilidade/remediação)
+
+- [x] Cliente remoto para `GET /v1/agent/selfheal-commands`.
+- [x] Cliente remoto para `POST /v1/agent/selfheal-report`.
+- [x] Cliente remoto para `POST /v1/agent/error-report`.
+- [x] Execução local de comandos de auto-remediação seguros (`restart_agentless_worker`, `reload_configuration`, `clear_local_lock`, `requeue_pending_collect`, `validate_api_connectivity`, `resync_clock`).
+- [x] Loop principal com polling contínuo de self-healing (`SELFHEAL_POLL_INTERVAL`).
+- [x] Telemetria de erros operacionais do worker/coleta/flush para painel web de saúde.
+- [x] Documentação operacional atualizada no `README.md` (seção de self-healing e error-report).
+
 ## Estrutura do envelope
 
 ```jsonc

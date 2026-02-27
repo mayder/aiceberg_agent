@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -29,6 +32,7 @@ import (
 	agentlessremote "github.com/you/aiceberg_agent/internal/data/remote"
 	"github.com/you/aiceberg_agent/internal/data/remote/transport"
 	"github.com/you/aiceberg_agent/internal/data/repositories"
+	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
 	"github.com/you/aiceberg_agent/internal/interfaces/health"
@@ -169,10 +173,66 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	flushUC := usecase.NewFlushOutbox(outboxRepo, tx, log, authHeader, onIngestConfig)
 	pingUC := usecase.NewPingBackend(cfg, log)
 	selfUpdateUC := usecase.NewSelfUpdate(cfg, log)
+	controlClient := agentlessremote.NewAgentControlClient(cfg)
+	var errorReportMu sync.Mutex
+	lastErrorReportAt := make(map[string]time.Time)
+	reportWorkerError := func(ctx context.Context, errorType, severity, recovery string, err error, metadata map[string]any) {
+		if controlClient == nil {
+			return
+		}
+		summary := ""
+		if err != nil {
+			summary = truncateTextForErrorReport(err.Error(), 900)
+		}
+		if severity == "" {
+			severity = "error"
+		}
+		if recovery == "" {
+			recovery = "open"
+		}
+		fingerprint := workerErrorFingerprint(errorType, mode, summary)
+		now := time.Now()
+
+		errorReportMu.Lock()
+		lastAt := lastErrorReportAt[fingerprint]
+		if !lastAt.IsZero() && now.Sub(lastAt) < 60*time.Second {
+			errorReportMu.Unlock()
+			return
+		}
+		lastErrorReportAt[fingerprint] = now
+		errorReportMu.Unlock()
+
+		event := entities.WorkerErrorEvent{
+			Source:         "agent",
+			ErrorType:      errorType,
+			Severity:       severity,
+			RecoveryStatus: recovery,
+			Fingerprint:    fingerprint,
+			Summary:        summary,
+			Stack:          summary,
+			Metadata:       metadata,
+			OccurredAt:     now.UTC().Format(time.RFC3339),
+		}
+		if event.Metadata == nil {
+			event.Metadata = map[string]any{}
+		}
+		event.Metadata["agent_mode"] = mode
+		if reportErr := controlClient.ReportWorkerErrors(ctx, []entities.WorkerErrorEvent{event}); reportErr != nil {
+			log.Error(logger.KV("worker error report failed",
+				"route", "/v1/agent/error-report",
+				"error_type", errorType,
+				"err", reportErr,
+			))
+		}
+	}
+
 	if err := selfUpdateUC.ReportPendingResult(ctx); err != nil {
 		log.Error(logger.KV("self update startup report failed",
 			"err", err,
 		))
+		reportWorkerError(ctx, "self_update_startup_report_failed", "warning", "open", err, map[string]any{
+			"route": "/v1/agent/update-report",
+		})
 	}
 	var counters obsCounters
 
@@ -245,6 +305,39 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		agentlessLastFlush = time.Now().Add(-cfg.AgentlessFlushInterval)
 	}
 
+	selfHealExec := usecase.NewSelfHealExecutor(log, controlClient, usecase.SelfHealDeps{
+		ConfigSync:       configSyncUC.Execute,
+		Ping:             pingUC.Execute,
+		CollectMetrics:   metricsUC.Execute,
+		CollectHealth:    healthUC.Execute,
+		CollectInventory: inventoryUC.Execute,
+		CollectBootstrap: bootstrapUC.Execute,
+		CollectNetwork:   networkCaptureUC.Execute,
+		AgentlessSync: func(runCtx context.Context) error {
+			if agentlessUC == nil {
+				return nil
+			}
+			return agentlessUC.SyncTargets(runCtx)
+		},
+		AgentlessCollectNow: func(runCtx context.Context) {
+			if agentlessUC != nil {
+				agentlessUC.CollectNow(runCtx)
+			}
+		},
+		AgentlessFlush: func(runCtx context.Context) error {
+			if agentlessUC == nil {
+				return nil
+			}
+			return agentlessUC.Flush(runCtx)
+		},
+		ClearAgentlessLock: func() {
+			agentlessBusy.Store(false)
+		},
+		HasAgentlessWorker: func() bool {
+			return agentlessUC != nil
+		},
+	})
+
 	if cfg.HealthPort > 0 {
 		go health.Serve(cfg.HealthPort, log, func() health.Snapshot {
 			items, bytes := outboxRepo.Len()
@@ -290,6 +383,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var tCfgSync *time.Ticker
 	var tOsCollect *time.Ticker
 	var tAgentlessTick *time.Ticker
+	var tSelfHeal *time.Ticker
 	tPing = time.NewTicker(cfg.PingInterval)
 	tCfgSync = time.NewTicker(cfg.ConfigSyncInterval)
 	if osLogCollectUC != nil {
@@ -298,6 +392,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	if agentlessUC != nil {
 		tAgentlessTick = time.NewTicker(5 * time.Second)
 	}
+	tSelfHeal = time.NewTicker(cfg.SelfHealPollInterval)
 	defer tMetrics.Stop()
 	defer tHealth.Stop()
 	defer tInventory.Stop()
@@ -314,13 +409,20 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	if tAgentlessTick != nil {
 		defer tAgentlessTick.Stop()
 	}
+	if tSelfHeal != nil {
+		defer tSelfHeal.Stop()
+	}
 
 	log.Info(logger.KV("agent started",
 		"mode", mode,
 	))
 
 	// coleta de bootstrap imediata (host/inventory estático)
-	_ = bootstrapUC.Execute(ctx)
+	if err := bootstrapUC.Execute(ctx); err != nil {
+		reportWorkerError(ctx, "collect_bootstrap_failed", "warning", "open", err, map[string]any{
+			"route": bootstrapEndpoint,
+		})
+	}
 
 	for {
 		select {
@@ -331,18 +433,32 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			start := time.Now()
 			if err := metricsUC.Execute(ctx); err != nil {
 				counters.collectErr.Add(1)
+				reportWorkerError(ctx, "collect_metrics_failed", "error", "open", err, map[string]any{
+					"route": metricsEndpoint,
+				})
 			}
 			counters.lastCollectMs.Store(time.Since(start).Milliseconds())
 		case <-tHealth.C:
-			_ = healthUC.Execute(ctx)
+			if err := healthUC.Execute(ctx); err != nil {
+				reportWorkerError(ctx, "collect_health_failed", "warning", "open", err, map[string]any{
+					"route": healthEndpoint,
+				})
+			}
 		case <-tInventory.C:
-			_ = inventoryUC.Execute(ctx)
+			if err := inventoryUC.Execute(ctx); err != nil {
+				reportWorkerError(ctx, "collect_inventory_failed", "warning", "open", err, map[string]any{
+					"route": inventoryEndpoint,
+				})
+			}
 		case <-tFlush.C:
 			pruneStore(store, "main")
 			pruneStore(osStore, "oslogs")
 			start := time.Now()
 			if n, err := flushUC.Execute(ctx); err != nil {
 				counters.flushErr.Add(1)
+				reportWorkerError(ctx, "flush_outbox_failed", "error", "open", err, map[string]any{
+					"route": "/v1/ingest",
+				})
 			} else {
 				counters.flushOK.Add(1)
 				counters.lastFlushBatch.Store(int64(n))
@@ -352,6 +468,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				start := time.Now()
 				if n, err := osLogFlushUC.Execute(ctx); err != nil {
 					counters.flushErr.Add(1)
+					reportWorkerError(ctx, "flush_oslogs_failed", "warning", "open", err, map[string]any{
+						"route": "/v1/logs/raw",
+					})
 				} else {
 					counters.flushOK.Add(1)
 					counters.lastFlushBatch.Store(int64(n))
@@ -359,25 +478,57 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				counters.lastFlushMs.Store(time.Since(start).Milliseconds())
 			}
 		case <-readTick(tPing):
-			_ = pingUC.Execute(ctx)
+			if err := pingUC.Execute(ctx); err != nil {
+				reportWorkerError(ctx, "api_connectivity_ping_failed", "warning", "open", err, map[string]any{
+					"route": "/v1/agent/ping",
+				})
+			}
 		case <-readTick(tCfgSync):
-			_ = configSyncUC.Execute(ctx)
+			if err := configSyncUC.Execute(ctx); err != nil {
+				reportWorkerError(ctx, "config_sync_failed", "warning", "open", err, map[string]any{
+					"route": "/v1/agent/config",
+				})
+			}
 		case cmd := <-commandChan:
 			switch cmd.Name {
 			case "inventory":
-				_ = inventoryUC.Execute(ctx)
+				if err := inventoryUC.Execute(ctx); err != nil {
+					reportWorkerError(ctx, "collect_inventory_failed", "warning", "open", err, map[string]any{
+						"source": "command",
+						"name":   cmd.Name,
+					})
+				}
 			case "health":
-				_ = healthUC.Execute(ctx)
+				if err := healthUC.Execute(ctx); err != nil {
+					reportWorkerError(ctx, "collect_health_failed", "warning", "open", err, map[string]any{
+						"source": "command",
+						"name":   cmd.Name,
+					})
+				}
 			case "bootstrap":
-				_ = bootstrapUC.Execute(ctx)
+				if err := bootstrapUC.Execute(ctx); err != nil {
+					reportWorkerError(ctx, "collect_bootstrap_failed", "warning", "open", err, map[string]any{
+						"source": "command",
+						"name":   cmd.Name,
+					})
+				}
 			case "network_capture":
-				_ = networkCaptureUC.Execute(ctx)
+				if err := networkCaptureUC.Execute(ctx); err != nil {
+					reportWorkerError(ctx, "collect_network_capture_failed", "warning", "open", err, map[string]any{
+						"source": "command",
+						"name":   cmd.Name,
+					})
+				}
 			case "agentless":
 				if agentlessUC != nil {
 					if err := agentlessUC.SyncTargets(ctx); err != nil {
 						log.Error(logger.KV("agentless targets sync failed",
 							"err", err,
 						))
+						reportWorkerError(ctx, "agentless_sync_failed", "error", "open", err, map[string]any{
+							"source": "command",
+							"name":   cmd.Name,
+						})
 					}
 					agentlessUC.CollectNow(ctx)
 				}
@@ -391,13 +542,20 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 						"version", ver,
 						"err", err,
 					))
+					reportWorkerError(ctx, "self_update_apply_failed", "error", "open", err, map[string]any{
+						"version": ver,
+					})
 				}
 			case "self_update_policy":
 				selfUpdateUC.ApplyRemoteConfig(cmd.AutoUpdate)
 			}
 		case <-readTick(tOsCollect):
 			if osLogCollectUC != nil {
-				_ = osLogCollectUC.Execute(ctx)
+				if err := osLogCollectUC.Execute(ctx); err != nil {
+					reportWorkerError(ctx, "collect_oslogs_failed", "warning", "open", err, map[string]any{
+						"route": "/v1/logs/raw",
+					})
+				}
 			}
 		case <-readTick(tAgentlessTick):
 			if agentlessUC != nil {
@@ -419,13 +577,51 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 								log.Error(logger.KV("agentless targets sync failed",
 									"err", err,
 								))
+								reportWorkerError(ctx, "agentless_sync_failed", "error", "open", err, map[string]any{
+									"source": "ticker",
+									"name":   "agentless_poll",
+								})
 							}
-							_ = agentlessUC.PollAndRun(ctx)
+							if err := agentlessUC.PollAndRun(ctx); err != nil {
+								reportWorkerError(ctx, "agentless_collect_failed", "error", "open", err, map[string]any{
+									"source": "ticker",
+									"name":   "agentless_poll",
+								})
+							}
 						}
 						if runFlush {
-							_ = agentlessUC.Flush(ctx)
+							if err := agentlessUC.Flush(ctx); err != nil {
+								reportWorkerError(ctx, "agentless_flush_failed", "error", "open", err, map[string]any{
+									"source": "ticker",
+									"name":   "agentless_flush",
+								})
+							}
 						}
 					}(shouldPoll, shouldFlush)
+				}
+			}
+		case <-readTick(tSelfHeal):
+			commands, err := controlClient.FetchSelfHealCommands(ctx)
+			if err != nil {
+				reportWorkerError(ctx, "selfheal_commands_pull_failed", "warning", "open", err, map[string]any{
+					"route": "/v1/agent/selfheal-commands",
+				})
+				break
+			}
+			if len(commands) > 0 {
+				log.Info(logger.KV("selfheal commands fetched",
+					"count", len(commands),
+				))
+			}
+			for _, command := range commands {
+				status, message, evidence := selfHealExec.Execute(ctx, command)
+				if status == "failed" {
+					reportWorkerError(ctx, "selfheal_command_failed", "warning", "open", errors.New(message), map[string]any{
+						"command_id":     strings.TrimSpace(command.CommandID),
+						"command_code":   strings.TrimSpace(command.Code),
+						"correlation_id": strings.TrimSpace(command.CorrelationID),
+						"evidence":       evidence,
+					})
 				}
 			}
 		}
@@ -723,4 +919,21 @@ func readTick(t *time.Ticker) <-chan time.Time {
 		return nil
 	}
 	return t.C
+}
+
+func truncateTextForErrorReport(text string, maxLen int) string {
+	if maxLen <= 0 {
+		return ""
+	}
+	trimmed := strings.TrimSpace(text)
+	if len(trimmed) <= maxLen {
+		return trimmed
+	}
+	return strings.TrimSpace(trimmed[:maxLen])
+}
+
+func workerErrorFingerprint(errorType, mode, summary string) string {
+	seed := strings.TrimSpace(errorType) + "|" + strings.TrimSpace(mode) + "|" + strings.TrimSpace(summary)
+	hash := sha1.Sum([]byte(seed))
+	return fmt.Sprintf("%x", hash)
 }

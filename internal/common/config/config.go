@@ -50,6 +50,7 @@ type Config struct {
 	AgentlessEnabled        bool
 	AgentlessPollInterval   time.Duration
 	AgentlessFlushInterval  time.Duration
+	SelfHealPollInterval    time.Duration
 	AgentlessOutboxPath     string
 	AgentlessOutboxMaxMB    int
 	AgentlessJobsLimit      int
@@ -139,6 +140,7 @@ func Load(configPath string) (Config, error) {
 	cfgSyncInterval := time.Duration(intEnv("CONFIG_SYNC_INTERVAL", 30)) * time.Second
 	agentlessPoll := time.Duration(intEnv("AGENTLESS_POLL_INTERVAL", 30)) * time.Second
 	agentlessFlush := time.Duration(intEnv("AGENTLESS_FLUSH_INTERVAL", 15)) * time.Second
+	selfHealPoll := time.Duration(intEnv("SELFHEAL_POLL_INTERVAL", 30)) * time.Second
 	autoUpdateTimeout := time.Duration(intEnv("AUTO_UPDATE_TIMEOUT", 300)) * time.Second
 	autoUpdateRetry := time.Duration(intEnv("AUTO_UPDATE_RETRY_INTERVAL", 1800)) * time.Second
 	cfg := Config{
@@ -204,6 +206,12 @@ func Load(configPath string) (Config, error) {
 				return 15 * time.Second
 			}
 			return agentlessFlush
+		}(),
+		SelfHealPollInterval: func() time.Duration {
+			if selfHealPoll <= 0 {
+				return 30 * time.Second
+			}
+			return selfHealPoll
 		}(),
 		AutoUpdateTimeout: func() time.Duration {
 			if autoUpdateTimeout <= 0 {
