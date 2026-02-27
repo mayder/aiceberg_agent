@@ -27,6 +27,15 @@ if [[ "$CGO_CFLAGS" != *-Wno-gnu-folding-constant* ]]; then
 fi
 export CGO_CFLAGS
 
+CGO_ENABLED="${CGO_ENABLED:-0}"
+export CGO_ENABLED
+
+GOFLAGS="${GOFLAGS:-}"
+if [[ "$GOFLAGS" != *-buildvcs=false* ]]; then
+  GOFLAGS="${GOFLAGS} -buildvcs=false"
+fi
+export GOFLAGS
+
 GOLANGCI_LINT_VERSION="${GOLANGCI_LINT_VERSION:-v1.62.2}"
 TOOLS_DIR="$ROOT_DIR/.tools"
 TOOLS_BIN="$TOOLS_DIR/bin"
@@ -45,9 +54,30 @@ ensure_golangci_lint() {
   GOBIN="$TOOLS_BIN" go install "github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
 }
 
+run_golangci_lint() {
+  local lint_output
+  lint_output="$(mktemp)"
+
+  if "$GOLANGCI_LINT_BIN" run 2>&1 | tee "$lint_output"; then
+    rm -f "$lint_output"
+    return 0
+  fi
+
+  if grep -Eq 'failed to load package cgo|no export data for "runtime/cgo"' "$lint_output"; then
+    log "golangci-lint retry after go clean -cache (runtime/cgo export data)"
+    go clean -cache
+    "$GOLANGCI_LINT_BIN" run
+    rm -f "$lint_output"
+    return 0
+  fi
+
+  rm -f "$lint_output"
+  return 1
+}
+
 ensure_golangci_lint
 log "golangci-lint"
-"$GOLANGCI_LINT_BIN" run
+run_golangci_lint
 
 log "go vet"
 go vet ./...
