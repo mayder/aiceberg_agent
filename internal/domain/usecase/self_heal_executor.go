@@ -27,6 +27,7 @@ type SelfHealDeps struct {
 	CollectNetwork      func(context.Context) error
 	ClearAgentlessLock  func()
 	HasAgentlessWorker  func() bool
+	RuntimeSnapshot     func() map[string]any
 }
 
 type SelfHealExecutor struct {
@@ -113,7 +114,8 @@ func (uc *SelfHealExecutor) executeCode(ctx context.Context, code string) (strin
 	switch code {
 	case "restart_agentless_worker":
 		if uc.deps.HasAgentlessWorker != nil && !uc.deps.HasAgentlessWorker() {
-			return "agentless worker unavailable in current mode", map[string]any{"worker_available": false}, fmt.Errorf("agentless unavailable")
+			evidence := uc.withRuntimeEvidence(map[string]any{"worker_available": false})
+			return "agentless worker unavailable in current mode", evidence, fmt.Errorf("agentless unavailable")
 		}
 		if uc.deps.AgentlessSync != nil {
 			if err := uc.deps.AgentlessSync(ctx); err != nil {
@@ -184,7 +186,28 @@ func (uc *SelfHealExecutor) executeCode(ctx context.Context, code string) (strin
 			}
 		}
 		return "time sync probe triggered", map[string]any{"source": "health_collect"}, nil
+	case "inspect_runtime_config":
+		return "runtime configuration snapshot collected", uc.withRuntimeEvidence(map[string]any{
+			"snapshot_source": "selfheal.inspect_runtime_config",
+		}), nil
 	default:
 		return "unsupported self-healing command", map[string]any{"command_code": code}, fmt.Errorf("unsupported command: %s", code)
 	}
+}
+
+func (uc *SelfHealExecutor) withRuntimeEvidence(base map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range base {
+		out[k] = v
+	}
+	if uc.deps.RuntimeSnapshot == nil {
+		return out
+	}
+	snapshot := uc.deps.RuntimeSnapshot()
+	for k, v := range snapshot {
+		if _, exists := out[k]; !exists {
+			out[k] = v
+		}
+	}
+	return out
 }

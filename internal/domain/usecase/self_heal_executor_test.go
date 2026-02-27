@@ -80,6 +80,14 @@ func TestSelfHealExecutorRestartAgentlessWithoutWorkerFails(t *testing.T) {
 	reporter := &fakeSelfHealReporter{}
 	exec := NewSelfHealExecutor(log, reporter, SelfHealDeps{
 		HasAgentlessWorker: func() bool { return false },
+		RuntimeSnapshot: func() map[string]any {
+			return map[string]any{
+				"agent_mode_runtime":      "hub",
+				"agentless_enabled_env":   true,
+				"agentless_enabled_prefs": true,
+				"prefs_version":           "cfg-v10",
+			}
+		},
 	})
 
 	status, _, evidence := exec.Execute(context.Background(), entities.SelfHealCommand{
@@ -91,6 +99,12 @@ func TestSelfHealExecutorRestartAgentlessWithoutWorkerFails(t *testing.T) {
 	}
 	if evidence["worker_available"] != false {
 		t.Fatalf("expected worker_available=false evidence, got %#v", evidence)
+	}
+	if evidence["agent_mode_runtime"] != "hub" {
+		t.Fatalf("expected runtime mode in evidence, got %#v", evidence)
+	}
+	if evidence["prefs_version"] != "cfg-v10" {
+		t.Fatalf("expected prefs version in evidence, got %#v", evidence)
 	}
 }
 
@@ -113,5 +127,43 @@ func TestSelfHealExecutorInvalidPayloadWithCommandIDReportsFailed(t *testing.T) 
 	}
 	if reporter.reports[0].Status != "failed" {
 		t.Fatalf("expected failed report, got %s", reporter.reports[0].Status)
+	}
+}
+
+func TestSelfHealExecutorInspectRuntimeConfig(t *testing.T) {
+	log := logger.New("info")
+	t.Cleanup(func() { log.Sync() })
+	reporter := &fakeSelfHealReporter{}
+	exec := NewSelfHealExecutor(log, reporter, SelfHealDeps{
+		RuntimeSnapshot: func() map[string]any {
+			return map[string]any{
+				"agent_mode_runtime":          "hub",
+				"agentless_enabled_env":       false,
+				"agentless_enabled_prefs":     true,
+				"agentless_effective_enabled": true,
+				"worker_available":            true,
+			}
+		},
+	})
+
+	status, msg, evidence := exec.Execute(context.Background(), entities.SelfHealCommand{
+		CommandID: "cmd-5",
+		Code:      "inspect_runtime_config",
+	})
+
+	if status != "success" {
+		t.Fatalf("expected success, got %s (%s)", status, msg)
+	}
+	if evidence["snapshot_source"] != "selfheal.inspect_runtime_config" {
+		t.Fatalf("expected snapshot source in evidence, got %#v", evidence)
+	}
+	if evidence["agent_mode_runtime"] != "hub" {
+		t.Fatalf("expected runtime mode in evidence, got %#v", evidence)
+	}
+	if len(reporter.reports) != 3 {
+		t.Fatalf("expected 3 reports (acked/running/success), got %d", len(reporter.reports))
+	}
+	if reporter.reports[2].Status != "success" {
+		t.Fatalf("expected final success report, got %s", reporter.reports[2].Status)
 	}
 }

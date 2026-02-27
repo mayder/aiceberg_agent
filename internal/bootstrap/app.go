@@ -262,7 +262,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	agentlessSettings := func() usecase.AgentlessSettings {
 		p := prefStore.Get()
 		enabled := cfg.AgentlessEnabled
-		if p.AgentlessEnabled {
+		// Após o primeiro config sync (prefs com versão), a web vira fonte de verdade.
+		// Antes disso, mantém fallback de bootstrap por env para compatibilidade.
+		if strings.TrimSpace(p.Version) != "" {
+			enabled = p.AgentlessEnabled
+		} else if p.AgentlessEnabled {
 			enabled = true
 		}
 		pollSec := p.AgentlessPollSec
@@ -295,7 +299,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		}
 	}
 
-	if mode == "hub" && cfg.AgentlessEnabled {
+	// Em modo hub, sempre inicializa o worker agentless.
+	// O enable/disable efetivo é decidido por prefs remotas (agentlessSettings).
+	if mode == "hub" {
 		agentlessStore := selectAgentlessOutbox(cfg, log)
 		agentlessRepo = repositories.NewAgentlessOutboxRepository(agentlessStore)
 		agentlessClient := agentlessremote.NewAgentlessHubClient(cfg)
@@ -335,6 +341,18 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		},
 		HasAgentlessWorker: func() bool {
 			return agentlessUC != nil
+		},
+		RuntimeSnapshot: func() map[string]any {
+			p := prefStore.Get()
+			settings := agentlessSettings()
+			return map[string]any{
+				"agent_mode_runtime":          mode,
+				"agentless_enabled_env":       cfg.AgentlessEnabled,
+				"agentless_enabled_prefs":     p.AgentlessEnabled,
+				"agentless_effective_enabled": settings.Enabled,
+				"prefs_version":               strings.TrimSpace(p.Version),
+				"worker_available":            agentlessUC != nil,
+			}
 		},
 	})
 
