@@ -76,6 +76,24 @@ func (c *AgentlessHubClient) SendObservations(ctx context.Context, list []entiti
 			"payload_json": o.Payload,
 			"observed_at":  o.ObservedAt.Format("2006-01-02 15:04:05"),
 		}
+		if o.CollectionKind != "" {
+			item["snmp_collection_kind"] = o.CollectionKind
+			item["collection_kind"] = o.CollectionKind
+		}
+		if o.SegmentID != "" {
+			item["segment_id"] = o.SegmentID
+			item["is_partial"] = o.IsPartial
+			item["is_final"] = o.IsFinal
+		}
+		if o.SegmentSeq > 0 {
+			item["segment_seq"] = o.SegmentSeq
+		}
+		if o.SegmentStartedAt != nil && !o.SegmentStartedAt.IsZero() {
+			item["segment_started_at"] = o.SegmentStartedAt.Format("2006-01-02 15:04:05")
+		}
+		if o.DedupeKey != "" {
+			item["dedupe_key"] = o.DedupeKey
+		}
 		if o.EndpointID != nil {
 			item["endpoint_id"] = *o.EndpointID
 		}

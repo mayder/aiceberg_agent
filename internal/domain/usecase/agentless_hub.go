@@ -64,15 +64,29 @@ func (uc *AgentlessHub) PollAndRun(ctx context.Context) error {
 		if uc.cfg.AgentlessDebug {
 			uc.log.Info(formatAgentlessJob("agentless job start", job))
 		}
-		obs := agentless.RunJob(ctx, job)
-		if err := uc.outbox.Append(obs); err != nil {
+		obsCount := 0
+		appendObs := func(obs entities.AgentlessObservation) {
+			if err := uc.outbox.Append(obs); err != nil {
+				uc.log.Error(logger.KV("agentless outbox append failed",
+					"job_id", job.CheckID,
+					"job_type", job.Tipo,
+					"err", err,
+				))
+				return
+			}
+			obsCount++
+			if uc.cfg.AgentlessDebug {
+				uc.log.Info(formatAgentlessObs("agentless job result", job, obs))
+			}
+		}
+		obs := agentless.RunJobWithPartials(ctx, job, appendObs)
+		appendObs(obs)
+		if obsCount == 0 {
 			uc.log.Error(logger.KV("agentless outbox append failed",
 				"job_id", job.CheckID,
 				"job_type", job.Tipo,
-				"err", err,
+				"err", "nenhuma observacao enfileirada",
 			))
-		} else if uc.cfg.AgentlessDebug {
-			uc.log.Info(formatAgentlessObs("agentless job result", job, obs))
 		}
 	}
 	metrics.AddAgentlessJobs(len(jobs))

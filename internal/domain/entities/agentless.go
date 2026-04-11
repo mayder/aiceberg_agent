@@ -62,34 +62,43 @@ type AgentlessSnmpProfile struct {
 	ContextName    string `json:"context_name,omitempty"`
 	Port           int    `json:"port,omitempty"`
 	TimeoutMs      int    `json:"timeout_ms,omitempty"`
+	TimeBudgetMs   int    `json:"time_budget_ms,omitempty"`
 	Retries        int    `json:"retries,omitempty"`
 }
 
 type AgentlessJob struct {
-	CheckID       int                   `json:"check_id"`
-	AtivoID       int                   `json:"ativo_id"`
-	ClienteID     int                   `json:"cliente_id"`
-	Tipo          string                `json:"tipo"`
-	Nome          string                `json:"nome,omitempty"`
-	IntervalSec   int                   `json:"interval_sec"`
-	TimeoutMs     int                   `json:"timeout_ms"`
-	Retries       int                   `json:"retries"`
-	FailThreshold int                   `json:"fail_threshold"`
-	SuccessThresh int                   `json:"success_threshold"`
-	Config        AgentlessConfig       `json:"config"`
-	Endpoint      *AgentlessEndpoint    `json:"endpoint,omitempty"`
-	SNMP          *AgentlessSnmpProfile `json:"snmp,omitempty"`
+	CheckID        int                   `json:"check_id"`
+	AtivoID        int                   `json:"ativo_id"`
+	ClienteID      int                   `json:"cliente_id"`
+	Tipo           string                `json:"tipo"`
+	Nome           string                `json:"nome,omitempty"`
+	IntervalSec    int                   `json:"interval_sec"`
+	TimeoutMs      int                   `json:"timeout_ms"`
+	CollectionKind string                `json:"snmp_collection_kind,omitempty"`
+	Retries        int                   `json:"retries"`
+	FailThreshold  int                   `json:"fail_threshold"`
+	SuccessThresh  int                   `json:"success_threshold"`
+	Config         AgentlessConfig       `json:"config"`
+	Endpoint       *AgentlessEndpoint    `json:"endpoint,omitempty"`
+	SNMP           *AgentlessSnmpProfile `json:"snmp,omitempty"`
 }
 
 type AgentlessObservation struct {
-	ID         string         `json:"id"`
-	CheckID    int            `json:"check_id"`
-	Status     string         `json:"status"`
-	LatencyMs  int            `json:"latency_ms,omitempty"`
-	Code       string         `json:"code,omitempty"`
-	Message    string         `json:"message,omitempty"`
-	Payload    map[string]any `json:"payload_json,omitempty"`
-	ObservedAt time.Time      `json:"observed_at"`
-	EndpointID *int           `json:"endpoint_id,omitempty"`
-	CreatedAt  time.Time      `json:"created_at"`
+	ID               string         `json:"id"`
+	CheckID          int            `json:"check_id"`
+	Status           string         `json:"status"`
+	LatencyMs        int            `json:"latency_ms,omitempty"`
+	Code             string         `json:"code,omitempty"`
+	Message          string         `json:"message,omitempty"`
+	Payload          map[string]any `json:"payload_json,omitempty"`
+	ObservedAt       time.Time      `json:"observed_at"`
+	CollectionKind   string         `json:"snmp_collection_kind,omitempty"`
+	SegmentID        string         `json:"segment_id,omitempty"`
+	SegmentSeq       int            `json:"segment_seq,omitempty"`
+	IsPartial        bool           `json:"is_partial,omitempty"`
+	IsFinal          bool           `json:"is_final,omitempty"`
+	SegmentStartedAt *time.Time     `json:"segment_started_at,omitempty"`
+	DedupeKey        string         `json:"dedupe_key,omitempty"`
+	EndpointID       *int           `json:"endpoint_id,omitempty"`
+	CreatedAt        time.Time      `json:"created_at"`
 }

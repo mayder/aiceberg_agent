@@ -20,15 +20,30 @@ const (
 	defaultSNMPTimeBudgetMs      = 15000
 )
 
+const (
+	snmpCollectionLegacy         = "legacy"
+	snmpCollectionMetricsFast    = "metrics_fast"
+	snmpCollectionSwitchportSlow = "switchport_slow"
+	snmpCollectionDeepDiag       = "deep_diag"
+)
+
 type snmpGroupDef struct {
 	Scalars []string
 	Tables  []string
+}
+
+type snmpSegmentDefault struct {
+	Groups       []string
+	FetchMode    snmpFetchMode
+	MaxRows      int
+	TimeBudgetMs int
 }
 
 type snmpPlan struct {
 	Host              string
 	ProfileID         int
 	CollectionProfile string
+	CollectionKind    string
 	FetchMode         snmpFetchMode
 	MaxRows           int
 	TimeBudgetMs      int
@@ -102,8 +117,8 @@ var snmpGroupDefs = map[string]snmpGroupDef{
 			"1.3.6.1.2.1.17.1.4.1.2",
 			"1.3.6.1.2.1.17.7.1.4.2.1.4",
 			"1.3.6.1.2.1.17.7.1.4.2.1.5",
-			"1.3.6.1.2.1.17.7.1.4.3.1.1",
 			"1.3.6.1.2.1.17.7.1.4.5.1.1",
+			"1.3.6.1.2.1.17.7.1.4.3.1.1",
 		},
 	},
 	"stp": {
@@ -194,6 +209,27 @@ var snmpGroupDefs = map[string]snmpGroupDef{
 	},
 }
 
+var snmpSegmentDefaults = map[string]snmpSegmentDefault{
+	snmpCollectionMetricsFast: {
+		Groups:       []string{"system", "interfaces_status", "interfaces_counters", "ip_stats"},
+		FetchMode:    snmpFetchAuto,
+		MaxRows:      1000,
+		TimeBudgetMs: 60000,
+	},
+	snmpCollectionSwitchportSlow: {
+		Groups:       []string{"vlan"},
+		FetchMode:    snmpFetchWalkOnly,
+		MaxRows:      2048,
+		TimeBudgetMs: 180000,
+	},
+	snmpCollectionDeepDiag: {
+		Groups:       []string{"stp", "lldp_local", "lldp_remote", "poe", "entity", "sensors", "cpu_memory"},
+		FetchMode:    snmpFetchAuto,
+		MaxRows:      1000,
+		TimeBudgetMs: 240000,
+	},
+}
+
 var snmpProfileGroups = map[string][]string{
 	"minimal": {
 		"system",
@@ -232,19 +268,43 @@ var snmpProfileGroups = map[string][]string{
 
 func buildSNMPPlan(job entities.AgentlessJob, host string) snmpPlan {
 	cfg := map[string]any(job.Config)
+	kind := snmpCollectionKind(job)
 	profile := normalizeSNMPProfile(getString(cfg, "collection_profile", defaultSNMPCollectionProfile))
-	fetchMode := parseSNMPFetchMode(getString(cfg, "fetch_mode", string(snmpFetchAuto)))
-	maxRows := positiveIntOr(cfg, "snmp_max_rows", defaultSNMPMaxRows)
-	timeBudget := positiveIntOr(cfg, "time_budget_ms", maxInt(job.TimeoutMs*3, defaultSNMPTimeBudgetMs))
+	segmentDefaults := snmpSegmentDefaults[kind]
+	defaultFetchMode := snmpFetchAuto
+	defaultMaxRows := defaultSNMPMaxRows
+	defaultTimeBudget := maxInt(job.TimeoutMs*3, defaultSNMPTimeBudgetMs)
+	if segmentDefaults.TimeBudgetMs > 0 {
+		defaultTimeBudget = segmentDefaults.TimeBudgetMs
+	}
+	if segmentDefaults.MaxRows > 0 {
+		defaultMaxRows = segmentDefaults.MaxRows
+	}
+	if segmentDefaults.FetchMode != "" {
+		defaultFetchMode = segmentDefaults.FetchMode
+	}
+	if job.SNMP != nil && job.SNMP.TimeBudgetMs > 0 {
+		defaultTimeBudget = job.SNMP.TimeBudgetMs
+	}
+
+	fetchMode := parseSNMPFetchMode(getString(cfg, "fetch_mode", getString(cfg, "snmp_fetch_mode", string(defaultFetchMode))))
+	maxRows := positiveIntOr(cfg, "snmp_max_rows", positiveIntOr(cfg, "max_rows_per_table", defaultMaxRows))
+	timeBudget := positiveIntOr(cfg, "time_budget_ms", positiveIntOr(cfg, "snmp_time_budget_ms", defaultTimeBudget))
 	groups := cloneStringSlice(snmpProfileGroups[profile])
+	if len(segmentDefaults.Groups) > 0 {
+		groups = cloneStringSlice(segmentDefaults.Groups)
+	}
 	if customGroups := filterKnownSNGroups(readStringSlice(configValue(cfg, "groups"))); len(customGroups) > 0 {
 		groups = customGroups
+	} else if includeGroups := filterKnownSNGroups(readStringSlice(configValue(cfg, "include_groups"))); len(includeGroups) > 0 {
+		groups = mergeSNMPGroups(groups, includeGroups)
 	}
 
 	return snmpPlan{
 		Host:              host,
 		ProfileID:         job.SNMP.ProfileID,
 		CollectionProfile: profile,
+		CollectionKind:    kind,
 		FetchMode:         fetchMode,
 		MaxRows:           maxRows,
 		TimeBudgetMs:      timeBudget,
@@ -262,12 +322,35 @@ func normalizeSNMPProfile(v string) string {
 	return defaultSNMPCollectionProfile
 }
 
+func normalizeSNMPCollectionKind(v string) string {
+	v = strings.ToLower(strings.TrimSpace(v))
+	v = strings.ReplaceAll(v, "-", "_")
+	switch v {
+	case snmpCollectionMetricsFast, snmpCollectionSwitchportSlow, snmpCollectionDeepDiag:
+		return v
+	default:
+		return snmpCollectionLegacy
+	}
+}
+
+func snmpCollectionKind(job entities.AgentlessJob) string {
+	cfg := map[string]any(job.Config)
+	return normalizeSNMPCollectionKind(firstNonEmptyString(
+		job.CollectionKind,
+		getString(cfg, "snmp_collection_kind", ""),
+		getString(cfg, "collection_kind", ""),
+		getString(cfg, "segment_id", ""),
+	))
+}
+
 func parseSNMPFetchMode(v string) snmpFetchMode {
 	switch strings.ToLower(strings.TrimSpace(v)) {
-	case string(snmpFetchGetOnly):
+	case string(snmpFetchGetOnly), "get":
 		return snmpFetchGetOnly
-	case string(snmpFetchWalkOnly):
+	case string(snmpFetchWalkOnly), "walk":
 		return snmpFetchWalkOnly
+	case string(snmpFetchAuto), "mixed", "":
+		return snmpFetchAuto
 	default:
 		return snmpFetchAuto
 	}
@@ -303,7 +386,43 @@ func readCustomOIDList(cfg map[string]any, key string) []string {
 	}
 	out = append(out, readStringSlice(cfg["custom."+key])...)
 	out = append(out, readStringSlice(cfg["custom_"+key])...)
+	if key == "walk" {
+		out = append(out, readNamedOIDList(cfg["custom_walk_oids"])...)
+	}
+	if key == "get" {
+		out = append(out, readNamedOIDList(cfg["custom_get_oids"])...)
+	}
 	return out
+}
+
+func readNamedOIDList(v any) []string {
+	switch t := v.(type) {
+	case nil:
+		return nil
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, item := range t {
+			switch x := item.(type) {
+			case string:
+				out = append(out, x)
+			case map[string]any:
+				if oid, ok := x["oid"].(string); ok {
+					out = append(out, oid)
+				}
+			}
+		}
+		return out
+	case []map[string]any:
+		out := make([]string, 0, len(t))
+		for _, item := range t {
+			if oid, ok := item["oid"].(string); ok {
+				out = append(out, oid)
+			}
+		}
+		return out
+	default:
+		return readStringSlice(v)
+	}
 }
 
 func readStringSlice(v any) []string {
@@ -350,7 +469,7 @@ func filterKnownSNGroups(in []string) []string {
 	out := make([]string, 0, len(in))
 	seen := make(map[string]struct{}, len(in))
 	for _, g := range in {
-		g = strings.ToLower(strings.TrimSpace(g))
+		g = normalizeSNMPGroupName(g)
 		if g == "" {
 			continue
 		}
@@ -362,6 +481,36 @@ func filterKnownSNGroups(in []string) []string {
 		}
 		seen[g] = struct{}{}
 		out = append(out, g)
+	}
+	return out
+}
+
+func normalizeSNMPGroupName(v string) string {
+	v = strings.ToLower(strings.TrimSpace(v))
+	switch v {
+	case "host_resources", "ucd_system":
+		return "cpu_memory"
+	default:
+		return v
+	}
+}
+
+func mergeSNMPGroups(base, extra []string) []string {
+	out := make([]string, 0, len(base)+len(extra))
+	seen := make(map[string]struct{}, len(base)+len(extra))
+	for _, group := range append(cloneStringSlice(base), extra...) {
+		group = normalizeSNMPGroupName(group)
+		if group == "" {
+			continue
+		}
+		if _, ok := snmpGroupDefs[group]; !ok {
+			continue
+		}
+		if _, ok := seen[group]; ok {
+			continue
+		}
+		seen[group] = struct{}{}
+		out = append(out, group)
 	}
 	return out
 }
@@ -391,4 +540,13 @@ func cloneStringSlice(in []string) []string {
 	cp := make([]string, len(in))
 	copy(cp, in)
 	return cp
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }

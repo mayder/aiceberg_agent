@@ -179,6 +179,7 @@ func TestRunJobSNMPPayloadFields(t *testing.T) {
 		"host",
 		"profile_id",
 		"collection_profile",
+		"collection_kind",
 		"fetch_mode",
 		"time_budget_ms",
 		"time_budget_exceeded",
@@ -196,5 +197,104 @@ func TestRunJobSNMPPayloadFields(t *testing.T) {
 		if _, ok := obs.Payload[key]; !ok {
 			t.Fatalf("campo obrigatorio ausente no payload: %s", key)
 		}
+	}
+}
+
+func TestRunJobSNMPAddsSegmentMetadata(t *testing.T) {
+	job := newSNMPJob()
+	job.CollectionKind = "metrics_fast"
+	job.Config["collection_kind"] = "metrics_fast"
+	job.Config["segment_id"] = "metrics_fast"
+	job.Config["segment_seq"] = 3
+	job.Config["fetch_mode"] = "get_only"
+
+	withFakeSNMPClient(t, &fakeSNMPClient{
+		getFn: func(oids []string) (*gosnmp.SnmpPacket, error) {
+			return &gosnmp.SnmpPacket{Variables: []gosnmp.SnmpPDU{
+				{Name: "1.3.6.1.2.1.1.1.0", Type: gosnmp.OctetString, Value: []byte("switch")},
+			}}, nil
+		},
+	})
+
+	obs := RunJob(context.Background(), job)
+	if obs.CollectionKind != "metrics_fast" {
+		t.Fatalf("collection_kind inesperado: %q", obs.CollectionKind)
+	}
+	if obs.SegmentID != "metrics_fast" {
+		t.Fatalf("segment_id inesperado: %q", obs.SegmentID)
+	}
+	if obs.SegmentSeq != 3 {
+		t.Fatalf("segment_seq inesperado: %d", obs.SegmentSeq)
+	}
+	if obs.IsPartial {
+		t.Fatalf("is_partial deveria ser false")
+	}
+	if !obs.IsFinal {
+		t.Fatalf("is_final deveria ser true")
+	}
+	if obs.SegmentStartedAt == nil || obs.SegmentStartedAt.IsZero() {
+		t.Fatalf("segment_started_at ausente")
+	}
+	if obs.DedupeKey == "" {
+		t.Fatalf("dedupe_key ausente")
+	}
+	if obs.Payload["collection_kind"] != "metrics_fast" || obs.Payload["segment_id"] != "metrics_fast" {
+		t.Fatalf("payload sem metadados de segmento: %#v", obs.Payload)
+	}
+	if obs.Payload["dedupe_key"] != obs.DedupeKey {
+		t.Fatalf("payload dedupe_key inesperado: %#v", obs.Payload["dedupe_key"])
+	}
+}
+
+func TestRunJobWithPartialsEmitsSNMPGroupObservations(t *testing.T) {
+	job := newSNMPJob()
+	job.CollectionKind = "metrics_fast"
+	job.Config["collection_kind"] = "metrics_fast"
+	job.Config["groups"] = []any{"system", "ip_stats"}
+	job.Config["fetch_mode"] = "get_only"
+
+	withFakeSNMPClient(t, &fakeSNMPClient{
+		getFn: func(oids []string) (*gosnmp.SnmpPacket, error) {
+			var vars []gosnmp.SnmpPDU
+			for _, oid := range oids {
+				vars = append(vars, gosnmp.SnmpPDU{
+					Name:  oid,
+					Type:  gosnmp.Integer,
+					Value: 1,
+				})
+			}
+			return &gosnmp.SnmpPacket{Variables: vars}, nil
+		},
+	})
+
+	var partials []entities.AgentlessObservation
+	finalObs := RunJobWithPartials(context.Background(), job, func(obs entities.AgentlessObservation) {
+		partials = append(partials, obs)
+	})
+	if len(partials) != 2 {
+		t.Fatalf("esperava 2 observacoes parciais, obtido %d", len(partials))
+	}
+	for i, partial := range partials {
+		if !partial.IsPartial || partial.IsFinal {
+			t.Fatalf("flags parciais invalidas: %#v", partial)
+		}
+		if partial.SegmentSeq != i+1 {
+			t.Fatalf("segment_seq parcial inesperado: %d", partial.SegmentSeq)
+		}
+		if partial.DedupeKey == "" {
+			t.Fatalf("dedupe_key parcial ausente")
+		}
+		if partial.Payload["segment_group"] == "" {
+			t.Fatalf("segment_group parcial ausente: %#v", partial.Payload)
+		}
+	}
+	if finalObs.IsPartial || !finalObs.IsFinal {
+		t.Fatalf("flags finais invalidas: %#v", finalObs)
+	}
+	if finalObs.SegmentSeq != 3 {
+		t.Fatalf("segment_seq final inesperado: %d", finalObs.SegmentSeq)
+	}
+	if finalObs.DedupeKey == "" || finalObs.DedupeKey == partials[0].DedupeKey {
+		t.Fatalf("dedupe_key final invalida: %q", finalObs.DedupeKey)
 	}
 }

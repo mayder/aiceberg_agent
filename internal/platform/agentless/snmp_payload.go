@@ -26,6 +26,7 @@ type snmpPayload struct {
 	Host               string                      `json:"host"`
 	ProfileID          int                         `json:"profile_id"`
 	CollectionProfile  string                      `json:"collection_profile"`
+	CollectionKind     string                      `json:"collection_kind"`
 	FetchMode          string                      `json:"fetch_mode"`
 	TimeBudgetMs       int                         `json:"time_budget_ms"`
 	TimeBudgetExceeded bool                        `json:"time_budget_exceeded"`
@@ -46,6 +47,7 @@ func newSNMPPayload(plan snmpPlan) *snmpPayload {
 		Host:              plan.Host,
 		ProfileID:         plan.ProfileID,
 		CollectionProfile: plan.CollectionProfile,
+		CollectionKind:    plan.CollectionKind,
 		FetchMode:         string(plan.FetchMode),
 		TimeBudgetMs:      plan.TimeBudgetMs,
 		GroupsRequested:   cloneStringSlice(plan.Groups),

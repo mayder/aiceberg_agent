@@ -65,7 +65,7 @@ var errDiscoverySNMPRowLimit = errors.New("discovery snmp row limit reached")
 
 func RunJob(ctx context.Context, job entities.AgentlessJob) entities.AgentlessObservation {
 	started := time.Now()
-	res := Result{Status: "fail"}
+	var res Result
 
 	switch strings.ToLower(job.Tipo) {
 	case "icmp":
@@ -86,6 +86,30 @@ func RunJob(ctx context.Context, job entities.AgentlessJob) entities.AgentlessOb
 		res = Result{Status: "fail", Code: "unknown_type", Message: "tipo nao suportado"}
 	}
 
+	return newObservationFromResult(job, res, started)
+}
+
+func RunJobWithPartials(ctx context.Context, job entities.AgentlessJob, onPartial func(entities.AgentlessObservation)) entities.AgentlessObservation {
+	if strings.ToLower(job.Tipo) != "snmp" || !shouldFlushSNMPPartials(job) || onPartial == nil {
+		return RunJob(ctx, job)
+	}
+
+	started := time.Now()
+	seq := 0
+	res := runSNMPWithPartials(ctx, job, func(partial snmpPartialResult) {
+		seq++
+		obs := newObservationFromResult(job, partial.Result, started)
+		applyObservationSegmentState(&obs, seq, true, false, partial.Group)
+		onPartial(obs)
+	})
+
+	seq++
+	obs := newObservationFromResult(job, res, started)
+	applyObservationSegmentState(&obs, seq, false, true, "final")
+	return obs
+}
+
+func newObservationFromResult(job entities.AgentlessJob, res Result, started time.Time) entities.AgentlessObservation {
 	obs := entities.AgentlessObservation{
 		ID:         newID("obs"),
 		CheckID:    job.CheckID,
@@ -97,6 +121,7 @@ func RunJob(ctx context.Context, job entities.AgentlessJob) entities.AgentlessOb
 		ObservedAt: time.Now(),
 		CreatedAt:  time.Now(),
 	}
+	applyObservationSegmentMeta(&obs, job, started)
 
 	if job.Endpoint != nil {
 		id := job.Endpoint.ID
@@ -108,6 +133,110 @@ func RunJob(ctx context.Context, job entities.AgentlessJob) entities.AgentlessOb
 	}
 
 	return obs
+}
+
+func shouldFlushSNMPPartials(job entities.AgentlessJob) bool {
+	cfg := map[string]any(job.Config)
+	if v, ok := getBool(cfg, "flush_partial"); ok {
+		return v
+	}
+	if v, ok := getBool(cfg, "incremental_flush"); ok {
+		return v
+	}
+	if v, ok := getBool(cfg, "partial_observations"); ok {
+		return v
+	}
+	return snmpCollectionKind(job) != snmpCollectionLegacy
+}
+
+func applyObservationSegmentMeta(obs *entities.AgentlessObservation, job entities.AgentlessJob, started time.Time) {
+	if obs == nil || strings.ToLower(job.Tipo) != "snmp" {
+		return
+	}
+	cfg := map[string]any(job.Config)
+	kind := snmpCollectionKind(job)
+	segmentID := strings.TrimSpace(firstNonEmptyString(
+		getString(cfg, "segment_id", ""),
+		getString(cfg, "collection_kind", ""),
+		getString(cfg, "snmp_collection_kind", ""),
+		job.CollectionKind,
+	))
+	if segmentID == "" {
+		segmentID = kind
+	}
+	segmentSeq := positiveIntOr(cfg, "segment_seq", 1)
+	isPartial, okPartial := getBool(cfg, "is_partial")
+	if !okPartial {
+		isPartial = false
+	}
+	isFinal, okFinal := getBool(cfg, "is_final")
+	if !okFinal {
+		isFinal = !isPartial
+	}
+
+	obs.CollectionKind = kind
+	obs.SegmentID = segmentID
+	obs.SegmentSeq = segmentSeq
+	obs.IsPartial = isPartial
+	obs.IsFinal = isFinal
+	obs.SegmentStartedAt = &started
+	obs.DedupeKey = strings.TrimSpace(getString(cfg, "dedupe_key", ""))
+	if obs.DedupeKey == "" {
+		obs.DedupeKey = observationDedupeKey(obs, segmentID, segmentSeq)
+	}
+
+	if obs.Payload == nil {
+		obs.Payload = map[string]any{}
+	}
+	obs.Payload["snmp_collection_kind"] = kind
+	obs.Payload["collection_kind"] = kind
+	obs.Payload["segment_id"] = segmentID
+	obs.Payload["segment_seq"] = segmentSeq
+	obs.Payload["is_partial"] = isPartial
+	obs.Payload["is_final"] = isFinal
+	obs.Payload["segment_started_at"] = started.Format("2006-01-02 15:04:05")
+	obs.Payload["dedupe_key"] = obs.DedupeKey
+}
+
+func applyObservationSegmentState(obs *entities.AgentlessObservation, seq int, isPartial, isFinal bool, group string) {
+	if obs == nil || obs.CollectionKind == "" {
+		return
+	}
+	if seq <= 0 {
+		seq = 1
+	}
+	obs.SegmentSeq = seq
+	obs.IsPartial = isPartial
+	obs.IsFinal = isFinal
+	obs.DedupeKey = observationDedupeKey(obs, obs.SegmentID, seq)
+
+	if obs.Payload == nil {
+		obs.Payload = map[string]any{}
+	}
+	obs.Payload["segment_seq"] = seq
+	obs.Payload["is_partial"] = isPartial
+	obs.Payload["is_final"] = isFinal
+	obs.Payload["dedupe_key"] = obs.DedupeKey
+	if group != "" {
+		obs.Payload["segment_group"] = group
+		obs.Payload["snmp_group"] = group
+	}
+}
+
+func observationDedupeKey(obs *entities.AgentlessObservation, segmentID string, seq int) string {
+	if seq <= 0 {
+		seq = 1
+	}
+	if strings.TrimSpace(segmentID) == "" {
+		segmentID = obs.CollectionKind
+	}
+	return fmt.Sprintf(
+		"check:%d|observed:%s|segment:%s|seq:%d",
+		obs.CheckID,
+		obs.ObservedAt.UTC().Format("20060102150405"),
+		segmentID,
+		seq,
+	)
 }
 
 func runICMP(ctx context.Context, job entities.AgentlessJob) Result {
@@ -228,6 +357,10 @@ func runTLS(ctx context.Context, job entities.AgentlessJob) Result {
 
 func runSNMP(ctx context.Context, job entities.AgentlessJob) Result {
 	return runSNMPCollection(ctx, job)
+}
+
+func runSNMPWithPartials(ctx context.Context, job entities.AgentlessJob, partialSink snmpPartialSink) Result {
+	return runSNMPCollectionWithPartials(ctx, job, partialSink)
 }
 
 func runDiscoveryAssisted(ctx context.Context, job entities.AgentlessJob) Result {

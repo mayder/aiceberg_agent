@@ -106,16 +106,28 @@ func (c *goSNMPClient) Walk(rootOid string, walkFn gosnmp.WalkFunc) error {
 }
 
 type snmpCollector struct {
-	job      entities.AgentlessJob
-	plan     snmpPlan
-	payload  *snmpPayload
-	client   snmpClient
-	started  time.Time
-	budget   time.Duration
-	ifaceMap map[string]map[string]any
+	job         entities.AgentlessJob
+	plan        snmpPlan
+	payload     *snmpPayload
+	client      snmpClient
+	started     time.Time
+	budget      time.Duration
+	ifaceMap    map[string]map[string]any
+	partialSink snmpPartialSink
 }
 
+type snmpPartialResult struct {
+	Group  string
+	Result Result
+}
+
+type snmpPartialSink func(snmpPartialResult)
+
 func runSNMPCollection(ctx context.Context, job entities.AgentlessJob) Result {
+	return runSNMPCollectionWithPartials(ctx, job, nil)
+}
+
+func runSNMPCollectionWithPartials(ctx context.Context, job entities.AgentlessJob, partialSink snmpPartialSink) Result {
 	if job.SNMP == nil {
 		return Result{Status: "fail", Code: "snmp_no_profile", Message: "perfil SNMP ausente"}
 	}
@@ -147,13 +159,14 @@ func runSNMPCollection(ctx context.Context, job entities.AgentlessJob) Result {
 	}
 
 	c := &snmpCollector{
-		job:      job,
-		plan:     plan,
-		payload:  payload,
-		client:   client,
-		started:  time.Now(),
-		budget:   time.Duration(plan.TimeBudgetMs) * time.Millisecond,
-		ifaceMap: make(map[string]map[string]any),
+		job:         job,
+		plan:        plan,
+		payload:     payload,
+		client:      client,
+		started:     time.Now(),
+		budget:      time.Duration(plan.TimeBudgetMs) * time.Millisecond,
+		ifaceMap:    make(map[string]map[string]any),
+		partialSink: partialSink,
 	}
 	return c.collect()
 }
@@ -199,6 +212,7 @@ func (c *snmpCollector) collectGroup(groupName string, def snmpGroupDef) bool {
 			groupStats.Errors = append(groupStats.Errors, err.Error())
 			groupStats.LatencyMs = int(time.Since(groupStart).Milliseconds())
 			c.payload.addGroupStats(groupName, groupStats)
+			c.emitGroupPartial(groupName, def, groupStats)
 			return false
 		}
 		groupStats.GetAttempts += len(def.Scalars)
@@ -231,6 +245,7 @@ func (c *snmpCollector) collectGroup(groupName string, def snmpGroupDef) bool {
 				groupStats.Errors = append(groupStats.Errors, err.Error())
 				groupStats.LatencyMs = int(time.Since(groupStart).Milliseconds())
 				c.payload.addGroupStats(groupName, groupStats)
+				c.emitGroupPartial(groupName, def, groupStats)
 				return false
 			}
 			groupStats.WalkAttempts++
@@ -242,6 +257,7 @@ func (c *snmpCollector) collectGroup(groupName string, def snmpGroupDef) bool {
 				if errors.Is(err, errSNMPBudgetExceeded) {
 					groupStats.LatencyMs = int(time.Since(groupStart).Milliseconds())
 					c.payload.addGroupStats(groupName, groupStats)
+					c.emitGroupPartial(groupName, def, groupStats)
 					return false
 				}
 				continue
@@ -265,6 +281,7 @@ func (c *snmpCollector) collectGroup(groupName string, def snmpGroupDef) bool {
 
 	groupStats.LatencyMs = int(time.Since(groupStart).Milliseconds())
 	c.payload.addGroupStats(groupName, groupStats)
+	c.emitGroupPartial(groupName, def, groupStats)
 	return !c.payload.TimeBudgetExceeded
 }
 
@@ -277,6 +294,7 @@ func (c *snmpCollector) collectCustom() bool {
 			groupStats.Errors = append(groupStats.Errors, err.Error())
 			groupStats.LatencyMs = int(time.Since(groupStart).Milliseconds())
 			c.payload.addGroupStats("custom", groupStats)
+			c.emitCustomPartial(groupStats)
 			return false
 		}
 		groupStats.GetAttempts += len(c.plan.CustomGet)
@@ -325,6 +343,7 @@ func (c *snmpCollector) collectCustom() bool {
 				groupStats.Errors = append(groupStats.Errors, err.Error())
 				groupStats.LatencyMs = int(time.Since(groupStart).Milliseconds())
 				c.payload.addGroupStats("custom", groupStats)
+				c.emitCustomPartial(groupStats)
 				return false
 			}
 			groupStats.WalkAttempts++
@@ -339,6 +358,7 @@ func (c *snmpCollector) collectCustom() bool {
 				if errors.Is(err, errSNMPBudgetExceeded) {
 					groupStats.LatencyMs = int(time.Since(groupStart).Milliseconds())
 					c.payload.addGroupStats("custom", groupStats)
+					c.emitCustomPartial(groupStats)
 					return false
 				}
 				continue
@@ -359,7 +379,77 @@ func (c *snmpCollector) collectCustom() bool {
 
 	groupStats.LatencyMs = int(time.Since(groupStart).Milliseconds())
 	c.payload.addGroupStats("custom", groupStats)
+	c.emitCustomPartial(groupStats)
 	return !c.payload.TimeBudgetExceeded
+}
+
+func (c *snmpCollector) emitGroupPartial(groupName string, def snmpGroupDef, groupStats snmpGroupStats) {
+	if c.partialSink == nil {
+		return
+	}
+	partial := newSNMPPayload(c.plan)
+	partial.GroupsRequested = []string{groupName}
+	partial.TimeBudgetExceeded = c.payload.TimeBudgetExceeded
+	partial.addGroupStats(groupName, groupStats)
+	partial.Errors = append(partial.Errors, groupStats.Errors...)
+
+	for _, oid := range def.Scalars {
+		if v, ok := c.payload.Scalars[oid]; ok {
+			partial.Scalars[oid] = v
+			partial.OIDs[oid] = v
+			if groupName == "system" {
+				partial.Sys[oid] = v
+			}
+		}
+	}
+	for _, rootOID := range def.Tables {
+		rows, ok := c.payload.Tables[rootOID]
+		if !ok {
+			continue
+		}
+		partial.Tables[rootOID] = rows
+	}
+	partialIfaceMap := make(map[string]map[string]any)
+	for rootOID, rows := range partial.Tables {
+		if isInterfaceTableOID(rootOID) {
+			updateIfaces(partialIfaceMap, rootOID, rows)
+		}
+	}
+	partial.Ifaces = ifaceSlice(partialIfaceMap)
+	c.emitPartial(groupName, partial)
+}
+
+func (c *snmpCollector) emitCustomPartial(groupStats snmpGroupStats) {
+	if c.partialSink == nil {
+		return
+	}
+	partial := newSNMPPayload(c.plan)
+	partial.GroupsRequested = []string{"custom"}
+	partial.TimeBudgetExceeded = c.payload.TimeBudgetExceeded
+	partial.addGroupStats("custom", groupStats)
+	partial.Errors = append(partial.Errors, groupStats.Errors...)
+	partial.Custom["get"] = append(partial.Custom["get"], c.payload.Custom["get"]...)
+	partial.Custom["walk"] = append(partial.Custom["walk"], c.payload.Custom["walk"]...)
+	for _, rootOID := range c.plan.CustomWalk {
+		if rows, ok := c.payload.Tables[rootOID]; ok {
+			partial.Tables[rootOID] = rows
+		}
+	}
+	c.emitPartial("custom", partial)
+}
+
+func (c *snmpCollector) emitPartial(groupName string, payload *snmpPayload) {
+	status, code, message := evaluateSNMPStatus(payload)
+	c.partialSink(snmpPartialResult{
+		Group: groupName,
+		Result: Result{
+			Status:    status,
+			LatencyMs: int(time.Since(c.started).Milliseconds()),
+			Code:      code,
+			Message:   message,
+			Payload:   payload.toMap(),
+		},
+	})
 }
 
 func (c *snmpCollector) walkTable(rootOID string) ([]map[string]any, bool, error) {
