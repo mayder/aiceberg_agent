@@ -107,9 +107,17 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		tx = transport.NewHTTPJSONClient(cfg)
 	}
 
+	var counters obsCounters
 	proc := processHandle()
 
-	collector := sysmetrics.New(outboxRepo.Len, prefStore.Get)
+	collector := sysmetrics.New(outboxRepo.Len, prefStore.Get, func() sysmetrics.AgentRuntimeStats {
+		return sysmetrics.AgentRuntimeStats{
+			FlushOK:        counters.flushOK.Load(),
+			FlushErr:       counters.flushErr.Load(),
+			LastFlushMs:    counters.lastFlushMs.Load(),
+			LastFlushBatch: counters.lastFlushBatch.Load(),
+		}
+	})
 
 	metricsEndpoint := "/v1/ingest/metrics"
 	healthEndpoint := "/v1/ingest/health"
@@ -234,8 +242,6 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			"route": "/v1/agent/update-report",
 		})
 	}
-	var counters obsCounters
-
 	var osLogCollectUC *usecase.CollectAndBuffer
 	var osLogFlushUC *usecase.FlushOutbox
 	var osLogRepo ports.OutboxRepo

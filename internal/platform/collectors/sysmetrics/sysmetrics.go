@@ -37,12 +37,24 @@ import (
 )
 
 type collector struct {
-	queueStats func() (int, int64)
-	prefs      func() config.CollectPrefs
+	queueStats   func() (int, int64)
+	runtimeStats func() AgentRuntimeStats
+	prefs        func() config.CollectPrefs
 }
 
-func New(queueStats func() (int, int64), prefsProvider func() config.CollectPrefs) ports.Collector {
-	return &collector{queueStats: queueStats, prefs: prefsProvider}
+type AgentRuntimeStats struct {
+	FlushOK        int64
+	FlushErr       int64
+	LastFlushMs    int64
+	LastFlushBatch int64
+}
+
+func New(queueStats func() (int, int64), prefsProvider func() config.CollectPrefs, runtimeStatsProvider ...func() AgentRuntimeStats) ports.Collector {
+	var runtimeStats func() AgentRuntimeStats
+	if len(runtimeStatsProvider) > 0 {
+		runtimeStats = runtimeStatsProvider[0]
+	}
+	return &collector{queueStats: queueStats, runtimeStats: runtimeStats, prefs: prefsProvider}
 }
 
 func (c *collector) Name() string { return "sysmetrics" }
@@ -248,9 +260,13 @@ type serviceSnap struct {
 }
 
 type agentSnap struct {
-	QueueItems int    `json:"queue_items,omitempty"`
-	QueueBytes int64  `json:"queue_bytes,omitempty"`
-	Version    string `json:"version,omitempty"`
+	QueueItems     int    `json:"queue_items,omitempty"`
+	QueueBytes     int64  `json:"queue_bytes,omitempty"`
+	FlushOKTotal   int64  `json:"flush_ok_total"`
+	FlushErrTotal  int64  `json:"flush_err_total"`
+	LastFlushMs    int64  `json:"last_flush_ms"`
+	LastFlushBatch int64  `json:"last_flush_batch"`
+	Version        string `json:"version,omitempty"`
 }
 
 type timeSyncSnap struct {
@@ -730,6 +746,14 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 			s.Capabilities["agent"] = true
 		} else {
 			s.Capabilities["agent"] = false
+		}
+		if c.runtimeStats != nil {
+			runtime := c.runtimeStats()
+			agentInfo.FlushOKTotal = runtime.FlushOK
+			agentInfo.FlushErrTotal = runtime.FlushErr
+			agentInfo.LastFlushMs = runtime.LastFlushMs
+			agentInfo.LastFlushBatch = runtime.LastFlushBatch
+			s.Capabilities["agent"] = true
 		}
 		s.Agent = &agentInfo
 	} else {
