@@ -79,7 +79,7 @@ build_unix() {
     chmod +x "$outdir/service/aiceberg-agent-update-launcher.sh" "$outdir/service/aiceberg-agent-apply-update.sh"
   fi
   write_unix_readme "$outdir/README_INSTALL.txt"
-  (cd "$DIST" && tar -czf "aiceberg-agent-${os}-${arch}.${ext}" "aiceberg-agent-${os}-${arch}")
+  (cd "$DIST" && COPYFILE_DISABLE=1 tar --no-xattrs -czf "aiceberg-agent-${os}-${arch}.${ext}" "aiceberg-agent-${os}-${arch}")
 }
 
 build_windows() {

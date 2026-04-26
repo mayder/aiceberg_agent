@@ -40,6 +40,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/platform/collectors/networkcapture"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/oslogs"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/sysmetrics"
+	"github.com/you/aiceberg_agent/internal/platform/modechange"
 )
 
 func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
@@ -317,9 +318,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		agentlessLastFlush = time.Now().Add(-cfg.AgentlessFlushInterval)
 	}
 
+	modeApplier := modechange.NewApplier(cfg, log)
 	selfHealExec := usecase.NewSelfHealExecutor(log, controlClient, usecase.SelfHealDeps{
 		ConfigSync:       configSyncUC.Execute,
 		Ping:             pingUC.Execute,
+		ApplyAgentMode:   modeApplier.Apply,
 		CollectMetrics:   metricsUC.Execute,
 		CollectHealth:    healthUC.Execute,
 		CollectInventory: inventoryUC.Execute,

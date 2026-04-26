@@ -33,6 +33,7 @@ type Config struct {
 	ConfigSyncInterval      time.Duration
 	PrefsPath               string
 	AgentMode               string
+	AgentModeOverridePath   string
 	HubURL                  string
 	HubToken                string
 	HubListenAddr           string
@@ -156,6 +157,7 @@ func Load(configPath string) (Config, error) {
 		HealthPort:             port,
 		PrefsPath:              getenv("PREFS_PATH", "./data/collect_prefs.json"),
 		AgentMode:              strings.ToLower(getenv("AGENT_MODE", "direct")),
+		AgentModeOverridePath:  getenv("AGENT_MODE_OVERRIDE_PATH", ""),
 		HubURL:                 getenv("HUB_URL", ""),
 		HubToken:               getenv("HUB_TOKEN", ""),
 		HubListenAddr:          getenv("HUB_LISTEN_ADDR", ""),
@@ -226,6 +228,12 @@ func Load(configPath string) (Config, error) {
 			return autoUpdateRetry
 		}(),
 	}
+	if cfg.AgentModeOverridePath == "" {
+		cfg.AgentModeOverridePath = filepath.Join(filepath.Dir(cfg.PrefsPath), "agent_mode.override")
+	}
+	if override := loadAgentModeOverride(cfg.AgentModeOverridePath); override != "" {
+		cfg.AgentMode = override
+	}
 	if cfg.Agent.Token == "" {
 		return cfg, fmt.Errorf("AGENT_TOKEN obrigatório")
 	}
@@ -267,6 +275,26 @@ func (c Config) Mode() string {
 		return strings.ToLower(c.AgentMode)
 	default:
 		return "direct"
+	}
+}
+
+func loadAgentModeOverride(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return ""
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(string(raw))) {
+	case "direct", "direto":
+		return "direct"
+	case "hub":
+		return "hub"
+	case "relay":
+		return "relay"
+	default:
+		return ""
 	}
 }
 

@@ -99,6 +99,7 @@ func buildAgentEnvSnapshot(cfg config.Config) map[string]any {
 		"goos":              runtime.GOOS,
 		"goarch":            runtime.GOARCH,
 		"agent_mode":        strings.TrimSpace(cfg.AgentMode),
+		"mode_override":     inspectLocalFile(cfg.AgentModeOverridePath, true),
 		"api_base_url":      strings.TrimSpace(cfg.APIBaseURL),
 		"hub_url":           strings.TrimSpace(cfg.HubURL),
 		"hub_listen_addr":   strings.TrimSpace(cfg.HubListenAddr),
@@ -238,6 +239,7 @@ func readRuntimeEnvAllowlist() map[string]any {
 	keys := []string{
 		"AGENT_ENV_FILE",
 		"AGENT_MODE",
+		"AGENT_MODE_OVERRIDE_PATH",
 		"API_BASE_URL",
 		"HUB_URL",
 		"HUB_LISTEN_ADDR",

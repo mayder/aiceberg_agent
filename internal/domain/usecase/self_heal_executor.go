@@ -17,6 +17,7 @@ type SelfHealReporter interface {
 type SelfHealDeps struct {
 	ConfigSync          func(context.Context) error
 	Ping                func(context.Context) error
+	ApplyAgentMode      func(context.Context, entities.SelfHealCommand) (string, map[string]any, error)
 	AgentlessSync       func(context.Context) error
 	AgentlessCollectNow func(context.Context)
 	AgentlessFlush      func(context.Context) error
@@ -56,7 +57,7 @@ func (uc *SelfHealExecutor) Execute(ctx context.Context, cmd entities.SelfHealCo
 	_ = uc.report(ctx, cmd, "running", "command running", nil)
 
 	started := time.Now()
-	msg, evidence, err := uc.executeCode(ctx, code)
+	msg, evidence, err := uc.executeCode(ctx, cmd, code)
 	durationMs := time.Since(started).Milliseconds()
 	if evidence == nil {
 		evidence = map[string]any{}
@@ -110,8 +111,13 @@ func (uc *SelfHealExecutor) report(ctx context.Context, cmd entities.SelfHealCom
 	return nil
 }
 
-func (uc *SelfHealExecutor) executeCode(ctx context.Context, code string) (string, map[string]any, error) {
+func (uc *SelfHealExecutor) executeCode(ctx context.Context, cmd entities.SelfHealCommand, code string) (string, map[string]any, error) {
 	switch code {
+	case "apply_agent_mode":
+		if uc.deps.ApplyAgentMode == nil {
+			return "agent mode change dependency unavailable", nil, fmt.Errorf("agent mode change dependency unavailable")
+		}
+		return uc.deps.ApplyAgentMode(ctx, cmd)
 	case "restart_agentless_worker":
 		if uc.deps.HasAgentlessWorker != nil && !uc.deps.HasAgentlessWorker() {
 			evidence := uc.withRuntimeEvidence(map[string]any{"worker_available": false})

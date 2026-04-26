@@ -167,3 +167,41 @@ func TestSelfHealExecutorInspectRuntimeConfig(t *testing.T) {
 		t.Fatalf("expected final success report, got %s", reporter.reports[2].Status)
 	}
 }
+
+func TestSelfHealExecutorApplyAgentModeUsesRemoteCommandPayload(t *testing.T) {
+	log := logger.New("info")
+	t.Cleanup(func() { log.Sync() })
+	reporter := &fakeSelfHealReporter{}
+	called := 0
+	exec := NewSelfHealExecutor(log, reporter, SelfHealDeps{
+		ApplyAgentMode: func(_ context.Context, cmd entities.SelfHealCommand) (string, map[string]any, error) {
+			called++
+			if cmd.Payload["target_mode"] != "relay" {
+				t.Fatalf("unexpected target_mode payload: %#v", cmd.Payload)
+			}
+			return "agent mode persisted and service restart scheduled", map[string]any{
+				"target_mode":       "relay",
+				"restart_scheduled": true,
+			}, nil
+		},
+	})
+
+	status, msg, evidence := exec.Execute(context.Background(), entities.SelfHealCommand{
+		CommandID: "cmd-6",
+		Code:      "apply_agent_mode",
+		Payload:   map[string]any{"target_mode": "relay"},
+	})
+
+	if status != "success" {
+		t.Fatalf("expected success, got %s (%s)", status, msg)
+	}
+	if called != 1 {
+		t.Fatalf("expected ApplyAgentMode once, got %d", called)
+	}
+	if evidence["target_mode"] != "relay" || evidence["restart_scheduled"] != true {
+		t.Fatalf("unexpected evidence: %#v", evidence)
+	}
+	if len(reporter.reports) != 3 || reporter.reports[2].Status != "success" {
+		t.Fatalf("unexpected reports: %#v", reporter.reports)
+	}
+}

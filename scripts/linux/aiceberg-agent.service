@@ -12,7 +12,6 @@ ExecStart=/usr/local/bin/aiceberg_agent
 Restart=always
 RestartSec=3
 StateDirectory=aiceberg_agent
-NoNewPrivileges=yes
 
 [Install]
 WantedBy=multi-user.target

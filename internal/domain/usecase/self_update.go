@@ -426,19 +426,24 @@ func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, fi
 	)
 
 	out, err := cmd.CombinedOutput()
+	output := strings.TrimSpace(truncateForLog(string(out), 1500))
 	if len(out) > 0 {
 		uc.log.Info(logger.KV("self update command output",
 			"version", payload.Version,
-			"output", truncateForLog(string(out), 1500),
+			"output", output,
 		))
 	}
 	exitCode := 0
 	if err != nil {
+		message := fmt.Sprintf("self update command failed: %v", err)
+		if output != "" {
+			message += ": " + output
+		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
-			return &exitCode, fmt.Errorf("self update command failed: %w", err)
+			return &exitCode, errors.New(message)
 		}
-		return nil, fmt.Errorf("self update command failed: %w", err)
+		return nil, errors.New(message)
 	}
 	return &exitCode, nil
 }
