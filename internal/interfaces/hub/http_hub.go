@@ -2,6 +2,8 @@ package hub
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -12,6 +14,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/domain/channel"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
@@ -19,7 +22,16 @@ import (
 
 // ServeHub inicia o listener HTTP para receber ingest de agentes em modo hub.
 func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, pendingCfg *PendingConfigStore) {
+	mux := NewHandler(cfg, outbox, log, pendingCfg)
+	log.Info(logger.KV("hub listener on",
+		"addr", addr,
+	))
+	_ = http.ListenAndServe(addr, mux)
+}
+
+func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, pendingCfg *PendingConfigStore) http.Handler {
 	mux := http.NewServeMux()
+	relayChannels := NewRelayChannelStore()
 
 	ingestHandler := func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -177,6 +189,73 @@ func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logge
 		_, _ = io.Copy(w, resp.Body)
 	})
 
+	mux.HandleFunc("/v1/agent/channel", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" {
+			http.Error(w, "missing Authorization", http.StatusUnauthorized)
+			return
+		}
+		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		if err != nil {
+			http.Error(w, "read error", http.StatusBadRequest)
+			return
+		}
+		var payload relayChannelPayload
+		if err := json.Unmarshal(body, &payload); err != nil {
+			http.Error(w, "invalid payload", http.StatusBadRequest)
+			return
+		}
+		mode, ok := channel.NormalizeMode(payload.Mode)
+		if !ok || mode != channel.ModeRelay {
+			http.Error(w, "invalid relay channel mode", http.StatusBadRequest)
+			return
+		}
+		relaySession := relayChannels.Record(hashAuthorization(auth), RelayChannelSession{
+			SessionID:  strings.TrimSpace(payload.SessionID),
+			Mode:       mode,
+			Hostname:   strings.TrimSpace(payload.Hostname),
+			Version:    strings.TrimSpace(payload.Version),
+			LastAction: strings.TrimSpace(payload.Action),
+		})
+
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, cfg.APIEndpoint("/v1/agent/channel"), bytes.NewReader(body))
+		if err != nil {
+			http.Error(w, "upstream build error", http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("Authorization", auth)
+		req.Header.Set("Content-Type", "application/json")
+		cl := httpx.NewClient(cfg, 8*time.Second)
+		resp, err := cl.Do(req)
+		if err != nil {
+			log.Error(logger.KV("hub relay channel upstream failed",
+				"route", "/v1/agent/channel",
+				"mode", mode,
+				"session_id", relaySession.SessionID,
+				"err", err,
+			))
+			http.Error(w, "upstream error", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		log.Info(logger.KV("hub relay channel forwarded",
+			"route", "/v1/agent/channel",
+			"mode", mode,
+			"action", relaySession.LastAction,
+			"session_id", relaySession.SessionID,
+		))
+		if ct := resp.Header.Get("Content-Type"); ct != "" {
+			w.Header().Set("Content-Type", ct)
+		}
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	})
+
 	mux.HandleFunc("/v1/agent/update/download", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -240,10 +319,20 @@ func ServeHub(addr string, cfg config.Config, outbox ports.OutboxRepo, log logge
 		_, _ = io.Copy(w, resp.Body)
 	})
 
-	log.Info(logger.KV("hub listener on",
-		"addr", addr,
-	))
-	_ = http.ListenAndServe(addr, mux)
+	return mux
+}
+
+type relayChannelPayload struct {
+	Action    string `json:"action"`
+	SessionID string `json:"session_id"`
+	Mode      string `json:"mode"`
+	Hostname  string `json:"hostname"`
+	Version   string `json:"version"`
+}
+
+func hashAuthorization(auth string) string {
+	sum := sha256.Sum256([]byte(auth))
+	return hex.EncodeToString(sum[:])
 }
 
 func sameHost(rawA, rawB string) bool {

@@ -94,6 +94,16 @@ type downloadedArtifact struct {
 	Source    string
 }
 
+var updateHandshakeSteps = []string{
+	"precheck",
+	"download",
+	"validation",
+	"apply",
+	"restart",
+	"reconnect",
+	"version_confirmed",
+}
+
 func NewSelfUpdate(cfg config.Config, log logger.Logger) *SelfUpdate {
 	timeout := cfg.AutoUpdateTimeout
 	if timeout <= 0 {
@@ -116,10 +126,11 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 			"version", payload.Version,
 			"reason", "feature_disabled",
 		))
-		uc.reportStatusBestEffort(ctx, payload, "skipped", "feature_disabled", "", version.Version, nil)
+		uc.reportStatusBestEffort(ctx, payload, "skipped", "feature_disabled", "", version.Version, updateStageEvidence("precheck", ""))
 		return nil
 	}
 	if payload.Version == "" || payload.URL == "" {
+		uc.reportStatusBestEffort(ctx, payload, "precheck_failed", "invalid_payload", "version/url required", version.Version, updateStageEvidence("precheck", "pacote"))
 		return errors.New("invalid update payload: version/url required")
 	}
 	if !payload.Force && payload.Version == version.Version {
@@ -127,7 +138,7 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 			"version", payload.Version,
 			"reason", "already_current",
 		))
-		uc.reportStatusBestEffort(ctx, payload, "skipped", "already_current", "", version.Version, nil)
+		uc.reportStatusBestEffort(ctx, payload, "skipped", "already_current", "", version.Version, updateStageEvidence("precheck", ""))
 		return nil
 	}
 	if uc.shouldSkip(payload.Version, opts.retry) {
@@ -135,15 +146,22 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 			"version", payload.Version,
 			"reason", "cooldown",
 		))
-		uc.reportStatusBestEffort(ctx, payload, "skipped", "cooldown", "", version.Version, nil)
+		uc.reportStatusBestEffort(ctx, payload, "skipped", "cooldown", "", version.Version, updateStageEvidence("precheck", ""))
 		return nil
 	}
 
+	uc.reportStatusBestEffort(ctx, payload, "precheck_ok", "", "", version.Version, updateStageEvidence("precheck", ""))
+	uc.reportStatusBestEffort(ctx, payload, "download_started", "", "", version.Version, updateStageEvidence("download", ""))
+
 	artifact, err := uc.download(ctx, payload, opts)
 	if err != nil {
-		uc.reportStatusBestEffort(ctx, payload, "download_failed", "download_failed", err.Error(), version.Version, nil)
+		uc.reportStatusBestEffort(ctx, payload, "download_failed", "download_failed", err.Error(), version.Version, updateStageEvidence("download", classifyUpdateFailure("download", "download_failed", err)))
 		return err
 	}
+
+	validationMeta := uc.buildUpdateRuntimeEvidence(artifact, opts, nil)
+	addUpdateStageEvidence(validationMeta, "validation", "")
+	uc.reportStatusBestEffort(ctx, payload, "validation_ok", "", uc.downloadSummaryMessage(artifact), version.Version, validationMeta)
 
 	if strings.TrimSpace(opts.command) == "" {
 		uc.log.Info(logger.KV("self update downloaded",
@@ -151,6 +169,8 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 			"file", artifact.FilePath,
 			"reason", "command_not_configured",
 		))
+		downloadMeta := uc.buildUpdateRuntimeEvidence(artifact, opts, nil)
+		addUpdateStageEvidence(downloadMeta, "download", "")
 		uc.reportStatusBestEffort(
 			ctx,
 			payload,
@@ -158,7 +178,7 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 			"command_not_configured",
 			uc.downloadSummaryMessage(artifact),
 			version.Version,
-			uc.buildUpdateRuntimeEvidence(artifact, opts, nil),
+			downloadMeta,
 		)
 		return nil
 	}
@@ -176,20 +196,21 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 		"",
 		uc.applySummaryMessage("apply_started", artifact),
 		version.Version,
-		uc.buildUpdateRuntimeEvidence(artifact, opts, nil),
+		withUpdateStage(uc.buildUpdateRuntimeEvidence(artifact, opts, nil), "apply", ""),
 	)
 
 	launcherExitCode, err := uc.runCommand(ctx, payload, artifact.FilePath, opts)
 	if err != nil {
 		_ = uc.clearPendingState(opts.dir)
+		failureClass := classifyUpdateFailure("apply", "command_failed", err)
 		uc.reportStatusBestEffort(
 			ctx,
 			payload,
 			"apply_failed",
-			"command_failed",
+			updateFailureReasonCode("command_failed", failureClass),
 			err.Error(),
 			version.Version,
-			uc.buildUpdateRuntimeEvidence(artifact, opts, launcherExitCode),
+			withUpdateStage(uc.buildUpdateRuntimeEvidence(artifact, opts, launcherExitCode), "apply", failureClass),
 		)
 		return err
 	}
@@ -213,7 +234,7 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 		"",
 		uc.applySummaryMessage("apply_dispatched", artifact),
 		version.Version,
-		uc.buildUpdateRuntimeEvidence(artifact, opts, launcherExitCode),
+		withUpdateStage(uc.buildUpdateRuntimeEvidence(artifact, opts, launcherExitCode), "restart", ""),
 	)
 	return nil
 }
@@ -581,15 +602,31 @@ func (uc *SelfUpdate) ReportPendingResult(ctx context.Context) error {
 		Source:    "pending_state",
 	}
 	reportMeta := uc.buildUpdateRuntimeEvidence(artifact, opts, st.LauncherExitCode)
+	reconnectMeta := copyUpdateEvidence(reportMeta)
+	addUpdateStageEvidence(reconnectMeta, "reconnect", "")
+	if err := uc.reportStatus(
+		ctx,
+		payload,
+		"reconnected",
+		"",
+		"agente reconectou após restart",
+		version.Version,
+		reconnectMeta,
+	); err != nil {
+		return err
+	}
+
 	if version.Version == st.TargetVersion {
+		confirmedMeta := copyUpdateEvidence(reportMeta)
+		addUpdateStageEvidence(confirmedMeta, "version_confirmed", "")
 		if err := uc.reportStatus(
 			ctx,
 			payload,
-			"apply_ok",
+			"version_confirmed",
 			"",
 			uc.applySummaryMessage("apply_ok", artifact),
 			version.Version,
-			reportMeta,
+			confirmedMeta,
 		); err != nil {
 			return err
 		}
@@ -603,7 +640,7 @@ func (uc *SelfUpdate) ReportPendingResult(ctx context.Context) error {
 		"version_mismatch_after_restart",
 		fmt.Sprintf("expected target=%s current=%s", st.TargetVersion, version.Version),
 		version.Version,
-		reportMeta,
+		withUpdateStage(reportMeta, "version_confirmed", "reconexao"),
 	); err != nil {
 		return err
 	}
@@ -778,6 +815,97 @@ func (uc *SelfUpdate) buildUpdateRuntimeEvidence(artifact downloadedArtifact, op
 		out["launcher_exit_code"] = *launcherExitCode
 	}
 	return out
+}
+
+func updateStageEvidence(stage, failureClass string) map[string]any {
+	out := map[string]any{}
+	addUpdateStageEvidence(out, stage, failureClass)
+	return out
+}
+
+func withUpdateStage(meta map[string]any, stage, failureClass string) map[string]any {
+	if meta == nil {
+		meta = map[string]any{}
+	}
+	addUpdateStageEvidence(meta, stage, failureClass)
+	return meta
+}
+
+func addUpdateStageEvidence(meta map[string]any, stage, failureClass string) {
+	meta["handshake_steps"] = append([]string(nil), updateHandshakeSteps...)
+	if normalized := strings.TrimSpace(stage); normalized != "" {
+		meta["stage"] = normalized
+	}
+	if normalized := strings.TrimSpace(failureClass); normalized != "" {
+		meta["failure_class"] = normalized
+	}
+}
+
+func copyUpdateEvidence(meta map[string]any) map[string]any {
+	out := make(map[string]any, len(meta))
+	for k, v := range meta {
+		out[k] = v
+	}
+	return out
+}
+
+func classifyUpdateFailure(stage, reasonCode string, err error) string {
+	msg := strings.ToLower(strings.TrimSpace(reasonCode + " " + stage))
+	if err != nil {
+		msg += " " + strings.ToLower(err.Error())
+	}
+	switch {
+	case strings.Contains(msg, "sudo") ||
+		strings.Contains(msg, "root") ||
+		strings.Contains(msg, "elev") ||
+		strings.Contains(msg, "privilege") ||
+		strings.Contains(msg, "permiss"):
+		return "sudoers"
+	case strings.Contains(msg, "download") ||
+		strings.Contains(msg, "status ") ||
+		strings.Contains(msg, "url") ||
+		strings.Contains(msg, "timeout"):
+		return "download"
+	case strings.Contains(msg, "sha256") ||
+		strings.Contains(msg, "too large") ||
+		strings.Contains(msg, "payload") ||
+		strings.Contains(msg, "pacote") ||
+		strings.Contains(msg, "package"):
+		return "pacote"
+	case strings.Contains(msg, "tar") ||
+		strings.Contains(msg, "unzip") ||
+		strings.Contains(msg, "expand") ||
+		strings.Contains(msg, "formato") ||
+		strings.Contains(msg, "binário") ||
+		strings.Contains(msg, "binary") ||
+		strings.Contains(msg, "agent.exe"):
+		return "unpack"
+	case strings.Contains(msg, "restart") ||
+		strings.Contains(msg, "rein") ||
+		strings.Contains(msg, "service") ||
+		strings.Contains(msg, "systemctl"):
+		return "restart"
+	case strings.Contains(msg, "reconnect") ||
+		strings.Contains(msg, "reconex") ||
+		strings.Contains(msg, "version_mismatch"):
+		return "reconexao"
+	case strings.Contains(msg, "report"):
+		return "report"
+	default:
+		return "pacote"
+	}
+}
+
+func updateFailureReasonCode(reasonCode, failureClass string) string {
+	reasonCode = strings.TrimSpace(reasonCode)
+	failureClass = strings.TrimSpace(failureClass)
+	if failureClass == "" {
+		return reasonCode
+	}
+	if reasonCode == "" || reasonCode == "command_failed" || reasonCode == "failed" || reasonCode == "error" {
+		return failureClass
+	}
+	return reasonCode
 }
 
 func (uc *SelfUpdate) downloadSummaryMessage(artifact downloadedArtifact) string {

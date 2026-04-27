@@ -66,11 +66,33 @@ func TestSelfHealExecutorUnknownCommandFails(t *testing.T) {
 	if status != "failed" {
 		t.Fatalf("expected failed, got %s", status)
 	}
-	if len(reporter.reports) != 3 {
-		t.Fatalf("expected 3 reports, got %d", len(reporter.reports))
+	if len(reporter.reports) != 1 {
+		t.Fatalf("expected one failed report, got %d", len(reporter.reports))
 	}
-	if reporter.reports[2].Status != "failed" {
-		t.Fatalf("expected final failed report, got %s", reporter.reports[2].Status)
+	if reporter.reports[0].Status != "failed" {
+		t.Fatalf("expected final failed report, got %s", reporter.reports[0].Status)
+	}
+}
+
+func TestSelfHealExecutorBlocksShellCommandWithoutAck(t *testing.T) {
+	log := logger.New("info")
+	t.Cleanup(func() { log.Sync() })
+	reporter := &fakeSelfHealReporter{}
+	exec := NewSelfHealExecutor(log, reporter, SelfHealDeps{})
+
+	status, _, evidence := exec.Execute(context.Background(), entities.SelfHealCommand{
+		CommandID: "cmd-shell",
+		Code:      "powershell",
+	})
+
+	if status != "failed" {
+		t.Fatalf("expected failed, got %s", status)
+	}
+	if evidence["code"] != "command_not_allowed" {
+		t.Fatalf("expected command_not_allowed evidence, got %#v", evidence)
+	}
+	if len(reporter.reports) != 1 || reporter.reports[0].Status != "failed" {
+		t.Fatalf("expected only failed report, got %#v", reporter.reports)
 	}
 }
 

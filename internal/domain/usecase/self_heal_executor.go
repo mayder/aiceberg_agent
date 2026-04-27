@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/domain/channel"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 )
 
@@ -51,6 +52,19 @@ func (uc *SelfHealExecutor) Execute(ctx context.Context, cmd entities.SelfHealCo
 		evidence := map[string]any{"code": "invalid_command_payload"}
 		_ = uc.report(ctx, cmd, "failed", "invalid command payload", evidence)
 		return "failed", "invalid command payload", evidence
+	}
+	if !channel.IsAllowedCommandCode(code) || channel.IsShellLikeCommandCode(code) {
+		evidence := map[string]any{
+			"code":         "command_not_allowed",
+			"command_code": code,
+		}
+		_ = uc.report(ctx, cmd, "failed", "command blocked by allowlist", evidence)
+		uc.log.Error(logger.KV("selfheal command blocked",
+			"command_id", commandID,
+			"command_code", code,
+			"err", "command_not_allowed",
+		))
+		return "failed", "command blocked by allowlist", evidence
 	}
 
 	_ = uc.report(ctx, cmd, "acked", "command acknowledged", nil)

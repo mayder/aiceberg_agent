@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -14,14 +15,23 @@ import (
 	app "github.com/you/aiceberg_agent/internal/bootstrap"
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/domain/usecase"
 )
 
 const serviceName = "AIcebergAgent"
 
 var configPath = flag.String("config", "", "path to config file (.env|.json|.yaml)")
+var doctor = flag.Bool("doctor", false, "run local channel diagnostics and exit")
 
 func main() {
 	flag.Parse()
+
+	if *doctor {
+		cfg, err := config.Load(*configPath)
+		report := usecase.RunChannelDoctor(context.Background(), cfg, err)
+		_ = json.NewEncoder(os.Stdout).Encode(report)
+		os.Exit(usecase.ChannelDoctorExitCode(report))
+	}
 
 	isSvc, err := svc.IsWindowsService()
 	if err != nil {

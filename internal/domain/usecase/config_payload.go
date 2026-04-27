@@ -7,9 +7,12 @@ import (
 )
 
 type ControlCommand struct {
-	Name       string
-	Update     *UpdatePayload
-	AutoUpdate *AutoUpdatePayload
+	Name          string
+	CommandID     string
+	CorrelationID string
+	Source        string
+	Update        *UpdatePayload
+	AutoUpdate    *AutoUpdatePayload
 }
 
 type UpdatePayload struct {

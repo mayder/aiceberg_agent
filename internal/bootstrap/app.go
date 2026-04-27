@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,6 +33,7 @@ import (
 	agentlessremote "github.com/you/aiceberg_agent/internal/data/remote"
 	"github.com/you/aiceberg_agent/internal/data/remote/transport"
 	"github.com/you/aiceberg_agent/internal/data/repositories"
+	"github.com/you/aiceberg_agent/internal/domain/channel"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
@@ -357,6 +359,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			return buildSelfHealRuntimeSnapshot(cfg, mode, p, settings, agentlessUC != nil, selfUpdateUC)
 		},
 	})
+	commandDedupe := usecase.NewCommandIdempotency(6*time.Hour, 2048)
+	var activeChannelClient *usecase.AgentChannelClient
 
 	if cfg.HealthPort > 0 {
 		go health.Serve(cfg.HealthPort, log, func() health.Snapshot {
@@ -367,6 +371,10 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				bytes += ob
 			}
 			procRSS, procCPU := procStats(proc)
+			var channelStatus any
+			if activeChannelClient != nil {
+				channelStatus = activeChannelClient.Snapshot()
+			}
 			return health.Snapshot{
 				Status:         "ok",
 				QueueItems:     items,
@@ -383,6 +391,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				LastCollectMs:  counters.lastCollectMs.Load(),
 				LastFlushMs:    counters.lastFlushMs.Load(),
 				LastFlushBatch: counters.lastFlushBatch.Load(),
+				Channel:        channelStatus,
 			}
 		})
 	}
@@ -436,6 +445,144 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	log.Info(logger.KV("agent started",
 		"mode", mode,
 	))
+	if mode == "direct" || mode == "hub" || mode == "relay" {
+		channelClient := usecase.NewAgentChannelClient(cfg, log)
+		activeChannelClient = channelClient
+		channelClient.SetCommandHandler(func(runCtx context.Context, envelope channel.Envelope) error {
+			code := channelEnvelopeCode(envelope)
+			if !channel.IsAllowedCommandCode(code) || channel.IsShellLikeCommandCode(code) {
+				reportChannelCommandEvent(runCtx, channelClient, envelope, channel.TypeError, map[string]any{
+					"status":        "failed",
+					"stage":         "security",
+					"failure_class": "command_not_allowed",
+					"error":         "command blocked by allowlist",
+				})
+				log.Error(logger.KV("channel command blocked",
+					"command_id", strings.TrimSpace(envelope.CommandID),
+					"command_code", code,
+					"err", "command_not_allowed",
+				))
+				return nil
+			}
+			if code == channel.CommandCollectNow {
+				commandID := strings.TrimSpace(envelope.CommandID)
+				if commandID == "" {
+					return nil
+				}
+				if !commandDedupe.First(commandID) {
+					reportChannelCommandEvent(runCtx, channelClient, envelope, channel.TypeAck, map[string]any{
+						"status": "duplicate",
+						"stage":  "dedupe",
+					})
+					return nil
+				}
+				collectNow := channelEnvelopeCollectNow(envelope)
+				reportChannelCommandEvent(runCtx, channelClient, envelope, channel.TypeAck, map[string]any{
+					"status":      "accepted",
+					"stage":       "ack",
+					"collect_now": collectNow,
+				})
+				if len(collectNow) == 0 {
+					reportChannelCommandEvent(runCtx, channelClient, envelope, channel.TypeError, map[string]any{
+						"status": "failed",
+						"stage":  "precheck",
+						"error":  "empty collect_now",
+					})
+					return nil
+				}
+				for _, name := range collectNow {
+					cmd := usecase.ControlCommand{
+						Name:          name,
+						CommandID:     commandID,
+						CorrelationID: strings.TrimSpace(envelope.CorrelationID),
+						Source:        "channel",
+					}
+					select {
+					case commandChan <- cmd:
+						reportChannelCommandEvent(runCtx, channelClient, envelope, channel.TypeProgress, map[string]any{
+							"status": "queued",
+							"stage":  "queued",
+							"name":   name,
+						})
+					default:
+						reportChannelCommandEvent(runCtx, channelClient, envelope, channel.TypeError, map[string]any{
+							"status":        "failed",
+							"stage":         "backpressure",
+							"name":          name,
+							"failure_class": "backpressure",
+						})
+					}
+				}
+				return nil
+			}
+			result := usecase.ExecuteChannelSelfHealCommand(runCtx, commandDedupe, selfHealExec, channelClient, envelope)
+			if !result.Executed {
+				log.Info(logger.KV("channel command duplicate skipped",
+					"command_id", strings.TrimSpace(envelope.CommandID),
+					"status", result.Status,
+					"message", result.Message,
+				))
+				return nil
+			}
+			if result.Status == "failed" || result.Status == channel.StatusTimeout {
+				code := channelEnvelopeCode(envelope)
+				reportWorkerError(runCtx, "channel_selfheal_command_failed", "warning", "open", errors.New(result.Message), map[string]any{
+					"command_id":     strings.TrimSpace(envelope.CommandID),
+					"command_code":   code,
+					"correlation_id": strings.TrimSpace(envelope.CorrelationID),
+					"evidence":       result.Evidence,
+				})
+			}
+			return nil
+		})
+		go channelClient.Run(ctx)
+	}
+	reportControlCollectProgress := func(runCtx context.Context, cmd usecase.ControlCommand, stage, name string, extra map[string]any) {
+		if activeChannelClient == nil || strings.TrimSpace(cmd.CommandID) == "" {
+			return
+		}
+		progress := map[string]any{
+			"status": "running",
+			"stage":  stage,
+			"name":   name,
+			"source": strings.TrimSpace(cmd.Source),
+		}
+		if stage == "completed" {
+			progress["status"] = "success"
+		}
+		for k, v := range extra {
+			progress[k] = v
+		}
+		_ = activeChannelClient.SendEvent(runCtx, channel.Envelope{
+			Type:          channel.TypeProgress,
+			CommandID:     strings.TrimSpace(cmd.CommandID),
+			CorrelationID: strings.TrimSpace(cmd.CorrelationID),
+			Progress:      progress,
+		})
+	}
+	reportControlCollectError := func(runCtx context.Context, cmd usecase.ControlCommand, name string, err error) {
+		if activeChannelClient == nil || strings.TrimSpace(cmd.CommandID) == "" {
+			return
+		}
+		_ = activeChannelClient.SendEvent(runCtx, channel.Envelope{
+			Type:          channel.TypeError,
+			CommandID:     strings.TrimSpace(cmd.CommandID),
+			CorrelationID: strings.TrimSpace(cmd.CorrelationID),
+			Error: map[string]any{
+				"status":        "failed",
+				"stage":         "collect",
+				"name":          name,
+				"failure_class": "collect_failed",
+				"message":       errString(err),
+			},
+		})
+	}
+	reportControlCollectResult := func(runCtx context.Context, cmd usecase.ControlCommand, result *usecase.BufferedCollectResult) {
+		if activeChannelClient == nil || strings.TrimSpace(cmd.CommandID) == "" {
+			return
+		}
+		sendCollectChunks(runCtx, activeChannelClient, cmd, result)
+	}
 
 	// coleta de bootstrap imediata (host/inventory estático)
 	if err := bootstrapUC.Execute(ctx); err != nil {
@@ -512,39 +659,61 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		case cmd := <-commandChan:
 			switch cmd.Name {
 			case "inventory":
-				if err := inventoryUC.Execute(ctx); err != nil {
+				reportControlCollectProgress(ctx, cmd, "running", "inventory", nil)
+				result, err := inventoryUC.ExecuteDetailed(ctx)
+				if err != nil {
+					reportControlCollectError(ctx, cmd, "inventory", err)
 					reportWorkerError(ctx, "collect_inventory_failed", "warning", "open", err, map[string]any{
 						"source": "command",
 						"name":   cmd.Name,
 					})
+				} else {
+					reportControlCollectResult(ctx, cmd, result)
 				}
 			case "health":
-				if err := healthUC.Execute(ctx); err != nil {
+				reportControlCollectProgress(ctx, cmd, "running", "health", nil)
+				result, err := healthUC.ExecuteDetailed(ctx)
+				if err != nil {
+					reportControlCollectError(ctx, cmd, "health", err)
 					reportWorkerError(ctx, "collect_health_failed", "warning", "open", err, map[string]any{
 						"source": "command",
 						"name":   cmd.Name,
 					})
+				} else {
+					reportControlCollectResult(ctx, cmd, result)
 				}
 			case "bootstrap":
-				if err := bootstrapUC.Execute(ctx); err != nil {
+				reportControlCollectProgress(ctx, cmd, "running", "bootstrap", nil)
+				result, err := bootstrapUC.ExecuteDetailed(ctx)
+				if err != nil {
+					reportControlCollectError(ctx, cmd, "bootstrap", err)
 					reportWorkerError(ctx, "collect_bootstrap_failed", "warning", "open", err, map[string]any{
 						"source": "command",
 						"name":   cmd.Name,
 					})
+				} else {
+					reportControlCollectResult(ctx, cmd, result)
 				}
 			case "network_capture":
-				if err := networkCaptureUC.Execute(ctx); err != nil {
+				reportControlCollectProgress(ctx, cmd, "running", "network_capture", nil)
+				result, err := networkCaptureUC.ExecuteDetailed(ctx)
+				if err != nil {
+					reportControlCollectError(ctx, cmd, "network_capture", err)
 					reportWorkerError(ctx, "collect_network_capture_failed", "warning", "open", err, map[string]any{
 						"source": "command",
 						"name":   cmd.Name,
 					})
+				} else {
+					reportControlCollectResult(ctx, cmd, result)
 				}
 			case "agentless":
 				if agentlessUC != nil {
 					if agentlessBusy.CompareAndSwap(false, true) {
 						go func(commandName string) {
 							defer agentlessBusy.Store(false)
+							reportControlCollectProgress(ctx, cmd, "running", "agentless", nil)
 							if err := agentlessUC.SyncTargets(ctx); err != nil {
+								reportControlCollectError(ctx, cmd, "agentless", err)
 								log.Error(logger.KV("agentless targets sync failed",
 									"err", err,
 								))
@@ -554,6 +723,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 								})
 							}
 							agentlessUC.CollectNow(ctx)
+							reportControlCollectProgress(ctx, cmd, "completed", "agentless", map[string]any{
+								"fallback": "agentless_outbox_flush",
+							})
 						}(cmd.Name)
 					} else {
 						log.Info(logger.KV("agentless command skipped",
@@ -561,6 +733,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 							"name", cmd.Name,
 							"reason", "busy",
 						))
+						reportControlCollectError(ctx, cmd, "agentless", errors.New("agentless collector busy"))
 					}
 				}
 			case "self_update":
@@ -645,7 +818,13 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				))
 			}
 			for _, command := range commands {
-				status, message, evidence := selfHealExec.Execute(ctx, command)
+				status, message, evidence, executed := usecase.ExecuteSelfHealOnce(ctx, commandDedupe, selfHealExec, command)
+				if !executed {
+					log.Info(logger.KV("selfheal command duplicate skipped",
+						"command_id", strings.TrimSpace(command.CommandID),
+					))
+					continue
+				}
 				if status == "failed" {
 					reportWorkerError(ctx, "selfheal_command_failed", "warning", "open", errors.New(message), map[string]any{
 						"command_id":     strings.TrimSpace(command.CommandID),
@@ -950,6 +1129,171 @@ func readTick(t *time.Ticker) <-chan time.Time {
 		return nil
 	}
 	return t.C
+}
+
+func channelEnvelopeCode(env channel.Envelope) string {
+	if env.Payload == nil {
+		return ""
+	}
+	if value, ok := env.Payload["code"].(string); ok {
+		return strings.TrimSpace(value)
+	}
+	return ""
+}
+
+func channelEnvelopeCollectNow(env channel.Envelope) []string {
+	if env.Payload == nil {
+		return nil
+	}
+	raw, ok := env.Payload["collect_now"]
+	if !ok {
+		raw = env.Payload["collect"]
+	}
+	allowed := map[string]struct{}{
+		"inventory":       {},
+		"health":          {},
+		"bootstrap":       {},
+		"agentless":       {},
+		"network_capture": {},
+	}
+	out := []string{}
+	appendName := func(value string) {
+		normalized := strings.TrimSpace(value)
+		if _, ok := allowed[normalized]; ok {
+			out = append(out, normalized)
+		}
+	}
+	switch values := raw.(type) {
+	case []string:
+		for _, value := range values {
+			appendName(value)
+		}
+	case []any:
+		for _, value := range values {
+			if text, ok := value.(string); ok {
+				appendName(text)
+			}
+		}
+	case string:
+		appendName(values)
+	}
+	return out
+}
+
+func reportChannelCommandEvent(ctx context.Context, client *usecase.AgentChannelClient, source channel.Envelope, eventType string, body map[string]any) {
+	if client == nil {
+		return
+	}
+	env := channel.Envelope{
+		Type:          eventType,
+		CommandID:     strings.TrimSpace(source.CommandID),
+		CorrelationID: strings.TrimSpace(source.CorrelationID),
+	}
+	switch eventType {
+	case channel.TypeAck:
+		env.Payload = body
+	case channel.TypeProgress:
+		env.Progress = body
+	case channel.TypeResult:
+		env.Result = body
+	case channel.TypeError:
+		env.Error = body
+	default:
+		env.Payload = body
+	}
+	_ = client.SendEvent(ctx, env)
+}
+
+func sendCollectChunks(ctx context.Context, client *usecase.AgentChannelClient, cmd usecase.ControlCommand, result *usecase.BufferedCollectResult) {
+	if client == nil || strings.TrimSpace(cmd.CommandID) == "" {
+		return
+	}
+	if result == nil {
+		_ = client.SendEvent(ctx, channel.Envelope{
+			Type:          channel.TypeResult,
+			CommandID:     strings.TrimSpace(cmd.CommandID),
+			CorrelationID: strings.TrimSpace(cmd.CorrelationID),
+			Result: map[string]any{
+				"status": "success",
+				"stage":  "completed",
+				"name":   strings.TrimSpace(cmd.Name),
+				"empty":  true,
+			},
+		})
+		return
+	}
+
+	const chunkSize = 48 * 1024
+	const maxChunks = 16
+	body := result.Body
+	totalSize := len(body)
+	totalChunks := 0
+	if totalSize > 0 {
+		totalChunks = (totalSize + chunkSize - 1) / chunkSize
+	}
+	sentChunks := totalChunks
+	truncated := false
+	if sentChunks > maxChunks {
+		sentChunks = maxChunks
+		truncated = true
+	}
+	sum := sha1.Sum(body)
+	sha := fmt.Sprintf("%x", sum)
+	for i := 0; i < sentChunks; i++ {
+		start := i * chunkSize
+		end := start + chunkSize
+		if end > totalSize {
+			end = totalSize
+		}
+		_ = client.SendEvent(ctx, channel.Envelope{
+			Type:          channel.TypeProgress,
+			CommandID:     strings.TrimSpace(cmd.CommandID),
+			CorrelationID: strings.TrimSpace(cmd.CorrelationID),
+			Progress: map[string]any{
+				"status": "running",
+				"stage":  "chunk",
+				"name":   result.Collector,
+				"chunk": map[string]any{
+					"index":           i + 1,
+					"total":           totalChunks,
+					"sent_total":      sentChunks,
+					"size_bytes":      end - start,
+					"payload_sha1":    sha,
+					"encoding":        "base64",
+					"data":            base64.StdEncoding.EncodeToString(body[start:end]),
+					"truncated":       truncated,
+					"max_chunk_bytes": chunkSize,
+					"max_chunks":      maxChunks,
+				},
+			},
+		})
+	}
+	_ = client.SendEvent(ctx, channel.Envelope{
+		Type:          channel.TypeResult,
+		CommandID:     strings.TrimSpace(cmd.CommandID),
+		CorrelationID: strings.TrimSpace(cmd.CorrelationID),
+		Result: map[string]any{
+			"status":           "success",
+			"stage":            "completed",
+			"name":             result.Collector,
+			"event_id":         result.EventID,
+			"endpoint":         result.Endpoint,
+			"duration_ms":      result.DurationMs,
+			"payload_bytes":    totalSize,
+			"payload_sha1":     sha,
+			"chunks_total":     totalChunks,
+			"chunks_sent":      sentChunks,
+			"chunks_truncated": truncated,
+			"fallback":         "ingest_outbox",
+		},
+	})
+}
+
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func truncateTextForErrorReport(text string, maxLen int) string {

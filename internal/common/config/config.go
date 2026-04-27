@@ -19,53 +19,54 @@ type AgentCfg struct {
 }
 
 type Config struct {
-	Agent                   AgentCfg
-	APIBaseURL              string
-	APIKey                  string
-	HTTPGzip                bool
-	HTTPIdempotency         bool
-	TLSInsecureSkip         bool
-	OutboxPath              string
-	OutboxMaxMB             int
-	OutboxMaxPerAgent       int
-	HealthPort              int
-	PingInterval            time.Duration
-	ConfigSyncInterval      time.Duration
-	PrefsPath               string
-	AgentMode               string
-	AgentModeOverridePath   string
-	HubURL                  string
-	HubToken                string
-	HubListenAddr           string
-	SkipBootstrap           bool
-	OSLogEnabled            bool
-	OSLogFiles              []string
-	OSLogCursorPath         string
-	OSLogBatchLines         int
-	OSLogMaxBytes           int
-	OSLogInterval           time.Duration
-	OSLogWinChannels        []string
-	OSLogEnrich             bool
-	OSLogDetections         bool
-	OSLogDiag               bool
-	AgentlessEnabled        bool
-	AgentlessPollInterval   time.Duration
-	AgentlessFlushInterval  time.Duration
-	SelfHealPollInterval    time.Duration
-	AgentlessOutboxPath     string
-	AgentlessOutboxMaxMB    int
-	AgentlessJobsLimit      int
-	AgentlessLockSec        int
-	AgentlessFlushBatch     int
-	AgentlessDebug          bool
-	AutoUpdateEnabled       bool
-	AutoUpdateDir           string
-	AutoUpdateCommand       string
-	AutoUpdateWorkDir       string
-	AutoUpdateTimeout       time.Duration
-	AutoUpdateRetryInterval time.Duration
-	AutoUpdateMaxMB         int
-	AutoUpdateUseAgentAuth  bool
+	Agent                    AgentCfg
+	APIBaseURL               string
+	APIKey                   string
+	HTTPGzip                 bool
+	HTTPIdempotency          bool
+	TLSInsecureSkip          bool
+	OutboxPath               string
+	OutboxMaxMB              int
+	OutboxMaxPerAgent        int
+	HealthPort               int
+	PingInterval             time.Duration
+	ConfigSyncInterval       time.Duration
+	ChannelHeartbeatInterval time.Duration
+	PrefsPath                string
+	AgentMode                string
+	AgentModeOverridePath    string
+	HubURL                   string
+	HubToken                 string
+	HubListenAddr            string
+	SkipBootstrap            bool
+	OSLogEnabled             bool
+	OSLogFiles               []string
+	OSLogCursorPath          string
+	OSLogBatchLines          int
+	OSLogMaxBytes            int
+	OSLogInterval            time.Duration
+	OSLogWinChannels         []string
+	OSLogEnrich              bool
+	OSLogDetections          bool
+	OSLogDiag                bool
+	AgentlessEnabled         bool
+	AgentlessPollInterval    time.Duration
+	AgentlessFlushInterval   time.Duration
+	SelfHealPollInterval     time.Duration
+	AgentlessOutboxPath      string
+	AgentlessOutboxMaxMB     int
+	AgentlessJobsLimit       int
+	AgentlessLockSec         int
+	AgentlessFlushBatch      int
+	AgentlessDebug           bool
+	AutoUpdateEnabled        bool
+	AutoUpdateDir            string
+	AutoUpdateCommand        string
+	AutoUpdateWorkDir        string
+	AutoUpdateTimeout        time.Duration
+	AutoUpdateRetryInterval  time.Duration
+	AutoUpdateMaxMB          int
+	AutoUpdateUseAgentAuth   bool
 }
 
 type CollectPrefs struct {
@@ -139,6 +140,7 @@ func Load(configPath string) (Config, error) {
 	}
 	pingInterval := time.Duration(intEnv("PING_INTERVAL", 5)) * time.Second
 	cfgSyncInterval := time.Duration(intEnv("CONFIG_SYNC_INTERVAL", 30)) * time.Second
+	channelHeartbeatInterval := time.Duration(intEnv("CHANNEL_HEARTBEAT_INTERVAL", 30)) * time.Second
 	agentlessPoll := time.Duration(intEnv("AGENTLESS_POLL_INTERVAL", 30)) * time.Second
 	agentlessFlush := time.Duration(intEnv("AGENTLESS_FLUSH_INTERVAL", 15)) * time.Second
 	selfHealPoll := time.Duration(intEnv("SELFHEAL_POLL_INTERVAL", 30)) * time.Second
@@ -196,6 +198,12 @@ func Load(configPath string) (Config, error) {
 				return 30 * time.Second
 			}
 			return cfgSyncInterval
+		}(),
+		ChannelHeartbeatInterval: func() time.Duration {
+			if channelHeartbeatInterval <= 0 {
+				return 30 * time.Second
+			}
+			return channelHeartbeatInterval
 		}(),
 		AgentlessPollInterval: func() time.Duration {
 			if agentlessPoll <= 0 {

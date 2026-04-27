@@ -26,6 +26,7 @@ type Snapshot struct {
 	LastCollectMs  int64   `json:"last_collect_ms,omitempty"`
 	LastFlushMs    int64   `json:"last_flush_ms,omitempty"`
 	LastFlushBatch int64   `json:"last_flush_batch,omitempty"`
+	Channel        any     `json:"channel,omitempty"`
 }
 
 func Serve(port int, log logger.Logger, stats func() Snapshot) {
@@ -35,14 +36,7 @@ func Serve(port int, log logger.Logger, stats func() Snapshot) {
 		if stats != nil {
 			snap = stats()
 		}
-		if snap.Status == "" {
-			snap.Status = "ok"
-		}
-		if snap.Version == "" {
-			snap.Version = version.Version
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(snap)
+		encodeHealthSnapshot(w, snap)
 	})
 	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		var snap Snapshot
@@ -76,6 +70,17 @@ func Serve(port int, log logger.Logger, stats func() Snapshot) {
 		"addr", addr,
 	))
 	_ = http.ListenAndServe(addr, nil)
+}
+
+func encodeHealthSnapshot(w http.ResponseWriter, snap Snapshot) {
+	if snap.Status == "" {
+		snap.Status = "ok"
+	}
+	if snap.Version == "" {
+		snap.Version = version.Version
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(snap)
 }
 
 func writeMetric(w http.ResponseWriter, name string, val float64) {

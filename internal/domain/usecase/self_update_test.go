@@ -122,6 +122,15 @@ func TestSelfUpdate_RunCommand(t *testing.T) {
 	}
 }
 
+func TestSelfUpdateFailureReasonCodePrefersSpecificFailureClass(t *testing.T) {
+	if got := updateFailureReasonCode("command_failed", "sudoers"); got != "sudoers" {
+		t.Fatalf("expected sudoers, got %s", got)
+	}
+	if got := updateFailureReasonCode("sha_mismatch", "pacote"); got != "sha_mismatch" {
+		t.Fatalf("expected explicit reason code to be preserved, got %s", got)
+	}
+}
+
 func TestSelfUpdate_RelayDownloadsViaHubProxy(t *testing.T) {
 	pkg := []byte("relay package bytes")
 	sum := sha256.Sum256(pkg)
@@ -301,6 +310,12 @@ func TestSelfUpdate_ReportIncludesDownloadMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected update metadata map")
 	}
+	if stage, _ := update["stage"].(string); stage != "download" {
+		t.Fatalf("expected download stage in final report, got %v", update["stage"])
+	}
+	if steps, ok := update["handshake_steps"].([]any); !ok || len(steps) == 0 {
+		t.Fatalf("expected handshake_steps in update metadata")
+	}
 	filePath, _ := update["download_file"].(string)
 	if strings.TrimSpace(filePath) == "" {
 		t.Fatalf("expected download_file in update metadata")
@@ -356,5 +371,62 @@ func TestSelfUpdate_SnapshotIncludesPendingStateMetadata(t *testing.T) {
 	}
 	if got, _ := pending["download_sha256"].(string); got != expectedSHA {
 		t.Fatalf("unexpected download_sha256: %v", got)
+	}
+}
+
+func TestSelfUpdate_ReportPendingResultConfirmsVersionAfterReconnect(t *testing.T) {
+	var received []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/agent/update-report" {
+			http.NotFound(w, r)
+			return
+		}
+		raw, _ := io.ReadAll(r.Body)
+		payload := map[string]any{}
+		_ = json.Unmarshal(raw, &payload)
+		received = append(received, payload)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer srv.Close()
+
+	cfg := config.Config{
+		Agent:             config.AgentCfg{Token: "agent-token"},
+		APIBaseURL:        srv.URL,
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     t.TempDir(),
+		AutoUpdateCommand: "echo ok",
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	artifact := downloadedArtifact{
+		FilePath:  filepath.Join(cfg.AutoUpdateDir, version.Version, "pkg.bin"),
+		DirPath:   filepath.Join(cfg.AutoUpdateDir, version.Version),
+		SHA256:    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SizeBytes: 123,
+		Source:    "pending_state",
+	}
+	opts := uc.effectiveOptions()
+	if err := uc.savePendingState(opts.dir, version.Version, "old-version", artifact, opts); err != nil {
+		t.Fatalf("savePendingState failed: %v", err)
+	}
+
+	if err := uc.ReportPendingResult(context.Background()); err != nil {
+		t.Fatalf("ReportPendingResult failed: %v", err)
+	}
+	if len(received) != 2 {
+		t.Fatalf("expected reconnect and version confirmation reports, got %d", len(received))
+	}
+	if status, _ := received[0]["status"].(string); status != "reconnected" {
+		t.Fatalf("expected reconnected status, got %v", received[0]["status"])
+	}
+	if status, _ := received[1]["status"].(string); status != "version_confirmed" {
+		t.Fatalf("expected version_confirmed status, got %v", received[1]["status"])
+	}
+	update, ok := received[1]["update"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected update metadata")
+	}
+	if stage, _ := update["stage"].(string); stage != "version_confirmed" {
+		t.Fatalf("expected version_confirmed stage, got %v", update["stage"])
 	}
 }
