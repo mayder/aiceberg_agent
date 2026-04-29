@@ -7,6 +7,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 ## Organização por pacotes entregáveis
 
 - `PKG-32` Canal operacional bidirecional com agentes
+- `PKG-33` Flush resiliente e backpressure para HUB/Relay
 
 ---
 
@@ -88,3 +89,87 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 - conexão direta obrigatória de `relay` com AIceberg;
 - remoção dos contratos HTTP atuais antes de homologação;
 - remover polling atual antes de homologação e rollback.
+
+---
+
+## [PKG-33] Flush resiliente e backpressure para HUB/Relay
+
+**Problema a resolver** — em topologia `relay -> hub -> AIceberg`, o Hub pode acumular backlog quando a API demora para responder a `/v1/ingest/metrics`. No incidente observado em 2026-04-29, o Relay `RHL-CTG-HML-01` coletava métricas e fazia flush para o Hub, mas o Hub registrava `context deadline exceeded`, `queue_items > 1000` e `flush_err` crescente. Como o flush atual trabalha com lote FIFO e só confirma ACK depois de enviar todos os grupos, falhas temporárias de um endpoint podem atrasar métricas recentes e degradar a visibilidade do relay.
+
+**Escopo no `aiceberg_agent`** — tornar o flush do Hub resiliente sob carga, com timeout/batch configuráveis, ACK granular, retry controlado, priorização de telemetria operacional e diagnóstico local suficiente para operação sem desligar coletas essenciais.
+
+**Dependências** — `aiceberg_web` PKG-33, PKG-20 (envio incremental), PKG-32 (canal operacional), publicação oficial de artefatos conforme `GOVERNANCA.md`.
+
+### Evidências do incidente
+
+- Relay em `AGENT_MODE=relay` com `channel.connected=true`, `relay_uses_hub_url=true` e sem conexão direta com AIceberg.
+- Relay gerando `collect buffered route=/v1/ingest/metrics` e `flushed` sem erro.
+- Hub em `AGENT_MODE=hub` com `queue_items` crescendo e `flush_err` aumentando.
+- Erro do Hub: `Post "https://api.aiceberg.com.br/v1/ingest/metrics": context deadline exceeded`.
+- Banco sem `metrics` recente do relay afetado, apesar de `bootstrap`, `health`, `network_capture` e `inventory` recentes.
+
+### Lotes propostos
+
+1) **Configuração operacional do flush**
+   - [ ] adicionar variáveis/env e prefs remotas para timeout HTTP de ingestão (`INGEST_TIMEOUT_SEC` ou equivalente);
+   - [ ] tornar tamanho de batch da outbox configurável sem recompilar (`OUTBOX_FLUSH_BATCH` ou equivalente);
+   - [ ] permitir intervalo de flush configurável quando o Hub estiver sob backlog;
+   - [ ] expor a configuração efetiva no `/health`, no comando `inspect_runtime_config` e no payload de métricas do agente;
+   - [ ] manter defaults compatíveis com instalações existentes.
+
+2) **ACK granular e isolamento por rota**
+   - [ ] alterar `FlushOutbox` para confirmar ACK dos grupos enviados com sucesso mesmo se outro grupo falhar;
+   - [ ] isolar falhas por `authHeader + endpoint`, evitando que timeout em `/v1/ingest/metrics` prenda `health`, `bootstrap`, `inventory` e outros endpoints;
+   - [ ] preservar envelopes não enviados para retry sem duplicar os já confirmados;
+   - [ ] registrar logs com `route`, `batch_size`, `acked`, `retained`, `duration_ms` e `err`;
+   - [ ] cobrir com testes unitários de sucesso parcial e falha por endpoint.
+
+3) **Retry, backoff e descarte seguro**
+   - [ ] implementar retry com backoff por rota/autorização, evitando loop agressivo quando a API estiver lenta;
+   - [ ] respeitar respostas de backpressure da API quando disponíveis (`retry-after`, batch sugerido, rota degradada);
+   - [ ] classificar erro temporário, erro HTTP definitivo e envelope inválido;
+   - [ ] permitir descarte auditável de envelope irrecuperável sem bloquear a fila inteira;
+   - [ ] manter segurança: nunca descartar payload por timeout temporário.
+
+4) **Priorização operacional em Hub**
+   - [ ] priorizar telemetria curta de saúde/fila/canal para manter diagnóstico em tempo real;
+   - [ ] evitar starvation de métricas recentes quando houver backlog antigo grande;
+   - [ ] avaliar filas lógicas por endpoint ou leitura balanceada da outbox preservando idempotência;
+   - [ ] garantir que Relay sem saída direta continue sem conectar ao AIceberg.
+
+5) **Observabilidade local do backlog**
+   - [ ] expor no `/health` e `/metrics`: último flush com duração, batch confirmado, batch retido, rota com última falha, idade do item mais antigo e contadores por endpoint;
+   - [ ] incluir diagnóstico do backlog no comando remoto `inspect_runtime_config`;
+   - [ ] melhorar logs de `transport failed` com `status`, timeout, rota, tamanho do lote e próxima tentativa;
+   - [ ] documentar comandos de suporte para Hub/Relay.
+
+6) **Homologação HUB/Relay sob carga**
+   - [ ] criar teste local/simulação com Hub recebendo relays e API lenta em `/v1/ingest/metrics`;
+   - [ ] validar que `health/bootstrap/inventory` continuam fluindo mesmo com timeout de `metrics`;
+   - [ ] validar que métricas recentes voltam a drenar após recuperação da API;
+   - [ ] medir crescimento/drenagem da fila em cenário com Agentless ativo;
+   - [ ] rodar `./check.sh` antes de gerar qualquer artefato.
+
+7) **Publicação e rollout**
+   - [ ] publicar artefatos oficiais da nova versão antes de acionar update remoto;
+   - [ ] validar update em um Hub e um Relay de homologação;
+   - [ ] documentar rollback para versão anterior e parâmetros temporários de mitigação;
+   - [ ] registrar no web qual versão mínima do agente possui flush resiliente.
+
+### Critérios de aceite
+
+- [ ] timeout de `/v1/ingest/metrics` não impede ACK de outros endpoints enviados com sucesso;
+- [ ] Hub não mantém crescimento indefinido da fila quando a API volta a responder;
+- [ ] `/health` mostra dados úteis de backlog e última falha sem depender de `journalctl`;
+- [ ] batch e timeout podem ser ajustados por configuração;
+- [ ] Relay continua enviando somente ao Hub em modo `relay`;
+- [ ] testes cobrem falha parcial, retry e ACK granular;
+- [ ] `./check.sh` passa antes de release.
+
+### Fora de escopo inicial
+
+- desligar coletas como solução definitiva;
+- conexão direta obrigatória de `relay` com AIceberg;
+- remover outbox persistente;
+- trocar o protocolo HTTP de ingestão antes da correção de resiliência;
+- alterar banco da Web a partir do repositório do agente.
