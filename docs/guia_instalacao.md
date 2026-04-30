@@ -14,6 +14,7 @@ Este guia é para quem vai instalar e configurar o agente nos hosts (Windows, ma
 - TLS: `TLS_INSECURE_SKIP_VERIFY=true` apenas para homolog/teste com certificados inválidos; respeita `HTTPS_PROXY/NO_PROXY` do ambiente.
 - Saúde/monitoramento local (opcional): `HEALTH_PORT=8081` para expor `/health` (JSON) e `/metrics` (formato Prometheus) com fila, contadores de flush/erros/coleta, uptime e recursos do processo.
 - Outbox persistente (fila local): `OUTBOX_PATH` para o arquivo da fila (ex.: Linux `/var/lib/aiceberg/outbox.db`, Windows `C:\ProgramData\AIceberg\outbox.db`, macOS `/Library/AIceberg/outbox.db`) e `OUTBOX_MAX_MB` (default 200). Garanta permissão de escrita do usuário/serviço nesse caminho; se não conseguir abrir o arquivo, o agente cai para memória.
+- Flush resiliente HUB/Relay: `INGEST_TIMEOUT_SEC` (default 10), `OUTBOX_FLUSH_BATCH` (default 50) e `OUTBOX_FLUSH_INTERVAL` (default 15) controlam timeout, lote e intervalo sem recompilar. Em Hub sob backlog, ajuste esses parametros e acompanhe `/health.flush_detail`; nao desligue coletas como mitigacao definitiva.
 - Coleta de logs (SOC):
   - Unix: `OSLOG_ENABLED=true`, `OSLOG_FILES=/var/log/auth.log,/var/log/syslog`, `OSLOG_CURSOR_PATH=/var/lib/aiceberg/oslogs.cursor`, `OSLOG_INTERVAL=15`, `OSLOG_MAX_BYTES=262144`, `OSLOG_ENRICH=true` para tentar extrair app/pid/level das linhas.
   - Windows: `OSLOG_ENABLED=true`, `OSLOG_WIN_CHANNELS=System,Application,Security`.

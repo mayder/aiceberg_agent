@@ -3,7 +3,6 @@ package transport
 import (
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/httpx"
@@ -20,7 +19,7 @@ type hubClient struct {
 
 func NewHubClient(cfg config.Config) ports.Transport {
 	return &hubClient{
-		cl:  httpx.NewClient(cfg, 10*time.Second),
+		cl:  httpx.NewClient(cfg, ingestTimeout(cfg)),
 		cfg: cfg,
 		end: "/v1/ingest",
 	}

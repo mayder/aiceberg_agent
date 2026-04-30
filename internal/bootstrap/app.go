@@ -181,7 +181,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		}
 	}
 
-	flushUC := usecase.NewFlushOutbox(outboxRepo, tx, log, authHeader, onIngestConfig)
+	flushOptions := usecase.FlushOutboxOptions{BatchSize: cfg.OutboxFlushBatch}
+	flushUC := usecase.NewFlushOutboxWithOptions(outboxRepo, tx, log, authHeader, onIngestConfig, flushOptions)
 	pingUC := usecase.NewPingBackend(cfg, log)
 	selfUpdateUC := usecase.NewSelfUpdate(cfg, log)
 	controlClient := agentlessremote.NewAgentControlClient(cfg)
@@ -265,7 +266,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	} else {
 		osTx = transport.NewHTTPLogsClient(cfg)
 	}
-	osLogFlushUC = usecase.NewFlushOutbox(osRepo, osTx, log, authHeader, onIngestConfig)
+	osLogFlushUC = usecase.NewFlushOutboxWithOptions(osRepo, osTx, log, authHeader, onIngestConfig, flushOptions)
 	pruneStore(osStore, "oslogs")
 
 	agentlessSettings := func() usecase.AgentlessSettings {
@@ -376,22 +377,26 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				channelStatus = activeChannelClient.Snapshot()
 			}
 			return health.Snapshot{
-				Status:         "ok",
-				QueueItems:     items,
-				QueueBytes:     bytes,
-				FlushOK:        counters.flushOK.Load(),
-				FlushErr:       counters.flushErr.Load(),
-				CollectErr:     counters.collectErr.Load(),
-				InvalidEnv:     metrics.InvalidEnvelopesTotal(),
-				AgentlessJobs:  metrics.AgentlessJobsTotal(),
-				UptimeSec:      int64(time.Since(startedAt).Seconds()),
-				ProcRSS:        procRSS,
-				ProcCPU:        procCPU,
-				Goroutines:     runtime.NumGoroutine(),
-				LastCollectMs:  counters.lastCollectMs.Load(),
-				LastFlushMs:    counters.lastFlushMs.Load(),
-				LastFlushBatch: counters.lastFlushBatch.Load(),
-				Channel:        channelStatus,
+				Status:           "ok",
+				QueueItems:       items,
+				QueueBytes:       bytes,
+				FlushOK:          counters.flushOK.Load(),
+				FlushErr:         counters.flushErr.Load(),
+				CollectErr:       counters.collectErr.Load(),
+				InvalidEnv:       metrics.InvalidEnvelopesTotal(),
+				AgentlessJobs:    metrics.AgentlessJobsTotal(),
+				UptimeSec:        int64(time.Since(startedAt).Seconds()),
+				ProcRSS:          procRSS,
+				ProcCPU:          procCPU,
+				Goroutines:       runtime.NumGoroutine(),
+				LastCollectMs:    counters.lastCollectMs.Load(),
+				LastFlushMs:      counters.lastFlushMs.Load(),
+				LastFlushBatch:   counters.lastFlushBatch.Load(),
+				IngestTimeoutSec: int64(cfg.IngestTimeout.Seconds()),
+				FlushIntervalSec: int64(cfg.OutboxFlushInterval.Seconds()),
+				FlushBatchLimit:  cfg.OutboxFlushBatch,
+				FlushDetail:      flushUC.Snapshot(),
+				Channel:          channelStatus,
 			}
 		})
 	}
@@ -407,7 +412,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	tMetrics := time.NewTicker(10 * time.Second)
 	tHealth := time.NewTicker(10 * time.Minute)
 	tInventory := time.NewTicker(8 * time.Hour)
-	tFlush := time.NewTicker(15 * time.Second)
+	tFlush := time.NewTicker(cfg.OutboxFlushInterval)
 	var tPing *time.Ticker
 	var tCfgSync *time.Ticker
 	var tOsCollect *time.Ticker

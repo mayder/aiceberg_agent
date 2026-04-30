@@ -27,9 +27,10 @@ func (f *fakeCollector) Collect(_ context.Context) ([]byte, error) {
 }
 
 type fakeOutbox struct {
-	appendErr error
-	batch     []entities.Envelope
-	acked     [][]string
+	appendErr     error
+	batch         []entities.Envelope
+	acked         [][]string
+	readBatchSize int
 }
 
 func (f *fakeOutbox) Append(env entities.Envelope) error {
@@ -41,6 +42,7 @@ func (f *fakeOutbox) Append(env entities.Envelope) error {
 }
 
 func (f *fakeOutbox) ReadBatch(n int) ([]entities.Envelope, error) {
+	f.readBatchSize = n
 	if n > len(f.batch) {
 		n = len(f.batch)
 	}

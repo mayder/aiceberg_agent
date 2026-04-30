@@ -24,6 +24,9 @@ type Config struct {
 	APIKey                   string
 	HTTPGzip                 bool
 	HTTPIdempotency          bool
+	IngestTimeout            time.Duration
+	OutboxFlushBatch         int
+	OutboxFlushInterval      time.Duration
 	TLSInsecureSkip          bool
 	OutboxPath               string
 	OutboxMaxMB              int
@@ -141,6 +144,8 @@ func Load(configPath string) (Config, error) {
 	pingInterval := time.Duration(intEnv("PING_INTERVAL", 5)) * time.Second
 	cfgSyncInterval := time.Duration(intEnv("CONFIG_SYNC_INTERVAL", 30)) * time.Second
 	channelHeartbeatInterval := time.Duration(intEnv("CHANNEL_HEARTBEAT_INTERVAL", 30)) * time.Second
+	ingestTimeout := time.Duration(intEnv("INGEST_TIMEOUT_SEC", 10)) * time.Second
+	outboxFlushInterval := time.Duration(intEnv("OUTBOX_FLUSH_INTERVAL", 15)) * time.Second
 	agentlessPoll := time.Duration(intEnv("AGENTLESS_POLL_INTERVAL", 30)) * time.Second
 	agentlessFlush := time.Duration(intEnv("AGENTLESS_FLUSH_INTERVAL", 15)) * time.Second
 	selfHealPoll := time.Duration(intEnv("SELFHEAL_POLL_INTERVAL", 30)) * time.Second
@@ -152,6 +157,7 @@ func Load(configPath string) (Config, error) {
 		APIKey:                 getenv("API_KEY", ""),
 		HTTPGzip:               strings.ToLower(getenv("HTTP_GZIP", "")) == "true",
 		HTTPIdempotency:        strings.ToLower(getenv("HTTP_IDEMPOTENCY", "true")) == "true",
+		OutboxFlushBatch:       intEnv("OUTBOX_FLUSH_BATCH", 50),
 		TLSInsecureSkip:        strings.ToLower(getenv("TLS_INSECURE_SKIP_VERIFY", "")) == "true",
 		OutboxPath:             getenv("OUTBOX_PATH", "./data/outbox.db"),
 		OutboxMaxMB:            intEnv("OUTBOX_MAX_MB", 200),
@@ -204,6 +210,18 @@ func Load(configPath string) (Config, error) {
 				return 30 * time.Second
 			}
 			return channelHeartbeatInterval
+		}(),
+		IngestTimeout: func() time.Duration {
+			if ingestTimeout <= 0 {
+				return 10 * time.Second
+			}
+			return ingestTimeout
+		}(),
+		OutboxFlushInterval: func() time.Duration {
+			if outboxFlushInterval <= 0 {
+				return 15 * time.Second
+			}
+			return outboxFlushInterval
 		}(),
 		AgentlessPollInterval: func() time.Duration {
 			if agentlessPoll <= 0 {

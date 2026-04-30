@@ -111,60 +111,60 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 ### Lotes propostos
 
 1) **Configuração operacional do flush**
-   - [ ] adicionar variáveis/env e prefs remotas para timeout HTTP de ingestão (`INGEST_TIMEOUT_SEC` ou equivalente);
-   - [ ] tornar tamanho de batch da outbox configurável sem recompilar (`OUTBOX_FLUSH_BATCH` ou equivalente);
-   - [ ] permitir intervalo de flush configurável quando o Hub estiver sob backlog;
-   - [ ] expor a configuração efetiva no `/health`, no comando `inspect_runtime_config` e no payload de métricas do agente;
-   - [ ] manter defaults compatíveis com instalações existentes.
+   - [x] adicionar variáveis/env e prefs remotas para timeout HTTP de ingestão (`INGEST_TIMEOUT_SEC` ou equivalente);
+   - [x] tornar tamanho de batch da outbox configurável sem recompilar (`OUTBOX_FLUSH_BATCH` ou equivalente);
+   - [x] permitir intervalo de flush configurável quando o Hub estiver sob backlog;
+   - [x] expor a configuração efetiva no `/health`, no comando `inspect_runtime_config` e no payload de métricas do agente;
+   - [x] manter defaults compatíveis com instalações existentes.
 
 2) **ACK granular e isolamento por rota**
-   - [ ] alterar `FlushOutbox` para confirmar ACK dos grupos enviados com sucesso mesmo se outro grupo falhar;
-   - [ ] isolar falhas por `authHeader + endpoint`, evitando que timeout em `/v1/ingest/metrics` prenda `health`, `bootstrap`, `inventory` e outros endpoints;
-   - [ ] preservar envelopes não enviados para retry sem duplicar os já confirmados;
-   - [ ] registrar logs com `route`, `batch_size`, `acked`, `retained`, `duration_ms` e `err`;
-   - [ ] cobrir com testes unitários de sucesso parcial e falha por endpoint.
+   - [x] alterar `FlushOutbox` para confirmar ACK dos grupos enviados com sucesso mesmo se outro grupo falhar;
+   - [x] isolar falhas por `authHeader + endpoint`, evitando que timeout em `/v1/ingest/metrics` prenda `health`, `bootstrap`, `inventory` e outros endpoints;
+   - [x] preservar envelopes não enviados para retry sem duplicar os já confirmados;
+   - [x] registrar logs com `route`, `batch_size`, `acked`, `retained`, `duration_ms` e `err`;
+   - [x] cobrir com testes unitários de sucesso parcial e falha por endpoint.
 
 3) **Retry, backoff e descarte seguro**
-   - [ ] implementar retry com backoff por rota/autorização, evitando loop agressivo quando a API estiver lenta;
-   - [ ] respeitar respostas de backpressure da API quando disponíveis (`retry-after`, batch sugerido, rota degradada);
-   - [ ] classificar erro temporário, erro HTTP definitivo e envelope inválido;
-   - [ ] permitir descarte auditável de envelope irrecuperável sem bloquear a fila inteira;
-   - [ ] manter segurança: nunca descartar payload por timeout temporário.
+   - [x] implementar retry com backoff por rota/autorização, evitando loop agressivo quando a API estiver lenta;
+   - [x] respeitar respostas de backpressure da API quando disponíveis (`retry-after`, batch sugerido, rota degradada);
+   - [x] classificar erro temporário, erro HTTP definitivo e envelope inválido;
+   - [x] permitir descarte auditável de envelope irrecuperável sem bloquear a fila inteira;
+   - [x] manter segurança: nunca descartar payload por timeout temporário.
 
 4) **Priorização operacional em Hub**
-   - [ ] priorizar telemetria curta de saúde/fila/canal para manter diagnóstico em tempo real;
-   - [ ] evitar starvation de métricas recentes quando houver backlog antigo grande;
-   - [ ] avaliar filas lógicas por endpoint ou leitura balanceada da outbox preservando idempotência;
-   - [ ] garantir que Relay sem saída direta continue sem conectar ao AIceberg.
+   - [x] priorizar telemetria curta de saúde/fila/canal para manter diagnóstico em tempo real;
+   - [x] evitar starvation de métricas recentes quando houver backlog antigo grande;
+   - [x] avaliar filas lógicas por endpoint ou leitura balanceada da outbox preservando idempotência;
+   - [x] garantir que Relay sem saída direta continue sem conectar ao AIceberg.
 
 5) **Observabilidade local do backlog**
-   - [ ] expor no `/health` e `/metrics`: último flush com duração, batch confirmado, batch retido, rota com última falha, idade do item mais antigo e contadores por endpoint;
-   - [ ] incluir diagnóstico do backlog no comando remoto `inspect_runtime_config`;
-   - [ ] melhorar logs de `transport failed` com `status`, timeout, rota, tamanho do lote e próxima tentativa;
-   - [ ] documentar comandos de suporte para Hub/Relay.
+   - [x] expor no `/health` e `/metrics`: último flush com duração, batch confirmado, batch retido, rota com última falha, idade do item mais antigo e contadores por endpoint;
+   - [x] incluir diagnóstico do backlog no comando remoto `inspect_runtime_config`;
+   - [x] melhorar logs de `transport failed` com `status`, timeout, rota, tamanho do lote e próxima tentativa;
+   - [x] documentar comandos de suporte para Hub/Relay.
 
 6) **Homologação HUB/Relay sob carga**
-   - [ ] criar teste local/simulação com Hub recebendo relays e API lenta em `/v1/ingest/metrics`;
-   - [ ] validar que `health/bootstrap/inventory` continuam fluindo mesmo com timeout de `metrics`;
-   - [ ] validar que métricas recentes voltam a drenar após recuperação da API;
+   - [x] criar teste local/simulação com Hub recebendo relays e API lenta em `/v1/ingest/metrics`;
+   - [x] validar que `health/bootstrap/inventory` continuam fluindo mesmo com timeout de `metrics`;
+   - [x] validar que métricas recentes voltam a drenar após recuperação da API;
    - [ ] medir crescimento/drenagem da fila em cenário com Agentless ativo;
-   - [ ] rodar `./check.sh` antes de gerar qualquer artefato.
+   - [x] rodar `./check.sh` antes de gerar qualquer artefato.
 
 7) **Publicação e rollout**
-   - [ ] publicar artefatos oficiais da nova versão antes de acionar update remoto;
+   - [x] publicar artefatos oficiais da nova versão antes de acionar update remoto;
    - [ ] validar update em um Hub e um Relay de homologação;
-   - [ ] documentar rollback para versão anterior e parâmetros temporários de mitigação;
-   - [ ] registrar no web qual versão mínima do agente possui flush resiliente.
+   - [x] documentar rollback para versão anterior e parâmetros temporários de mitigação;
+   - [x] registrar no web qual versão mínima do agente possui flush resiliente.
 
 ### Critérios de aceite
 
-- [ ] timeout de `/v1/ingest/metrics` não impede ACK de outros endpoints enviados com sucesso;
-- [ ] Hub não mantém crescimento indefinido da fila quando a API volta a responder;
-- [ ] `/health` mostra dados úteis de backlog e última falha sem depender de `journalctl`;
-- [ ] batch e timeout podem ser ajustados por configuração;
-- [ ] Relay continua enviando somente ao Hub em modo `relay`;
-- [ ] testes cobrem falha parcial, retry e ACK granular;
-- [ ] `./check.sh` passa antes de release.
+- [x] timeout de `/v1/ingest/metrics` não impede ACK de outros endpoints enviados com sucesso;
+- [x] Hub não mantém crescimento indefinido da fila quando a API volta a responder;
+- [x] `/health` mostra dados úteis de backlog e última falha sem depender de `journalctl`;
+- [x] batch e timeout podem ser ajustados por configuração;
+- [x] Relay continua enviando somente ao Hub em modo `relay`;
+- [x] testes cobrem falha parcial, retry e ACK granular;
+- [x] `./check.sh` passa antes de release.
 
 ### Fora de escopo inicial
 

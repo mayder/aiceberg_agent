@@ -31,6 +31,11 @@ func buildSelfHealRuntimeSnapshot(
 		"agentless_effective_enabled": settings.Enabled,
 		"prefs_version":               strings.TrimSpace(prefs.Version),
 		"worker_available":            workerAvailable,
+		"ingest_runtime": map[string]any{
+			"timeout_sec":        int64(cfg.IngestTimeout.Seconds()),
+			"flush_interval_sec": int64(cfg.OutboxFlushInterval.Seconds()),
+			"flush_batch":        cfg.OutboxFlushBatch,
+		},
 		"agentless_runtime": map[string]any{
 			"poll_sec":    settings.PollSec,
 			"flush_sec":   settings.FlushSec,

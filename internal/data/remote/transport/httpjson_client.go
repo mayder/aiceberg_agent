@@ -20,7 +20,7 @@ type httpClient struct {
 
 func NewHTTPJSONClient(cfg config.Config) ports.Transport {
 	return &httpClient{
-		cl:  httpx.NewClient(cfg, 10*time.Second),
+		cl:  httpx.NewClient(cfg, ingestTimeout(cfg)),
 		cfg: cfg,
 		end: "/v1/ingest",
 	}
@@ -31,7 +31,7 @@ func NewHTTPJSONClientWithEndpoint(cfg config.Config, endpoint string) ports.Tra
 		endpoint = "/v1/ingest"
 	}
 	return &httpClient{
-		cl:  httpx.NewClient(cfg, 10*time.Second),
+		cl:  httpx.NewClient(cfg, ingestTimeout(cfg)),
 		cfg: cfg,
 		end: endpoint,
 	}
@@ -73,4 +73,11 @@ type httpStatusErr struct{ code int }
 func (e *httpStatusErr) Error() string { return "http status " + strconv.Itoa(e.code) }
 func (e *httpStatusErr) StatusCode() int {
 	return e.code
+}
+
+func ingestTimeout(cfg config.Config) time.Duration {
+	if cfg.IngestTimeout <= 0 {
+		return 10 * time.Second
+	}
+	return cfg.IngestTimeout
 }

@@ -2,6 +2,11 @@ package usecase
 
 import (
 	"context"
+	"errors"
+	"net"
+	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
@@ -15,22 +20,69 @@ type FlushOutbox struct {
 	log         logger.Logger
 	defaultAuth string
 	onConfig    IngestConfigHandler
+	batchSize   int
+	now         func() time.Time
+	mu          sync.Mutex
+	backoff     map[string]backoffState
+	snapshot    FlushOutboxSnapshot
+}
+
+type FlushOutboxOptions struct {
+	BatchSize int
+}
+
+type FlushOutboxSnapshot struct {
+	LastError             string         `json:"last_error,omitempty"`
+	LastErrorRoute        string         `json:"last_error_route,omitempty"`
+	LastErrorBatch        int            `json:"last_error_batch,omitempty"`
+	LastAckRoute          string         `json:"last_ack_route,omitempty"`
+	LastAckBatch          int            `json:"last_ack_batch,omitempty"`
+	LastAckAtUnix         int64          `json:"last_ack_at_unix,omitempty"`
+	LastDurationMs        int64          `json:"last_duration_ms,omitempty"`
+	LastRetained          int            `json:"last_retained,omitempty"`
+	OldestPendingAgeSec   int64          `json:"oldest_pending_age_sec,omitempty"`
+	LastBackoffRoute      string         `json:"last_backoff_route,omitempty"`
+	LastBackoffUntilUnix  int64          `json:"last_backoff_until_unix,omitempty"`
+	LastSuggestedBatch    int            `json:"last_suggested_batch,omitempty"`
+	LastBackpressureRoute string         `json:"last_backpressure_route,omitempty"`
+	EndpointBacklog       map[string]int `json:"endpoint_backlog,omitempty"`
+}
+
+type backoffState struct {
+	failures int
+	until    time.Time
 }
 
 func NewFlushOutbox(o ports.OutboxRepo, t ports.Transport, l logger.Logger, defaultAuth string, onConfig IngestConfigHandler) *FlushOutbox {
-	return &FlushOutbox{o, t, l, defaultAuth, onConfig}
+	return NewFlushOutboxWithOptions(o, t, l, defaultAuth, onConfig, FlushOutboxOptions{})
+}
+
+func NewFlushOutboxWithOptions(o ports.OutboxRepo, t ports.Transport, l logger.Logger, defaultAuth string, onConfig IngestConfigHandler, opts FlushOutboxOptions) *FlushOutbox {
+	batchSize := opts.BatchSize
+	if batchSize <= 0 {
+		batchSize = 50
+	}
+	return &FlushOutbox{
+		outbox:      o,
+		tx:          t,
+		log:         l,
+		defaultAuth: defaultAuth,
+		onConfig:    onConfig,
+		batchSize:   batchSize,
+		now:         time.Now,
+		backoff:     make(map[string]backoffState),
+	}
 }
 
 // Execute envia um lote da outbox; retorna quantos envelopes foram ackados.
 func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
-	batch, err := uc.outbox.ReadBatch(50)
+	batch, err := uc.outbox.ReadBatch(uc.batchSize)
 	if err != nil || len(batch) == 0 {
 		return 0, err
 	}
 
 	start := time.Now()
 	grouped := make(map[string]map[string][]entities.Envelope) // auth -> endpoint -> list
-	validIDs := make([]string, 0, len(batch))
 	invalidIDs := make([]string, 0, 1)
 	for _, e := range batch {
 		if e.ID == "" {
@@ -50,8 +102,8 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 			grouped[h] = make(map[string][]entities.Envelope)
 		}
 		grouped[h][end] = append(grouped[h][end], e)
-		validIDs = append(validIDs, e.ID)
 	}
+	uc.updatePendingSnapshot(batch)
 
 	if len(invalidIDs) > 0 {
 		if err := uc.outbox.Ack(invalidIDs); err != nil {
@@ -60,14 +112,31 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 			))
 		}
 	}
-	if len(validIDs) == 0 {
+	if len(grouped) == 0 {
 		return 0, nil
 	}
 
+	var firstErr error
+	acked := 0
+	retained := 0
 	for auth, byEndpoint := range grouped {
 		for endpoint, list := range byEndpoint {
+			key := auth + "|" + endpoint
+			if until, ok := uc.backoffUntil(key); ok {
+				retained += len(list)
+				uc.log.Info(logger.KV("transport backoff active",
+					"route", endpoint,
+					"batch_size", len(list),
+					"retry_after_ms", time.Until(until).Milliseconds(),
+				))
+				if firstErr == nil {
+					firstErr = errors.New("transport backoff active")
+				}
+				continue
+			}
 			respBody, err := uc.tx.SendWithAuth(list, auth, endpoint)
 			if err != nil {
+				retained += len(list)
 				if se, ok := err.(interface{ StatusCode() int }); ok {
 					uc.log.Error(logger.KV("transport failed",
 						"route", endpoint,
@@ -82,8 +151,13 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 						"err", err,
 					))
 				}
-				return 0, err
+				uc.registerFailure(key, endpoint, len(list), err)
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
 			}
+			uc.resetBackoff(key)
 			if uc.onConfig != nil {
 				cfg, err := parseIngestConfig(respBody)
 				if err != nil {
@@ -96,20 +170,181 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 					uc.onConfig(auth, *cfg)
 				}
 			}
+			uc.applyBackpressure(key, endpoint, respBody)
+			ids := envelopeIDs(list)
+			if err := uc.outbox.Ack(ids); err != nil {
+				uc.log.Error(logger.KV("ack failed",
+					"route", endpoint,
+					"batch_size", len(ids),
+					"err", err,
+				))
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
+			}
+			acked += len(ids)
+			uc.recordAck(endpoint, len(ids))
 		}
 	}
 
-	if err := uc.outbox.Ack(validIDs); err != nil {
-		uc.log.Error(logger.KV("ack failed",
-			"batch_size", len(validIDs),
-			"err", err,
-		))
-		return 0, err
-	}
 	durationMs := time.Since(start).Milliseconds()
 	uc.log.Info(logger.KV("flushed",
-		"batch_size", len(validIDs),
+		"batch_size", len(batch),
+		"acked", acked,
+		"retained", retained,
 		"duration_ms", durationMs,
 	))
-	return len(validIDs), nil
+	uc.recordSummary(durationMs, retained)
+	return acked, firstErr
+}
+
+func (uc *FlushOutbox) Snapshot() FlushOutboxSnapshot {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+	out := uc.snapshot
+	if uc.snapshot.EndpointBacklog != nil {
+		out.EndpointBacklog = make(map[string]int, len(uc.snapshot.EndpointBacklog))
+		for k, v := range uc.snapshot.EndpointBacklog {
+			out.EndpointBacklog[k] = v
+		}
+	}
+	return out
+}
+
+func (uc *FlushOutbox) backoffUntil(key string) (time.Time, bool) {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+	state := uc.backoff[key]
+	if state.until.IsZero() || !uc.now().Before(state.until) {
+		return time.Time{}, false
+	}
+	return state.until, true
+}
+
+func (uc *FlushOutbox) registerFailure(key, endpoint string, batchSize int, err error) {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+	state := uc.backoff[key]
+	state.failures++
+	delay := backoffDelay(state.failures, err)
+	state.until = uc.now().Add(delay)
+	uc.backoff[key] = state
+	uc.snapshot.LastError = err.Error()
+	uc.snapshot.LastErrorRoute = endpoint
+	uc.snapshot.LastErrorBatch = batchSize
+	uc.snapshot.LastBackoffRoute = endpoint
+	uc.snapshot.LastBackoffUntilUnix = state.until.Unix()
+}
+
+func (uc *FlushOutbox) resetBackoff(key string) {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+	delete(uc.backoff, key)
+}
+
+func (uc *FlushOutbox) recordAck(endpoint string, batchSize int) {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+	uc.snapshot.LastAckRoute = endpoint
+	uc.snapshot.LastAckBatch = batchSize
+	uc.snapshot.LastAckAtUnix = uc.now().Unix()
+}
+
+func (uc *FlushOutbox) recordSummary(durationMs int64, retained int) {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+	uc.snapshot.LastDurationMs = durationMs
+	uc.snapshot.LastRetained = retained
+}
+
+func (uc *FlushOutbox) updatePendingSnapshot(batch []entities.Envelope) {
+	now := uc.now()
+	endpoints := make(map[string]int)
+	var oldest int64
+	for _, e := range batch {
+		endpoint := strings.TrimSpace(e.Endpoint)
+		if endpoint == "" {
+			endpoint = "/v1/ingest"
+		}
+		endpoints[endpoint]++
+		if e.TSUnixMs > 0 && (oldest == 0 || e.TSUnixMs < oldest) {
+			oldest = e.TSUnixMs
+		}
+	}
+	var ageSec int64
+	if oldest > 0 {
+		ageSec = int64(now.Sub(time.UnixMilli(oldest)).Seconds())
+		if ageSec < 0 {
+			ageSec = 0
+		}
+	}
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+	uc.snapshot.EndpointBacklog = endpoints
+	uc.snapshot.OldestPendingAgeSec = ageSec
+}
+
+func (uc *FlushOutbox) applyBackpressure(key, endpoint string, body []byte) {
+	bp, err := parseIngestBackpressure(body)
+	if err != nil || bp == nil {
+		return
+	}
+	target := strings.TrimSpace(bp.DegradedEndpoint)
+	if target == "" {
+		target = endpoint
+	}
+	if target != endpoint {
+		return
+	}
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+	if bp.RetryAfterSec > 0 {
+		state := uc.backoff[key]
+		state.until = uc.now().Add(time.Duration(bp.RetryAfterSec) * time.Second)
+		uc.backoff[key] = state
+		uc.snapshot.LastBackoffRoute = endpoint
+		uc.snapshot.LastBackoffUntilUnix = state.until.Unix()
+	}
+	uc.snapshot.LastSuggestedBatch = bp.SuggestedBatchSize
+	uc.snapshot.LastBackpressureRoute = endpoint
+}
+
+func envelopeIDs(batch []entities.Envelope) []string {
+	ids := make([]string, 0, len(batch))
+	for _, e := range batch {
+		if e.ID != "" {
+			ids = append(ids, e.ID)
+		}
+	}
+	return ids
+}
+
+func backoffDelay(failures int, err error) time.Duration {
+	if !temporaryTransportError(err) {
+		return 30 * time.Second
+	}
+	if failures <= 1 {
+		return 5 * time.Second
+	}
+	if failures == 2 {
+		return 15 * time.Second
+	}
+	if failures == 3 {
+		return 30 * time.Second
+	}
+	return time.Minute
+}
+
+func temporaryTransportError(err error) bool {
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	if se, ok := err.(interface{ StatusCode() int }); ok {
+		code := se.StatusCode()
+		return code == http.StatusTooManyRequests || code >= 500
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "timeout") || strings.Contains(msg, "deadline exceeded") || strings.Contains(msg, "temporary")
 }
