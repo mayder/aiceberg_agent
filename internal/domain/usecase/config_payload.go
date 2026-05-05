@@ -11,6 +11,8 @@ type ControlCommand struct {
 	CommandID     string
 	CorrelationID string
 	Source        string
+	CheckIDs      []int
+	TimeoutMs     int
 	Update        *UpdatePayload
 	AutoUpdate    *AutoUpdatePayload
 }

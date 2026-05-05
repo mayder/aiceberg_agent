@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -495,6 +496,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 					})
 					return nil
 				}
+				agentlessCommand := channelEnvelopeAgentlessCommand(envelope)
 				for _, name := range collectNow {
 					cmd := usecase.ControlCommand{
 						Name:          name,
@@ -502,13 +504,27 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 						CorrelationID: strings.TrimSpace(envelope.CorrelationID),
 						Source:        "channel",
 					}
+					if name == "agentless" {
+						cmd.CheckIDs = agentlessCommand.CheckIDs
+						cmd.TimeoutMs = agentlessCommand.TimeoutMs
+						if agentlessCommand.CommandID != "" {
+							cmd.CommandID = agentlessCommand.CommandID
+						}
+						if agentlessCommand.CorrelationID != "" {
+							cmd.CorrelationID = agentlessCommand.CorrelationID
+						}
+					}
 					select {
 					case commandChan <- cmd:
-						reportChannelCommandEvent(runCtx, channelClient, envelope, channel.TypeProgress, map[string]any{
+						progress := map[string]any{
 							"status": "queued",
 							"stage":  "queued",
 							"name":   name,
-						})
+						}
+						if len(cmd.CheckIDs) > 0 {
+							progress["check_ids"] = cmd.CheckIDs
+						}
+						reportChannelCommandEvent(runCtx, channelClient, envelope, channel.TypeProgress, progress)
 					default:
 						reportChannelCommandEvent(runCtx, channelClient, envelope, channel.TypeError, map[string]any{
 							"status":        "failed",
@@ -579,6 +595,64 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				"name":          name,
 				"failure_class": "collect_failed",
 				"message":       errString(err),
+			},
+		})
+	}
+	reportControlCollectTimeout := func(runCtx context.Context, cmd usecase.ControlCommand, name string) {
+		if activeChannelClient == nil || strings.TrimSpace(cmd.CommandID) == "" {
+			return
+		}
+		_ = activeChannelClient.SendEvent(runCtx, channel.Envelope{
+			Type:          channel.TypeTimeout,
+			CommandID:     strings.TrimSpace(cmd.CommandID),
+			CorrelationID: strings.TrimSpace(cmd.CorrelationID),
+			TimeoutMs:     cmd.TimeoutMs,
+			Error: map[string]any{
+				"status":        "timeout",
+				"stage":         "collect",
+				"name":          name,
+				"scope":         agentlessCommandScope(cmd),
+				"check_ids":     cmd.CheckIDs,
+				"failure_class": "timeout",
+				"message":       "agentless command timeout",
+			},
+		})
+	}
+	reportControlCollectBusy := func(runCtx context.Context, cmd usecase.ControlCommand, name string) {
+		if activeChannelClient == nil || strings.TrimSpace(cmd.CommandID) == "" {
+			return
+		}
+		_ = activeChannelClient.SendEvent(runCtx, channel.Envelope{
+			Type:          channel.TypeError,
+			CommandID:     strings.TrimSpace(cmd.CommandID),
+			CorrelationID: strings.TrimSpace(cmd.CorrelationID),
+			Error: map[string]any{
+				"status":        "skipped_busy",
+				"stage":         "precheck",
+				"name":          name,
+				"scope":         agentlessCommandScope(cmd),
+				"check_ids":     cmd.CheckIDs,
+				"failure_class": "agentless_busy",
+				"reason":        "busy",
+				"message":       "agentless collector busy",
+			},
+		})
+	}
+	reportControlAgentlessResult := func(runCtx context.Context, cmd usecase.ControlCommand) {
+		if activeChannelClient == nil || strings.TrimSpace(cmd.CommandID) == "" {
+			return
+		}
+		_ = activeChannelClient.SendEvent(runCtx, channel.Envelope{
+			Type:          channel.TypeResult,
+			CommandID:     strings.TrimSpace(cmd.CommandID),
+			CorrelationID: strings.TrimSpace(cmd.CorrelationID),
+			Result: map[string]any{
+				"status":    "success",
+				"stage":     "completed",
+				"name":      "agentless",
+				"scope":     agentlessCommandScope(cmd),
+				"check_ids": cmd.CheckIDs,
+				"fallback":  len(cmd.CheckIDs) == 0,
 			},
 		})
 	}
@@ -714,31 +788,71 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			case "agentless":
 				if agentlessUC != nil {
 					if agentlessBusy.CompareAndSwap(false, true) {
-						go func(commandName string) {
+						cmdCopy := cmd
+						go func(commandName string, cmd usecase.ControlCommand) {
 							defer agentlessBusy.Store(false)
-							reportControlCollectProgress(ctx, cmd, "running", "agentless", nil)
-							if err := agentlessUC.SyncTargets(ctx); err != nil {
-								reportControlCollectError(ctx, cmd, "agentless", err)
-								log.Error(logger.KV("agentless targets sync failed",
-									"err", err,
-								))
-								reportWorkerError(ctx, "agentless_sync_failed", "error", "open", err, map[string]any{
-									"source": "command",
-									"name":   commandName,
-								})
+							runCtx := ctx
+							cancel := func() {}
+							if cmd.TimeoutMs > 0 {
+								runCtx, cancel = context.WithTimeout(ctx, time.Duration(cmd.TimeoutMs)*time.Millisecond)
 							}
-							agentlessUC.CollectNow(ctx)
-							reportControlCollectProgress(ctx, cmd, "completed", "agentless", map[string]any{
-								"fallback": "agentless_outbox_flush",
+							defer cancel()
+							reportControlCollectProgress(runCtx, cmd, "running", "agentless", map[string]any{
+								"scope":     agentlessCommandScope(cmd),
+								"check_ids": cmd.CheckIDs,
 							})
-						}(cmd.Name)
+							if len(cmd.CheckIDs) > 0 {
+								err := agentlessUC.CollectCommand(runCtx, usecase.AgentlessCommandRequest{
+									CommandID:     cmd.CommandID,
+									CorrelationID: cmd.CorrelationID,
+									CheckIDs:      cmd.CheckIDs,
+									TimeoutMs:     cmd.TimeoutMs,
+								})
+								if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+									reportControlCollectTimeout(ctx, cmd, "agentless")
+									return
+								}
+								if err != nil {
+									reportControlCollectError(runCtx, cmd, "agentless", err)
+									log.Error(logger.KV("agentless command collect failed",
+										"command_id", cmd.CommandID,
+										"correlation_id", cmd.CorrelationID,
+										"err", err,
+									))
+									reportWorkerError(ctx, "agentless_collect_failed", "error", "open", err, map[string]any{
+										"source":         "command",
+										"name":           commandName,
+										"command_id":     cmd.CommandID,
+										"correlation_id": cmd.CorrelationID,
+									})
+									return
+								}
+							} else {
+								if err := agentlessUC.SyncTargets(runCtx); err != nil {
+									reportControlCollectError(runCtx, cmd, "agentless", err)
+									log.Error(logger.KV("agentless targets sync failed",
+										"err", err,
+									))
+									reportWorkerError(ctx, "agentless_sync_failed", "error", "open", err, map[string]any{
+										"source": "command",
+										"name":   commandName,
+									})
+								}
+								agentlessUC.CollectNow(runCtx)
+							}
+							if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+								reportControlCollectTimeout(ctx, cmd, "agentless")
+								return
+							}
+							reportControlAgentlessResult(ctx, cmd)
+						}(cmdCopy.Name, cmdCopy)
 					} else {
 						log.Info(logger.KV("agentless command skipped",
 							"source", "command",
 							"name", cmd.Name,
 							"reason", "busy",
 						))
-						reportControlCollectError(ctx, cmd, "agentless", errors.New("agentless collector busy"))
+						reportControlCollectBusy(ctx, cmd, "agentless")
 					}
 				}
 			case "self_update":
@@ -1150,6 +1264,9 @@ func channelEnvelopeCollectNow(env channel.Envelope) []string {
 	if env.Payload == nil {
 		return nil
 	}
+	if strings.TrimSpace(fmt.Sprint(env.Payload["scope"])) == "agentless_check" {
+		return []string{"agentless"}
+	}
 	raw, ok := env.Payload["collect_now"]
 	if !ok {
 		raw = env.Payload["collect"]
@@ -1183,6 +1300,85 @@ func channelEnvelopeCollectNow(env channel.Envelope) []string {
 		appendName(values)
 	}
 	return out
+}
+
+func channelEnvelopeAgentlessCommand(env channel.Envelope) usecase.AgentlessCommandRequest {
+	req := usecase.AgentlessCommandRequest{
+		CommandID:     strings.TrimSpace(env.CommandID),
+		CorrelationID: strings.TrimSpace(env.CorrelationID),
+	}
+	if env.Payload == nil {
+		return req
+	}
+	if commandID := strings.TrimSpace(fmt.Sprint(env.Payload["command_id"])); commandID != "" && commandID != "<nil>" {
+		req.CommandID = commandID
+	}
+	if correlationID := strings.TrimSpace(fmt.Sprint(env.Payload["correlation_id"])); correlationID != "" && correlationID != "<nil>" {
+		req.CorrelationID = correlationID
+	}
+	req.CheckIDs = channelPayloadIntList(env.Payload["check_ids"])
+	req.TimeoutMs = intFromAny(env.Payload["timeout_ms"])
+	return req
+}
+
+func agentlessCommandScope(cmd usecase.ControlCommand) string {
+	if len(cmd.CheckIDs) > 0 {
+		return "agentless_check"
+	}
+	return "agentless"
+}
+
+func channelPayloadIntList(raw any) []int {
+	out := []int{}
+	seen := map[int]struct{}{}
+	appendID := func(value int) {
+		if value <= 0 {
+			return
+		}
+		if _, ok := seen[value]; ok {
+			return
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	switch values := raw.(type) {
+	case []int:
+		for _, value := range values {
+			appendID(value)
+		}
+	case []any:
+		for _, value := range values {
+			appendID(intFromAny(value))
+		}
+	case string:
+		for _, part := range strings.Split(values, ",") {
+			appendID(intFromAny(strings.TrimSpace(part)))
+		}
+	case float64:
+		appendID(int(values))
+	case int:
+		appendID(values)
+	}
+	return out
+}
+
+func intFromAny(value any) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case json.Number:
+		n, _ := v.Int64()
+		return int(n)
+	case string:
+		n, _ := strconv.Atoi(strings.TrimSpace(v))
+		return n
+	default:
+		return 0
+	}
 }
 
 func reportChannelCommandEvent(ctx context.Context, client *usecase.AgentChannelClient, source channel.Envelope, eventType string, body map[string]any) {

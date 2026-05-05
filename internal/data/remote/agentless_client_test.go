@@ -5,12 +5,60 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 )
+
+func TestAgentlessHubClientFetchJobsWithCommandOptions(t *testing.T) {
+	var got url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/hub-agentless/jobs" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		got = r.URL.Query()
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "ok",
+			"count":  1,
+			"jobs": []map[string]any{
+				{
+					"check_id":       101,
+					"ativo_id":       22,
+					"cliente_id":     33,
+					"tipo":           "snmp",
+					"command_id":     "cmd-agentless",
+					"correlation_id": "corr-agentless",
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	client := NewAgentlessHubClient(config.Config{APIBaseURL: srv.URL})
+	jobs, err := client.FetchJobsWithOptions(context.Background(), 25, true, 90, AgentlessFetchOptions{
+		CommandID:     " cmd-agentless ",
+		CorrelationID: " corr-agentless ",
+		CheckIDs:      []int{101, 0, 202},
+	})
+	if err != nil {
+		t.Fatalf("fetch jobs: %v", err)
+	}
+	if got.Get("limit") != "25" || got.Get("lock") != "1" || got.Get("lock_sec") != "90" {
+		t.Fatalf("query base inesperada: %#v", got)
+	}
+	if got.Get("command_id") != "cmd-agentless" || got.Get("correlation_id") != "corr-agentless" {
+		t.Fatalf("refs operacionais ausentes: %#v", got)
+	}
+	if got.Get("check_ids") != "101,202" {
+		t.Fatalf("check_ids inesperado: %#v", got)
+	}
+	if len(jobs) != 1 || jobs[0].CommandID != "cmd-agentless" || jobs[0].CorrelationID != "corr-agentless" {
+		t.Fatalf("jobs decodificados sem refs: %#v", jobs)
+	}
+}
 
 func TestAgentlessHubClientSendObservationsIncludesSegmentMeta(t *testing.T) {
 	t.Helper()

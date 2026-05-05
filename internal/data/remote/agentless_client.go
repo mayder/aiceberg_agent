@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -20,6 +22,12 @@ type AgentlessHubClient struct {
 	cl  *http.Client
 }
 
+type AgentlessFetchOptions struct {
+	CommandID     string
+	CorrelationID string
+	CheckIDs      []int
+}
+
 func NewAgentlessHubClient(cfg config.Config) *AgentlessHubClient {
 	return &AgentlessHubClient{
 		cfg: cfg,
@@ -28,14 +36,29 @@ func NewAgentlessHubClient(cfg config.Config) *AgentlessHubClient {
 }
 
 func (c *AgentlessHubClient) FetchJobs(ctx context.Context, limit int, lock bool, lockSec int) ([]entities.AgentlessJob, error) {
-	url := c.cfg.APIEndpoint("/v1/hub-agentless/jobs")
-	params := "?limit=" + strconv.Itoa(limit)
+	return c.FetchJobsWithOptions(ctx, limit, lock, lockSec, AgentlessFetchOptions{})
+}
+
+func (c *AgentlessHubClient) FetchJobsWithOptions(ctx context.Context, limit int, lock bool, lockSec int, opts AgentlessFetchOptions) ([]entities.AgentlessJob, error) {
+	endpoint := c.cfg.APIEndpoint("/v1/hub-agentless/jobs")
+	params := url.Values{}
+	params.Set("limit", strconv.Itoa(limit))
 	if lock {
-		params += "&lock=1&lock_sec=" + strconv.Itoa(lockSec)
+		params.Set("lock", "1")
+		params.Set("lock_sec", strconv.Itoa(lockSec))
 	} else {
-		params += "&lock=0"
+		params.Set("lock", "0")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url+params, nil)
+	if commandID := strings.TrimSpace(opts.CommandID); commandID != "" {
+		params.Set("command_id", commandID)
+	}
+	if correlationID := strings.TrimSpace(opts.CorrelationID); correlationID != "" {
+		params.Set("correlation_id", correlationID)
+	}
+	if checkIDs := joinPositiveInts(opts.CheckIDs); checkIDs != "" {
+		params.Set("check_ids", checkIDs)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+params.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +81,16 @@ func (c *AgentlessHubClient) FetchJobs(ctx context.Context, limit int, lock bool
 		return nil, err
 	}
 	return out.Jobs, nil
+}
+
+func joinPositiveInts(values []int) string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value > 0 {
+			out = append(out, strconv.Itoa(value))
+		}
+	}
+	return strings.Join(out, ",")
 }
 
 func (c *AgentlessHubClient) SendObservations(ctx context.Context, list []entities.AgentlessObservation) error {

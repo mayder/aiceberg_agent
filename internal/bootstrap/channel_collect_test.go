@@ -28,6 +28,42 @@ func TestChannelEnvelopeCollectNowFiltersAllowedNames(t *testing.T) {
 	}
 }
 
+func TestChannelEnvelopeCollectNowAcceptsAgentlessCheckScope(t *testing.T) {
+	got := channelEnvelopeCollectNow(channel.Envelope{
+		Payload: map[string]any{
+			"code":           "collect_now",
+			"scope":          "agentless_check",
+			"check_ids":      []any{101.0, "202", 0, "202"},
+			"command_id":     "cmd-agentless",
+			"correlation_id": "corr-agentless",
+			"timeout_ms":     45000,
+		},
+	})
+	if strings.Join(got, ",") != "agentless" {
+		t.Fatalf("unexpected collect_now list: %#v", got)
+	}
+
+	req := channelEnvelopeAgentlessCommand(channel.Envelope{
+		CommandID:     "env-command",
+		CorrelationID: "env-correlation",
+		Payload: map[string]any{
+			"command_id":     "cmd-agentless",
+			"correlation_id": "corr-agentless",
+			"check_ids":      []any{101.0, "202", 0, "202"},
+			"timeout_ms":     45000,
+		},
+	})
+	if req.CommandID != "cmd-agentless" || req.CorrelationID != "corr-agentless" {
+		t.Fatalf("refs operacionais inesperadas: %#v", req)
+	}
+	if len(req.CheckIDs) != 2 || req.CheckIDs[0] != 101 || req.CheckIDs[1] != 202 {
+		t.Fatalf("check_ids inesperado: %#v", req.CheckIDs)
+	}
+	if req.TimeoutMs != 45000 {
+		t.Fatalf("timeout_ms inesperado: %d", req.TimeoutMs)
+	}
+}
+
 func TestSendCollectChunksReportsProgressAndResult(t *testing.T) {
 	var received []map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

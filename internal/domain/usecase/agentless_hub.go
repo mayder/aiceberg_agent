@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +34,13 @@ type AgentlessSettings struct {
 	JobsLimit  int
 	LockSec    int
 	FlushBatch int
+}
+
+type AgentlessCommandRequest struct {
+	CommandID     string
+	CorrelationID string
+	CheckIDs      []int
+	TimeoutMs     int
 }
 
 type AgentlessTargetsStore interface {
@@ -155,7 +163,29 @@ func (uc *AgentlessHub) CollectNow(ctx context.Context) {
 	_ = uc.Flush(ctx)
 }
 
+func (uc *AgentlessHub) CollectCommand(ctx context.Context, req AgentlessCommandRequest) error {
+	opts := remote.AgentlessFetchOptions{
+		CommandID:     strings.TrimSpace(req.CommandID),
+		CorrelationID: strings.TrimSpace(req.CorrelationID),
+		CheckIDs:      req.CheckIDs,
+	}
+	if opts.CommandID == "" || len(opts.CheckIDs) == 0 {
+		return nil
+	}
+	if err := uc.syncTargets(ctx, opts); err != nil {
+		return err
+	}
+	if err := uc.PollAndRun(ctx); err != nil {
+		return err
+	}
+	return uc.Flush(ctx)
+}
+
 func (uc *AgentlessHub) SyncTargets(ctx context.Context) error {
+	return uc.syncTargets(ctx, remote.AgentlessFetchOptions{})
+}
+
+func (uc *AgentlessHub) syncTargets(ctx context.Context, opts remote.AgentlessFetchOptions) error {
 	st := uc.getSettings()
 	if !st.Enabled {
 		return nil
@@ -174,11 +204,13 @@ func (uc *AgentlessHub) SyncTargets(ctx context.Context) error {
 			lockSec = 60
 		}
 	}
-	jobs, err := uc.client.FetchJobs(ctx, limit, true, lockSec)
+	jobs, err := uc.client.FetchJobsWithOptions(ctx, limit, true, lockSec, opts)
 	if err != nil {
 		uc.log.Error(logger.KV("agentless jobs failed",
 			"limit", limit,
 			"lock_sec", lockSec,
+			"command_id", opts.CommandID,
+			"correlation_id", opts.CorrelationID,
 			"err", err,
 		))
 		return err
@@ -188,6 +220,8 @@ func (uc *AgentlessHub) SyncTargets(ctx context.Context) error {
 			"batch_size", len(jobs),
 			"limit", limit,
 			"lock_sec", lockSec,
+			"command_id", opts.CommandID,
+			"correlation_id", opts.CorrelationID,
 		))
 	}
 	uc.setTargets(jobs)
