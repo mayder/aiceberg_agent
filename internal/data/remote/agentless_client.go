@@ -80,6 +80,12 @@ func (c *AgentlessHubClient) SendObservations(ctx context.Context, list []entiti
 			item["snmp_collection_kind"] = o.CollectionKind
 			item["collection_kind"] = o.CollectionKind
 		}
+		if o.CommandID != "" {
+			item["command_id"] = o.CommandID
+		}
+		if o.CorrelationID != "" {
+			item["correlation_id"] = o.CorrelationID
+		}
 		if o.SegmentID != "" {
 			item["segment_id"] = o.SegmentID
 			item["is_partial"] = o.IsPartial

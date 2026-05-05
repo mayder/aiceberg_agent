@@ -217,6 +217,8 @@ Enquanto não temos instalador, use este fluxo para rodar localmente com token d
 
 Para o passo a passo de instalação por SO e por modo (direct/hub/relay), veja `docs/guia_instalacao.md`.
 
+Para homologar coleta Agentless SNMP com perfis proprietarios ALE/OAW enviados pela web, veja `docs/pkg35_agentless_snmp_vendor_profiles.md`.
+
 Notas:
 - API de produção é o padrão (`https://api.aiceberg.com.br`) e o agente junta `/v1/...` sozinho; use `API_BASE_URL` apenas para apontar para ambientes de teste.
 - Bootstrap (`POST /v1/agent/bootstrap`) já envia `versao_agente` com `internal/common/version.Version`, então a API acompanha qual versão do agente cada host executa.

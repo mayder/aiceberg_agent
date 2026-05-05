@@ -66,21 +66,54 @@ type AgentlessSnmpProfile struct {
 	Retries        int    `json:"retries,omitempty"`
 }
 
+type AgentlessSnmpVendorOIDProfile struct {
+	ProfileKey      string `json:"profile_key,omitempty"`
+	ProfileVersion  string `json:"profile_version,omitempty"`
+	Vendor          string `json:"vendor,omitempty"`
+	Family          string `json:"family,omitempty"`
+	Model           string `json:"model,omitempty"`
+	SourceMIB       string `json:"source_mib,omitempty"`
+	MatchedBy       string `json:"matched_by,omitempty"`
+	MatchSource     string `json:"match_source,omitempty"`
+	LastValidatedAt string `json:"last_validated_at,omitempty"`
+	Applied         bool   `json:"applied,omitempty"`
+}
+
+type AgentlessSnmpOIDSpec struct {
+	Name         string `json:"name,omitempty"`
+	OID          string `json:"oid"`
+	Label        string `json:"label,omitempty"`
+	Metric       string `json:"metric,omitempty"`
+	SourceMIB    string `json:"source_mib,omitempty"`
+	Unit         string `json:"unit,omitempty"`
+	CanonicalKey string `json:"canonical_key,omitempty"`
+}
+
 type AgentlessJob struct {
-	CheckID        int                   `json:"check_id"`
-	AtivoID        int                   `json:"ativo_id"`
-	ClienteID      int                   `json:"cliente_id"`
-	Tipo           string                `json:"tipo"`
-	Nome           string                `json:"nome,omitempty"`
-	IntervalSec    int                   `json:"interval_sec"`
-	TimeoutMs      int                   `json:"timeout_ms"`
-	CollectionKind string                `json:"snmp_collection_kind,omitempty"`
-	Retries        int                   `json:"retries"`
-	FailThreshold  int                   `json:"fail_threshold"`
-	SuccessThresh  int                   `json:"success_threshold"`
-	Config         AgentlessConfig       `json:"config"`
-	Endpoint       *AgentlessEndpoint    `json:"endpoint,omitempty"`
-	SNMP           *AgentlessSnmpProfile `json:"snmp,omitempty"`
+	CheckID             int                   `json:"check_id"`
+	AtivoID             int                   `json:"ativo_id"`
+	ClienteID           int                   `json:"cliente_id"`
+	Tipo                string                `json:"tipo"`
+	Nome                string                `json:"nome,omitempty"`
+	IntervalSec         int                   `json:"interval_sec"`
+	TimeoutMs           int                   `json:"timeout_ms"`
+	CollectionKind      string                `json:"snmp_collection_kind,omitempty"`
+	CollectionKindAlias string                `json:"collection_kind,omitempty"`
+	SegmentID           string                `json:"segment_id,omitempty"`
+	CollectionProfile   string                `json:"collection_profile,omitempty"`
+	FetchMode           string                `json:"fetch_mode,omitempty"`
+	TimeBudgetMs        int                   `json:"time_budget_ms,omitempty"`
+	SNMPMaxRows         int                   `json:"snmp_max_rows,omitempty"`
+	IncludeGroups       []string              `json:"include_groups,omitempty"`
+	ExcludeGroups       []string              `json:"exclude_groups,omitempty"`
+	CommandID           string                `json:"command_id,omitempty"`
+	CorrelationID       string                `json:"correlation_id,omitempty"`
+	Retries             int                   `json:"retries"`
+	FailThreshold       int                   `json:"fail_threshold"`
+	SuccessThresh       int                   `json:"success_threshold"`
+	Config              AgentlessConfig       `json:"config"`
+	Endpoint            *AgentlessEndpoint    `json:"endpoint,omitempty"`
+	SNMP                *AgentlessSnmpProfile `json:"snmp,omitempty"`
 }
 
 type AgentlessObservation struct {
@@ -93,6 +126,8 @@ type AgentlessObservation struct {
 	Payload          map[string]any `json:"payload_json,omitempty"`
 	ObservedAt       time.Time      `json:"observed_at"`
 	CollectionKind   string         `json:"snmp_collection_kind,omitempty"`
+	CommandID        string         `json:"command_id,omitempty"`
+	CorrelationID    string         `json:"correlation_id,omitempty"`
 	SegmentID        string         `json:"segment_id,omitempty"`
 	SegmentSeq       int            `json:"segment_seq,omitempty"`
 	IsPartial        bool           `json:"is_partial,omitempty"`

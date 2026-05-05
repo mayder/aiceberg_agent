@@ -2,11 +2,28 @@ package agentless
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 )
+
+func TestRunJobPreservaRefsOperacionaisDoJob(t *testing.T) {
+	obs := RunJob(context.Background(), entities.AgentlessJob{
+		CheckID:       91,
+		Tipo:          "tipo_invalido",
+		CommandID:     " cmd-pkg36 ",
+		CorrelationID: " corr-pkg36 ",
+	})
+
+	if obs.CommandID != "cmd-pkg36" || obs.CorrelationID != "corr-pkg36" {
+		t.Fatalf("refs operacionais nao preservadas: %#v", obs)
+	}
+	if !strings.Contains(obs.Message, "tipo nao suportado") {
+		t.Fatalf("job invalido deveria manter resultado de erro conhecido: %#v", obs)
+	}
+}
 
 func TestParseDiscoveryPolicyBasic(t *testing.T) {
 	cfg := map[string]any{

@@ -138,8 +138,9 @@ func runSNMPCollectionWithPartials(ctx context.Context, job entities.AgentlessJo
 
 	plan := buildSNMPPlan(job, host)
 	payload := newSNMPPayload(plan)
-	if len(plan.CustomGet) > 0 || len(plan.CustomWalk) > 0 {
+	if (len(plan.CustomGet) > 0 || len(plan.CustomWalk) > 0) && !stringSliceContains(payload.GroupsRequested, "custom") {
 		payload.GroupsRequested = append(payload.GroupsRequested, "custom")
+		payload.RuntimeApplied.GroupsRequested = cloneStringSlice(payload.GroupsRequested)
 	}
 
 	factory := defaultSNMPClient
@@ -169,6 +170,15 @@ func runSNMPCollectionWithPartials(ctx context.Context, job entities.AgentlessJo
 		partialSink: partialSink,
 	}
 	return c.collect()
+}
+
+func stringSliceContains(items []string, needle string) bool {
+	for _, item := range items {
+		if item == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *snmpCollector) collect() Result {
@@ -297,17 +307,18 @@ func (c *snmpCollector) collectCustom() bool {
 			c.emitCustomPartial(groupStats)
 			return false
 		}
-		groupStats.GetAttempts += len(c.plan.CustomGet)
-		resp, err := c.client.Get(c.plan.CustomGet)
+		customGetOIDs := snmpOIDStrings(c.plan.CustomGet)
+		groupStats.GetAttempts += len(customGetOIDs)
+		resp, err := c.client.Get(customGetOIDs)
 		if err != nil {
 			msg := fmt.Sprintf("custom GET falhou: %v", err)
 			c.payload.addError(msg)
 			groupStats.Errors = append(groupStats.Errors, msg)
-			for _, oid := range c.plan.CustomGet {
-				c.payload.Custom["get"] = append(c.payload.Custom["get"], map[string]any{
-					"oid":   oid,
-					"error": err.Error(),
-				})
+			for _, spec := range c.plan.CustomGet {
+				item := snmpCustomItem(spec)
+				item["error"] = err.Error()
+				c.payload.Custom["get"] = append(c.payload.Custom["get"], item)
+				c.payload.addOIDFailed(spec, err.Error())
 			}
 		} else {
 			values := make(map[string]any)
@@ -317,19 +328,18 @@ func (c *snmpCollector) collectCustom() bool {
 				c.payload.Scalars[variable.Name] = v
 				c.payload.OIDs[variable.Name] = v
 			}
-			for _, oid := range c.plan.CustomGet {
-				if v, ok := values[oid]; ok {
+			for _, spec := range c.plan.CustomGet {
+				item := snmpCustomItem(spec)
+				if v, ok := values[spec.OID]; ok {
 					groupStats.GetSuccess++
-					c.payload.Custom["get"] = append(c.payload.Custom["get"], map[string]any{
-						"oid":   oid,
-						"value": v,
-					})
+					item["value"] = v
+					c.payload.Custom["get"] = append(c.payload.Custom["get"], item)
+					c.payload.addOIDSuccess(spec, map[string]any{"value": v})
 				} else {
-					msg := "custom GET sem retorno para OID " + oid
-					c.payload.Custom["get"] = append(c.payload.Custom["get"], map[string]any{
-						"oid":   oid,
-						"error": "sem retorno",
-					})
+					msg := "custom GET sem retorno para OID " + spec.OID
+					item["error"] = "sem retorno"
+					c.payload.Custom["get"] = append(c.payload.Custom["get"], item)
+					c.payload.addOIDFailed(spec, "sem retorno")
 					c.payload.addError(msg)
 					groupStats.Errors = append(groupStats.Errors, msg)
 				}
@@ -338,7 +348,8 @@ func (c *snmpCollector) collectCustom() bool {
 	}
 
 	if c.plan.FetchMode != snmpFetchGetOnly && len(c.plan.CustomWalk) > 0 {
-		for _, rootOID := range c.plan.CustomWalk {
+		for _, spec := range c.plan.CustomWalk {
+			rootOID := spec.OID
 			if err := c.ensureBudget("custom walk " + rootOID); err != nil {
 				groupStats.Errors = append(groupStats.Errors, err.Error())
 				groupStats.LatencyMs = int(time.Since(groupStart).Milliseconds())
@@ -348,13 +359,14 @@ func (c *snmpCollector) collectCustom() bool {
 			}
 			groupStats.WalkAttempts++
 			rows, truncated, err := c.walkTable(rootOID)
-			item := map[string]any{"oid": rootOID}
+			item := snmpCustomItem(spec)
 			if err != nil {
 				msg := fmt.Sprintf("custom WALK falhou oid=%s err=%v", rootOID, err)
 				c.payload.addError(msg)
 				groupStats.Errors = append(groupStats.Errors, msg)
 				item["error"] = err.Error()
 				c.payload.Custom["walk"] = append(c.payload.Custom["walk"], item)
+				c.payload.addOIDFailed(spec, err.Error())
 				if errors.Is(err, errSNMPBudgetExceeded) {
 					groupStats.LatencyMs = int(time.Since(groupStart).Milliseconds())
 					c.payload.addGroupStats("custom", groupStats)
@@ -367,6 +379,8 @@ func (c *snmpCollector) collectCustom() bool {
 				msg := "tabela sem retorno para OID base " + rootOID
 				c.payload.addError(msg)
 				groupStats.Errors = append(groupStats.Errors, msg)
+				item["error"] = "sem retorno"
+				c.payload.addOIDFailed(spec, "sem retorno")
 			}
 			groupStats.WalkRows += len(rows)
 			item["rows"] = len(rows)
@@ -374,6 +388,13 @@ func (c *snmpCollector) collectCustom() bool {
 			item["data"] = rows
 			c.payload.Custom["walk"] = append(c.payload.Custom["walk"], item)
 			c.payload.Tables[rootOID] = rows
+			if len(rows) > 0 {
+				c.payload.addOIDSuccess(spec, map[string]any{
+					"rows":      len(rows),
+					"truncated": truncated,
+					"data":      rows,
+				})
+			}
 		}
 	}
 
@@ -389,6 +410,7 @@ func (c *snmpCollector) emitGroupPartial(groupName string, def snmpGroupDef, gro
 	}
 	partial := newSNMPPayload(c.plan)
 	partial.GroupsRequested = []string{groupName}
+	partial.RuntimeApplied.GroupsRequested = cloneStringSlice(partial.GroupsRequested)
 	partial.TimeBudgetExceeded = c.payload.TimeBudgetExceeded
 	partial.addGroupStats(groupName, groupStats)
 	partial.Errors = append(partial.Errors, groupStats.Errors...)
@@ -425,17 +447,47 @@ func (c *snmpCollector) emitCustomPartial(groupStats snmpGroupStats) {
 	}
 	partial := newSNMPPayload(c.plan)
 	partial.GroupsRequested = []string{"custom"}
+	partial.RuntimeApplied.GroupsRequested = cloneStringSlice(partial.GroupsRequested)
 	partial.TimeBudgetExceeded = c.payload.TimeBudgetExceeded
 	partial.addGroupStats("custom", groupStats)
 	partial.Errors = append(partial.Errors, groupStats.Errors...)
 	partial.Custom["get"] = append(partial.Custom["get"], c.payload.Custom["get"]...)
 	partial.Custom["walk"] = append(partial.Custom["walk"], c.payload.Custom["walk"]...)
-	for _, rootOID := range c.plan.CustomWalk {
-		if rows, ok := c.payload.Tables[rootOID]; ok {
-			partial.Tables[rootOID] = rows
+	partial.OIDsSuccess = append(partial.OIDsSuccess, c.payload.OIDsSuccess...)
+	partial.OIDsFailed = append(partial.OIDsFailed, c.payload.OIDsFailed...)
+	partial.VendorProfileApplied = c.payload.VendorProfileApplied
+	partial.CPUPercent = c.payload.CPUPercent
+	partial.MemoryPercent = c.payload.MemoryPercent
+	partial.CPUMemory = c.payload.CPUMemory
+	for _, spec := range c.plan.CustomWalk {
+		if rows, ok := c.payload.Tables[spec.OID]; ok {
+			partial.Tables[spec.OID] = rows
 		}
 	}
 	c.emitPartial("custom", partial)
+}
+
+func snmpCustomItem(spec entities.AgentlessSnmpOIDSpec) map[string]any {
+	item := map[string]any{"oid": spec.OID}
+	if spec.Name != "" {
+		item["name"] = spec.Name
+	}
+	if spec.Label != "" {
+		item["label"] = spec.Label
+	}
+	if spec.Metric != "" {
+		item["metric"] = spec.Metric
+	}
+	if spec.SourceMIB != "" {
+		item["source_mib"] = spec.SourceMIB
+	}
+	if spec.Unit != "" {
+		item["unit"] = spec.Unit
+	}
+	if spec.CanonicalKey != "" {
+		item["canonical_key"] = spec.CanonicalKey
+	}
+	return item
 }
 
 func (c *snmpCollector) emitPartial(groupName string, payload *snmpPayload) {

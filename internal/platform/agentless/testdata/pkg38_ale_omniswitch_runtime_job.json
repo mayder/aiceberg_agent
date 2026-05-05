@@ -1,0 +1,68 @@
+{
+  "check_id": 385,
+  "ativo_id": 920,
+  "cliente_id": 1,
+  "tipo": "snmp",
+  "nome": "PKG38 OmniSwitch metrics_fast",
+  "interval_sec": 300,
+  "timeout_ms": 2000,
+  "snmp_collection_kind": "metrics_fast",
+  "collection_kind": "metrics_fast",
+  "segment_id": "metrics_fast",
+  "collection_profile": "minimal",
+  "fetch_mode": "auto",
+  "time_budget_ms": 60000,
+  "snmp_max_rows": 1000,
+  "include_groups": ["system", "custom"],
+  "exclude_groups": ["interfaces_status", "interfaces_counters", "ip_stats", "vlan", "bridge_fdb", "stp", "lldp_local", "lldp_remote", "poe", "entity", "sensors", "cpu_memory"],
+  "retries": 1,
+  "fail_threshold": 1,
+  "success_threshold": 1,
+  "config": {
+    "vendor_oid_profile": {
+      "profile_key": "ale_omniswitch_aos_health_v1",
+      "profile_version": "1.0.0",
+      "vendor": "Alcatel-Lucent Enterprise",
+      "family": "OmniSwitch AOS",
+      "model": "OS6860-48",
+      "source_mib": "ALCATEL-IND1-HEALTH-MIB",
+      "matched_by": "sysObjectID",
+      "match_source": "config_json.applied",
+      "applied": true
+    },
+    "custom_walk_oids": [
+      {
+        "name": "health_module_cpu_latest",
+        "oid": "1.3.6.1.4.1.6486.801.1.2.1.16.1.1.1.1.1.15",
+        "metric": "healthModuleCpuLatest",
+        "source_mib": "ALCATEL-IND1-HEALTH-MIB",
+        "unit": "percent",
+        "canonical_key": "cpu_percent"
+      },
+      {
+        "name": "health_module_memory_latest",
+        "oid": "1.3.6.1.4.1.6486.801.1.2.1.16.1.1.1.1.1.16",
+        "metric": "healthModuleMemoryLatest",
+        "source_mib": "ALCATEL-IND1-HEALTH-MIB",
+        "unit": "percent",
+        "canonical_key": "memory_percent"
+      }
+    ],
+    "fallback_groups": ["interfaces_status", "interfaces_counters", "ip_stats", "cpu_memory"]
+  },
+  "endpoint": {
+    "id": 10,
+    "tipo": "ip",
+    "endereco": "192.0.2.85",
+    "porta": 161
+  },
+  "snmp": {
+    "binding_id": 20,
+    "profile_id": 30,
+    "version": "v2c",
+    "community": "public",
+    "port": 161,
+    "timeout_ms": 2000,
+    "retries": 1
+  }
+}

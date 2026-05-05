@@ -25,6 +25,7 @@ const (
 	snmpCollectionMetricsFast    = "metrics_fast"
 	snmpCollectionSwitchportSlow = "switchport_slow"
 	snmpCollectionDeepDiag       = "deep_diag"
+	snmpGroupCustom              = "custom"
 )
 
 type snmpGroupDef struct {
@@ -44,12 +45,18 @@ type snmpPlan struct {
 	ProfileID         int
 	CollectionProfile string
 	CollectionKind    string
+	SegmentID         string
 	FetchMode         snmpFetchMode
 	MaxRows           int
 	TimeBudgetMs      int
+	IncludeGroups     []string
+	ExcludeGroups     []string
+	FallbackGroups    []string
+	FallbackApplied   bool
 	Groups            []string
-	CustomGet         []string
-	CustomWalk        []string
+	VendorProfile     *entities.AgentlessSnmpVendorOIDProfile
+	CustomGet         []entities.AgentlessSnmpOIDSpec
+	CustomWalk        []entities.AgentlessSnmpOIDSpec
 }
 
 var snmpGroupDefs = map[string]snmpGroupDef{
@@ -211,7 +218,7 @@ var snmpGroupDefs = map[string]snmpGroupDef{
 
 var snmpSegmentDefaults = map[string]snmpSegmentDefault{
 	snmpCollectionMetricsFast: {
-		Groups:       []string{"system", "interfaces_status", "interfaces_counters", "ip_stats"},
+		Groups:       []string{"system", snmpGroupCustom},
 		FetchMode:    snmpFetchAuto,
 		MaxRows:      1000,
 		TimeBudgetMs: 60000,
@@ -269,7 +276,17 @@ var snmpProfileGroups = map[string][]string{
 func buildSNMPPlan(job entities.AgentlessJob, host string) snmpPlan {
 	cfg := map[string]any(job.Config)
 	kind := snmpCollectionKind(job)
-	profile := normalizeSNMPProfile(getString(cfg, "collection_profile", defaultSNMPCollectionProfile))
+	profile := normalizeSNMPProfile(firstNonEmptyString(
+		job.CollectionProfile,
+		getString(cfg, "collection_profile", ""),
+		getString(cfg, "snmp_collection_profile", ""),
+		defaultSNMPCollectionProfile,
+	))
+	segmentID := firstNonEmptyString(
+		job.SegmentID,
+		getString(cfg, "segment_id", ""),
+		kind,
+	)
 	segmentDefaults := snmpSegmentDefaults[kind]
 	defaultFetchMode := snmpFetchAuto
 	defaultMaxRows := defaultSNMPMaxRows
@@ -287,17 +304,43 @@ func buildSNMPPlan(job entities.AgentlessJob, host string) snmpPlan {
 		defaultTimeBudget = job.SNMP.TimeBudgetMs
 	}
 
-	fetchMode := parseSNMPFetchMode(getString(cfg, "fetch_mode", getString(cfg, "snmp_fetch_mode", string(defaultFetchMode))))
-	maxRows := positiveIntOr(cfg, "snmp_max_rows", positiveIntOr(cfg, "max_rows_per_table", defaultMaxRows))
-	timeBudget := positiveIntOr(cfg, "time_budget_ms", positiveIntOr(cfg, "snmp_time_budget_ms", defaultTimeBudget))
+	fetchMode := parseSNMPFetchMode(firstNonEmptyString(
+		job.FetchMode,
+		getString(cfg, "fetch_mode", ""),
+		getString(cfg, "snmp_fetch_mode", ""),
+		string(defaultFetchMode),
+	))
+	maxRows := positiveIntOrValue(job.SNMPMaxRows, positiveIntOr(cfg, "snmp_max_rows", positiveIntOr(cfg, "max_rows_per_table", defaultMaxRows)))
+	timeBudget := positiveIntOrValue(job.TimeBudgetMs, positiveIntOr(cfg, "time_budget_ms", positiveIntOr(cfg, "snmp_time_budget_ms", defaultTimeBudget)))
 	groups := cloneStringSlice(snmpProfileGroups[profile])
 	if len(segmentDefaults.Groups) > 0 {
 		groups = cloneStringSlice(segmentDefaults.Groups)
 	}
+	includeGroups := filterKnownSNGroups(job.IncludeGroups)
+	if len(includeGroups) == 0 {
+		includeGroups = filterKnownSNGroups(readStringSlice(configValue(cfg, "include_groups")))
+	}
+	excludeGroups := filterKnownSNGroups(job.ExcludeGroups)
+	if len(excludeGroups) == 0 {
+		excludeGroups = filterKnownSNGroups(readStringSlice(configValue(cfg, "exclude_groups")))
+	}
+	fallbackGroups := filterKnownSNGroups(readStringSlice(configValue(cfg, "fallback_groups")))
+	explicitGroupScope := false
 	if customGroups := filterKnownSNGroups(readStringSlice(configValue(cfg, "groups"))); len(customGroups) > 0 {
 		groups = customGroups
-	} else if includeGroups := filterKnownSNGroups(readStringSlice(configValue(cfg, "include_groups"))); len(includeGroups) > 0 {
-		groups = mergeSNMPGroups(groups, includeGroups)
+		includeGroups = customGroups
+		explicitGroupScope = true
+	} else if len(includeGroups) > 0 {
+		groups = includeGroups
+		explicitGroupScope = true
+	}
+	fallbackApplied := false
+	if len(fallbackGroups) > 0 && !explicitGroupScope {
+		groups = mergeSNMPGroups(groups, fallbackGroups)
+		fallbackApplied = true
+	}
+	if len(excludeGroups) > 0 {
+		groups = excludeSNMPGroups(groups, excludeGroups)
 	}
 
 	return snmpPlan{
@@ -305,12 +348,18 @@ func buildSNMPPlan(job entities.AgentlessJob, host string) snmpPlan {
 		ProfileID:         job.SNMP.ProfileID,
 		CollectionProfile: profile,
 		CollectionKind:    kind,
+		SegmentID:         segmentID,
 		FetchMode:         fetchMode,
 		MaxRows:           maxRows,
 		TimeBudgetMs:      timeBudget,
+		IncludeGroups:     includeGroups,
+		ExcludeGroups:     excludeGroups,
+		FallbackGroups:    fallbackGroups,
+		FallbackApplied:   fallbackApplied,
 		Groups:            groups,
-		CustomGet:         normalizeOIDList(readCustomOIDList(cfg, "get")),
-		CustomWalk:        normalizeOIDList(readCustomOIDList(cfg, "walk")),
+		VendorProfile:     readVendorOIDProfile(cfg["vendor_oid_profile"]),
+		CustomGet:         normalizeOIDSpecs(readCustomOIDList(cfg, "get")),
+		CustomWalk:        normalizeOIDSpecs(readCustomOIDList(cfg, "walk")),
 	}
 }
 
@@ -337,6 +386,8 @@ func snmpCollectionKind(job entities.AgentlessJob) string {
 	cfg := map[string]any(job.Config)
 	return normalizeSNMPCollectionKind(firstNonEmptyString(
 		job.CollectionKind,
+		job.CollectionKindAlias,
+		job.SegmentID,
 		getString(cfg, "snmp_collection_kind", ""),
 		getString(cfg, "collection_kind", ""),
 		getString(cfg, "segment_id", ""),
@@ -364,6 +415,13 @@ func positiveIntOr(cfg map[string]any, key string, def int) int {
 	return v
 }
 
+func positiveIntOrValue(v int, def int) int {
+	if v <= 0 {
+		return def
+	}
+	return v
+}
+
 func configValue(cfg map[string]any, key string) any {
 	if cfg == nil {
 		return nil
@@ -374,55 +432,111 @@ func configValue(cfg map[string]any, key string) any {
 	return nil
 }
 
-func readCustomOIDList(cfg map[string]any, key string) []string {
-	var out []string
+func readCustomOIDList(cfg map[string]any, key string) []entities.AgentlessSnmpOIDSpec {
+	var out []entities.AgentlessSnmpOIDSpec
 	if cfg == nil {
 		return out
 	}
 	if raw, ok := cfg["custom"]; ok {
 		if m, ok := raw.(map[string]any); ok {
-			out = append(out, readStringSlice(m[key])...)
+			out = append(out, readOIDSpecList(m[key])...)
 		}
 	}
-	out = append(out, readStringSlice(cfg["custom."+key])...)
-	out = append(out, readStringSlice(cfg["custom_"+key])...)
+	out = append(out, readOIDSpecList(cfg["custom."+key])...)
+	out = append(out, readOIDSpecList(cfg["custom_"+key])...)
 	if key == "walk" {
-		out = append(out, readNamedOIDList(cfg["custom_walk_oids"])...)
+		out = append(out, readOIDSpecList(cfg["custom_walk_oids"])...)
 	}
 	if key == "get" {
-		out = append(out, readNamedOIDList(cfg["custom_get_oids"])...)
+		out = append(out, readOIDSpecList(cfg["custom_get_oids"])...)
 	}
 	return out
 }
 
-func readNamedOIDList(v any) []string {
+func readOIDSpecList(v any) []entities.AgentlessSnmpOIDSpec {
 	switch t := v.(type) {
 	case nil:
 		return nil
+	case []string:
+		out := make([]entities.AgentlessSnmpOIDSpec, 0, len(t))
+		for _, oid := range t {
+			out = append(out, entities.AgentlessSnmpOIDSpec{OID: oid})
+		}
+		return out
 	case []any:
-		out := make([]string, 0, len(t))
+		out := make([]entities.AgentlessSnmpOIDSpec, 0, len(t))
 		for _, item := range t {
 			switch x := item.(type) {
 			case string:
-				out = append(out, x)
+				out = append(out, entities.AgentlessSnmpOIDSpec{OID: x})
 			case map[string]any:
-				if oid, ok := x["oid"].(string); ok {
-					out = append(out, oid)
+				if spec, ok := readOIDSpecMap(x); ok {
+					out = append(out, spec)
 				}
 			}
 		}
 		return out
 	case []map[string]any:
-		out := make([]string, 0, len(t))
+		out := make([]entities.AgentlessSnmpOIDSpec, 0, len(t))
 		for _, item := range t {
-			if oid, ok := item["oid"].(string); ok {
-				out = append(out, oid)
+			if spec, ok := readOIDSpecMap(item); ok {
+				out = append(out, spec)
 			}
 		}
 		return out
 	default:
-		return readStringSlice(v)
+		oids := readStringSlice(v)
+		out := make([]entities.AgentlessSnmpOIDSpec, 0, len(oids))
+		for _, oid := range oids {
+			out = append(out, entities.AgentlessSnmpOIDSpec{OID: oid})
+		}
+		return out
 	}
+}
+
+func readOIDSpecMap(m map[string]any) (entities.AgentlessSnmpOIDSpec, bool) {
+	oid := getString(m, "oid", "")
+	if strings.TrimSpace(oid) == "" {
+		return entities.AgentlessSnmpOIDSpec{}, false
+	}
+	metric := firstNonEmptyString(getString(m, "metric", ""), getString(m, "symbol", ""))
+	return entities.AgentlessSnmpOIDSpec{
+		Name:         getString(m, "name", ""),
+		OID:          oid,
+		Label:        getString(m, "label", ""),
+		Metric:       metric,
+		SourceMIB:    getString(m, "source_mib", ""),
+		Unit:         getString(m, "unit", ""),
+		CanonicalKey: getString(m, "canonical_key", ""),
+	}, true
+}
+
+func readVendorOIDProfile(v any) *entities.AgentlessSnmpVendorOIDProfile {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil
+	}
+	profileKey := getString(m, "profile_key", getString(m, "key", ""))
+	if strings.TrimSpace(profileKey) == "" {
+		return nil
+	}
+	return &entities.AgentlessSnmpVendorOIDProfile{
+		ProfileKey:      profileKey,
+		ProfileVersion:  getString(m, "profile_version", ""),
+		Vendor:          getString(m, "vendor", ""),
+		Family:          getString(m, "family", ""),
+		Model:           getString(m, "model", ""),
+		SourceMIB:       getString(m, "source_mib", ""),
+		MatchedBy:       getString(m, "matched_by", ""),
+		MatchSource:     getString(m, "match_source", ""),
+		LastValidatedAt: getString(m, "last_validated_at", ""),
+		Applied:         boolValue(m, "applied"),
+	}
+}
+
+func boolValue(m map[string]any, key string) bool {
+	v, ok := getBool(m, key)
+	return ok && v
 }
 
 func readStringSlice(v any) []string {
@@ -473,7 +587,7 @@ func filterKnownSNGroups(in []string) []string {
 		if g == "" {
 			continue
 		}
-		if _, ok := snmpGroupDefs[g]; !ok {
+		if !isKnownSNMPRuntimeGroup(g) {
 			continue
 		}
 		if _, ok := seen[g]; ok {
@@ -503,7 +617,7 @@ func mergeSNMPGroups(base, extra []string) []string {
 		if group == "" {
 			continue
 		}
-		if _, ok := snmpGroupDefs[group]; !ok {
+		if !isKnownSNMPRuntimeGroup(group) {
 			continue
 		}
 		if _, ok := seen[group]; ok {
@@ -515,11 +629,42 @@ func mergeSNMPGroups(base, extra []string) []string {
 	return out
 }
 
-func normalizeOIDList(in []string) []string {
-	out := make([]string, 0, len(in))
+func isKnownSNMPRuntimeGroup(group string) bool {
+	if group == snmpGroupCustom {
+		return true
+	}
+	_, ok := snmpGroupDefs[group]
+	return ok
+}
+
+func excludeSNMPGroups(base, excluded []string) []string {
+	blocked := make(map[string]struct{}, len(excluded))
+	for _, group := range excluded {
+		group = normalizeSNMPGroupName(group)
+		if group != "" {
+			blocked[group] = struct{}{}
+		}
+	}
+
+	out := make([]string, 0, len(base))
+	for _, group := range base {
+		group = normalizeSNMPGroupName(group)
+		if group == "" {
+			continue
+		}
+		if _, ok := blocked[group]; ok {
+			continue
+		}
+		out = append(out, group)
+	}
+	return out
+}
+
+func normalizeOIDSpecs(in []entities.AgentlessSnmpOIDSpec) []entities.AgentlessSnmpOIDSpec {
+	out := make([]entities.AgentlessSnmpOIDSpec, 0, len(in))
 	seen := make(map[string]struct{}, len(in))
-	for _, oid := range in {
-		oid = strings.TrimSpace(oid)
+	for _, spec := range in {
+		oid := strings.TrimSpace(spec.OID)
 		oid = strings.TrimPrefix(oid, ".")
 		if oid == "" {
 			continue
@@ -528,7 +673,24 @@ func normalizeOIDList(in []string) []string {
 			continue
 		}
 		seen[oid] = struct{}{}
-		out = append(out, oid)
+		spec.OID = oid
+		spec.Name = strings.TrimSpace(spec.Name)
+		spec.Label = strings.TrimSpace(spec.Label)
+		spec.Metric = strings.TrimSpace(spec.Metric)
+		spec.SourceMIB = strings.TrimSpace(spec.SourceMIB)
+		spec.Unit = strings.TrimSpace(spec.Unit)
+		spec.CanonicalKey = strings.TrimSpace(spec.CanonicalKey)
+		out = append(out, spec)
+	}
+	return out
+}
+
+func snmpOIDStrings(specs []entities.AgentlessSnmpOIDSpec) []string {
+	out := make([]string, 0, len(specs))
+	for _, spec := range specs {
+		if spec.OID != "" {
+			out = append(out, spec.OID)
+		}
 	}
 	return out
 }

@@ -121,6 +121,8 @@ func newObservationFromResult(job entities.AgentlessJob, res Result, started tim
 		ObservedAt: time.Now(),
 		CreatedAt:  time.Now(),
 	}
+	obs.CommandID = strings.TrimSpace(job.CommandID)
+	obs.CorrelationID = strings.TrimSpace(job.CorrelationID)
 	applyObservationSegmentMeta(&obs, job, started)
 
 	if job.Endpoint != nil {

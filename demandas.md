@@ -147,12 +147,12 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
    - [x] criar teste local/simulação com Hub recebendo relays e API lenta em `/v1/ingest/metrics`;
    - [x] validar que `health/bootstrap/inventory` continuam fluindo mesmo com timeout de `metrics`;
    - [x] validar que métricas recentes voltam a drenar após recuperação da API;
-   - [ ] medir crescimento/drenagem da fila em cenário com Agentless ativo;
+   - [ ] [bloqueado] medir crescimento/drenagem da fila em cenário com Agentless ativo;
    - [x] rodar `./check.sh` antes de gerar qualquer artefato.
 
 7) **Publicação e rollout**
    - [x] publicar artefatos oficiais da nova versão antes de acionar update remoto;
-   - [ ] validar update em um Hub e um Relay de homologação;
+   - [ ] [validacao] validar update em um Hub e um Relay de homologação;
    - [x] documentar rollback para versão anterior e parâmetros temporários de mitigação;
    - [x] registrar no web qual versão mínima do agente possui flush resiliente.
 
