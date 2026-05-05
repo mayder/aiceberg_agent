@@ -58,3 +58,17 @@ func TestBuildRequest_NoIdempotency(t *testing.T) {
 		t.Fatalf("did not expect idempotency key")
 	}
 }
+
+func TestSetEnvelopeIdentityHeader(t *testing.T) {
+	req, err := buildRequest("http://example", []entities.Envelope{{ID: "1"}}, config.Config{})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	setEnvelopeIdentityHeader(req, []entities.Envelope{
+		{ID: "1"},
+		{ID: "2", IdentityHeader: "identity-claim"},
+	})
+	if got := req.Header.Get("X-Agent-Identity"); got != "identity-claim" {
+		t.Fatalf("expected identity header, got %q", got)
+	}
+}

@@ -13,24 +13,32 @@ import (
 )
 
 func TestConfigSync_NoContent(t *testing.T) {
+	var identityHeader string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/agent/config" {
 			http.NotFound(w, r)
 			return
 		}
+		identityHeader = r.Header.Get("X-Agent-Identity")
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
 
 	cfg := config.Config{
-		APIBaseURL: srv.URL,
-		Agent:      config.AgentCfg{Token: "t"},
+		APIBaseURL:          srv.URL,
+		Agent:               config.AgentCfg{Token: "t"},
+		AgentClientID:       7,
+		AgentID:             42,
+		AgentInstallationID: "install-01",
 	}
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}
 	uc := NewConfigSync(cfg, log, store, nil)
 	if err := uc.Execute(context.Background()); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
+	}
+	if identityHeader == "" {
+		t.Fatalf("expected identity header on config sync")
 	}
 }
 

@@ -53,6 +53,12 @@ type backoffState struct {
 	until    time.Time
 }
 
+type flushGroupKey struct {
+	auth     string
+	identity string
+	endpoint string
+}
+
 func NewFlushOutbox(o ports.OutboxRepo, t ports.Transport, l logger.Logger, defaultAuth string, onConfig IngestConfigHandler) *FlushOutbox {
 	return NewFlushOutboxWithOptions(o, t, l, defaultAuth, onConfig, FlushOutboxOptions{})
 }
@@ -82,7 +88,7 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 	}
 
 	start := time.Now()
-	grouped := make(map[string]map[string][]entities.Envelope) // auth -> endpoint -> list
+	grouped := make(map[flushGroupKey][]entities.Envelope)
 	invalidIDs := make([]string, 0, 1)
 	for _, e := range batch {
 		if e.ID == "" {
@@ -98,10 +104,8 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 		if end == "" {
 			end = "/v1/ingest"
 		}
-		if grouped[h] == nil {
-			grouped[h] = make(map[string][]entities.Envelope)
-		}
-		grouped[h][end] = append(grouped[h][end], e)
+		key := flushGroupKey{auth: h, identity: e.IdentityHeader, endpoint: end}
+		grouped[key] = append(grouped[key], e)
 	}
 	uc.updatePendingSnapshot(batch)
 
@@ -119,73 +123,71 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 	var firstErr error
 	acked := 0
 	retained := 0
-	for auth, byEndpoint := range grouped {
-		for endpoint, list := range byEndpoint {
-			key := auth + "|" + endpoint
-			if until, ok := uc.backoffUntil(key); ok {
-				retained += len(list)
-				uc.log.Info(logger.KV("transport backoff active",
-					"route", endpoint,
+	for group, list := range grouped {
+		key := group.auth + "|" + group.identity + "|" + group.endpoint
+		if until, ok := uc.backoffUntil(key); ok {
+			retained += len(list)
+			uc.log.Info(logger.KV("transport backoff active",
+				"route", group.endpoint,
+				"batch_size", len(list),
+				"retry_after_ms", time.Until(until).Milliseconds(),
+			))
+			if firstErr == nil {
+				firstErr = errors.New("transport backoff active")
+			}
+			continue
+		}
+		respBody, err := uc.tx.SendWithAuth(list, group.auth, group.endpoint)
+		if err != nil {
+			retained += len(list)
+			if se, ok := err.(interface{ StatusCode() int }); ok {
+				uc.log.Error(logger.KV("transport failed",
+					"route", group.endpoint,
 					"batch_size", len(list),
-					"retry_after_ms", time.Until(until).Milliseconds(),
-				))
-				if firstErr == nil {
-					firstErr = errors.New("transport backoff active")
-				}
-				continue
-			}
-			respBody, err := uc.tx.SendWithAuth(list, auth, endpoint)
-			if err != nil {
-				retained += len(list)
-				if se, ok := err.(interface{ StatusCode() int }); ok {
-					uc.log.Error(logger.KV("transport failed",
-						"route", endpoint,
-						"batch_size", len(list),
-						"status", se.StatusCode(),
-						"err", err,
-					))
-				} else {
-					uc.log.Error(logger.KV("transport failed",
-						"route", endpoint,
-						"batch_size", len(list),
-						"err", err,
-					))
-				}
-				uc.registerFailure(key, endpoint, len(list), err)
-				if firstErr == nil {
-					firstErr = err
-				}
-				continue
-			}
-			uc.resetBackoff(key)
-			if uc.onConfig != nil {
-				cfg, err := parseIngestConfig(respBody)
-				if err != nil {
-					uc.log.Error(logger.KV("ingest config parse failed",
-						"route", endpoint,
-						"err", err,
-					))
-				}
-				if cfg != nil {
-					uc.onConfig(auth, *cfg)
-				}
-			}
-			uc.applyBackpressure(key, endpoint, respBody)
-			ids := envelopeIDs(list)
-			if err := uc.outbox.Ack(ids); err != nil {
-				uc.log.Error(logger.KV("ack failed",
-					"route", endpoint,
-					"batch_size", len(ids),
+					"status", se.StatusCode(),
 					"err", err,
 				))
-				if firstErr == nil {
-					firstErr = err
-				}
-				continue
+			} else {
+				uc.log.Error(logger.KV("transport failed",
+					"route", group.endpoint,
+					"batch_size", len(list),
+					"err", err,
+				))
 			}
-			acked += len(ids)
-			uc.recordAck(endpoint, len(ids))
+			uc.registerFailure(key, group.endpoint, len(list), err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
+		uc.resetBackoff(key)
+		if uc.onConfig != nil {
+			cfg, err := parseIngestConfig(respBody)
+			if err != nil {
+				uc.log.Error(logger.KV("ingest config parse failed",
+					"route", group.endpoint,
+					"err", err,
+				))
+			}
+			if cfg != nil {
+				uc.onConfig(group.auth, *cfg)
+			}
+		}
+		uc.applyBackpressure(key, group.endpoint, respBody)
+		ids := envelopeIDs(list)
+		if err := uc.outbox.Ack(ids); err != nil {
+			uc.log.Error(logger.KV("ack failed",
+				"route", group.endpoint,
+				"batch_size", len(ids),
+				"err", err,
+			))
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		acked += len(ids)
+		uc.recordAck(group.endpoint, len(ids))
 	}
 
 	durationMs := time.Since(start).Milliseconds()

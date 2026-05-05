@@ -12,11 +12,12 @@ import (
 )
 
 type CollectAndBuffer struct {
-	collector  ports.Collector
-	outbox     ports.OutboxRepo
-	log        logger.Logger
-	authHeader string
-	endpoint   string
+	collector      ports.Collector
+	outbox         ports.OutboxRepo
+	log            logger.Logger
+	authHeader     string
+	identityHeader string
+	endpoint       string
 }
 
 type BufferedCollectResult struct {
@@ -30,6 +31,10 @@ type BufferedCollectResult struct {
 
 func NewCollectAndBuffer(c ports.Collector, o ports.OutboxRepo, l logger.Logger, authHeader string, endpoint string) *CollectAndBuffer {
 	return &CollectAndBuffer{collector: c, outbox: o, log: l, authHeader: authHeader, endpoint: endpoint}
+}
+
+func NewCollectAndBufferWithIdentity(c ports.Collector, o ports.OutboxRepo, l logger.Logger, authHeader string, identityHeader string, endpoint string) *CollectAndBuffer {
+	return &CollectAndBuffer{collector: c, outbox: o, log: l, authHeader: authHeader, identityHeader: identityHeader, endpoint: endpoint}
 }
 
 func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
@@ -56,15 +61,16 @@ func (uc *CollectAndBuffer) ExecuteDetailed(ctx context.Context) (*BufferedColle
 		return nil, nil
 	}
 	env := entities.Envelope{
-		ID:            genID(),
-		SchemaVersion: 1,
-		Kind:          "metric",
-		Sub:           uc.collector.Name(),
-		AgentID:       hostname,
-		TSUnixMs:      time.Now().UnixMilli(),
-		Body:          json.RawMessage(data), // mantém como JSON bruto
-		AuthHeader:    uc.authHeader,
-		Endpoint:      uc.endpoint,
+		ID:             genID(),
+		SchemaVersion:  1,
+		Kind:           "metric",
+		Sub:            uc.collector.Name(),
+		AgentID:        hostname,
+		TSUnixMs:       time.Now().UnixMilli(),
+		Body:           json.RawMessage(data), // mantém como JSON bruto
+		AuthHeader:     uc.authHeader,
+		IdentityHeader: uc.identityHeader,
+		Endpoint:       uc.endpoint,
 	}
 
 	if env.ID == "" {

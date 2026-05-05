@@ -24,9 +24,10 @@ type BoltStore struct {
 }
 
 type storedEnvelope struct {
-	Env        entities.Envelope `json:"env"`
-	AuthHeader string            `json:"auth_header,omitempty"`
-	Endpoint   string            `json:"endpoint,omitempty"`
+	Env            entities.Envelope `json:"env"`
+	AuthHeader     string            `json:"auth_header,omitempty"`
+	IdentityHeader string            `json:"identity_header,omitempty"`
+	Endpoint       string            `json:"endpoint,omitempty"`
 }
 
 type storedEnvelopeMeta struct {
@@ -71,7 +72,7 @@ func (b *BoltStore) Close() error {
 }
 
 func (b *BoltStore) Push(e entities.Envelope) error {
-	raw, err := json.Marshal(storedEnvelope{Env: e, AuthHeader: e.AuthHeader, Endpoint: e.Endpoint})
+	raw, err := json.Marshal(storedEnvelope{Env: e, AuthHeader: e.AuthHeader, IdentityHeader: e.IdentityHeader, Endpoint: e.Endpoint})
 	if err != nil {
 		return err
 	}
@@ -105,6 +106,7 @@ func (b *BoltStore) Peek(n int) ([]entities.Envelope, error) {
 			}
 			env := stored.Env
 			env.AuthHeader = stored.AuthHeader
+			env.IdentityHeader = stored.IdentityHeader
 			if env.Endpoint == "" {
 				env.Endpoint = stored.Endpoint
 			}

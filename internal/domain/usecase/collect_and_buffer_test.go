@@ -80,7 +80,7 @@ func TestCollectAndBuffer_AppendsEnvelope(t *testing.T) {
 		name: "sysmetrics",
 		data: []byte(`{"ok":true}`),
 	}
-	uc := NewCollectAndBuffer(collector, outbox, log, "Token test", "/v1/ingest/metrics")
+	uc := NewCollectAndBufferWithIdentity(collector, outbox, log, "Token test", "identity-header", "/v1/ingest/metrics")
 	if err := uc.Execute(context.Background()); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -90,6 +90,9 @@ func TestCollectAndBuffer_AppendsEnvelope(t *testing.T) {
 	env := outbox.batch[0]
 	if env.AuthHeader != "Token test" {
 		t.Fatalf("expected auth header, got %q", env.AuthHeader)
+	}
+	if env.IdentityHeader != "identity-header" {
+		t.Fatalf("expected identity header, got %q", env.IdentityHeader)
 	}
 	if env.Endpoint != "/v1/ingest/metrics" {
 		t.Fatalf("expected endpoint, got %q", env.Endpoint)

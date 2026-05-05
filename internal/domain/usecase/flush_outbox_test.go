@@ -13,6 +13,7 @@ import (
 
 type transportCall struct {
 	auth     string
+	identity string
 	endpoint string
 	size     int
 }
@@ -25,7 +26,11 @@ type fakeTransport struct {
 }
 
 func (f *fakeTransport) SendWithAuth(batch []entities.Envelope, authHeader string, endpoint string) ([]byte, error) {
-	f.calls = append(f.calls, transportCall{auth: authHeader, endpoint: endpoint, size: len(batch)})
+	identity := ""
+	if len(batch) > 0 {
+		identity = batch[0].IdentityHeader
+	}
+	f.calls = append(f.calls, transportCall{auth: authHeader, identity: identity, endpoint: endpoint, size: len(batch)})
 	if f.errByEndpoint != nil && f.errByEndpoint[endpoint] != nil {
 		return nil, f.errByEndpoint[endpoint]
 	}
@@ -33,6 +38,33 @@ func (f *fakeTransport) SendWithAuth(batch []entities.Envelope, authHeader strin
 		return nil, f.err
 	}
 	return f.body, nil
+}
+
+func TestFlushOutbox_GroupsByIdentityHeader(t *testing.T) {
+	outbox := &fakeOutbox{batch: []entities.Envelope{
+		{ID: "1", AuthHeader: "Token a", IdentityHeader: "identity-a", Endpoint: "/v1/ingest/metrics", AgentID: "a"},
+		{ID: "2", AuthHeader: "Token a", IdentityHeader: "identity-b", Endpoint: "/v1/ingest/metrics", AgentID: "b"},
+	}}
+	tx := &fakeTransport{}
+	uc := NewFlushOutbox(outbox, tx, &fakeLogger{}, "Token default", nil)
+
+	n, err := uc.Execute(context.Background())
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("expected 2 acked, got %d", n)
+	}
+	if len(tx.calls) != 2 {
+		t.Fatalf("expected 2 transport calls, got %d", len(tx.calls))
+	}
+	seen := map[string]bool{}
+	for _, call := range tx.calls {
+		seen[call.identity] = true
+	}
+	if !seen["identity-a"] || !seen["identity-b"] {
+		t.Fatalf("expected both identity groups, got %#v", seen)
+	}
 }
 
 func TestFlushOutbox_GroupAndAck(t *testing.T) {

@@ -45,6 +45,15 @@ func buildRequest(url string, batch []entities.Envelope, cfg config.Config) (*ht
 	return req, nil
 }
 
+func setEnvelopeIdentityHeader(req *http.Request, batch []entities.Envelope) {
+	for _, env := range batch {
+		if env.IdentityHeader != "" {
+			req.Header.Set("X-Agent-Identity", env.IdentityHeader)
+			return
+		}
+	}
+}
+
 func newIdempotencyKey() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err == nil {

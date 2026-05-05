@@ -15,6 +15,9 @@ import (
 func TestPingBackendExecuteUsesLegacyPingEndpoint(t *testing.T) {
 	var getCount int
 	var postCount int
+	var getIdentity string
+	var postIdentity string
+	var postIdentityPayload any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/agent/ping" {
 			t.Fatalf("unexpected path %s", r.URL.Path)
@@ -25,9 +28,11 @@ func TestPingBackendExecuteUsesLegacyPingEndpoint(t *testing.T) {
 		switch r.Method {
 		case http.MethodGet:
 			getCount++
+			getIdentity = r.Header.Get("X-Agent-Identity")
 			_ = json.NewEncoder(w).Encode(map[string]string{"challenge": "challenge-1"})
 		case http.MethodPost:
 			postCount++
+			postIdentity = r.Header.Get("X-Agent-Identity")
 			var payload map[string]any
 			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 				t.Fatalf("decode ack: %v", err)
@@ -35,6 +40,7 @@ func TestPingBackendExecuteUsesLegacyPingEndpoint(t *testing.T) {
 			if payload["challenge"] != "challenge-1" {
 				t.Fatalf("unexpected challenge %#v", payload["challenge"])
 			}
+			postIdentityPayload = payload["agent_identity"]
 			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 		default:
 			t.Fatalf("unexpected method %s", r.Method)
@@ -43,9 +49,12 @@ func TestPingBackendExecuteUsesLegacyPingEndpoint(t *testing.T) {
 	defer server.Close()
 
 	cfg := config.Config{
-		Agent:      config.AgentCfg{Token: "legacy-token"},
-		APIBaseURL: server.URL,
-		AgentMode:  "direct",
+		Agent:               config.AgentCfg{Token: "legacy-token"},
+		APIBaseURL:          server.URL,
+		AgentMode:           "direct",
+		AgentClientID:       7,
+		AgentID:             42,
+		AgentInstallationID: "install-01",
 	}
 	ping := NewPingBackend(cfg, logger.New("test"))
 
@@ -54,6 +63,16 @@ func TestPingBackendExecuteUsesLegacyPingEndpoint(t *testing.T) {
 	}
 	if getCount != 1 || postCount != 1 {
 		t.Fatalf("expected one GET and one POST, got get=%d post=%d", getCount, postCount)
+	}
+	if getIdentity == "" || postIdentity == "" {
+		t.Fatalf("expected identity header on GET and POST, get=%q post=%q", getIdentity, postIdentity)
+	}
+	identity, ok := postIdentityPayload.(map[string]any)
+	if !ok {
+		t.Fatalf("expected agent_identity payload, got %#v", postIdentityPayload)
+	}
+	if identity["schema_version"] != config.AgentIdentitySchemaVersion || identity["signature"] == "" {
+		t.Fatalf("unexpected identity payload %#v", identity)
 	}
 }
 

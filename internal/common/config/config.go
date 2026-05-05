@@ -70,6 +70,10 @@ type Config struct {
 	AutoUpdateRetryInterval  time.Duration
 	AutoUpdateMaxMB          int
 	AutoUpdateUseAgentAuth   bool
+	AgentClientID            int
+	AgentID                  int
+	AgentInstallationID      string
+	AgentIdentitySecret      string
 }
 
 type CollectPrefs struct {
@@ -193,6 +197,10 @@ func Load(configPath string) (Config, error) {
 		AutoUpdateWorkDir:      getenv("AUTO_UPDATE_WORKDIR", ""),
 		AutoUpdateMaxMB:        intEnv("AUTO_UPDATE_MAX_MB", 300),
 		AutoUpdateUseAgentAuth: strings.ToLower(getenv("AUTO_UPDATE_USE_AGENT_AUTH", "")) == "true",
+		AgentClientID:          intEnv("AGENT_CLIENT_ID", 0),
+		AgentID:                intEnv("AGENT_ID", 0),
+		AgentInstallationID:    getenv("AGENT_INSTALLATION_ID", ""),
+		AgentIdentitySecret:    getenv("AGENT_IDENTITY_SECRET", ""),
 		PingInterval: func() time.Duration {
 			if pingInterval <= 0 {
 				return 5 * time.Second

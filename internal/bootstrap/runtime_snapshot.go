@@ -281,7 +281,7 @@ func readRuntimeEnvAllowlist() map[string]any {
 		}
 		out[key] = sanitizeEnvValue(key, val)
 	}
-	for _, key := range []string{"AGENT_TOKEN", "API_KEY", "HUB_TOKEN"} {
+	for _, key := range []string{"AGENT_TOKEN", "API_KEY", "HUB_TOKEN", "AGENT_IDENTITY_SECRET"} {
 		if v := os.Getenv(key); strings.TrimSpace(v) != "" {
 			out[key] = sanitizeEnvValue(key, v)
 		}
@@ -367,7 +367,7 @@ func sanitizeEnvValue(key, value string) any {
 	if v == "" {
 		return ""
 	}
-	if k == "AGENT_TOKEN" || k == "API_KEY" || k == "HUB_TOKEN" {
+	if isSensitiveEnvKey(k) {
 		return maskSecret(v)
 	}
 	if strings.HasSuffix(k, "_ENABLED") || strings.HasSuffix(k, "_AUTH") || strings.HasSuffix(k, "_DEBUG") {
@@ -376,6 +376,15 @@ func sanitizeEnvValue(key, value string) any {
 		}
 	}
 	return v
+}
+
+func isSensitiveEnvKey(key string) bool {
+	k := strings.ToUpper(strings.TrimSpace(key))
+	return k == "AGENT_TOKEN" ||
+		k == "API_KEY" ||
+		k == "HUB_TOKEN" ||
+		strings.Contains(k, "TOKEN") ||
+		strings.Contains(k, "SECRET")
 }
 
 func maskSecret(raw string) string {

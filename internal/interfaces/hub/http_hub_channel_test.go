@@ -8,16 +8,19 @@ import (
 	"testing"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/domain/entities"
 )
 
 func TestHubChannelForwardsRelayPresenceToAiceberg(t *testing.T) {
 	var upstreamAuth string
+	var upstreamIdentity string
 	var upstreamPayload map[string]any
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/agent/channel" {
 			t.Fatalf("unexpected upstream route %s", r.URL.Path)
 		}
 		upstreamAuth = r.Header.Get("Authorization")
+		upstreamIdentity = r.Header.Get("X-Agent-Identity")
 		if err := json.NewDecoder(r.Body).Decode(&upstreamPayload); err != nil {
 			t.Fatalf("decode upstream payload: %v", err)
 		}
@@ -33,6 +36,7 @@ func TestHubChannelForwardsRelayPresenceToAiceberg(t *testing.T) {
 	body := `{"action":"open","session_id":"relay-session","mode":"relay","hostname":"relay-1","version":"0.7.32"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/agent/channel", strings.NewReader(body))
 	req.Header.Set("Authorization", "Token relay-token")
+	req.Header.Set("X-Agent-Identity", "relay-identity")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -43,6 +47,9 @@ func TestHubChannelForwardsRelayPresenceToAiceberg(t *testing.T) {
 	}
 	if upstreamAuth != "Token relay-token" {
 		t.Fatalf("expected relay auth forwarded, got %q", upstreamAuth)
+	}
+	if upstreamIdentity != "relay-identity" {
+		t.Fatalf("expected relay identity forwarded, got %q", upstreamIdentity)
 	}
 	if upstreamPayload["mode"] != "relay" || upstreamPayload["session_id"] != "relay-session" {
 		t.Fatalf("unexpected upstream payload %#v", upstreamPayload)
@@ -108,6 +115,86 @@ func TestHubChannelRejectsNonRelayMode(t *testing.T) {
 	}
 }
 
+func TestHubIngestPreservesRelayIdentityHeader(t *testing.T) {
+	outbox := &testHubOutbox{}
+	handler := NewHandler(config.Config{}, outbox, testHubLogger{}, nil)
+
+	body := `[{"envelope_id":"env-1","agent_id":"relay-node","schema_version":1,"kind":"metric","ts_unix_ms":1,"body":{"ok":true}}]`
+	req := httptest.NewRequest(http.MethodPost, "/v1/ingest/metrics", strings.NewReader(body))
+	req.Header.Set("Authorization", "Token relay-token")
+	req.Header.Set("X-Agent-Identity", "relay-identity")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected status 202, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(outbox.batch) != 1 {
+		t.Fatalf("expected 1 buffered envelope, got %d", len(outbox.batch))
+	}
+	env := outbox.batch[0]
+	if env.AuthHeader != "Token relay-token" {
+		t.Fatalf("expected auth preserved, got %q", env.AuthHeader)
+	}
+	if env.IdentityHeader != "relay-identity" {
+		t.Fatalf("expected identity preserved, got %q", env.IdentityHeader)
+	}
+}
+
+func TestHubProxyPreservesIdentityForBootstrapConfigAndPing(t *testing.T) {
+	var seen []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.URL.Path+"|"+r.Method+"|"+r.Header.Get("Authorization")+"|"+r.Header.Get("X-Agent-Identity"))
+		switch r.URL.Path {
+		case "/v1/agent/config":
+			_, _ = w.Write([]byte(`{"version":"cfg-1","collect":{}}`))
+		case "/v1/agent/bootstrap":
+			_, _ = w.Write([]byte(`{"ok":true}`))
+		case "/v1/agent/ping":
+			if r.Method == http.MethodGet {
+				_, _ = w.Write([]byte(`{"challenge":"c1"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		default:
+			t.Fatalf("unexpected upstream route %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	handler := NewHandler(config.Config{APIBaseURL: upstream.URL}, nil, testHubLogger{}, nil)
+	for _, tc := range []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{method: http.MethodGet, path: "/v1/agent/config"},
+		{method: http.MethodPost, path: "/v1/agent/bootstrap", body: `{"hostname":"relay-1"}`},
+		{method: http.MethodGet, path: "/v1/agent/ping"},
+		{method: http.MethodPost, path: "/v1/agent/ping", body: `{"challenge":"c1"}`},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+		req.Header.Set("Authorization", "Token relay-token")
+		req.Header.Set("X-Agent-Identity", "relay-identity")
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code >= 300 {
+			t.Fatalf("%s %s returned %d body=%s", tc.method, tc.path, rec.Code, rec.Body.String())
+		}
+	}
+
+	if len(seen) != 4 {
+		t.Fatalf("expected 4 upstream calls, got %#v", seen)
+	}
+	for _, call := range seen {
+		if !strings.Contains(call, "|Token relay-token|relay-identity") {
+			t.Fatalf("identity/auth not preserved in %q", call)
+		}
+	}
+}
+
 func TestRelayChannelStoreRecordsAndClosesSession(t *testing.T) {
 	store := NewRelayChannelStore()
 	open := store.Record("hash", RelayChannelSession{
@@ -139,3 +226,25 @@ func (testHubLogger) Info(string)          {}
 func (testHubLogger) Error(string)         {}
 func (testHubLogger) Fatal(string, ...any) {}
 func (testHubLogger) Sync()                {}
+
+type testHubOutbox struct {
+	batch []entities.Envelope
+}
+
+func (o *testHubOutbox) Append(env entities.Envelope) error {
+	o.batch = append(o.batch, env)
+	return nil
+}
+
+func (o *testHubOutbox) ReadBatch(n int) ([]entities.Envelope, error) {
+	if n > len(o.batch) {
+		n = len(o.batch)
+	}
+	out := make([]entities.Envelope, n)
+	copy(out, o.batch[:n])
+	return out, nil
+}
+
+func (o *testHubOutbox) Ack(ids []string) error { return nil }
+
+func (o *testHubOutbox) Len() (int, int64) { return len(o.batch), 0 }

@@ -39,6 +39,7 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 			return
 		}
 		auth := r.Header.Get("Authorization")
+		identity := r.Header.Get("X-Agent-Identity")
 		if auth == "" {
 			http.Error(w, "missing Authorization", http.StatusUnauthorized)
 			return
@@ -70,6 +71,7 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 				batch[i].Endpoint = r.URL.Path
 			}
 			batch[i].AuthHeader = auth
+			batch[i].IdentityHeader = identity
 			if err := outbox.Append(batch[i]); err != nil {
 				log.Error(logger.KV("outbox append failed",
 					"event_id", batch[i].ID,
@@ -118,6 +120,9 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 			return
 		}
 		req.Header.Set("Authorization", auth)
+		if identity := r.Header.Get("X-Agent-Identity"); identity != "" {
+			req.Header.Set("X-Agent-Identity", identity)
+		}
 		cl := httpx.NewClient(cfg, 8*time.Second)
 		resp, err := cl.Do(req)
 		if err != nil {
@@ -150,6 +155,9 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 			return
 		}
 		req.Header.Set("Authorization", auth)
+		if identity := r.Header.Get("X-Agent-Identity"); identity != "" {
+			req.Header.Set("X-Agent-Identity", identity)
+		}
 		req.Header.Set("Content-Type", "application/json")
 		cl := httpx.NewClient(cfg, 10*time.Second)
 		resp, err := cl.Do(req)
@@ -175,6 +183,9 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 			return
 		}
 		req.Header.Set("Authorization", auth)
+		if identity := r.Header.Get("X-Agent-Identity"); identity != "" {
+			req.Header.Set("X-Agent-Identity", identity)
+		}
 		if ct := r.Header.Get("Content-Type"); ct != "" {
 			req.Header.Set("Content-Type", ct)
 		}
@@ -228,6 +239,9 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 			return
 		}
 		req.Header.Set("Authorization", auth)
+		if identity := r.Header.Get("X-Agent-Identity"); identity != "" {
+			req.Header.Set("X-Agent-Identity", identity)
+		}
 		req.Header.Set("Content-Type", "application/json")
 		cl := httpx.NewClient(cfg, 8*time.Second)
 		resp, err := cl.Do(req)

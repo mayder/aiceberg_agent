@@ -33,6 +33,7 @@ func (h *hubClient) SendWithAuth(batch []entities.Envelope, authHeader string, e
 	if err != nil {
 		return nil, err
 	}
+	setEnvelopeIdentityHeader(req, batch)
 	if authHeader != "" {
 		req.Header.Set("Authorization", authHeader)
 	} else if h.cfg.HubToken != "" {

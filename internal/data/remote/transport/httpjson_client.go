@@ -46,6 +46,7 @@ func (h *httpClient) SendWithAuth(batch []entities.Envelope, authHeader string, 
 	if err != nil {
 		return nil, err
 	}
+	setEnvelopeIdentityHeader(req, batch)
 	if authHeader != "" {
 		req.Header.Set("Authorization", authHeader)
 	} else if h.cfg.Agent.Token != "" {

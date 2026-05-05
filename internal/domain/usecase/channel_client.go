@@ -278,6 +278,9 @@ func (c *AgentChannelClient) close(ctx context.Context, sessionID, mode string) 
 }
 
 func (c *AgentChannelClient) post(ctx context.Context, payload map[string]any) (int64, error) {
+	if identity := c.cfg.AgentIdentityClaim(""); len(identity) > 0 {
+		payload["agent_identity"] = identity
+	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return 0, err
@@ -287,6 +290,9 @@ func (c *AgentChannelClient) post(ctx context.Context, payload map[string]any) (
 		return 0, err
 	}
 	httpx.SetAuth(req, c.cfg)
+	if identityHeader := c.cfg.AgentIdentityHeader(""); identityHeader != "" {
+		req.Header.Set("X-Agent-Identity", identityHeader)
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	start := time.Now()

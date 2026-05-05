@@ -70,6 +70,9 @@ func (uc *PingBackend) fetchChallenge(ctx context.Context) (string, error) {
 		return "", err
 	}
 	httpx.SetAuth(req, uc.cfg)
+	if identityHeader := uc.cfg.AgentIdentityHeader(""); identityHeader != "" {
+		req.Header.Set("X-Agent-Identity", identityHeader)
+	}
 
 	resp, err := uc.cl.Do(req)
 	if err != nil {
@@ -100,6 +103,9 @@ func (uc *PingBackend) sendAck(ctx context.Context, challenge string) error {
 		"version":   version.Version,
 		"sent_at":   time.Now().UTC().Format(time.RFC3339Nano),
 	}
+	if identity := uc.cfg.AgentIdentityClaim(""); len(identity) > 0 {
+		body["agent_identity"] = identity
+	}
 	raw, _ := json.Marshal(body)
 
 	url := uc.cfg.APIEndpoint("/v1/agent/ping")
@@ -111,6 +117,9 @@ func (uc *PingBackend) sendAck(ctx context.Context, challenge string) error {
 		return err
 	}
 	httpx.SetAuth(req, uc.cfg)
+	if identityHeader := uc.cfg.AgentIdentityHeader(""); identityHeader != "" {
+		req.Header.Set("X-Agent-Identity", identityHeader)
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := uc.cl.Do(req)

@@ -33,6 +33,7 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 		"HUB_URL=https://hub.env.local",
 		"API_BASE_URL=https://api.env.local",
 		"AGENT_TOKEN=file-secret-1234",
+		"AGENT_IDENTITY_SECRET=file-identity-secret-2468",
 		"HUB_TOKEN=file-hub-secret-5678",
 		"UNRELATED_KEY=must_not_appear",
 	}, "\n"))
@@ -41,6 +42,7 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 	t.Setenv("AGENT_TOKEN_PATH", tokenPath)
 	t.Setenv("AGENTLESS_TARGETS_PATH", agentlessTargetsPath)
 	t.Setenv("AGENT_TOKEN", "runtime-secret-abc123")
+	t.Setenv("AGENT_IDENTITY_SECRET", "runtime-identity-secret-1357")
 	t.Setenv("HUB_TOKEN", "runtime-hub-secret-def456")
 	t.Setenv("API_KEY", "runtime-api-secret-xyz789")
 	t.Setenv("SELFHEAL_POLL_INTERVAL", "45")
@@ -102,6 +104,7 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 		t.Fatalf("runtime_values missing or invalid: %#v", agentEnv["runtime_values"])
 	}
 	assertMaskedToken(t, runtimeValues, "AGENT_TOKEN", "runtime-secret-abc123")
+	assertMaskedToken(t, runtimeValues, "AGENT_IDENTITY_SECRET", "runtime-identity-secret-1357")
 	assertMaskedToken(t, runtimeValues, "HUB_TOKEN", "runtime-hub-secret-def456")
 	assertMaskedToken(t, runtimeValues, "API_KEY", "runtime-api-secret-xyz789")
 
@@ -110,6 +113,7 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 		t.Fatalf("file_values missing or invalid: %#v", agentEnv["file_values"])
 	}
 	assertMaskedToken(t, fileValues, "AGENT_TOKEN", "file-secret-1234")
+	assertMaskedToken(t, fileValues, "AGENT_IDENTITY_SECRET", "file-identity-secret-2468")
 	assertMaskedToken(t, fileValues, "HUB_TOKEN", "file-hub-secret-5678")
 	if _, exists := fileValues["UNRELATED_KEY"]; exists {
 		t.Fatalf("UNRELATED_KEY should not be present in allowlist snapshot")

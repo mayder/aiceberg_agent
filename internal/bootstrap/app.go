@@ -103,6 +103,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	} else if cfg.APIKey != "" {
 		authHeader = "Bearer " + cfg.APIKey
 	}
+	identityHeader := cfg.AgentIdentityHeader("")
 
 	var tx ports.Transport
 	if mode == "relay" {
@@ -129,11 +130,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	bootstrapEndpoint := "/v1/ingest/bootstrap"
 	networkCaptureEndpoint := "/v1/ingest/network_capture"
 
-	metricsUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics", metricsEndpoint, 10*time.Second, metricsKeys()), outboxRepo, log, authHeader, metricsEndpoint)
-	healthUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_health", healthEndpoint, 10*time.Minute, healthKeys()), outboxRepo, log, authHeader, healthEndpoint)
-	inventoryUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_inventory", inventoryEndpoint, 8*time.Hour, inventoryKeys()), outboxRepo, log, authHeader, inventoryEndpoint)
-	bootstrapUC := usecase.NewCollectAndBuffer(newFilteredCollector(collector, "sysmetrics_bootstrap", bootstrapEndpoint, 24*time.Hour, bootstrapKeys()), outboxRepo, log, authHeader, bootstrapEndpoint)
-	networkCaptureUC := usecase.NewCollectAndBuffer(networkcapture.New(prefStore.Get), outboxRepo, log, authHeader, networkCaptureEndpoint)
+	metricsUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics", metricsEndpoint, 10*time.Second, metricsKeys()), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
+	healthUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_health", healthEndpoint, 10*time.Minute, healthKeys()), outboxRepo, log, authHeader, identityHeader, healthEndpoint)
+	inventoryUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_inventory", inventoryEndpoint, 8*time.Hour, inventoryKeys()), outboxRepo, log, authHeader, identityHeader, inventoryEndpoint)
+	bootstrapUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_bootstrap", bootstrapEndpoint, 24*time.Hour, bootstrapKeys()), outboxRepo, log, authHeader, identityHeader, bootstrapEndpoint)
+	networkCaptureUC := usecase.NewCollectAndBufferWithIdentity(networkcapture.New(prefStore.Get), outboxRepo, log, authHeader, identityHeader, networkCaptureEndpoint)
 
 	commandChan := make(chan usecase.ControlCommand, 10)
 	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore, commandChan)
@@ -260,7 +261,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	osRepo := repositories.NewOutboxRepository(osStore)
 	osLogRepo = osRepo
 	osCollector := oslogs.New(cfg, prefStore.Get)
-	osLogCollectUC = usecase.NewCollectAndBuffer(osCollector, osRepo, log, authHeader, "/v1/logs/raw")
+	osLogCollectUC = usecase.NewCollectAndBufferWithIdentity(osCollector, osRepo, log, authHeader, identityHeader, "/v1/logs/raw")
 	var osTx ports.Transport
 	if mode == "relay" {
 		osTx = transport.NewHubClient(cfg)
@@ -986,6 +987,9 @@ func bootstrap(ctx context.Context, cfg config.Config, log logger.Logger) error 
 		"host_guid":        hi.HostID,
 		"versao_agente":    version.Version,
 	}
+	if identity := cfg.AgentIdentityClaim(hi.HostID); len(identity) > 0 {
+		payload["agent_identity"] = identity
+	}
 	body, _ := json.Marshal(payload)
 	url := cfg.APIEndpoint("/v1/agent/bootstrap")
 	if cfg.AgentMode == "relay" && cfg.HubURL != "" {
@@ -997,6 +1001,9 @@ func bootstrap(ctx context.Context, cfg config.Config, log logger.Logger) error 
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Token "+cfg.Agent.Token)
+	if identityHeader := cfg.AgentIdentityHeader(hi.HostID); identityHeader != "" {
+		req.Header.Set("X-Agent-Identity", identityHeader)
+	}
 
 	cl := httpx.NewClient(cfg, 10*time.Second)
 	resp, err := cl.Do(req)

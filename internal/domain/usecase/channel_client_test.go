@@ -15,12 +15,14 @@ import (
 
 func TestAgentChannelClientOpenSendsDirectPresence(t *testing.T) {
 	var gotAuth string
+	var gotIdentity string
 	var got map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != channelRoute {
 			t.Fatalf("unexpected route %s", r.URL.Path)
 		}
 		gotAuth = r.Header.Get("Authorization")
+		gotIdentity = r.Header.Get("X-Agent-Identity")
 		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
@@ -30,9 +32,12 @@ func TestAgentChannelClientOpenSendsDirectPresence(t *testing.T) {
 	defer server.Close()
 
 	client := NewAgentChannelClient(config.Config{
-		Agent:      config.AgentCfg{Token: "agent-token"},
-		APIBaseURL: server.URL,
-		AgentMode:  "direct",
+		Agent:               config.AgentCfg{Token: "agent-token"},
+		APIBaseURL:          server.URL,
+		AgentMode:           "direct",
+		AgentClientID:       7,
+		AgentID:             42,
+		AgentInstallationID: "install-01",
 	}, testLogger{})
 
 	if _, err := client.open(context.Background(), "session-1", channel.ModeDirect); err != nil {
@@ -42,8 +47,18 @@ func TestAgentChannelClientOpenSendsDirectPresence(t *testing.T) {
 	if gotAuth != "Token agent-token" {
 		t.Fatalf("unexpected auth header %q", gotAuth)
 	}
+	if gotIdentity == "" {
+		t.Fatalf("expected identity header on channel open")
+	}
 	if got["action"] != "open" || got["session_id"] != "session-1" || got["mode"] != "direct" {
 		t.Fatalf("unexpected open payload %#v", got)
+	}
+	identity, ok := got["agent_identity"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected agent_identity in channel payload, got %#v", got["agent_identity"])
+	}
+	if identity["schema_version"] != config.AgentIdentitySchemaVersion || identity["signature"] == "" {
+		t.Fatalf("unexpected identity payload %#v", identity)
 	}
 	if got["version"] != version.Version {
 		t.Fatalf("expected version %q, got %#v", version.Version, got["version"])

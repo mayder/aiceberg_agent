@@ -41,6 +41,9 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 		return err
 	}
 	httpx.SetAuth(req, uc.cfg)
+	if identityHeader := uc.cfg.AgentIdentityHeader(""); identityHeader != "" {
+		req.Header.Set("X-Agent-Identity", identityHeader)
+	}
 
 	resp, err := uc.cl.Do(req)
 	if err != nil {
