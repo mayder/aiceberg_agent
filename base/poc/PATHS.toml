@@ -1,0 +1,108 @@
+# Mapa oficial do projeto para uso humano e por IA.
+
+[project]
+name = "aiceberg_agent_poc"
+root = "/Users/brenomayder/projects/desktop/aiceberg_agent/base/poc"
+language = "pt-BR"
+
+[files]
+scope = "ESCOPO.md"
+governance = "GOVERNANCA.md"
+roadmap = "QUALITY_ROADMAP.md"
+backlog = "DEMANDAS.md"
+bugs = "BUGS.md"
+screens = "TELAS.md"
+tests = "TESTES.md"
+decisions = "DECISOES.md"
+runbook = "RUNBOOK.md"
+readme = "README.md"
+check = "./check.sh"
+mindmap_complete = "MAPA_MENTAL_MARKMAP.md"
+mindmap_executive = "MAPA_EXECUTIVO_MARKMAP.md"
+
+[rules]
+read_order = [
+  "PATHS.toml",
+  "QUALITY_ROADMAP.md",
+  "GOVERNANCA.md",
+  "DEMANDAS.md",
+]
+
+[modules]
+main.root = "/Users/brenomayder/projects/desktop/aiceberg_agent/base/poc"
+
+[checks]
+required = [
+  "./check.sh",
+]
+
+[quality]
+max_file_lines = 524
+max_function_lines = 50
+runtime_dirs = [
+  ".",
+]
+docs_only_paths = [
+  "PATHS.toml",
+  "ESCOPO.md",
+  "GOVERNANCA.md",
+  "QUALITY_ROADMAP.md",
+  "DEMANDAS.md",
+  "BUGS.md",
+  "TELAS.md",
+  "TESTES.md",
+  "DECISOES.md",
+  "RUNBOOK.md",
+  "README.md",
+  "MAPA_MENTAL_MARKMAP.md",
+  "MAPA_EXECUTIVO_MARKMAP.md",
+]
+sql_dirs = []
+forbid_runtime_patterns = [
+  "PKG-[0-9]+",
+  "Lote [0-9]+",
+]
+
+[quality.stack]
+language = "go"
+framework = "Go POC, gopsutil"
+
+[quality.coverage]
+enabled = false
+min_lines = 0
+critical_min_lines = 0
+
+[quality.fixtures]
+dirs = []
+allow_production_dump = false
+require_deterministic_ids = true
+max_fixture_file_kb = 512
+forbid_fixture_name_patterns = [
+  "prod",
+  "production",
+  "dump-real",
+  "real-dump",
+]
+
+[quality.observability]
+enabled = true
+default_log_retention_days = 30
+audit_retention_days = 180
+prefer_existing_tables = true
+avoid_new_tables_without_justification = true
+require_cleanup_policy = true
+
+[quality.layering]
+enabled = true
+forbidden_imports = [
+  "domain->framework",
+  "service->handler",
+  "usecase->transport",
+]
+
+[ai.reading]
+default = ["PATHS.toml"]
+package = ["PATHS.toml", "QUALITY_ROADMAP.md", "GOVERNANCA.md", "DEMANDAS.md"]
+bug = ["PATHS.toml", "BUGS.md", "TESTES.md"]
+ui = ["PATHS.toml", "TELAS.md", "TESTES.md"]
+architecture = ["PATHS.toml", "ESCOPO.md", "QUALITY_ROADMAP.md", "DECISOES.md"]

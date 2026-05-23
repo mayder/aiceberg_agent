@@ -57,3 +57,25 @@ Config/prefs: `version`, `err`.
 ## Como rodar checks (atalhos)
 
 - ./check.sh
+
+---
+
+## Modelo de trabalho IA - 2026-05-22
+
+Projeto: `aiceberg_agent`. Stack: Go agent/CLI, gopsutil, NTP, SNMP. Este arquivo segue `PATHS.toml` e deve ser mantido atualizado ao iniciar ou alterar o projeto.
+
+## Regras essenciais do modelo
+
+- SOLID e separacao de responsabilidades sao obrigatorios para qualquer implementacao.
+- Leitura mínima por tipo de tarefa: seguir `PATHS.toml` e abrir somente os arquivos necessarios para pacote, bug, UI, arquitetura ou docs.
+- Resposta final curta: informar o que foi feito, bloqueios e como validar.
+- Se a branch atual for `main` ou `hml`, confirmar com o usuario antes de alterar, exceto quando ja houver autorizacao explicita para o lote.
+- Nunca usar migrations. Mudancas de banco devem ser scripts `.sql`, preferencialmente idempotentes, com ordem e rollback.
+- Observabilidade mínima da aplicação: logs estruturados, correlacao quando aplicavel, metricas/auditoria proporcionais ao risco e sem criar tabelas desnecessarias.
+- Toda observabilidade persistida precisa de retenção e limpeza documentadas.
+- Review de fechamento de pacote: revisar bugs, regressao, arquitetura, testes, docs, riscos e rollback antes de encerrar.
+- Contrato de módulo: cada modulo deve declarar responsabilidade, entrada, saida, erros, dependencias e limites de camada.
+- Nomenclatura oficial do projeto: registrar nomes aprovados para handler, service, use case, repository, adapter, DTO/schema e evitar sinonimos sem decisao.
+- Adaptação à arquitetura real: ao aplicar este modelo em projeto real, a IA deve inspecionar linguagem, framework, pastas, comandos, testes e convencoes antes de editar.
+- Decisoes arquiteturais devem ser registradas em `DECISOES.md` usando o formato `DEC-YYYYMMDD-01`.
+- Check adaptável por stack: `check.sh` deve chamar validacoes do modelo e os comandos reais da linguagem/framework do projeto.

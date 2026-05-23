@@ -242,3 +242,13 @@ Quando formos criar instaladores, este fluxo servirá de base: validar token, gr
 
 Projeto de propriedade do **AIceberg**, desenvolvido sob orientação do Arquiteto do Caos Elegante.  
 Todos os direitos reservados.
+
+---
+
+## Modelo de trabalho IA - 2026-05-22
+
+Projeto: `aiceberg_agent`. Stack: Go agent/CLI, gopsutil, NTP, SNMP. Este arquivo segue `PATHS.toml` e deve ser mantido atualizado ao iniciar ou alterar o projeto.
+
+## Modelo de trabalho
+
+- `MAPA_MENTAL_MARKMAP.md` contem o mapa completo para Markmap; `MAPA_EXECUTIVO_MARKMAP.md` contem a versao resumida.

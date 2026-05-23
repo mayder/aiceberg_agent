@@ -173,3 +173,13 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 - remover outbox persistente;
 - trocar o protocolo HTTP de ingestão antes da correção de resiliência;
 - alterar banco da Web a partir do repositório do agente.
+
+---
+
+## Modelo de trabalho IA - 2026-05-22
+
+Projeto: `aiceberg_agent`. Stack: Go agent/CLI, gopsutil, NTP, SNMP. Este arquivo segue `PATHS.toml` e deve ser mantido atualizado ao iniciar ou alterar o projeto.
+
+## Quando criar pacote
+
+Criar pacote quando houver varias demandas relacionadas, risco transversal, mudanca em mais de um modulo ou necessidade de dividir entrega em lotes. Um lote pode resolver uma ou mais demandas, mas o pacote so fecha apos check completo e review de fechamento.

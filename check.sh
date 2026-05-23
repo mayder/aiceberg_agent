@@ -4,6 +4,16 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+run_model_validations() {
+  local script
+  for script in     scripts/validate-required-files.sh     scripts/validate-paths.sh     scripts/validate-docs.sh     scripts/validate-rules.sh     scripts/validate-no-secrets.sh     scripts/validate-file-size.sh     scripts/validate-no-runtime-pkg-names.sh     scripts/validate-fixtures.sh     scripts/validate-layering.sh     scripts/validate-stack.sh; do
+    [[ -x "$script" ]] || { echo "[check:modelo] ERROR: script obrigatório ausente ou sem execução: $script" >&2; exit 1; }
+    "$script"
+  done
+}
+
+run_model_validations
+
 if [[ -f .env ]]; then
   set -a
   # shellcheck disable=SC1091

@@ -1,0 +1,378 @@
+# TESTES.md
+
+Fonte de verdade para testes automatizados, validação manual e reteste de bugs.
+
+## Ordem de leitura
+
+1. `PATHS.toml`
+2. `QUALITY_ROADMAP.md`
+3. `GOVERNANCA.md`
+4. `DEMANDAS.md`
+5. `TELAS.md`
+6. `BUGS.md`
+
+## Pirâmide de testes
+
+### Unitário
+
+- Testa regra pura, mapper, policy, validator, parser e cálculo.
+- Deve ser rápido e determinístico.
+- Não acessa rede, banco real, filesystem real ou UI real.
+
+### Service/use case
+
+- Testa fluxo de negócio.
+- Usa mocks/fakes de repositories, gateways e adapters.
+- Cobre caso feliz, validação, permissão e falha de dependência.
+
+### Repository/adapter
+
+- Testa transformação, query, serialização ou contrato com dependência externa.
+- Pode usar banco local, fixture ou fake controlado.
+- Não deve depender de produção.
+
+### Contrato/API
+
+- Testa payload público, status, erro, paginação, filtros e autorização.
+- Deve impedir vazamento de entidade interna.
+
+### Componente/widget
+
+- Testa renderização, estados e ações principais.
+- Cobre loading, empty, error, success e interação principal.
+
+### E2E
+
+- Usar para fluxo crítico e regressão de alto risco.
+- Deve ser menor que o fluxo real completo quando possível.
+- Precisa ter dados controlados e evidência clara.
+
+## Cobertura mínima por criticidade
+
+Cobertura aqui significa evidência obrigatória, não apenas percentual.
+
+Percentual de cobertura pode ser ativado por projeto em `PATHS.toml`, mas não é obrigatório no modelo universal.
+
+### P0 / crítico
+
+Aplicável a login, permissão, pagamento, dados sensíveis, operação principal, banco, integrações críticas, publicação e rollback.
+
+Exige:
+
+- teste unitário para regra de negócio;
+- teste de service/use case para fluxo principal;
+- teste de contrato quando houver API;
+- teste de permissão/autorização quando aplicável;
+- teste de erro/falha de dependência;
+- validação de rollback quando houver risco operacional ou banco;
+- validação manual ampla ou E2E do fluxo principal no fechamento do pacote.
+
+### P1 / importante
+
+Aplicável a CRUDs principais, telas operacionais, relatórios importantes e fluxos usados com frequência.
+
+Exige:
+
+- teste unitário ou service quando houver regra;
+- teste de contrato quando houver API;
+- teste de componente/widget quando UI crítica;
+- teste de erro principal;
+- validação manual focada no fechamento.
+
+### P2 / baixo risco
+
+Aplicável a ajustes visuais, copy, documentação, melhorias pequenas e telas secundárias.
+
+Exige:
+
+- teste local/focado quando houver código;
+- revisão de diff quando for documentação;
+- validação visual quando a mudança for visível e houver ambiente disponível;
+- sem obrigação de cobertura automatizada, salvo regressão recorrente.
+
+## Cobertura percentual opcional
+
+Use percentual quando o projeto já tiver ferramenta estável de cobertura.
+
+Regras:
+
+- não usar percentual como única métrica de qualidade;
+- não bloquear projeto legado só por cobertura histórica baixa sem plano incremental;
+- exigir cobertura maior apenas para código novo ou alterado quando fizer sentido;
+- configurar comando e metas em `PATHS.toml`.
+
+Configuração sugerida:
+
+```toml
+[quality.coverage]
+enabled = true
+min_lines = 70
+critical_min_lines = 80
+command = "comando de cobertura do projeto"
+```
+
+## Dados de teste e fixtures
+
+Regra principal: teste não pode depender de dado real instável, estado manual ou ordem implícita de execução.
+
+### Unitário
+
+- Usar objetos em memória.
+- Não acessar banco, rede, filesystem real ou UI real.
+- Usar factories pequenas quando precisar montar entidades.
+
+### Service/use case
+
+- Usar fakes/mocks de repositories e gateways.
+- Declarar dados explicitamente no teste.
+- Evitar fixture global grande.
+
+### Repository/adapter
+
+- Usar banco local, fixture SQL ou arquivo controlado.
+- Limpar estado antes/depois quando houver persistência.
+- Não depender de produção.
+
+### Contrato/API
+
+- Usar payloads fixture versionados.
+- Testar resposta esperada.
+- Testar erro de validação.
+- Testar autorização quando aplicável.
+
+### E2E
+
+- Usar seed controlado.
+- Criar dados descartáveis.
+- Limpar dados quando seguro.
+- Não usar conta ou dado real sem autorização explícita.
+- Evitar depender de horário real, ordenação solta ou dados que mudam.
+
+## Regras de fixture
+
+- Fixture deve ser pequena, legível e específica.
+- Fixture compartilhada só quando representar contrato estável.
+- Não colocar segredo real em fixture.
+- Não usar dump grande de produção.
+- Dado temporal deve usar data fixa ou clock controlado.
+- IDs devem ser determinísticos quando o teste depende deles.
+- Teste deve poder rodar isolado.
+- Configurar diretórios de fixture em `PATHS.toml` quando o projeto usar fixtures.
+
+## Roteiro para `PKG-XX`
+
+1. Ler pacote em `DEMANDAS.md`.
+2. Identificar módulos, contratos e telas afetadas.
+3. Separar validação por lote e validação de fechamento do pacote.
+4. Definir testes mínimos antes de implementar cada lote.
+5. Criar ou ajustar testes junto da entrega quando a mudança introduz regra ou contrato.
+6. Rodar validação rasa por lote.
+7. Rodar validação completa somente quando o pacote estiver 100%.
+8. Registrar validação e bloqueios.
+
+## Validação por lote
+
+Objetivo: dar feedback rápido, sem gastar tempo com bateria completa a cada subentrega.
+
+Rodar somente o menor conjunto que prova que o lote não quebrou o ponto alterado:
+
+- lint/formatação do arquivo ou módulo tocado quando a stack permitir;
+- teste unitário do service, função, controller, widget ou componente alterado;
+- teste de contrato focado quando endpoint/payload mudou;
+- build/type-check focado quando disponível e rápido;
+- validação manual curta da tela/fluxo alterado quando houver UI.
+
+Não é obrigatório rodar E2E completo, suíte inteira, teste externo lento ou validação manual ampla a cada lote.
+
+Ao fechar lote:
+
+- atualizar `DEMANDAS.md`;
+- registrar teste raso executado;
+- registrar pendência real se algo ficar para o fechamento do pacote;
+- não fazer commit obrigatório ainda, salvo pedido explícito.
+
+## Validação de fechamento do pacote
+
+Quando todos os lotes do pacote estiverem implementados:
+
+1. Rodar `./check.sh` completo.
+2. Rodar suítes automatizadas relevantes para todos os módulos tocados.
+3. Rodar E2E ou validação manual ampla do fluxo principal quando aplicável.
+4. Retestar bugs relacionados.
+5. Validar regressões dos lotes anteriores.
+6. Atualizar `DEMANDAS.md`, `TELAS.md`, `BUGS.md`, `TESTES.md` e `RUNBOOK.md` quando aplicável.
+7. Corrigir tudo que apareceu no fechamento, mesmo que venha de lote anterior do mesmo pacote.
+8. Executar review de fechamento do pacote conforme `QUALITY_ROADMAP.md`.
+9. Fazer commit do pacote fechado.
+
+## Commit por pacote
+
+- Todo pacote 100% implementado e validado deve terminar em commit.
+- Não é obrigatório fazer push.
+- O commit deve conter somente o pacote ou uma mudança lógica claramente relacionada.
+- A mensagem deve citar o pacote quando existir: `Implementa PKG-XX ...`.
+- O corpo do commit deve citar o check executado: `Check: ./check.sh`.
+- Se houver SQL, citar scripts e ordem de execução.
+- Se o pacote não puder fechar, não fazer commit de fechamento; registrar bloqueio real em `DEMANDAS.md`.
+
+## Roteiro para `TELA-XX`
+
+1. Ler tela em `TELAS.md`.
+2. Validar campos, ações, estados e regras de exibição.
+3. Validar responsividade quando houver UI real.
+4. Capturar evidência visual quando possível.
+5. Registrar bug se houver divergência.
+
+## Roteiro para `BUG-XX`
+
+1. Ler bug em `BUGS.md`.
+2. Reproduzir passos.
+3. Classificar risco da correção.
+4. Aplicar menor correção possível.
+5. Retestar conforme o risco.
+6. Atualizar status, evidência e critério de fechamento.
+
+## Validação para bug
+
+### Bug simples
+
+Use quando a causa é clara, o impacto é local e a correção toca pouco código.
+
+Exemplos:
+
+- label incorreto;
+- texto, acento, capitalização ou copy;
+- alinhamento local;
+- validação simples;
+- fallback visual isolado;
+- erro em uma função pequena.
+
+Validação esperada:
+
+- reproduzir antes quando possível;
+- aplicar correção;
+- rodar teste local/focado;
+- validar a tela, função ou fluxo específico;
+- atualizar `BUGS.md` se o bug estava registrado.
+
+Não exige suíte completa nem E2E amplo, salvo se o bug estiver em fluxo crítico.
+
+### Bug complexo
+
+Use quando a correção toca regra de negócio, contrato, persistência, permissão, segurança, sincronização, concorrência, integração externa ou muitos arquivos.
+
+Validação esperada:
+
+- reproduzir ou comprovar a falha;
+- criar ou ajustar teste automatizado;
+- rodar testes focados durante a correção;
+- rodar `./check.sh`;
+- retestar fluxo completo afetado;
+- validar regressões próximas;
+- atualizar `BUGS.md`, `TELAS.md`, `TESTES.md` ou `RUNBOOK.md` quando aplicável.
+
+## Validação para melhoria simples fora de pacote
+
+Use quando a mudança não faz parte de pacote e tem baixo risco.
+
+### Sem código runtime
+
+Exemplos:
+
+- atualizar `DEMANDAS.md`;
+- ajustar documentação;
+- corrigir mapa mental;
+- ajustar README;
+- reorganizar texto de governança.
+
+Validação esperada:
+
+- revisar o diff;
+- rodar validação documental ou `./check.sh` quando o check for rápido;
+- não exigir teste automatizado, E2E ou validação manual de produto.
+
+### Com código runtime local
+
+Exemplos:
+
+- trocar label;
+- ajustar copy;
+- corrigir ícone;
+- pequeno espaçamento;
+- mensagem de erro local;
+- ajuste visual isolado.
+
+Validação esperada:
+
+- rodar teste local/focado quando existir;
+- abrir a tela afetada quando viável;
+- capturar evidência visual se a mudança for visível e houver ambiente disponível;
+- não exigir suíte completa, salvo se a mudança afetar fluxo crítico.
+
+### Com risco médio ou alto
+
+Se a melhoria simples crescer e tocar regra, contrato, permissão, persistência, integração ou múltiplos módulos, ela deixa de ser simples.
+
+Nesse caso:
+
+- criar pacote em `DEMANDAS.md` ou vincular a pacote existente;
+- aplicar validação por lote e fechamento de pacote;
+- executar check completo no fechamento.
+
+## Critério mínimo por entrega
+
+- Lote: validação rasa e focada no que mudou.
+- Pacote 100%: validação completa e commit.
+- Mudança só documental: revisão de diff e check documental quando aplicável.
+- Melhoria simples com código: teste local/focado.
+- Bug simples: reprodução/reteste focado.
+- Bug complexo: teste focado durante a correção e validação completa do fluxo afetado.
+- Regra de negócio: teste unitário ou service.
+- API: teste de contrato no lote e suíte relevante no fechamento.
+- UI: teste de componente/widget ou validação manual documentada.
+- Bug: reteste pelo passo de reprodução.
+- Banco: validação do SQL e rollback documentado.
+- Fluxo crítico: validar log/auditoria/métrica mínima quando aplicável.
+
+## Testes por stack
+
+Cada projeto deve adaptar o comando ao ecossistema real.
+
+- Go: unidade/service/API com `go test`; build quando fechar pacote.
+- Python: unidade/service/API com test runner do projeto; type-check/lint quando configurado.
+- PHP: lint/static analysis/testes conforme framework.
+- Node/TypeScript: unit/component/API, type-check e build no fechamento.
+- Flutter/Dart: controller/widget tests, `flutter analyze` e `flutter test`.
+- Mobile nativo: unit/UI tests e build/smoke no fechamento.
+
+## Sinal de teste insuficiente
+
+- Mudança de regra sem teste unitário ou service.
+- Mudança de contrato sem teste de contrato.
+- Mudança de UI crítica sem teste de componente/widget ou validação manual.
+- Bug complexo sem teste novo ou justificativa.
+- Pacote fechado sem `./check.sh`.
+- P0 sem teste de permissão, erro ou falha de dependência quando aplicável.
+- Pacote fechado sem review de escopo, regressão, arquitetura, docs e diff final.
+- E2E ou contrato dependente de dado real instável.
+- Fixture grande, opaca ou derivada de produção.
+- Fluxo crítico sem forma de diagnóstico em produção.
+- Log/auditoria persistido sem retenção ou cleanup.
+
+## Adaptacao deste projeto
+
+- Projeto: `aiceberg_agent`
+- Tipo: Agente Go
+- Stack detectada: Go agent/CLI, gopsutil, NTP, SNMP
+- Regra: adaptar comandos, camadas, testes, fixtures e limites conforme a realidade deste modulo Go.
+- Pacote/lote: lotes usam testes rasos e direcionados; fechamento de pacote exige `./check.sh` completo ou justificativa documentada.
+
+## Politica minima de testes
+
+- Unitário: validar regra de negocio, casos de erro e limites sem depender de rede, banco real ou UI.
+- Integracao: validar contratos entre camadas, banco local/controlado, API e adapters.
+- E2E: validar fluxos criticos do usuario quando houver interface ou jornada operacional relevante.
+- Cobertura mínima por criticidade: modulo critico deve ter meta documentada no projeto; modulo simples pode exigir apenas evidencia direcionada.
+- Dados de teste e fixtures: usar dados pequenos, deterministas, sem dump real de producao e com IDs previsiveis.
+- Pacote/lote: lotes usam testes rasos e direcionados; fechamento do pacote exige check completo.
+- Bug simples ou melhoria sem impacto de codigo pode usar teste local/direcionado. Bug complexo ou mudanca ampla exige check completo.
