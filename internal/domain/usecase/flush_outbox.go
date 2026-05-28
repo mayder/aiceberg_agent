@@ -3,13 +3,12 @@ package usecase
 import (
 	"context"
 	"errors"
-	"net"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/common/retry"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
@@ -154,7 +153,22 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 					"err", err,
 				))
 			}
-			uc.registerFailure(key, group.endpoint, len(list), err)
+			if delay, ok := uc.registerFailure(key, group.endpoint, len(list), err); ok {
+				uc.log.Info(logger.KV("transport backoff scheduled",
+					"route", group.endpoint,
+					"batch_size", len(list),
+					"err_kind", retry.ErrorKindTransient,
+					"retry_after_ms", delay.Milliseconds(),
+				))
+			} else {
+				uc.log.Error(logger.KV("transport permanent failure cooldown",
+					"route", group.endpoint,
+					"batch_size", len(list),
+					"err_kind", retry.ClassifyError(err),
+					"retry_after_ms", retry.DefaultMaxBackoff.Milliseconds(),
+					"err", err,
+				))
+			}
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -224,19 +238,29 @@ func (uc *FlushOutbox) backoffUntil(key string) (time.Time, bool) {
 	return state.until, true
 }
 
-func (uc *FlushOutbox) registerFailure(key, endpoint string, batchSize int, err error) {
+func (uc *FlushOutbox) registerFailure(key, endpoint string, batchSize int, err error) (time.Duration, bool) {
 	uc.mu.Lock()
 	defer uc.mu.Unlock()
-	state := uc.backoff[key]
-	state.failures++
-	delay := backoffDelay(state.failures, err)
-	state.until = uc.now().Add(delay)
-	uc.backoff[key] = state
 	uc.snapshot.LastError = err.Error()
 	uc.snapshot.LastErrorRoute = endpoint
 	uc.snapshot.LastErrorBatch = batchSize
+	if retry.ClassifyError(err) != retry.ErrorKindTransient {
+		delay := retry.DefaultMaxBackoff
+		state := uc.backoff[key]
+		state.until = uc.now().Add(delay)
+		uc.backoff[key] = state
+		uc.snapshot.LastBackoffRoute = endpoint
+		uc.snapshot.LastBackoffUntilUnix = state.until.Unix()
+		return delay, false
+	}
+	state := uc.backoff[key]
+	state.failures++
+	delay := retry.BackoffDelay(state.failures, retry.DefaultInitialBackoff, retry.DefaultMaxBackoff, retry.DefaultMinJitter, retry.DefaultMaxJitter, nil)
+	state.until = uc.now().Add(delay)
+	uc.backoff[key] = state
 	uc.snapshot.LastBackoffRoute = endpoint
 	uc.snapshot.LastBackoffUntilUnix = state.until.Unix()
+	return delay, true
 }
 
 func (uc *FlushOutbox) resetBackoff(key string) {
@@ -320,33 +344,4 @@ func envelopeIDs(batch []entities.Envelope) []string {
 		}
 	}
 	return ids
-}
-
-func backoffDelay(failures int, err error) time.Duration {
-	if !temporaryTransportError(err) {
-		return 30 * time.Second
-	}
-	if failures <= 1 {
-		return 5 * time.Second
-	}
-	if failures == 2 {
-		return 15 * time.Second
-	}
-	if failures == 3 {
-		return 30 * time.Second
-	}
-	return time.Minute
-}
-
-func temporaryTransportError(err error) bool {
-	var netErr net.Error
-	if errors.As(err, &netErr) && netErr.Timeout() {
-		return true
-	}
-	if se, ok := err.(interface{ StatusCode() int }); ok {
-		code := se.StatusCode()
-		return code == http.StatusTooManyRequests || code >= 500
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "timeout") || strings.Contains(msg, "deadline exceeded") || strings.Contains(msg, "temporary")
 }
