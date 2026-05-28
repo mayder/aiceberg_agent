@@ -11,6 +11,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/common/retry"
 	"github.com/you/aiceberg_agent/internal/common/version"
 )
 
@@ -19,6 +20,7 @@ type PingBackend struct {
 	log      logger.Logger
 	cl       *http.Client
 	hostname string
+	backoff  *retry.Backoff
 }
 
 func NewPingBackend(cfg config.Config, log logger.Logger) *PingBackend {
@@ -28,23 +30,36 @@ func NewPingBackend(cfg config.Config, log logger.Logger) *PingBackend {
 		log:      log,
 		cl:       httpx.NewClient(cfg, 5*time.Second),
 		hostname: hn,
+		backoff:  retry.NewBackoff(),
 	}
 }
 
 func (uc *PingBackend) Execute(ctx context.Context) error {
+	if until, ok := uc.backoff.Active(); ok {
+		uc.log.Info(logger.KV("ping backoff active",
+			"route", "/v1/agent/ping",
+			"retry_after_ms", time.Until(until).Milliseconds(),
+		))
+		return nil
+	}
 	start := time.Now()
 	challenge, err := uc.fetchChallenge(ctx)
 	if err != nil || challenge == "" {
 		if err != nil {
+			uc.recordFailure(err)
 			uc.log.Error(logger.KV("ping challenge failed",
 				"route", "/v1/agent/ping",
 				"err", err,
 			))
 		}
+		if err == nil {
+			uc.backoff.Reset()
+		}
 		return err
 	}
 	err = uc.sendAck(ctx, challenge)
 	if err != nil {
+		uc.recordFailure(err)
 		uc.log.Error(logger.KV("ping ack failed",
 			"route", "/v1/agent/ping",
 			"err", err,
@@ -57,7 +72,27 @@ func (uc *PingBackend) Execute(ctx context.Context) error {
 		"challenge", challenge,
 		"duration_ms", durationMs,
 	))
+	uc.backoff.Reset()
 	return nil
+}
+
+func (uc *PingBackend) recordFailure(err error) {
+	delay, kind := uc.backoff.Failure(err)
+	if kind != retry.ErrorKindTransient {
+		delay = uc.backoff.Cooldown(retry.DefaultMaxBackoff)
+		uc.log.Error(logger.KV("ping permanent failure",
+			"route", "/v1/agent/ping",
+			"err_kind", kind,
+			"retry_after_ms", delay.Milliseconds(),
+			"err", err,
+		))
+		return
+	}
+	uc.log.Info(logger.KV("ping backoff scheduled",
+		"route", "/v1/agent/ping",
+		"err_kind", kind,
+		"retry_after_ms", delay.Milliseconds(),
+	))
 }
 
 func (uc *PingBackend) fetchChallenge(ctx context.Context) (string, error) {
@@ -140,3 +175,6 @@ func (uc *PingBackend) sendAck(ctx context.Context, challenge string) error {
 type httpStatusErr struct{ code int }
 
 func (e *httpStatusErr) Error() string { return http.StatusText(e.code) }
+func (e *httpStatusErr) StatusCode() int {
+	return e.code
+}

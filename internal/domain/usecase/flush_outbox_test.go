@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"net/http"
 	"sort"
 	"testing"
 	"time"
@@ -24,6 +25,11 @@ type fakeTransport struct {
 	body          []byte
 	errByEndpoint map[string]error
 }
+
+type fakeHTTPStatusErr struct{ code int }
+
+func (e fakeHTTPStatusErr) Error() string   { return http.StatusText(e.code) }
+func (e fakeHTTPStatusErr) StatusCode() int { return e.code }
 
 func (f *fakeTransport) SendWithAuth(batch []entities.Envelope, authHeader string, endpoint string) ([]byte, error) {
 	identity := ""
@@ -213,6 +219,29 @@ func TestFlushOutbox_BackoffSkipsFailedRouteTemporarily(t *testing.T) {
 	}
 	if len(tx.calls) != 1 {
 		t.Fatalf("expected second run to skip transport, got %d calls", len(tx.calls))
+	}
+}
+
+func TestFlushOutbox_PermanentHTTPErrorUsesCooldownWithoutExponentialRetry(t *testing.T) {
+	outbox := &fakeOutbox{batch: []entities.Envelope{
+		{ID: "metrics-1", AuthHeader: "Token a", Endpoint: "/v1/ingest/metrics", AgentID: "a"},
+	}}
+	tx := &fakeTransport{errByEndpoint: map[string]error{
+		"/v1/ingest/metrics": fakeHTTPStatusErr{code: http.StatusBadRequest},
+	}}
+	uc := NewFlushOutbox(outbox, tx, &fakeLogger{}, "Token default", nil)
+
+	if _, err := uc.Execute(context.Background()); err == nil {
+		t.Fatalf("expected first permanent error")
+	}
+	if _, err := uc.Execute(context.Background()); err == nil {
+		t.Fatalf("expected cooldown error")
+	}
+	if len(tx.calls) != 1 {
+		t.Fatalf("expected permanent cooldown to skip second API call, got %d calls", len(tx.calls))
+	}
+	if snap := uc.Snapshot(); snap.LastBackoffRoute != "/v1/ingest/metrics" || snap.LastBackoffUntilUnix == 0 {
+		t.Fatalf("permanent cooldown must be visible in snapshot, got %#v", snap)
 	}
 }
 

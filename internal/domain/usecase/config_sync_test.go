@@ -106,3 +106,29 @@ func TestConfigSync_AppliesPayload(t *testing.T) {
 		t.Fatalf("expected self_update command in channel")
 	}
 }
+
+func TestConfigSyncBackoffSkipsTransientFailure(t *testing.T) {
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.Error(w, "temporary", http.StatusBadGateway)
+	}))
+	defer srv.Close()
+
+	cfg := config.Config{
+		APIBaseURL: srv.URL,
+		Agent:      config.AgentCfg{Token: "t"},
+	}
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	uc := NewConfigSync(cfg, &fakeLogger{}, store, nil)
+
+	if err := uc.Execute(context.Background()); err == nil {
+		t.Fatalf("expected first transient failure")
+	}
+	if err := uc.Execute(context.Background()); err != nil {
+		t.Fatalf("expected second execution to be skipped by backoff, got %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("expected second execution not to call API, got %d calls", calls)
+	}
+}

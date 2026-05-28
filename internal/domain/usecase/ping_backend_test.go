@@ -118,3 +118,29 @@ func TestPingBackendRelayUsesHubURLForLegacyPing(t *testing.T) {
 		t.Fatalf("expected relay ping through hub GET+POST, calls=%d", hubCalls)
 	}
 }
+
+func TestPingBackendBackoffSkipsTransientFailure(t *testing.T) {
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.Error(w, "temporary", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	cfg := config.Config{
+		Agent:      config.AgentCfg{Token: "agent-token"},
+		APIBaseURL: server.URL,
+		AgentMode:  "direct",
+	}
+	ping := NewPingBackend(cfg, logger.New("test"))
+
+	if err := ping.Execute(context.Background()); err == nil {
+		t.Fatalf("expected first transient failure")
+	}
+	if err := ping.Execute(context.Background()); err != nil {
+		t.Fatalf("expected second execution to be skipped by backoff, got %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("expected second execution not to call API, got %d calls", calls)
+	}
+}

@@ -16,6 +16,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/common/retry"
 	"github.com/you/aiceberg_agent/internal/common/version"
 	"github.com/you/aiceberg_agent/internal/domain/channel"
 )
@@ -175,7 +176,7 @@ func (c *AgentChannelClient) RunRelay(ctx context.Context) {
 }
 
 func (c *AgentChannelClient) run(ctx context.Context, mode string) {
-	backoff := newChannelBackoff()
+	backoff := retry.NewBackoff()
 	for ctx.Err() == nil {
 		sessionID := c.newSessionID(mode)
 		latencyMs, err := c.open(ctx, sessionID, mode)
@@ -187,7 +188,8 @@ func (c *AgentChannelClient) run(ctx context.Context, mode string) {
 				"fallback", "polling",
 				"err", err,
 			))
-			if !sleepContext(ctx, backoff.Next()) {
+			delay := c.scheduleChannelBackoff(backoff, mode, sessionID, err)
+			if !sleepContext(ctx, delay) {
 				return
 			}
 			continue
@@ -209,7 +211,8 @@ func (c *AgentChannelClient) run(ctx context.Context, mode string) {
 				"fallback", "polling",
 				"err", err,
 			))
-			if !sleepContext(ctx, backoff.Next()) {
+			delay := c.scheduleChannelBackoff(backoff, mode, sessionID, err)
+			if !sleepContext(ctx, delay) {
 				return
 			}
 			continue
@@ -304,7 +307,7 @@ func (c *AgentChannelClient) post(ctx context.Context, payload map[string]any) (
 
 	latencyMs := time.Since(start).Milliseconds()
 	if resp.StatusCode >= 300 {
-		return latencyMs, fmt.Errorf("channel http %s", resp.Status)
+		return latencyMs, &httpStatusErr{code: resp.StatusCode}
 	}
 	var response channelServerResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err == nil {
@@ -363,28 +366,6 @@ func (c *AgentChannelClient) handleServerCommands(ctx context.Context, commands 
 	}
 }
 
-type channelBackoff struct {
-	attempt int
-}
-
-func newChannelBackoff() *channelBackoff {
-	return &channelBackoff{}
-}
-
-func (b *channelBackoff) Reset() {
-	b.attempt = 0
-}
-
-func (b *channelBackoff) Next() time.Duration {
-	b.attempt++
-	delay := time.Second << min(b.attempt-1, 5)
-	if delay > 30*time.Second {
-		delay = 30 * time.Second
-	}
-	jitter := time.Duration(b.attempt%5) * 100 * time.Millisecond
-	return delay + jitter
-}
-
 func sleepContext(ctx context.Context, delay time.Duration) bool {
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
@@ -394,6 +375,30 @@ func sleepContext(ctx context.Context, delay time.Duration) bool {
 	case <-timer.C:
 		return true
 	}
+}
+
+func (c *AgentChannelClient) scheduleChannelBackoff(backoff *retry.Backoff, mode, sessionID string, err error) time.Duration {
+	delay, kind := backoff.Failure(err)
+	if kind != retry.ErrorKindTransient {
+		delay = retry.DefaultMaxBackoff
+		c.log.Error(logger.KV("channel permanent failure cooldown",
+			"route", channelRoute,
+			"mode", mode,
+			"session_id", sessionID,
+			"err_kind", kind,
+			"retry_after_ms", delay.Milliseconds(),
+			"err", err,
+		))
+		return delay
+	}
+	c.log.Info(logger.KV("channel backoff scheduled",
+		"route", channelRoute,
+		"mode", mode,
+		"session_id", sessionID,
+		"err_kind", kind,
+		"retry_after_ms", delay.Milliseconds(),
+	))
+	return delay
 }
 
 func randomChannelSessionID(mode string) string {
