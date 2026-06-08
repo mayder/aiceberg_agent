@@ -207,6 +207,48 @@ func TestSelfUpdate_RelayDownloadsViaHubProxy(t *testing.T) {
 	}
 }
 
+func TestSelfUpdate_RelayDownloadDoesNotFallbackToDirect(t *testing.T) {
+	pkg := []byte("relay package bytes")
+	sum := sha256.Sum256(pkg)
+
+	var directHits int32
+	direct := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&directHits, 1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(pkg)
+	}))
+	defer direct.Close()
+
+	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "hub unavailable", http.StatusBadGateway)
+	}))
+	defer hub.Close()
+
+	cfg := config.Config{
+		Agent:             config.AgentCfg{Token: "relay-token"},
+		AgentMode:         "relay",
+		HubURL:            hub.URL,
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     t.TempDir(),
+		AutoUpdateTimeout: 2 * time.Second,
+		AutoUpdateMaxMB:   5,
+	}
+
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	payload := &UpdatePayload{
+		Version: testUpdateVersion(),
+		URL:     direct.URL + "/pkg.bin",
+		SHA256:  hex.EncodeToString(sum[:]),
+	}
+
+	if err := uc.Execute(context.Background(), payload); err == nil {
+		t.Fatalf("expected hub proxy failure")
+	}
+	if got := atomic.LoadInt32(&directHits); got != 0 {
+		t.Fatalf("relay download must not call direct source, calls=%d", got)
+	}
+}
+
 func TestSelfUpdate_ApplyRemoteConfigResetsOverridesWhenPayloadIsEmpty(t *testing.T) {
 	cfg := config.Config{
 		AutoUpdateEnabled: true,

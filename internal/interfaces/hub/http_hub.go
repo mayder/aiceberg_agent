@@ -200,6 +200,11 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 		_, _ = io.Copy(w, resp.Body)
 	})
 
+	mux.HandleFunc("/v1/agent/selfheal-commands", forwardAgentRequest(cfg, 8*time.Second, http.MethodGet, "/v1/agent/selfheal-commands"))
+	mux.HandleFunc("/v1/agent/selfheal-report", forwardAgentRequest(cfg, 10*time.Second, http.MethodPost, "/v1/agent/selfheal-report"))
+	mux.HandleFunc("/v1/agent/error-report", forwardAgentRequest(cfg, 10*time.Second, http.MethodPost, "/v1/agent/error-report"))
+	mux.HandleFunc("/v1/agent/update-report", forwardAgentRequest(cfg, 10*time.Second, http.MethodPost, "/v1/agent/update-report"))
+
 	mux.HandleFunc("/v1/agent/channel", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -334,6 +339,49 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 	})
 
 	return mux
+}
+
+func forwardAgentRequest(cfg config.Config, timeout time.Duration, method string, path string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != method {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" {
+			http.Error(w, "missing Authorization", http.StatusUnauthorized)
+			return
+		}
+		var body io.Reader
+		if r.Body != nil {
+			body = io.LimitReader(r.Body, 1<<20)
+			defer r.Body.Close()
+		}
+		req, err := http.NewRequestWithContext(r.Context(), method, cfg.APIEndpoint(path), body)
+		if err != nil {
+			http.Error(w, "upstream build error", http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("Authorization", auth)
+		if identity := r.Header.Get("X-Agent-Identity"); identity != "" {
+			req.Header.Set("X-Agent-Identity", identity)
+		}
+		if ct := r.Header.Get("Content-Type"); ct != "" {
+			req.Header.Set("Content-Type", ct)
+		}
+		cl := httpx.NewClient(cfg, timeout)
+		resp, err := cl.Do(req)
+		if err != nil {
+			http.Error(w, "upstream error", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+		if ct := resp.Header.Get("Content-Type"); ct != "" {
+			w.Header().Set("Content-Type", ct)
+		}
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	}
 }
 
 type relayChannelPayload struct {

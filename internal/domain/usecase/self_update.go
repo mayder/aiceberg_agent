@@ -387,20 +387,19 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts
 }
 
 func (uc *SelfUpdate) downloadSources(rawURL string, useAuth bool) []updateDownloadSource {
-	sources := []updateDownloadSource{{
+	if strings.EqualFold(uc.cfg.AgentMode, "relay") && strings.TrimSpace(uc.cfg.HubURL) != "" {
+		proxyURL := buildHubUpdateProxyURL(uc.cfg.HubURL, rawURL, useAuth)
+		return []updateDownloadSource{{
+			URL:     proxyURL,
+			Name:    "hub_proxy",
+			UseAuth: true,
+		}}
+	}
+	return []updateDownloadSource{{
 		URL:     rawURL,
 		Name:    "direct",
 		UseAuth: useAuth,
 	}}
-	if strings.EqualFold(uc.cfg.AgentMode, "relay") && strings.TrimSpace(uc.cfg.HubURL) != "" {
-		proxyURL := buildHubUpdateProxyURL(uc.cfg.HubURL, rawURL, useAuth)
-		sources = append([]updateDownloadSource{{
-			URL:     proxyURL,
-			Name:    "hub_proxy",
-			UseAuth: true,
-		}}, sources...)
-	}
-	return sources
 }
 
 func buildHubUpdateProxyURL(hubBaseURL, targetURL string, useAgentAuth bool) string {
@@ -680,8 +679,9 @@ func (uc *SelfUpdate) reportStatus(ctx context.Context, payload *UpdatePayload, 
 	urls := []string{}
 	if strings.EqualFold(uc.cfg.AgentMode, "relay") && strings.TrimSpace(uc.cfg.HubURL) != "" {
 		urls = append(urls, strings.TrimRight(strings.TrimSpace(uc.cfg.HubURL), "/")+"/v1/agent/update-report")
+	} else {
+		urls = append(urls, uc.cfg.APIEndpoint("/v1/agent/update-report"))
 	}
-	urls = append(urls, uc.cfg.APIEndpoint("/v1/agent/update-report"))
 
 	var errs []string
 	for _, url := range urls {

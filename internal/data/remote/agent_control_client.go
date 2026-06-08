@@ -86,8 +86,9 @@ func (c *AgentControlClient) postWithFallback(ctx context.Context, path string, 
 	urls := []string{}
 	if c.cfg.AgentMode == "relay" && strings.TrimSpace(c.cfg.HubURL) != "" {
 		urls = append(urls, strings.TrimRight(strings.TrimSpace(c.cfg.HubURL), "/")+path)
+	} else {
+		urls = append(urls, c.cfg.APIEndpoint(path))
 	}
-	urls = append(urls, c.cfg.APIEndpoint(path))
 
 	var errs []string
 	for _, url := range urls {

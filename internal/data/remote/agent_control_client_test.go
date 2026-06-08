@@ -99,7 +99,7 @@ func TestAgentControlClientFetchSelfHealCommandsRelayUsesHub(t *testing.T) {
 	}
 }
 
-func TestAgentControlClientReportSelfHealFallsBackToAPI(t *testing.T) {
+func TestAgentControlClientReportSelfHealRelayDoesNotFallbackToAPI(t *testing.T) {
 	t.Helper()
 
 	hubCalls := 0
@@ -112,20 +112,7 @@ func TestAgentControlClientReportSelfHealFallsBackToAPI(t *testing.T) {
 	apiCalls := 0
 	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		apiCalls++
-		if r.URL.Path != "/v1/agent/selfheal-report" {
-			t.Fatalf("unexpected path: %s", r.URL.Path)
-		}
-		var payload entities.SelfHealReport
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			t.Fatalf("decode payload: %v", err)
-		}
-		if payload.CommandID != "cmd-22" || payload.Status != "success" {
-			t.Fatalf("unexpected payload: %#v", payload)
-		}
-		if payload.ReportedAtMs <= 0 {
-			t.Fatalf("expected reported_at_ms > 0, got %d", payload.ReportedAtMs)
-		}
-		w.WriteHeader(http.StatusNoContent)
+		t.Fatalf("relay report must not call API directly, path=%s", r.URL.Path)
 	}))
 	defer apiSrv.Close()
 
@@ -141,14 +128,14 @@ func TestAgentControlClientReportSelfHealFallsBackToAPI(t *testing.T) {
 		CommandID: "cmd-22",
 		Status:    "success",
 	})
-	if err != nil {
-		t.Fatalf("report self-heal: %v", err)
+	if err == nil {
+		t.Fatalf("expected relay hub error")
 	}
 	if hubCalls == 0 {
 		t.Fatalf("expected at least one call to hub")
 	}
-	if apiCalls == 0 {
-		t.Fatalf("expected fallback call to api")
+	if apiCalls != 0 {
+		t.Fatalf("api should not be called in relay report, calls=%d", apiCalls)
 	}
 }
 

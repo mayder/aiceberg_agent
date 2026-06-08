@@ -195,6 +195,47 @@ func TestHubProxyPreservesIdentityForBootstrapConfigAndPing(t *testing.T) {
 	}
 }
 
+func TestHubProxyForwardsAgentControlRoutes(t *testing.T) {
+	var seen []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.URL.Path+"|"+r.Method+"|"+r.Header.Get("Authorization")+"|"+r.Header.Get("X-Agent-Identity"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok","commands":[]}`))
+	}))
+	defer upstream.Close()
+
+	handler := NewHandler(config.Config{APIBaseURL: upstream.URL}, nil, testHubLogger{}, nil)
+	for _, tc := range []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{method: http.MethodGet, path: "/v1/agent/selfheal-commands"},
+		{method: http.MethodPost, path: "/v1/agent/selfheal-report", body: `{"command_id":"cmd-1","status":"success"}`},
+		{method: http.MethodPost, path: "/v1/agent/error-report", body: `{"errors":[]}`},
+		{method: http.MethodPost, path: "/v1/agent/update-report", body: `{"status":"precheck_ok"}`},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+		req.Header.Set("Authorization", "Token relay-token")
+		req.Header.Set("X-Agent-Identity", "relay-identity")
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code >= 300 {
+			t.Fatalf("%s %s returned %d body=%s", tc.method, tc.path, rec.Code, rec.Body.String())
+		}
+	}
+
+	if len(seen) != 4 {
+		t.Fatalf("expected 4 upstream calls, got %#v", seen)
+	}
+	for _, call := range seen {
+		if !strings.Contains(call, "|Token relay-token|relay-identity") {
+			t.Fatalf("identity/auth not preserved in %q", call)
+		}
+	}
+}
+
 func TestRelayChannelStoreRecordsAndClosesSession(t *testing.T) {
 	store := NewRelayChannelStore()
 	open := store.Record("hash", RelayChannelSession{
