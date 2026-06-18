@@ -19,6 +19,10 @@ Environment:
   PKG69_EVIDENCE_MANIFEST_TSV Gate manifest TSV path.
   PKG69_GAP_REPORT_REQUIRE_COMPLETE=true
                              Exit non-zero when any scenario is pending.
+  PKG69_GAP_REPORT_REQUIRE_ACCEPTED=true
+                             Exit non-zero when evidence is complete but closure
+                             was not explicitly accepted.
+  PKG69_ACCEPT_CLOSURE=true  Explicit closure acceptance after review.
 USAGE
 }
 
@@ -32,6 +36,8 @@ EVIDENCE_FILE="${PKG69_EVIDENCE_FILE:-/tmp/aiceberg_pkg69_gap_gate_${timestamp}.
 MANIFEST_TSV="${PKG69_EVIDENCE_MANIFEST_TSV:-/tmp/aiceberg_pkg69_gap_manifest_${timestamp}.tsv}"
 REPORT_FILE="${PKG69_GAP_REPORT_FILE:-/tmp/aiceberg_pkg69_gap_report_${timestamp}.md}"
 REQUIRE_COMPLETE="${PKG69_GAP_REPORT_REQUIRE_COMPLETE:-false}"
+REQUIRE_ACCEPTED="${PKG69_GAP_REPORT_REQUIRE_ACCEPTED:-false}"
+ACCEPT_CLOSURE="${PKG69_ACCEPT_CLOSURE:-false}"
 
 run_gate() {
   if [[ "$#" -gt 0 ]]; then
@@ -103,11 +109,17 @@ done <"$MANIFEST_TSV"
 
 closure_status="BLOQUEADO"
 closure_reason="faltam evidencias reais obrigatorias"
+closure_acceptance="missing"
 if [[ "$invalid" -gt 0 ]]; then
   closure_reason="existem evidencias invalidas"
 elif [[ "$pending" -eq 0 ]]; then
   closure_status="PRONTO_PARA_REVISAO"
   closure_reason="todas as evidencias reais estao presentes; ainda exige revisao e aceite explicito"
+  if [[ "$ACCEPT_CLOSURE" == "true" ]]; then
+    closure_status="ACEITO_PARA_FECHAMENTO"
+    closure_reason="todas as evidencias reais estao presentes e PKG69_ACCEPT_CLOSURE=true"
+    closure_acceptance="accepted"
+  fi
 fi
 
 {
@@ -137,10 +149,14 @@ printf 'manifest=%s\n' "$MANIFEST_TSV"
 printf 'evidence=%s\n' "$EVIDENCE_FILE"
 printf 'closure_status=%s\n' "$closure_status"
 printf 'closure_reason=%s\n' "$closure_reason"
+printf 'closure_acceptance=%s\n' "$closure_acceptance"
 
 if [[ "$invalid" -gt 0 ]]; then
   exit 2
 fi
 if [[ "$REQUIRE_COMPLETE" == "true" && "$pending" -gt 0 ]]; then
   exit 3
+fi
+if [[ "$REQUIRE_ACCEPTED" == "true" && "$closure_acceptance" != "accepted" ]]; then
+  exit 4
 fi

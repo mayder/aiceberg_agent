@@ -225,5 +225,31 @@ scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/all-bundles" >"$TMP_DIR/complete-
 assert_contains "$TMP_DIR/complete-report.md" "- Fechamento: PRONTO_PARA_REVISAO - todas as evidencias reais estao presentes; ainda exige revisao e aceite explicito."
 assert_contains "$TMP_DIR/complete-report.md" "14/14 evidencias OK; 0 pendentes; 0 invalidas."
 assert_contains "$TMP_DIR/complete-report.out" "closure_status=PRONTO_PARA_REVISAO"
+assert_contains "$TMP_DIR/complete-report.out" "closure_acceptance=missing"
+
+set +e
+PKG69_GAP_REPORT_FILE="$TMP_DIR/complete-required-accepted-report.md" \
+PKG69_EVIDENCE_FILE="$TMP_DIR/complete-required-accepted-gate.md" \
+PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/complete-required-accepted-manifest.tsv" \
+PKG69_GAP_REPORT_REQUIRE_ACCEPTED=true \
+scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/all-bundles" >"$TMP_DIR/complete-required-accepted.out" 2>"$TMP_DIR/complete-required-accepted.err"
+required_accept_exit=$?
+set -e
+if [[ "$required_accept_exit" -ne 4 ]]; then
+  echo "expected accepted required report exit 4 without acceptance, got $required_accept_exit" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/complete-required-accepted.out" "closure_status=PRONTO_PARA_REVISAO"
+
+PKG69_GAP_REPORT_FILE="$TMP_DIR/accepted-report.md" \
+PKG69_EVIDENCE_FILE="$TMP_DIR/accepted-gate.md" \
+PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/accepted-manifest.tsv" \
+PKG69_GAP_REPORT_REQUIRE_ACCEPTED=true \
+PKG69_ACCEPT_CLOSURE=true \
+scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/all-bundles" >"$TMP_DIR/accepted-report.out" 2>"$TMP_DIR/accepted-report.err"
+
+assert_contains "$TMP_DIR/accepted-report.md" "- Fechamento: ACEITO_PARA_FECHAMENTO - todas as evidencias reais estao presentes e PKG69_ACCEPT_CLOSURE=true."
+assert_contains "$TMP_DIR/accepted-report.out" "closure_status=ACEITO_PARA_FECHAMENTO"
+assert_contains "$TMP_DIR/accepted-report.out" "closure_acceptance=accepted"
 
 echo "PKG-69 evidence gap report self-test OK"
