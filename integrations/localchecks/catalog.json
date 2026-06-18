@@ -29,12 +29,21 @@
     {
       "kind": "postgresql",
       "version": "1",
+      "status": "beta",
       "capabilities": ["tcp_reachability", "service_check"],
       "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"]
     },
     {
       "kind": "mysql",
       "version": "1",
+      "status": "beta",
+      "capabilities": ["tcp_reachability", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"]
+    },
+    {
+      "kind": "sqlserver",
+      "version": "1",
+      "status": "beta",
       "capabilities": ["tcp_reachability", "service_check"],
       "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"]
     },
@@ -45,6 +54,13 @@
       "capabilities": ["tcp_reachability", "service_check"],
       "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"],
       "manifest": "integrations/localchecks/manifests/redis.json"
+    },
+    {
+      "kind": "rabbitmq",
+      "version": "1",
+      "status": "beta",
+      "capabilities": ["tcp_reachability", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"]
     },
     {
       "kind": "jmx",
@@ -68,14 +84,16 @@
     {
       "kind": "iis_wmi",
       "version": "1",
-      "capabilities": ["tcp_reachability", "service_check"],
-      "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"]
+      "status": "experimental",
+      "capabilities": ["windows_perf_counter", "iis_current_connections", "service_check"],
+      "config_schema": ["timeout_ms", "tags", "credentials_ref"]
     },
     {
       "kind": "windows_service",
       "version": "1",
-      "capabilities": ["tcp_reachability", "service_check"],
-      "config_schema": ["target", "timeout_ms", "tags"]
+      "status": "experimental",
+      "capabilities": ["windows_service_query", "service_check"],
+      "config_schema": ["service_name", "target", "timeout_ms", "tags"]
     }
   ]
 }

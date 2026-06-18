@@ -87,6 +87,7 @@ Cobertura:
 - JMX via fixture Jolokia;
 - metadados de integracao oficial em Redis/TCP;
 - bloqueio de integracao beta/experimental sem homologacao minima;
+- manifest de integracao criada pelo guia aceito quando usa kind e permissoes seguras;
 - bloqueio de tipo arbitrario e redaction herdados do PKG-66.
 
 ## Pendencias reais

@@ -313,6 +313,29 @@ func TestInstalledIntegrationsLoadsSafeManifestsOnly(t *testing.T) {
 	}
 }
 
+func TestGuideCreatedIntegrationManifestIsAccepted(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "rabbitmq.json"), []byte(`{
+		"schema_version":1,
+		"kind":"rabbitmq",
+		"version":"1",
+		"status":"beta",
+		"owner":"aiceberg_agent",
+		"permissions":["tcp_connect","credentials_ref"],
+		"rollback":"disable rabbitmq local check"
+	}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	installed := installedIntegrations([]string{dir})
+	if len(installed) != 1 {
+		t.Fatalf("expected guide manifest accepted, got %#v", installed)
+	}
+	if installed[0]["kind"] != "rabbitmq" || installed[0]["status"] != "beta" {
+		t.Fatalf("unexpected guide manifest payload %#v", installed[0])
+	}
+}
+
 func contains(value, part string) bool {
 	return len(part) == 0 || (len(value) >= len(part) && index(value, part) >= 0)
 }
