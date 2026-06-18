@@ -95,6 +95,10 @@ type Config struct {
 	ContainerMaxItems                  int
 	ContainerIncludeRegex              string
 	ContainerExcludeRegex              string
+	ContainerLogsEnabled               bool
+	ContainerLogsCursorPath            string
+	ContainerLogsMaxLines              int
+	ContainerLogsMaxBytes              int
 	KubernetesEnabled                  bool
 	KubernetesAPIURL                   string
 	KubernetesTokenPath                string
@@ -204,6 +208,10 @@ type CollectPrefs struct {
 	ContainerMaxItems          int                `json:"container_max_items,omitempty"`
 	ContainerIncludeRegex      string             `json:"container_include_regex,omitempty"`
 	ContainerExcludeRegex      string             `json:"container_exclude_regex,omitempty"`
+	ContainerLogsEnabled       bool               `json:"container_logs_enabled,omitempty"`
+	ContainerLogsCursorPath    string             `json:"container_logs_cursor_path,omitempty"`
+	ContainerLogsMaxLines      int                `json:"container_logs_max_lines,omitempty"`
+	ContainerLogsMaxBytes      int                `json:"container_logs_max_bytes,omitempty"`
 	KubernetesEnabled          bool               `json:"kubernetes_enabled,omitempty"`
 	KubernetesAPIURL           string             `json:"kubernetes_api_url,omitempty"`
 	KubernetesTokenPath        string             `json:"kubernetes_token_path,omitempty"`
@@ -326,6 +334,10 @@ func Load(configPath string) (Config, error) {
 		ContainerMaxItems:                  intEnv("CONTAINER_MAX_ITEMS", 200),
 		ContainerIncludeRegex:              getenv("CONTAINER_INCLUDE_REGEX", ""),
 		ContainerExcludeRegex:              getenv("CONTAINER_EXCLUDE_REGEX", ""),
+		ContainerLogsEnabled:               strings.ToLower(getenv("CONTAINER_LOGS_ENABLED", "")) == "true",
+		ContainerLogsCursorPath:            getenv("CONTAINER_LOGS_CURSOR_PATH", "./data/container_logs.cursor"),
+		ContainerLogsMaxLines:              intEnv("CONTAINER_LOGS_MAX_LINES", 200),
+		ContainerLogsMaxBytes:              intEnv("CONTAINER_LOGS_MAX_BYTES", 256*1024),
 		KubernetesEnabled:                  strings.ToLower(getenv("KUBERNETES_ENABLED", "")) == "true",
 		KubernetesAPIURL:                   getenv("KUBERNETES_API_URL", "https://kubernetes.default.svc"),
 		KubernetesTokenPath:                getenv("KUBERNETES_TOKEN_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/token"),

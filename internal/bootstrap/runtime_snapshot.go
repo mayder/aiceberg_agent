@@ -385,10 +385,13 @@ func buildAgentEnvSnapshot(cfg config.Config) map[string]any {
 			"max_bytes":    cfg.OTLPMaxBytes,
 		},
 		"containers": map[string]any{
-			"enabled":       cfg.ContainerEnabled,
-			"docker_socket": strings.TrimSpace(cfg.ContainerDockerSocket),
-			"interval_sec":  int(cfg.ContainerInterval.Seconds()),
-			"max_items":     cfg.ContainerMaxItems,
+			"enabled":        cfg.ContainerEnabled,
+			"docker_socket":  strings.TrimSpace(cfg.ContainerDockerSocket),
+			"interval_sec":   int(cfg.ContainerInterval.Seconds()),
+			"max_items":      cfg.ContainerMaxItems,
+			"logs_enabled":   cfg.ContainerLogsEnabled,
+			"logs_max_lines": cfg.ContainerLogsMaxLines,
+			"logs_max_bytes": cfg.ContainerLogsMaxBytes,
 		},
 		"kubernetes": map[string]any{
 			"enabled":      cfg.KubernetesEnabled,

@@ -1,12 +1,14 @@
 package containers
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,13 +21,17 @@ import (
 const schemaVersion = 1
 
 type collector struct {
-	prefs       func() config.CollectPrefs
-	baseEnabled bool
-	socket      string
-	interval    time.Duration
-	maxItems    int
-	include     string
-	exclude     string
+	prefs         func() config.CollectPrefs
+	baseEnabled   bool
+	socket        string
+	interval      time.Duration
+	maxItems      int
+	include       string
+	exclude       string
+	logsEnabled   bool
+	logCursorPath string
+	logMaxLines   int
+	logMaxBytes   int
 }
 
 func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -38,13 +44,17 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 		maxItems = 200
 	}
 	return &collector{
-		prefs:       prefsProvider,
-		baseEnabled: cfg.ContainerEnabled,
-		socket:      cfg.ContainerDockerSocket,
-		interval:    interval,
-		maxItems:    maxItems,
-		include:     cfg.ContainerIncludeRegex,
-		exclude:     cfg.ContainerExcludeRegex,
+		prefs:         prefsProvider,
+		baseEnabled:   cfg.ContainerEnabled,
+		socket:        cfg.ContainerDockerSocket,
+		interval:      interval,
+		maxItems:      maxItems,
+		include:       cfg.ContainerIncludeRegex,
+		exclude:       cfg.ContainerExcludeRegex,
+		logsEnabled:   cfg.ContainerLogsEnabled,
+		logCursorPath: cfg.ContainerLogsCursorPath,
+		logMaxLines:   cfg.ContainerLogsMaxLines,
+		logMaxBytes:   cfg.ContainerLogsMaxBytes,
 	}
 }
 
@@ -92,11 +102,37 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 			"schema_version":       schemaVersion,
 			"source":               "docker_socket",
 			"items":                normalizeContainers(containers, statsByID, inspectByID),
+			"logs":                 c.collectContainerLogs(containers, inspectByID),
 			"autodiscovery_checks": autodiscoveryChecks(containers),
 			"dropped_count":        maxInt(0, len(containers)-c.maxItems),
 		},
 	}
 	return json.Marshal(payload)
+}
+
+func (c *collector) effectiveLogSettings() (bool, string, int, int) {
+	enabled := c.logsEnabled
+	maxLines := c.logMaxLines
+	maxBytes := c.logMaxBytes
+	if c.prefs != nil {
+		p := c.prefs()
+		if p.ContainerLogsEnabled {
+			enabled = true
+		}
+		if p.ContainerLogsMaxLines > 0 {
+			maxLines = p.ContainerLogsMaxLines
+		}
+		if p.ContainerLogsMaxBytes > 0 {
+			maxBytes = p.ContainerLogsMaxBytes
+		}
+	}
+	if maxLines <= 0 {
+		maxLines = 200
+	}
+	if maxBytes <= 0 {
+		maxBytes = 256 * 1024
+	}
+	return enabled, c.logCursorPath, maxLines, maxBytes
 }
 
 func (c *collector) effectiveFilters() (string, string) {
@@ -420,6 +456,190 @@ func addContainerCheckIdentity(check map[string]any, id, name string, row docker
 	if compose := composeService(row.Labels); compose != "" {
 		check["service"] = compose
 	}
+}
+
+func (c *collector) collectContainerLogs(rows []dockerContainer, inspectByID map[string]dockerInspect) map[string]any {
+	enabled, cursorPath, maxLines, maxBytes := c.effectiveLogSettings()
+	if !enabled {
+		return nil
+	}
+	cursor := loadLogCursor(cursorPath)
+	var events []map[string]any
+	dropped := 0
+	for _, row := range rows {
+		if len(events) >= maxLines {
+			break
+		}
+		id := shortID(row.ID)
+		inspect, ok := inspectByID[id]
+		if !ok || strings.TrimSpace(inspect.LogPath) == "" {
+			continue
+		}
+		read, drop := readContainerLogFile(row, inspect, cursor, maxLines-len(events), maxBytes)
+		events = append(events, read...)
+		dropped += drop
+	}
+	_ = saveLogCursor(cursorPath, cursor)
+	if len(events) == 0 && dropped == 0 {
+		return nil
+	}
+	return map[string]any{
+		"schema_version": schemaVersion,
+		"events":         events,
+		"dropped_count":  dropped,
+	}
+}
+
+func readContainerLogFile(row dockerContainer, inspect dockerInspect, cursor map[string]int64, maxLines, maxBytes int) ([]map[string]any, int) {
+	if maxLines <= 0 {
+		return nil, 0
+	}
+	path := strings.TrimSpace(inspect.LogPath)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, 0
+	}
+	defer f.Close()
+	offset := cursor[path]
+	if info, err := f.Stat(); err == nil && offset > info.Size() {
+		offset = 0
+	}
+	if offset > 0 {
+		_, _ = f.Seek(offset, 0)
+	}
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024), maxBytes)
+	var events []map[string]any
+	dropped := 0
+	for scanner.Scan() {
+		if len(events) >= maxLines {
+			dropped++
+			continue
+		}
+		line := scanner.Text()
+		event, ok := parseContainerLogLine(row, inspect, line, maxBytes)
+		if !ok {
+			dropped++
+			continue
+		}
+		events = append(events, event)
+	}
+	if pos, err := f.Seek(0, 1); err == nil {
+		cursor[path] = pos
+	}
+	return events, dropped
+}
+
+func parseContainerLogLine(row dockerContainer, inspect dockerInspect, line string, maxBytes int) (map[string]any, bool) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return nil, false
+	}
+	var raw struct {
+		Log    string `json:"log"`
+		Stream string `json:"stream"`
+		Time   string `json:"time"`
+	}
+	if err := json.Unmarshal([]byte(line), &raw); err != nil {
+		raw.Log = line
+	}
+	message := strings.TrimRight(raw.Log, "\r\n")
+	if message == "" {
+		return nil, false
+	}
+	if maxBytes > 0 && len(message) > maxBytes {
+		message = message[:maxBytes]
+	}
+	message, redactionStatus := redactContainerLogMessage(message)
+	id := shortID(row.ID)
+	event := map[string]any{
+		"container_id":     id,
+		"container_name":   firstName(row.Names),
+		"image":            row.Image,
+		"service":          composeService(row.Labels),
+		"namespace":        containerNamespace(row.Labels),
+		"stream":           strings.TrimSpace(raw.Stream),
+		"timestamp_utc":    strings.TrimSpace(raw.Time),
+		"message":          message,
+		"redaction_status": redactionStatus,
+		"transport":        "docker_json_file",
+		"source_tool":      "docker",
+		"source_category":  "container_log",
+	}
+	if user := strings.TrimSpace(inspect.Config.User); user != "" {
+		event["user"] = user
+	}
+	return event, true
+}
+
+var containerSensitivePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)(authorization\s*:\s*(?:bearer|basic)\s+)[^\s]+`),
+	regexp.MustCompile(`(?i)("(?:password|passwd|pwd|token|secret|api[_-]?key|cookie)"\s*:\s*)"[^"]*"`),
+	regexp.MustCompile(`(?i)\b(password|passwd|pwd|token|secret|api[_-]?key|cookie)\s*=\s*("[^"]+"|'[^']+'|[^\s&;]+)`),
+	regexp.MustCompile(`(?i)\b(password|passwd|pwd|token|secret|api[_-]?key|cookie)\s*:\s*("[^"]+"|'[^']+'|[^\s,}]+)`),
+}
+
+func redactContainerLogMessage(message string) (string, string) {
+	redacted := message
+	for _, pattern := range containerSensitivePatterns {
+		redacted = pattern.ReplaceAllStringFunc(redacted, func(match string) string {
+			if strings.HasPrefix(strings.TrimSpace(match), `"`) {
+				if idx := strings.Index(match, ":"); idx >= 0 {
+					return match[:idx+1] + `"[redacted]"`
+				}
+			}
+			if idx := strings.Index(match, "="); idx >= 0 {
+				return match[:idx+1] + "[redacted]"
+			}
+			if idx := strings.Index(match, ":"); idx >= 0 {
+				prefix := match[:idx+1]
+				if strings.Contains(strings.ToLower(prefix), "authorization") {
+					parts := strings.Fields(match)
+					if len(parts) >= 2 {
+						return parts[0] + " " + parts[1] + " [redacted]"
+					}
+				}
+				return prefix + "[redacted]"
+			}
+			return "[redacted]"
+		})
+	}
+	if redacted != message {
+		return redacted, "redacted"
+	}
+	return message, "none"
+}
+
+func loadLogCursor(path string) map[string]int64 {
+	cursor := map[string]int64{}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return cursor
+	}
+	_ = json.Unmarshal(data, &cursor)
+	return cursor
+}
+
+func saveLogCursor(path string, cursor map[string]int64) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepathDir(path), 0o755); err != nil {
+		return err
+	}
+	data, err := json.Marshal(cursor)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o600)
+}
+
+func filepathDir(path string) string {
+	idx := strings.LastIndexAny(path, `/\`)
+	if idx <= 0 {
+		return "."
+	}
+	return path[:idx]
 }
 
 func cpuPercent(stats dockerStats) float64 {

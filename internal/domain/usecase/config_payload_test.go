@@ -275,6 +275,34 @@ func TestApplyConfigPayloadAppliesContainerFilters(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadAppliesContainerLogSettings(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	logsEnabled := true
+	payload := ConfigPayload{
+		Version: "cfg-container-logs",
+		Collect: config.CollectPrefs{
+			ContainerEnabled: true,
+		},
+	}
+	payload.Containers.LogsEnabled = &logsEnabled
+	payload.Containers.LogsMaxLines = 50
+	payload.Containers.LogsMaxBytes = 4096
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if !got.ContainerLogsEnabled || got.ContainerLogsMaxLines != 50 || got.ContainerLogsMaxBytes != 4096 {
+		t.Fatalf("expected container log settings persisted, got enabled=%v lines=%d bytes=%d", got.ContainerLogsEnabled, got.ContainerLogsMaxLines, got.ContainerLogsMaxBytes)
+	}
+}
+
 func TestApplyConfigPayloadWithSecurityRequiresSignatureForSensitivePayload(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}

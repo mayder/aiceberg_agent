@@ -152,6 +152,9 @@ type ConfigPayload struct {
 		MaxItems     int    `json:"max_items,omitempty"`
 		IncludeRegex string `json:"include_regex,omitempty"`
 		ExcludeRegex string `json:"exclude_regex,omitempty"`
+		LogsEnabled  *bool  `json:"logs_enabled,omitempty"`
+		LogsMaxLines int    `json:"logs_max_lines,omitempty"`
+		LogsMaxBytes int    `json:"logs_max_bytes,omitempty"`
 	} `json:"containers,omitempty"`
 	Kubernetes struct {
 		Enabled   *bool  `json:"enabled,omitempty"`
@@ -287,6 +290,15 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	}
 	if payload.Containers.ExcludeRegex != "" {
 		collect.ContainerExcludeRegex = payload.Containers.ExcludeRegex
+	}
+	if payload.Containers.LogsEnabled != nil {
+		collect.ContainerLogsEnabled = *payload.Containers.LogsEnabled
+	}
+	if payload.Containers.LogsMaxLines > 0 {
+		collect.ContainerLogsMaxLines = payload.Containers.LogsMaxLines
+	}
+	if payload.Containers.LogsMaxBytes > 0 {
+		collect.ContainerLogsMaxBytes = payload.Containers.LogsMaxBytes
 	}
 	if payload.Kubernetes.Enabled != nil {
 		collect.KubernetesEnabled = *payload.Kubernetes.Enabled

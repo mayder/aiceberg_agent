@@ -14,6 +14,7 @@ Dados coletados:
 - user, restart_count e log_path quando `/containers/<id>/json` responder;
 - CPU, memoria, rede e IO quando `/stats?stream=false` responder.
 - checks de autodiscovery derivados de labels.
+- logs Docker JSON por `log_path`, com cursor, tags de container e redaction.
 
 ## Configuracao
 
@@ -24,6 +25,10 @@ CONTAINER_INTERVAL=30
 CONTAINER_MAX_ITEMS=200
 CONTAINER_INCLUDE_REGEX=prod|backend
 CONTAINER_EXCLUDE_REGEX=root|secret
+CONTAINER_LOGS_ENABLED=true
+CONTAINER_LOGS_CURSOR_PATH=./data/container_logs.cursor
+CONTAINER_LOGS_MAX_LINES=200
+CONTAINER_LOGS_MAX_BYTES=262144
 ```
 
 Config remota equivalente:
@@ -36,7 +41,10 @@ Config remota equivalente:
     "interval": 30,
     "max_items": 200,
     "include_regex": "prod|backend",
-    "exclude_regex": "root|secret"
+    "exclude_regex": "root|secret",
+    "logs_enabled": true,
+    "logs_max_lines": 200,
+    "logs_max_bytes": 262144
   }
 }
 ```
@@ -48,8 +56,11 @@ O coletor envia `body.containers` para `/v1/ingest/metrics`:
 - `schema_version`;
 - `source=docker_socket`;
 - `items[]`;
+- `logs.events[]`;
 - `autodiscovery_checks`;
 - `dropped_count`.
+
+`logs.events[]` contem `container_id`, `container_name`, `image`, `service`, `namespace`, `stream`, `timestamp_utc`, `message`, `redaction_status`, `transport=docker_json_file` e metadados de origem.
 
 ## Autodiscovery
 
@@ -74,7 +85,7 @@ Cada check recebe `container_id`, `container_name`, `image` e `service` quando e
 
 ## Limites
 
-- Containerd nativo, coleta efetiva de logs de container com cursor e validacao real de carga ficam pendentes.
+- Containerd nativo, envio de logs por rota dedicada e validacao real de carga ficam pendentes.
 - Sem leitura de secrets montados.
 
 ## Rollback

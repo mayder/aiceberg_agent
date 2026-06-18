@@ -1,6 +1,11 @@
 package containers
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestNormalizeContainersRedactsSensitiveLabelsAndAddsStats(t *testing.T) {
 	rows := []dockerContainer{{
@@ -111,5 +116,67 @@ func TestAutodiscoveryChecksFromDockerLabels(t *testing.T) {
 	}
 	if checks[1]["key"] != "tcp" || checks[1]["value"] != "8080" {
 		t.Fatalf("expected simple label check, got %#v", checks[1])
+	}
+}
+
+func TestReadContainerLogsWithCursorAndRedaction(t *testing.T) {
+	tmp := t.TempDir()
+	logPath := filepath.Join(tmp, "container-json.log")
+	content := strings.Join([]string{
+		`{"log":"started password=secret\n","stream":"stdout","time":"2026-06-18T10:00:00Z"}`,
+		`{"log":"Authorization: Bearer token-value\n","stream":"stderr","time":"2026-06-18T10:00:01Z"}`,
+	}, "\n") + "\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+	row := dockerContainer{
+		ID:     "abcdef1234567890",
+		Names:  []string{"/api"},
+		Image:  "api:1",
+		Labels: map[string]string{"com.docker.compose.service": "api", "com.docker.compose.project": "prod"},
+	}
+	inspect := dockerInspect{LogPath: logPath}
+	inspect.Config.User = "1000"
+	cursor := map[string]int64{}
+
+	events, dropped := readContainerLogFile(row, inspect, cursor, 10, 1024)
+	if dropped != 0 || len(events) != 2 {
+		t.Fatalf("expected two events without drops, got events=%#v dropped=%d", events, dropped)
+	}
+	if events[0]["service"] != "api" || events[0]["namespace"] != "prod" || events[0]["user"] != "1000" {
+		t.Fatalf("expected container tags, got %#v", events[0])
+	}
+	for _, event := range events {
+		msg, _ := event["message"].(string)
+		if strings.Contains(msg, "secret") || strings.Contains(msg, "token-value") {
+			t.Fatalf("container log leaked secret: %#v", event)
+		}
+		if event["redaction_status"] != "redacted" {
+			t.Fatalf("expected redacted event, got %#v", event)
+		}
+	}
+
+	again, dropped := readContainerLogFile(row, inspect, cursor, 10, 1024)
+	if dropped != 0 || len(again) != 0 {
+		t.Fatalf("expected cursor to skip already read lines, got events=%#v dropped=%d", again, dropped)
+	}
+}
+
+func TestCollectContainerLogsBuildsPayload(t *testing.T) {
+	tmp := t.TempDir()
+	logPath := filepath.Join(tmp, "container-json.log")
+	if err := os.WriteFile(logPath, []byte(`{"log":"ok\n","stream":"stdout","time":"2026-06-18T10:00:00Z"}`+"\n"), 0o644); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+	row := dockerContainer{ID: "abcdef1234567890", Names: []string{"/api"}, Image: "api:1"}
+	c := &collector{logsEnabled: true, logCursorPath: filepath.Join(tmp, "cursor.json"), logMaxLines: 10, logMaxBytes: 1024}
+
+	payload := c.collectContainerLogs([]dockerContainer{row}, map[string]dockerInspect{"abcdef123456": {LogPath: logPath}})
+	if payload == nil {
+		t.Fatalf("expected log payload")
+	}
+	events := payload["events"].([]map[string]any)
+	if len(events) != 1 || events[0]["container_name"] != "api" {
+		t.Fatalf("unexpected events %#v", events)
 	}
 }
