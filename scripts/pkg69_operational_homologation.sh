@@ -50,6 +50,8 @@ go test ./internal/platform/collectors/networkcapture -run TestClassifyPCAPUnava
 result "permission-local" "pass" "pcap classifica permissao insuficiente, interface invalida e captura vazia sem crash; log=/tmp/aiceberg_pkg69_permission_test.log"
 go test ./internal/data/local/outbox -run TestBoltStorePreservesQueueAcrossCollectorRestart >/tmp/aiceberg_pkg69_restart_replay_test.log
 result "restart-replay-local" "pass" "outbox preserva fila antes/depois de restart e ACK parcial; log=/tmp/aiceberg_pkg69_restart_replay_test.log"
+go test ./internal/platform/collectors/custommetrics -run TestCollectorBoundsHighVolumeCardinalityBurst >/tmp/aiceberg_pkg69_high_volume_test.log
+result "high-volume-local" "pass" "custom_metrics limita burst de cardinalidade e contabiliza drops; log=/tmp/aiceberg_pkg69_high_volume_test.log"
 result "api-unavailable-local" "pass" "flush_outbox tests preserve pending envelopes on transport/API error"
 result "network-intermittent-local" "pass" "flush_outbox tests backoff and later retry behavior"
 result "payload-large-local" "pass" "collectors enforce max bytes/items in focused tests"
@@ -71,4 +73,5 @@ result "permission-restricted" "partial" "pcap/tcpdump classifica permissao insu
 result "reboot-during-collection" "partial" "outbox bbolt preserva replay em reabertura local; falta reboot real do SO"
 result "disk-full" "partial" "outbox cheia coberta por teste local; falta disco cheio real do SO"
 result "payload-large" "partial" "limites cobertos por testes locais; falta alto volume real DogStatsD/OTLP/logs"
+result "high-volume" "partial" "burst local de cardinalidade custom_metrics coberto; falta carga real DogStatsD/OTLP/logs com CPU/mem"
 result "remote-update-rollback" "pending" "validar artefato anterior, hash e version_confirmed"

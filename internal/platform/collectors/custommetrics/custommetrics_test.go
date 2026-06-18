@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,6 +59,57 @@ func TestCollectorAggregatesAndDropsExcessCardinality(t *testing.T) {
 	}
 	if payload.CustomMetrics.DroppedCount != 1 {
 		t.Fatalf("expected dropped_count=1, got %d", payload.CustomMetrics.DroppedCount)
+	}
+}
+
+func TestCollectorBoundsHighVolumeCardinalityBurst(t *testing.T) {
+	const maxSeries = 25
+	const totalSeries = 250
+	cfg := config.Config{
+		CustomMetricsEnabled:   true,
+		CustomMetricsInterval:  time.Second,
+		CustomMetricsMaxSeries: maxSeries,
+		CustomMetricsMaxBytes:  64 * 1024,
+	}
+	c := New(cfg, nil).(*collector)
+	var burst strings.Builder
+	for i := 0; i < totalSeries; i++ {
+		burst.WriteString("app.burst:")
+		burst.WriteString("1")
+		burst.WriteString("|c|#host:local,service:api,env:test,series:")
+		burst.WriteString(strconv.Itoa(i))
+		burst.WriteString(",idx:")
+		burst.WriteString(strconv.Itoa(i))
+		burst.WriteByte('\n')
+	}
+	c.ingestLines(burst.String())
+
+	raw, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	var payload struct {
+		CustomMetrics snapshot `json:"custom_metrics"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("invalid payload: %v", err)
+	}
+	if len(payload.CustomMetrics.Series) != maxSeries {
+		t.Fatalf("expected %d bounded series, got %d", maxSeries, len(payload.CustomMetrics.Series))
+	}
+	if payload.CustomMetrics.AcceptedCount != maxSeries {
+		t.Fatalf("expected accepted_count=%d, got %d", maxSeries, payload.CustomMetrics.AcceptedCount)
+	}
+	if payload.CustomMetrics.DroppedCount != totalSeries-maxSeries {
+		t.Fatalf("expected dropped_count=%d, got %d", totalSeries-maxSeries, payload.CustomMetrics.DroppedCount)
+	}
+
+	raw, err = c.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("second collect: %v", err)
+	}
+	if len(raw) != 0 {
+		t.Fatalf("expected empty payload after flush, got %s", string(raw))
 	}
 }
 
