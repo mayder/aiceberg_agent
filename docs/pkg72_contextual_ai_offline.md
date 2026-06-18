@@ -90,6 +90,7 @@ Cobertura:
 - `contextual_evidence` presente no snapshot;
 - IA local não exige LLM;
 - decisão destrutiva bloqueada;
+- `TestBuildLocalAINoiseReductionIsAssistiveOnly` valida que redução de ruído é pré-classificação determinística, sem supressão automática, sem descarte bruto, com benchmark e revisão humana obrigatórios; protege o contrato local, mas não substitui comparação real antes/depois.
 - redução de ruído é assistiva, preserva evidência original e exige benchmark;
 - veredito automático e execução remota ficam bloqueados;
 - perfil de privacidade sensível refletido;

@@ -318,6 +318,39 @@ func TestBuildContextualEvidenceMinimalProfileAvoidsRawSecrets(t *testing.T) {
 	}
 }
 
+func TestBuildLocalAINoiseReductionIsAssistiveOnly(t *testing.T) {
+	noise := buildLocalAINoiseReduction(config.CollectPrefs{
+		Logs:      false,
+		Processes: false,
+		Services:  false,
+		Network:   false,
+	})
+
+	if noise["enabled"] != true || noise["strategy"] != "deterministic_preclassification" {
+		t.Fatalf("unexpected noise reduction strategy: %#v", noise)
+	}
+	for _, key := range []string{
+		"keeps_original_evidence",
+		"requires_benchmark",
+		"human_review_for_closure",
+	} {
+		if noise[key] != true {
+			t.Fatalf("noise reduction must keep %s=true, got %#v", key, noise)
+		}
+	}
+	for _, key := range []string{"drops_raw_events", "automatic_suppression"} {
+		if noise[key] != false {
+			t.Fatalf("noise reduction must keep %s=false, got %#v", key, noise)
+		}
+	}
+	disabledCollectors := fmt.Sprint(noise["disabled_collectors"])
+	for _, collector := range []string{"logs", "processes", "services", "network"} {
+		assertTextContains(t, disabledCollectors, collector)
+	}
+	assertTextContains(t, fmt.Sprint(noise["signals"]), "duplicate_candidate")
+	assertTextContains(t, fmt.Sprint(noise["inputs"]), "redacted_logs")
+}
+
 func assertMaskedToken(t *testing.T, values map[string]any, key, raw string) {
 	t.Helper()
 
