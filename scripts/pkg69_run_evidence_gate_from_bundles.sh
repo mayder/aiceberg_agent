@@ -92,6 +92,7 @@ verify_bundle_manifest() {
   local manifest="$bundle_dir/MANIFEST.tsv"
   local evidence="$bundle_dir/evidence.md"
   local expected_header
+  local expected_template_value
   local expected_evidence_sha
   local expected_evidence_bytes
   local expected_artifact_value
@@ -117,6 +118,7 @@ verify_bundle_manifest() {
     exit 77
   fi
 
+  expected_template_value="$(manifest_field "$manifest" 2)"
   expected_evidence_sha="$(manifest_field "$manifest" 3)"
   expected_evidence_bytes="$(manifest_field "$manifest" 4)"
   expected_artifact_value="$(manifest_field "$manifest" 5)"
@@ -127,6 +129,10 @@ verify_bundle_manifest() {
   if [[ ! "$expected_created_at_utc" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
     echo "bundle manifest created_at_utc must use YYYYMMDDTHHMMSSZ: $manifest" >&2
     exit 78
+  fi
+  if [[ -z "$expected_template_value" || "$expected_template_value" == "-" || "$(basename "$expected_template_value")" != "$(basename "$evidence")" ]]; then
+    echo "bundle manifest template does not match evidence file: $bundle_dir" >&2
+    exit 80
   fi
 
   actual_evidence_sha="$(file_sha256 "$evidence")"

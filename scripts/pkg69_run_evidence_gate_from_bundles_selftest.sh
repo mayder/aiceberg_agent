@@ -156,6 +156,21 @@ if [[ "$artifact_mismatch_exit" -eq 0 ]]; then
 fi
 assert_contains "$TMP_DIR/artifact-mismatch.err" "bundle manifest artifact does not match evidence raw artifact"
 
+mkdir -p "$TMP_DIR/bundles-template-mismatch"
+cp -R "$TMP_DIR/bundles/relay" "$TMP_DIR/bundles-template-mismatch/relay"
+awk -F '\t' 'BEGIN { OFS="\t" } NR == 2 { $2 = "/tmp/other-evidence.md" } { print }' \
+  "$TMP_DIR/bundles-template-mismatch/relay/MANIFEST.tsv" >"$TMP_DIR/bundles-template-mismatch/relay/MANIFEST.tsv.tmp"
+mv "$TMP_DIR/bundles-template-mismatch/relay/MANIFEST.tsv.tmp" "$TMP_DIR/bundles-template-mismatch/relay/MANIFEST.tsv"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/bundles-template-mismatch/relay" >/dev/null 2>"$TMP_DIR/template-mismatch.err"
+template_mismatch_exit=$?
+set -e
+if [[ "$template_mismatch_exit" -eq 0 ]]; then
+  echo "expected template mismatch bundle to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/template-mismatch.err" "bundle manifest template does not match evidence file"
+
 set +e
 PKG69_EVIDENCE_FILE="$TMP_DIR/required.md" \
 PKG69_REQUIRE_REAL_EVIDENCE=true \
