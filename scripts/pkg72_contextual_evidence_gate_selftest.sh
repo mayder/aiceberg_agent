@@ -54,9 +54,12 @@ fill_template "$TMP_DIR/noc-no-approval.md" "pass"
 perl -0pi -e 's/- Aprovacao fechamento: yes/- Aprovacao fechamento: no/' "$TMP_DIR/noc-no-approval.md"
 
 PKG72_EVIDENCE_FILE="$TMP_DIR/correct-slot.md" \
+PKG72_EVIDENCE_MANIFEST_TSV="$TMP_DIR/correct-slot.tsv" \
 PKG72_INCIDENT_EVIDENCE="$TMP_DIR/noc-pass.md" \
 scripts/pkg72_contextual_evidence_homologation.sh >/dev/null
 assert_contains "$TMP_DIR/correct-slot.md" "noc-soc-incident-host-agentless: evidence"
+assert_contains "$TMP_DIR/correct-slot.tsv" $'name\tstatus\tpath\tsha256\tbytes\treason'
+assert_contains "$TMP_DIR/correct-slot.tsv" $'noc-soc-incident-host-agentless\tevidence\t'
 
 PKG72_EVIDENCE_FILE="$TMP_DIR/wrong-slot.md" \
 PKG72_DATADOG_BENCHMARK_EVIDENCE="$TMP_DIR/noc-pass.md" \
@@ -77,10 +80,13 @@ assert_contains "$TMP_DIR/empty-specific-field.md" "noc-soc-incident-host-agentl
 assert_contains "$TMP_DIR/empty-specific-field.md" "reason=template required field blank"
 
 PKG72_EVIDENCE_FILE="$TMP_DIR/no-approval.md" \
+PKG72_EVIDENCE_MANIFEST_TSV="$TMP_DIR/no-approval.tsv" \
 PKG72_INCIDENT_EVIDENCE="$TMP_DIR/noc-no-approval.md" \
 scripts/pkg72_contextual_evidence_homologation.sh >/dev/null
 assert_contains "$TMP_DIR/no-approval.md" "noc-soc-incident-host-agentless: invalid-template"
 assert_contains "$TMP_DIR/no-approval.md" "reason=template closure approval is not yes"
+assert_contains "$TMP_DIR/no-approval.tsv" $'noc-soc-incident-host-agentless\tinvalid-template\t'
+assert_contains "$TMP_DIR/no-approval.tsv" "template closure approval is not yes"
 
 set +e
 PKG72_EVIDENCE_FILE="$TMP_DIR/blocking.md" \

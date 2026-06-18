@@ -129,6 +129,12 @@ O script passa localmente quando os contratos automatizados estão íntegros, ma
 - `PKG72_NOISE_COST_EVIDENCE`;
 - `PKG72_DATADOG_BENCHMARK_EVIDENCE`.
 
+Para gerar manifesto TSV auditável com `name`, `status`, `path`, `sha256`, `bytes` e `reason`:
+
+```bash
+PKG72_EVIDENCE_MANIFEST_TSV=/tmp/aiceberg_pkg72_manifest.tsv scripts/pkg72_contextual_evidence_homologation.sh
+```
+
 Para gerar modelos editáveis das evidências reais:
 
 ```bash

@@ -8,6 +8,7 @@ EVIDENCE_FILE="${PKG72_EVIDENCE_FILE:-/tmp/aiceberg_pkg72_contextual_evidence.md
 GO_TEST_LOG="${PKG72_GO_TEST_LOG:-/tmp/aiceberg_pkg72_go_test.log}"
 REQUIRE_REAL_EVIDENCE="${PKG72_REQUIRE_REAL_EVIDENCE:-false}"
 TEMPLATE_DIR="${PKG72_TEMPLATE_DIR:-}"
+EVIDENCE_MANIFEST_TSV="${PKG72_EVIDENCE_MANIFEST_TSV:-}"
 REAL_EVIDENCE_PRESENT=0
 REAL_EVIDENCE_TOTAL=0
 
@@ -20,6 +21,19 @@ result() {
   local status="$2"
   local detail="$3"
   printf -- '- %s: %s — %s\n' "$name" "$status" "$detail" | tee -a "$EVIDENCE_FILE" >/dev/null
+}
+
+manifest_result() {
+  if [[ -z "$EVIDENCE_MANIFEST_TSV" ]]; then
+    return
+  fi
+  local name="$1"
+  local status="$2"
+  local path="$3"
+  local sha256="$4"
+  local bytes="$5"
+  local reason="$6"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$status" "$path" "$sha256" "$bytes" "$reason" >>"$EVIDENCE_MANIFEST_TSV"
 }
 
 file_size_bytes() {
@@ -72,12 +86,19 @@ require_file_or_pending() {
     local incomplete_reason
     if incomplete_reason="$(template_incomplete_reason "$path" "$expected_title")"; then
       result "$name" "invalid-template" "path=$path reason=$incomplete_reason"
+      manifest_result "$name" "invalid-template" "$path" "-" "-" "$incomplete_reason"
       return
     fi
     REAL_EVIDENCE_PRESENT=$((REAL_EVIDENCE_PRESENT + 1))
-    result "$name" "evidence" "path=$path sha256=$(file_sha256 "$path") bytes=$(file_size_bytes "$path")"
+    local sha256
+    local bytes
+    sha256="$(file_sha256 "$path")"
+    bytes="$(file_size_bytes "$path")"
+    result "$name" "evidence" "path=$path sha256=$sha256 bytes=$bytes"
+    manifest_result "$name" "evidence" "$path" "$sha256" "$bytes" "-"
   else
     result "$name" "pending" "$detail"
+    manifest_result "$name" "pending" "-" "-" "-" "$detail"
   fi
 }
 
@@ -181,6 +202,9 @@ generate_templates() {
 }
 
 : >"$EVIDENCE_FILE"
+if [[ -n "$EVIDENCE_MANIFEST_TSV" ]]; then
+  printf 'name\tstatus\tpath\tsha256\tbytes\treason\n' >"$EVIDENCE_MANIFEST_TSV"
+fi
 generate_templates
 
 section "PKG-72 contextual evidence homologation"
@@ -220,6 +244,9 @@ else
 fi
 result "pkg72-status" "not-closed" "do not mark PKG-72 100% until every required real evidence item above is present, reviewed and accepted"
 result "evidence-file" "written" "$EVIDENCE_FILE"
+if [[ -n "$EVIDENCE_MANIFEST_TSV" ]]; then
+  result "evidence-manifest-tsv" "written" "$EVIDENCE_MANIFEST_TSV"
+fi
 
 if [[ "$REQUIRE_REAL_EVIDENCE" == "true" && "$REAL_EVIDENCE_PRESENT" -ne "$REAL_EVIDENCE_TOTAL" ]]; then
   result "gate" "failed" "PKG72_REQUIRE_REAL_EVIDENCE=true and real evidence manifest is incomplete"
