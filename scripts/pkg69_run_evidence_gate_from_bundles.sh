@@ -94,6 +94,7 @@ verify_bundle_manifest() {
   local expected_header
   local expected_evidence_sha
   local expected_evidence_bytes
+  local expected_artifact_value
   local expected_artifact_sha
   local expected_artifact_bytes
   local expected_created_at_utc
@@ -118,6 +119,7 @@ verify_bundle_manifest() {
 
   expected_evidence_sha="$(manifest_field "$manifest" 3)"
   expected_evidence_bytes="$(manifest_field "$manifest" 4)"
+  expected_artifact_value="$(manifest_field "$manifest" 5)"
   expected_artifact_sha="$(manifest_field "$manifest" 6)"
   expected_artifact_bytes="$(manifest_field "$manifest" 7)"
   expected_created_at_utc="$(manifest_field "$manifest" 8)"
@@ -143,6 +145,10 @@ verify_bundle_manifest() {
   if [[ -z "$artifact_value" ]]; then
     echo "bundle evidence raw artifact is blank: $bundle_dir" >&2
     exit 73
+  fi
+  if [[ -z "$expected_artifact_value" || "$expected_artifact_value" == "-" || "$(basename "$expected_artifact_value")" != "$(basename "$artifact_value")" ]]; then
+    echo "bundle manifest artifact does not match evidence raw artifact: $bundle_dir" >&2
+    exit 79
   fi
   artifact_path="$(resolve_relative_path "$(dirname "$evidence")" "$artifact_value")"
   if [[ ! -e "$artifact_path" ]]; then
