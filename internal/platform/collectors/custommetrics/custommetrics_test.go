@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -96,6 +97,63 @@ func TestCollectorHTTPIngest(t *testing.T) {
 		t.Fatalf("invalid payload: %v", err)
 	}
 	if len(payload.CustomMetrics.Series) != 1 || payload.CustomMetrics.Series[0].Name != "app.latency" {
+		t.Fatalf("unexpected series %#v", payload.CustomMetrics.Series)
+	}
+}
+
+func TestCollectorUDSIngest(t *testing.T) {
+	socketFile, err := os.CreateTemp("/tmp", "aiceberg-cm-*.sock")
+	if err != nil {
+		t.Fatalf("temp socket path: %v", err)
+	}
+	socketPath := socketFile.Name()
+	_ = socketFile.Close()
+	_ = os.Remove(socketPath)
+	t.Cleanup(func() { _ = os.Remove(socketPath) })
+	cfg := config.Config{
+		CustomMetricsEnabled:   true,
+		CustomMetricsUDSPath:   socketPath,
+		CustomMetricsInterval:  time.Second,
+		CustomMetricsMaxSeries: 10,
+		CustomMetricsMaxBytes:  4096,
+	}
+	c := New(cfg, nil).(*collector)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if _, err := c.Collect(ctx); err != nil {
+		t.Fatalf("start collect: %v", err)
+	}
+
+	conn, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("dial uds: %v", err)
+	}
+	if _, err := conn.Write([]byte("app.uds.requests:7|c|#service:worker\n")); err != nil {
+		t.Fatalf("write uds: %v", err)
+	}
+	_ = conn.Close()
+
+	var raw []byte
+	for i := 0; i < 20; i++ {
+		raw, err = c.Collect(ctx)
+		if err != nil {
+			t.Fatalf("collect: %v", err)
+		}
+		if len(raw) > 0 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if len(raw) == 0 {
+		t.Fatalf("expected custom metrics payload")
+	}
+	var payload struct {
+		CustomMetrics snapshot `json:"custom_metrics"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("invalid payload: %v", err)
+	}
+	if len(payload.CustomMetrics.Series) != 1 || payload.CustomMetrics.Series[0].Name != "app.uds.requests" {
 		t.Fatalf("unexpected series %#v", payload.CustomMetrics.Series)
 	}
 }

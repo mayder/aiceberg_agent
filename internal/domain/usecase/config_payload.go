@@ -128,6 +128,7 @@ type ConfigPayload struct {
 		Enabled   *bool  `json:"enabled,omitempty"`
 		UDPAddr   string `json:"udp_addr,omitempty"`
 		HTTPAddr  string `json:"http_addr,omitempty"`
+		UDSPath   string `json:"uds_path,omitempty"`
 		Interval  int    `json:"interval,omitempty"`
 		MaxSeries int    `json:"max_series,omitempty"`
 		MaxBytes  int    `json:"max_bytes,omitempty"`
@@ -225,6 +226,9 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	}
 	if payload.CustomMetrics.HTTPAddr != "" {
 		collect.CustomMetricsHTTPAddr = payload.CustomMetrics.HTTPAddr
+	}
+	if payload.CustomMetrics.UDSPath != "" {
+		collect.CustomMetricsUDSPath = payload.CustomMetrics.UDSPath
 	}
 	if payload.CustomMetrics.Interval > 0 {
 		collect.CustomMetricsIntervalSec = payload.CustomMetrics.Interval

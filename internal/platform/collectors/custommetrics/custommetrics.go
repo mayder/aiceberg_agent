@@ -9,6 +9,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,6 +28,7 @@ type collector struct {
 	interval    time.Duration
 	udpAddr     string
 	httpAddr    string
+	udsPath     string
 	maxSeries   int
 	maxBytes    int
 	startOnce   sync.Once
@@ -34,6 +36,7 @@ type collector struct {
 	aggregator  *aggregator
 	httpServer  *http.Server
 	udpConn     *net.UDPConn
+	udsListener net.Listener
 }
 
 func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -55,6 +58,7 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 		interval:    interval,
 		udpAddr:     cfg.CustomMetricsUDPAddr,
 		httpAddr:    cfg.CustomMetricsHTTPAddr,
+		udsPath:     cfg.CustomMetricsUDSPath,
 		maxSeries:   maxSeries,
 		maxBytes:    maxBytes,
 		aggregator:  newAggregator(maxSeries),
@@ -98,24 +102,47 @@ func (c *collector) enabled() bool {
 
 func (c *collector) start(ctx context.Context) error {
 	var errs []string
-	if strings.TrimSpace(c.udpAddr) != "" {
-		if err := c.startUDP(ctx); err != nil {
+	udpAddr, httpAddr, udsPath := c.effectiveLocalEndpoints()
+	if strings.TrimSpace(udpAddr) != "" {
+		if err := c.startUDP(ctx, udpAddr); err != nil {
 			errs = append(errs, "udp: "+err.Error())
 		}
 	}
-	if strings.TrimSpace(c.httpAddr) != "" {
-		if err := c.startHTTP(ctx); err != nil {
+	if strings.TrimSpace(httpAddr) != "" {
+		if err := c.startHTTP(ctx, httpAddr); err != nil {
 			errs = append(errs, "http: "+err.Error())
 		}
 	}
-	if len(errs) > 0 && c.udpConn == nil && c.httpServer == nil {
+	if strings.TrimSpace(udsPath) != "" {
+		if err := c.startUDS(ctx, udsPath); err != nil {
+			errs = append(errs, "uds: "+err.Error())
+		}
+	}
+	if len(errs) > 0 && c.udpConn == nil && c.httpServer == nil && c.udsListener == nil {
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
 }
 
-func (c *collector) startUDP(ctx context.Context) error {
-	addr, err := net.ResolveUDPAddr("udp", c.udpAddr)
+func (c *collector) effectiveLocalEndpoints() (string, string, string) {
+	udpAddr, httpAddr, udsPath := c.udpAddr, c.httpAddr, c.udsPath
+	if c.prefs != nil {
+		p := c.prefs()
+		if strings.TrimSpace(p.CustomMetricsUDPAddr) != "" {
+			udpAddr = p.CustomMetricsUDPAddr
+		}
+		if strings.TrimSpace(p.CustomMetricsHTTPAddr) != "" {
+			httpAddr = p.CustomMetricsHTTPAddr
+		}
+		if strings.TrimSpace(p.CustomMetricsUDSPath) != "" {
+			udsPath = p.CustomMetricsUDSPath
+		}
+	}
+	return udpAddr, httpAddr, udsPath
+}
+
+func (c *collector) startUDP(ctx context.Context, listenAddr string) error {
+	addr, err := net.ResolveUDPAddr("udp", listenAddr)
 	if err != nil {
 		return err
 	}
@@ -151,7 +178,7 @@ func (c *collector) startUDP(ctx context.Context) error {
 	return nil
 }
 
-func (c *collector) startHTTP(ctx context.Context) error {
+func (c *collector) startHTTP(ctx context.Context, listenAddr string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/custom-metrics", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -171,8 +198,8 @@ func (c *collector) startHTTP(ctx context.Context) error {
 		accepted := c.ingestHTTP(body)
 		_ = json.NewEncoder(w).Encode(map[string]any{"accepted": accepted})
 	})
-	server := &http.Server{Addr: c.httpAddr, Handler: mux, ReadHeaderTimeout: 3 * time.Second}
-	ln, err := net.Listen("tcp", c.httpAddr)
+	server := &http.Server{Addr: listenAddr, Handler: mux, ReadHeaderTimeout: 3 * time.Second}
+	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return err
 	}
@@ -189,6 +216,54 @@ func (c *collector) startHTTP(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+func (c *collector) startUDS(ctx context.Context, path string) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil
+	}
+	_ = os.Remove(path)
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		return err
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		_ = ln.Close()
+		_ = os.Remove(path)
+		return err
+	}
+	c.udsListener = ln
+	go func() {
+		<-ctx.Done()
+		_ = ln.Close()
+		_ = os.Remove(path)
+	}()
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				if !errors.Is(err, net.ErrClosed) {
+					c.aggregator.drop(1)
+				}
+				return
+			}
+			go c.handleUDSConn(conn)
+		}
+	}()
+	return nil
+}
+
+func (c *collector) handleUDSConn(conn net.Conn) {
+	defer conn.Close()
+	scanner := bufio.NewScanner(conn)
+	scanner.Buffer(make([]byte, 1024), c.maxBytes)
+	for scanner.Scan() {
+		c.ingestLines(scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		c.aggregator.drop(1)
+	}
 }
 
 func (c *collector) ingestLines(raw string) int {

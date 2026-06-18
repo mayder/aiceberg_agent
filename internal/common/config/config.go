@@ -77,6 +77,7 @@ type Config struct {
 	CustomMetricsEnabled               bool
 	CustomMetricsUDPAddr               string
 	CustomMetricsHTTPAddr              string
+	CustomMetricsUDSPath               string
 	CustomMetricsInterval              time.Duration
 	CustomMetricsMaxSeries             int
 	CustomMetricsMaxBytes              int
@@ -180,6 +181,7 @@ type CollectPrefs struct {
 	CustomMetricsEnabled       bool               `json:"custom_metrics_enabled,omitempty"`
 	CustomMetricsUDPAddr       string             `json:"custom_metrics_udp_addr,omitempty"`
 	CustomMetricsHTTPAddr      string             `json:"custom_metrics_http_addr,omitempty"`
+	CustomMetricsUDSPath       string             `json:"custom_metrics_uds_path,omitempty"`
 	CustomMetricsIntervalSec   int                `json:"custom_metrics_interval,omitempty"`
 	CustomMetricsMaxSeries     int                `json:"custom_metrics_max_series,omitempty"`
 	CustomMetricsMaxBytes      int                `json:"custom_metrics_max_bytes,omitempty"`
@@ -296,6 +298,7 @@ func Load(configPath string) (Config, error) {
 		CustomMetricsEnabled:               strings.ToLower(getenv("CUSTOM_METRICS_ENABLED", "")) == "true",
 		CustomMetricsUDPAddr:               getenv("CUSTOM_METRICS_UDP_ADDR", "127.0.0.1:8125"),
 		CustomMetricsHTTPAddr:              getenv("CUSTOM_METRICS_HTTP_ADDR", "127.0.0.1:8126"),
+		CustomMetricsUDSPath:               getenv("CUSTOM_METRICS_UDS_PATH", ""),
 		CustomMetricsInterval:              time.Duration(intEnv("CUSTOM_METRICS_INTERVAL", 10)) * time.Second,
 		CustomMetricsMaxSeries:             intEnv("CUSTOM_METRICS_MAX_SERIES", 1000),
 		CustomMetricsMaxBytes:              intEnv("CUSTOM_METRICS_MAX_BYTES", 65536),

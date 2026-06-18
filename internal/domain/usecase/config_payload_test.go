@@ -193,6 +193,33 @@ func TestApplyConfigPayloadAppliesLogLocalTransportAddresses(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadAppliesCustomMetricsUDSPath(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	enabled := true
+	payload := ConfigPayload{
+		Version: "cfg-custom-metrics",
+		Collect: config.CollectPrefs{
+			CustomMetricsEnabled: true,
+		},
+	}
+	payload.CustomMetrics.Enabled = &enabled
+	payload.CustomMetrics.UDSPath = "/tmp/aiceberg-custommetrics.sock"
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if !got.CustomMetricsEnabled || got.CustomMetricsUDSPath != "/tmp/aiceberg-custommetrics.sock" {
+		t.Fatalf("expected custom metrics uds path persisted, got enabled=%v uds=%q", got.CustomMetricsEnabled, got.CustomMetricsUDSPath)
+	}
+}
+
 func TestApplyConfigPayloadWithSecurityRequiresSignatureForSensitivePayload(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}
