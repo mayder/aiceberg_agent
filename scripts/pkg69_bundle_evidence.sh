@@ -36,13 +36,21 @@ if [[ ! "$SCENARIO" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
   echo "scenario-name must contain only lowercase letters, numbers, '_' or '-'" >&2
   exit 65
 fi
+case "$SCENARIO" in
+  windows-server|windows-desktop|linux-debian|linux-rhel|docker-runtime|kubernetes-rbac|proxy-tls|clock-skew|permission-ebpf|reboot-during-collection|disk-full|high-volume-overhead|relay-hub-direct-hosts|remote-update-rollback)
+    ;;
+  *)
+    echo "unknown PKG-69 scenario: $SCENARIO" >&2
+    exit 66
+    ;;
+esac
 if [[ ! -f "$TEMPLATE" ]]; then
   echo "template not found: $TEMPLATE" >&2
-  exit 66
+  exit 67
 fi
 if [[ ! -e "$RAW_ARTIFACT" ]]; then
   echo "raw artifact not found: $RAW_ARTIFACT" >&2
-  exit 67
+  exit 68
 fi
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -70,11 +78,11 @@ artifact_size_bytes() {
 
 if [[ -f "$RAW_ARTIFACT" && ! -s "$RAW_ARTIFACT" ]]; then
   echo "raw artifact is empty: $RAW_ARTIFACT" >&2
-  exit 68
+  exit 69
 fi
 if [[ -d "$RAW_ARTIFACT" && "$(artifact_size_bytes "$RAW_ARTIFACT")" == "0" ]]; then
   echo "raw artifact directory has no non-empty files: $RAW_ARTIFACT" >&2
-  exit 69
+  exit 70
 fi
 
 cp "$TEMPLATE" "$OUT_DIR/evidence.md"
@@ -89,7 +97,7 @@ fi
 
 if ! grep -Fq -- "- Evidencia bruta anexada:" "$OUT_DIR/evidence.md"; then
   echo "template missing required field: Evidencia bruta anexada" >&2
-  exit 70
+  exit 71
 fi
 BUNDLED_RAW="raw/$raw_name" \
   perl -0pi -e 's#^- Evidencia bruta anexada:.*$#- Evidencia bruta anexada: $ENV{BUNDLED_RAW}#m' "$OUT_DIR/evidence.md"

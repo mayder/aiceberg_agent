@@ -85,6 +85,16 @@ if [[ "$empty_exit" -eq 0 ]]; then
   exit 1
 fi
 
+set +e
+scripts/pkg69_bundle_evidence.sh unknown-scenario "$template" "$raw" "$TMP_DIR/unknown-out" >/dev/null 2>"$TMP_DIR/unknown.err"
+unknown_exit=$?
+set -e
+if [[ "$unknown_exit" -eq 0 ]]; then
+  echo "expected unknown scenario to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/unknown.err" "unknown PKG-69 scenario"
+
 raw_dir="$TMP_DIR/rawdir"
 mkdir -p "$raw_dir"
 printf 'dir evidence\n' >"$raw_dir/log.txt"
