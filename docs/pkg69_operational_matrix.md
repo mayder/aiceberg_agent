@@ -42,7 +42,7 @@ O script de homologacao executa:
 - `./check.sh`;
 - listagem explicita de cenarios pendentes de ambiente real.
 
-O gate `scripts/pkg69_operational_evidence_gate.sh` gera templates por ambiente/cenario, valida titulo, status `pass`, campos obrigatorios, aprovacao de fechamento e SHA256/tamanho de cada evidencia anexada. O self-test `scripts/pkg69_operational_evidence_gate_selftest.sh` roda dentro de `./check.sh`.
+O gate `scripts/pkg69_operational_evidence_gate.sh` gera templates por ambiente/cenario, valida titulo, status `pass`, campos obrigatorios, aprovacao de fechamento e SHA256/tamanho de cada evidencia anexada. Campos criticos tambem sao validados por conteudo, incluindo metricas numericas, `ingest_confirmed=yes|true`, `recovered=yes|true`, `version_confirmed reportado=yes|true` e `relay_direct_api_attempts=0` para a topologia `relay -> hub -> AIceberg`. O self-test `scripts/pkg69_operational_evidence_gate_selftest.sh` roda dentro de `./check.sh`.
 
 Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 

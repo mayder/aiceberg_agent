@@ -45,6 +45,106 @@ file_sha256() {
   shasum -a 256 "$1" | awk '{print $1}'
 }
 
+field_value() {
+  local path="$1"
+  local field="$2"
+  sed -n "s/^- ${field}:[[:space:]]*//p" "$path" | head -n 1
+}
+
+require_exact_field() {
+  local path="$1"
+  local field="$2"
+  local expected="$3"
+  local value
+  value="$(field_value "$path" "$field")"
+  if [[ "$value" != "$expected" ]]; then
+    echo "field $field must be $expected"
+    return 0
+  fi
+  return 1
+}
+
+require_bool_field() {
+  local path="$1"
+  local field="$2"
+  local value
+  value="$(field_value "$path" "$field")"
+  if [[ "$value" != "yes" && "$value" != "true" ]]; then
+    echo "field $field must be yes or true"
+    return 0
+  fi
+  return 1
+}
+
+require_number_field() {
+  local path="$1"
+  local field="$2"
+  local value
+  value="$(field_value "$path" "$field")"
+  if ! [[ "$value" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    echo "field $field must be numeric"
+    return 0
+  fi
+  return 1
+}
+
+scenario_incomplete_reason() {
+  local path="$1"
+  local expected_title="$2"
+  local reason
+  case "$expected_title" in
+    "PKG-69 - Windows Server"|"PKG-69 - Linux Debian Ubuntu"|"PKG-69 - Linux RHEL Alma Rocky")
+      if reason="$(require_bool_field "$path" "ingest_confirmed")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "proc_cpu_percent")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "proc_rss_bytes")"; then echo "$reason"; return 0; fi
+      ;;
+    "PKG-69 - Windows Desktop")
+      if reason="$(require_bool_field "$path" "ingest_confirmed")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "proc_cpu_percent")"; then echo "$reason"; return 0; fi
+      ;;
+    "PKG-69 - Docker Runtime")
+      if reason="$(require_number_field "$path" "containers_seen")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "proc_cpu_percent")"; then echo "$reason"; return 0; fi
+      ;;
+    "PKG-69 - Kubernetes RBAC")
+      if reason="$(require_number_field "$path" "pods_seen")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "events_seen")"; then echo "$reason"; return 0; fi
+      ;;
+    "PKG-69 - Proxy TLS")
+      if reason="$(require_number_field "$path" "requests_ok")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "requests_failed_expected")"; then echo "$reason"; return 0; fi
+      ;;
+    "PKG-69 - Clock Skew Real")
+      if reason="$(require_number_field "$path" "offset_ms")"; then echo "$reason"; return 0; fi
+      ;;
+    "PKG-69 - Permissao eBPF Restrita")
+      if reason="$(require_bool_field "$path" "ingest_confirmed")"; then echo "$reason"; return 0; fi
+      ;;
+    "PKG-69 - Reboot Durante Coleta")
+      if reason="$(require_number_field "$path" "queued_before")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "duplicate_count")"; then echo "$reason"; return 0; fi
+      ;;
+    "PKG-69 - Disco Cheio Real")
+      if reason="$(require_bool_field "$path" "recovered")"; then echo "$reason"; return 0; fi
+      ;;
+    "PKG-69 - Alto Volume e Overhead")
+      if reason="$(require_number_field "$path" "proc_cpu_percent")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "accepted_count")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "dropped_count")"; then echo "$reason"; return 0; fi
+      ;;
+    "PKG-69 - Relay Hub Direct Hosts")
+      if reason="$(require_bool_field "$path" "direct_ingested")"; then echo "$reason"; return 0; fi
+      if reason="$(require_bool_field "$path" "hub_ingested")"; then echo "$reason"; return 0; fi
+      if reason="$(require_bool_field "$path" "relay_ingested_via_hub")"; then echo "$reason"; return 0; fi
+      if reason="$(require_exact_field "$path" "relay_direct_api_attempts" "0")"; then echo "$reason"; return 0; fi
+      ;;
+    "PKG-69 - Update Remoto e Rollback")
+      if reason="$(require_bool_field "$path" "version_confirmed reportado")"; then echo "$reason"; return 0; fi
+      ;;
+  esac
+  return 1
+}
+
 template_incomplete_reason() {
   local path="$1"
   local expected_title="$2"
@@ -70,6 +170,11 @@ template_incomplete_reason() {
   fi
   if grep -Eq '^- [^:]+:[[:space:]]*$' "$path"; then
     echo "template required field blank"
+    return 0
+  fi
+  local scenario_reason
+  if scenario_reason="$(scenario_incomplete_reason "$path" "$expected_title")"; then
+    echo "$scenario_reason"
     return 0
   fi
   return 1

@@ -24,6 +24,30 @@ fill_template() {
   perl -0pi -e "s/- Status: pending\\|pass\\|fail/- Status: $status/" "$path"
   perl -0pi -e "s/- Aprovacao fechamento: pending\\|yes\\|no/- Aprovacao fechamento: yes/" "$path"
   perl -0pi -e 's/^- ([^:\n]+):[[:space:]]*$/- $1: selftest/mg' "$path"
+  perl -0pi -e \
+    's/- ingest_confirmed: selftest/- ingest_confirmed: yes/g;
+     s/- proc_cpu_percent: selftest/- proc_cpu_percent: 1/g;
+     s/- proc_rss_bytes: selftest/- proc_rss_bytes: 1048576/g;
+     s/- queue_items: selftest/- queue_items: 0/g;
+     s/- containers_seen: selftest/- containers_seen: 1/g;
+     s/- container_logs_seen: selftest/- container_logs_seen: 1/g;
+     s/- pods_seen: selftest/- pods_seen: 1/g;
+     s/- events_seen: selftest/- events_seen: 1/g;
+     s/- requests_ok: selftest/- requests_ok: 1/g;
+     s/- requests_failed_expected: selftest/- requests_failed_expected: 1/g;
+     s/- retry_count: selftest/- retry_count: 1/g;
+     s/- offset_ms: selftest/- offset_ms: 5000/g;
+     s/- queued_before: selftest/- queued_before: 1/g;
+     s/- replayed_after: selftest/- replayed_after: 1/g;
+     s/- duplicate_count: selftest/- duplicate_count: 0/g;
+     s/- recovered: selftest/- recovered: yes/g;
+     s/- accepted_count: selftest/- accepted_count: 100/g;
+     s/- dropped_count: selftest/- dropped_count: 0/g;
+     s/- direct_ingested: selftest/- direct_ingested: yes/g;
+     s/- hub_ingested: selftest/- hub_ingested: yes/g;
+     s/- relay_ingested_via_hub: selftest/- relay_ingested_via_hub: yes/g;
+     s/- relay_direct_api_attempts: selftest/- relay_direct_api_attempts: 0/g;
+     s/- version_confirmed reportado: selftest/- version_confirmed reportado: yes/g' "$path"
 }
 
 assert_contains() {
@@ -69,7 +93,11 @@ fill_template "$TMP_DIR/relay-fail.md" "fail"
 
 cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-empty-specific-field.md"
 fill_template "$TMP_DIR/relay-empty-specific-field.md" "pass"
-perl -0pi -e 's/- relay_direct_api_attempts: selftest/- relay_direct_api_attempts:/' "$TMP_DIR/relay-empty-specific-field.md"
+perl -0pi -e 's/- relay_direct_api_attempts: 0/- relay_direct_api_attempts:/' "$TMP_DIR/relay-empty-specific-field.md"
+
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-direct-attempts.md"
+fill_template "$TMP_DIR/relay-direct-attempts.md" "pass"
+perl -0pi -e 's/- relay_direct_api_attempts: 0/- relay_direct_api_attempts: 1/' "$TMP_DIR/relay-direct-attempts.md"
 
 cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-no-approval.md"
 fill_template "$TMP_DIR/relay-no-approval.md" "pass"
@@ -106,6 +134,12 @@ PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-no-approval.md" \
 scripts/pkg69_operational_evidence_gate.sh >/dev/null
 assert_contains "$TMP_DIR/no-approval.md" "relay-hub-direct-hosts: invalid-template"
 assert_contains "$TMP_DIR/no-approval.md" "reason=template closure approval is not yes"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/relay-direct-attempts.md.out" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-direct-attempts.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/relay-direct-attempts.md.out" "relay-hub-direct-hosts: invalid-template"
+assert_contains "$TMP_DIR/relay-direct-attempts.md.out" "reason=field relay_direct_api_attempts must be 0"
 
 mkdir -p "$TMP_DIR/all"
 cp "$TMP_DIR/templates/"*.md "$TMP_DIR/all/"
