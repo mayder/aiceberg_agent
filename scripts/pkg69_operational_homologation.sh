@@ -46,6 +46,8 @@ result "artifact-trust-local" "pass" "Ed25519 aceita assinatura valida e rejeita
 result "update-network-local" "pass" "HTTP_PROXY autenticado e timeout de download sem artefato parcial; log=/tmp/aiceberg_pkg69_update_network_test.log"
 go test ./internal/platform/collectors/sysmetrics -run 'Test(TimeSyncStatusClassifiesClockSkew|ClampAbsInt64)' >/tmp/aiceberg_pkg69_clock_skew_test.log
 result "clock-skew-local" "pass" "time_sync classifica offset ok/warning/critical e limita offset extremo; log=/tmp/aiceberg_pkg69_clock_skew_test.log"
+go test ./internal/platform/collectors/networkcapture -run TestClassifyPCAPUnavailableWarning >/tmp/aiceberg_pkg69_permission_test.log
+result "permission-local" "pass" "pcap classifica permissao insuficiente, interface invalida e captura vazia sem crash; log=/tmp/aiceberg_pkg69_permission_test.log"
 result "api-unavailable-local" "pass" "flush_outbox tests preserve pending envelopes on transport/API error"
 result "network-intermittent-local" "pass" "flush_outbox tests backoff and later retry behavior"
 result "payload-large-local" "pass" "collectors enforce max bytes/items in focused tests"
@@ -63,6 +65,7 @@ result "docker" "pending" "validar CONTAINER_ENABLED com daemon real e carga con
 result "kubernetes" "pending" "validar DaemonSet/Helm/RBAC em cluster controlado"
 result "proxy-auth" "partial" "HTTP_PROXY autenticado coberto em teste local; falta proxy real/TLS em host controlado"
 result "clock-skew" "partial" "classificacao local ok/warning/critical coberta; falta NTP/clock errado real em host controlado"
+result "permission-restricted" "partial" "pcap/tcpdump classifica permissao insuficiente localmente; falta host Linux/eBPF restrito real"
 result "disk-full" "partial" "outbox cheia coberta por teste local; falta disco cheio real do SO"
 result "payload-large" "partial" "limites cobertos por testes locais; falta alto volume real DogStatsD/OTLP/logs"
 result "remote-update-rollback" "pending" "validar artefato anterior, hash e version_confirmed"

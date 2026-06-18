@@ -110,6 +110,44 @@ func TestParseServiceNameFromCgroupNoService(t *testing.T) {
 	}
 }
 
+func TestClassifyPCAPUnavailableWarning(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			name: "permission denied",
+			raw:  "tcpdump: en0: You don't have permission to capture on that device",
+			want: "pcap indisponível: permissão insuficiente para tcpdump",
+		},
+		{
+			name: "permission denied lower",
+			raw:  "tcpdump: permission denied",
+			want: "pcap indisponível: permissão insuficiente para tcpdump",
+		},
+		{
+			name: "invalid interface",
+			raw:  "tcpdump: eth9: No such device exists",
+			want: "pcap indisponível: interface de captura inválida",
+		},
+		{
+			name: "empty capture",
+			raw:  "0 packets captured",
+			want: "pcap controlado sem pacotes no período",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := classifyPCAPUnavailableWarning(tc.raw)
+			if got != tc.want {
+				t.Fatalf("classifyPCAPUnavailableWarning() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestNormalizeReverseDNSName(t *testing.T) {
 	got := normalizeReverseDNSName(" API.Example.COM. ")
 	if got != "api.example.com" {

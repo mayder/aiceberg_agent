@@ -1334,17 +1334,21 @@ func collectPCAPSummary(
 	summary.RequestedDuration = int(duration.Seconds())
 	summary.RequestedPackets = maxPackets
 	if err != nil && summary.CapturedPackets == 0 && len(summary.Flows) == 0 {
-		reason := strings.ToLower(string(raw))
-		switch {
-		case strings.Contains(reason, "permission denied"), strings.Contains(reason, "you don't have permission"):
-			return &summary, "pcap indisponível: permissão insuficiente para tcpdump"
-		case strings.Contains(reason, "no such device"):
-			return &summary, "pcap indisponível: interface de captura inválida"
-		default:
-			return &summary, "pcap controlado sem pacotes no período"
-		}
+		return &summary, classifyPCAPUnavailableWarning(string(raw))
 	}
 	return &summary, ""
+}
+
+func classifyPCAPUnavailableWarning(raw string) string {
+	reason := strings.ToLower(strings.TrimSpace(raw))
+	switch {
+	case strings.Contains(reason, "permission denied"), strings.Contains(reason, "you don't have permission"):
+		return "pcap indisponível: permissão insuficiente para tcpdump"
+	case strings.Contains(reason, "no such device"):
+		return "pcap indisponível: interface de captura inválida"
+	default:
+		return "pcap controlado sem pacotes no período"
+	}
 }
 
 func runCommand(ctx context.Context, timeout time.Duration, name string, args ...string) ([]byte, error) {
