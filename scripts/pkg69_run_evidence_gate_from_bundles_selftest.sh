@@ -113,6 +113,19 @@ if [[ "$tampered_exit" -eq 0 ]]; then
 fi
 assert_contains "$TMP_DIR/tampered.err" "bundle evidence sha256 mismatch"
 
+mkdir -p "$TMP_DIR/bundles-extra-row"
+cp -R "$TMP_DIR/bundles/relay" "$TMP_DIR/bundles-extra-row/relay"
+cat "$TMP_DIR/bundles/proxy/MANIFEST.tsv" | tail -n 1 >>"$TMP_DIR/bundles-extra-row/relay/MANIFEST.tsv"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/bundles-extra-row/relay" >/dev/null 2>"$TMP_DIR/extra-row.err"
+extra_row_exit=$?
+set -e
+if [[ "$extra_row_exit" -eq 0 ]]; then
+  echo "expected bundle manifest with extra row to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/extra-row.err" "bundle manifest must contain exactly one evidence row"
+
 set +e
 PKG69_EVIDENCE_FILE="$TMP_DIR/required.md" \
 PKG69_REQUIRE_REAL_EVIDENCE=true \

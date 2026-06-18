@@ -98,6 +98,7 @@ verify_bundle_manifest() {
   local expected_artifact_bytes
   local actual_evidence_sha
   local actual_evidence_bytes
+  local line_count
   local artifact_value
   local artifact_path
   local actual_artifact_sha
@@ -107,6 +108,11 @@ verify_bundle_manifest() {
   if [[ "$(head -n 1 "$manifest")" != "$expected_header" ]]; then
     echo "bundle manifest header mismatch: $manifest" >&2
     exit 70
+  fi
+  line_count="$(wc -l <"$manifest" | tr -d ' ')"
+  if [[ "$line_count" != "2" ]]; then
+    echo "bundle manifest must contain exactly one evidence row: $manifest" >&2
+    exit 77
   fi
 
   expected_evidence_sha="$(manifest_field "$manifest" 3)"
