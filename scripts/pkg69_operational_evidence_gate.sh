@@ -112,6 +112,18 @@ require_bool_field() {
   return 1
 }
 
+require_utc_timestamp_field() {
+  local path="$1"
+  local field="$2"
+  local value
+  value="$(field_value "$path" "$field")"
+  if ! [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+    echo "field $field must use UTC format YYYY-MM-DDTHH:MM:SSZ"
+    return 0
+  fi
+  return 1
+}
+
 require_existing_artifact_field() {
   local path="$1"
   local field="$2"
@@ -279,6 +291,11 @@ template_incomplete_reason() {
   fi
   if grep -Eq '^- [^:]+:[[:space:]]*$' "$path"; then
     echo "template required field blank"
+    return 0
+  fi
+  local data_utc_reason
+  if data_utc_reason="$(require_utc_timestamp_field "$path" "Data UTC")"; then
+    echo "$data_utc_reason"
     return 0
   fi
   local evidence_reason

@@ -108,6 +108,10 @@ cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-no-approval.md
 fill_template "$TMP_DIR/relay-no-approval.md" "pass"
 perl -0pi -e 's/- Aprovacao fechamento: yes/- Aprovacao fechamento: no/' "$TMP_DIR/relay-no-approval.md"
 
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-invalid-date.md"
+fill_template "$TMP_DIR/relay-invalid-date.md" "pass"
+perl -0pi -e 's/- Data UTC: 2026-06-18T00:00:00Z/- Data UTC: 18\/06\/2026 00:00:00/' "$TMP_DIR/relay-invalid-date.md"
+
 cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-missing-artifact.md"
 fill_template "$TMP_DIR/relay-missing-artifact.md" "pass"
 perl -0pi -e 's/- Evidencia bruta anexada: raw.log/- Evidencia bruta anexada: missing.log/' "$TMP_DIR/relay-missing-artifact.md"
@@ -170,6 +174,12 @@ PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-no-approval.md" \
 scripts/pkg69_operational_evidence_gate.sh >/dev/null
 assert_contains "$TMP_DIR/no-approval.md" "relay-hub-direct-hosts: invalid-template"
 assert_contains "$TMP_DIR/no-approval.md" "reason=template closure approval is not yes"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/invalid-date.md.out" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-invalid-date.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/invalid-date.md.out" "relay-hub-direct-hosts: invalid-template"
+assert_contains "$TMP_DIR/invalid-date.md.out" "reason=field Data UTC must use UTC format YYYY-MM-DDTHH:MM:SSZ"
 
 PKG69_EVIDENCE_FILE="$TMP_DIR/relay-direct-attempts.md.out" \
 PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-direct-attempts.md" \
