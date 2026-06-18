@@ -324,7 +324,7 @@ PKG69_EVIDENCE_MANIFEST_TSV=/tmp/aiceberg_pkg69_manifest.tsv \
 scripts/pkg69_operational_evidence_gate.sh
 ```
 
-Para fechamento, preencher os templates dos ambientes reais e rodar com `PKG69_REQUIRE_REAL_EVIDENCE=true` e `PKG69_REQUIRE_CLOSURE_ACCEPTED=true`. O pacote nao deve ser marcado como 100% enquanto o gate reportar `pkg69-status: not-closed`. Na evidencia de Relay/Hub/Direct, `relay_direct_api_attempts` precisa ser `0`. Evidencia com CPU/RSS acima dos limites iniciais ou Kubernetes permitindo `secrets`, `exec` ou `delete` nao passa no gate.
+Para fechamento, preencher os templates dos ambientes reais e rodar com `PKG69_REQUIRE_REAL_EVIDENCE=true` e `PKG69_REQUIRE_CLOSURE_ACCEPTED=true`. O pacote nao deve ser marcado como 100% enquanto o gate reportar `pkg69-status: not-closed`. Cada template precisa apontar `Evidencia bruta anexada` para arquivo/diretorio local existente e registrar rollback validado. Na evidencia de Relay/Hub/Direct, `relay_direct_api_attempts` precisa ser `0`. Evidencia com CPU/RSS acima dos limites iniciais ou Kubernetes permitindo `secrets`, `exec` ou `delete` nao passa no gate.
 
 Rollback: nao altera runtime; se a validacao real falhar, reabrir pacote tecnico correspondente e manter artefato anterior.
 

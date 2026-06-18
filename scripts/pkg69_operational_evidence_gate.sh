@@ -69,8 +69,34 @@ require_bool_field() {
   local field="$2"
   local value
   value="$(field_value "$path" "$field")"
-  if [[ "$value" != "yes" && "$value" != "true" ]]; then
-    echo "field $field must be yes or true"
+  if [[ "$value" != "yes" && "$value" != "true" && "$value" != "sim" ]]; then
+    echo "field $field must be yes, true or sim"
+    return 0
+  fi
+  return 1
+}
+
+require_existing_artifact_field() {
+  local path="$1"
+  local field="$2"
+  local value
+  value="$(field_value "$path" "$field")"
+  if [[ -z "$value" ]]; then
+    echo "field $field must point to an existing evidence artifact"
+    return 0
+  fi
+  if [[ "$value" =~ ^https?:// ]]; then
+    echo "field $field must use a local evidence artifact path, not URL"
+    return 0
+  fi
+  local artifact_path
+  if [[ "$value" = /* ]]; then
+    artifact_path="$value"
+  else
+    artifact_path="$(dirname "$path")/$value"
+  fi
+  if [[ ! -e "$artifact_path" ]]; then
+    echo "field $field artifact does not exist: $value"
     return 0
   fi
   return 1
@@ -196,6 +222,16 @@ template_incomplete_reason() {
   fi
   if grep -Eq '^- [^:]+:[[:space:]]*$' "$path"; then
     echo "template required field blank"
+    return 0
+  fi
+  local evidence_reason
+  if evidence_reason="$(require_existing_artifact_field "$path" "Evidencia bruta anexada")"; then
+    echo "$evidence_reason"
+    return 0
+  fi
+  local rollback_reason
+  if rollback_reason="$(require_bool_field "$path" "Rollback validado")"; then
+    echo "$rollback_reason"
     return 0
   fi
   local scenario_reason

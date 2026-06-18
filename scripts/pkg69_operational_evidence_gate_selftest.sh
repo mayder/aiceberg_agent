@@ -10,6 +10,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 fill_template() {
   local path="$1"
   local status="$2"
+  printf 'raw evidence for %s\n' "$(basename "$path")" >"$(dirname "$path")/raw.log"
   perl -0pi -e \
     's/- Data UTC:/- Data UTC: 2026-06-18T00:00:00Z/;
      s/- Responsavel:/- Responsavel: gate-selftest/;
@@ -106,6 +107,14 @@ cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-no-approval.md
 fill_template "$TMP_DIR/relay-no-approval.md" "pass"
 perl -0pi -e 's/- Aprovacao fechamento: yes/- Aprovacao fechamento: no/' "$TMP_DIR/relay-no-approval.md"
 
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-missing-artifact.md"
+fill_template "$TMP_DIR/relay-missing-artifact.md" "pass"
+perl -0pi -e 's/- Evidencia bruta anexada: raw.log/- Evidencia bruta anexada: missing.log/' "$TMP_DIR/relay-missing-artifact.md"
+
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-rollback-not-validated.md"
+fill_template "$TMP_DIR/relay-rollback-not-validated.md" "pass"
+perl -0pi -e 's/- Rollback validado: sim/- Rollback validado: no/' "$TMP_DIR/relay-rollback-not-validated.md"
+
 cp "$TMP_DIR/templates/high_volume_overhead.md" "$TMP_DIR/high-volume-over-limit.md"
 fill_template "$TMP_DIR/high-volume-over-limit.md" "pass"
 perl -0pi -e 's/- proc_cpu_percent: 1/- proc_cpu_percent: 16/' "$TMP_DIR/high-volume-over-limit.md"
@@ -151,6 +160,18 @@ PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-direct-attempts.md" \
 scripts/pkg69_operational_evidence_gate.sh >/dev/null
 assert_contains "$TMP_DIR/relay-direct-attempts.md.out" "relay-hub-direct-hosts: invalid-template"
 assert_contains "$TMP_DIR/relay-direct-attempts.md.out" "reason=field relay_direct_api_attempts must be 0"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/relay-missing-artifact.md.out" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-missing-artifact.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/relay-missing-artifact.md.out" "relay-hub-direct-hosts: invalid-template"
+assert_contains "$TMP_DIR/relay-missing-artifact.md.out" "reason=field Evidencia bruta anexada artifact does not exist: missing.log"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/relay-rollback-not-validated.md.out" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-rollback-not-validated.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/relay-rollback-not-validated.md.out" "relay-hub-direct-hosts: invalid-template"
+assert_contains "$TMP_DIR/relay-rollback-not-validated.md.out" "reason=field Rollback validado must be yes, true or sim"
 
 PKG69_EVIDENCE_FILE="$TMP_DIR/high-volume-over-limit.md.out" \
 PKG69_HIGH_VOLUME_EVIDENCE="$TMP_DIR/high-volume-over-limit.md" \
