@@ -101,11 +101,21 @@ while IFS=$'\t' read -r name status _rest; do
   esac
 done <"$MANIFEST_TSV"
 
+closure_status="BLOQUEADO"
+closure_reason="faltam evidencias reais obrigatorias"
+if [[ "$invalid" -gt 0 ]]; then
+  closure_reason="existem evidencias invalidas"
+elif [[ "$pending" -eq 0 ]]; then
+  closure_status="PRONTO_PARA_REVISAO"
+  closure_reason="todas as evidencias reais estao presentes; ainda exige revisao e aceite explicito"
+fi
+
 {
   printf '# PKG-69 - Relatorio de lacunas de evidencia\n\n'
   printf -- '- Gerado UTC: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf -- '- Manifest TSV: `%s`\n' "$MANIFEST_TSV"
   printf -- '- Gate evidence: `%s`\n' "$EVIDENCE_FILE"
+  printf -- '- Fechamento: %s - %s.\n' "$closure_status" "$closure_reason"
   printf -- '- Resumo: %s/%s evidencias OK; %s pendentes; %s invalidas.\n\n' "$ok" "$total" "$pending" "$invalid"
   printf '| Cenario | Status | Motivo | Proxima acao |\n'
   printf '|---|---|---|---|\n'

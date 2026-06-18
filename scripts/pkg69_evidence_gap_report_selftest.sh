@@ -66,6 +66,7 @@ PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/manifest.tsv" \
 scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/bundles" >/dev/null 2>"$TMP_DIR/report.err"
 
 assert_contains "$TMP_DIR/report.md" "# PKG-69 - Relatorio de lacunas de evidencia"
+assert_contains "$TMP_DIR/report.md" "- Fechamento: BLOQUEADO - faltam evidencias reais obrigatorias."
 assert_contains "$TMP_DIR/report.md" '| `relay-hub-direct-hosts` | OK |'
 assert_contains "$TMP_DIR/report.md" '| `windows-server` | PENDENTE |'
 assert_contains "$TMP_DIR/report.md" 'Executar smoke.ps1 e update/rollback controlado em Windows Server'
@@ -137,5 +138,6 @@ if [[ "$invalid_exit" -ne 2 ]]; then
   exit 1
 fi
 assert_contains "$TMP_DIR/invalid-report.md" '| `proxy-tls` | INVALIDO | field requests_ok must be numeric |'
+assert_contains "$TMP_DIR/invalid-report.md" "- Fechamento: BLOQUEADO - existem evidencias invalidas."
 
 echo "PKG-69 evidence gap report self-test OK"
