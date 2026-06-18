@@ -32,8 +32,13 @@ file_sha256() {
 
 template_incomplete_reason() {
   local path="$1"
+  local expected_title="$2"
   if grep -Eq '^- Status: pending\|pass\|fail$' "$path"; then
     echo "template status placeholder not filled"
+    return 0
+  fi
+  if ! grep -Fxq "# $expected_title" "$path"; then
+    echo "template title mismatch"
     return 0
   fi
   if grep -Eq '^# PKG-72 - ' "$path"; then
@@ -53,10 +58,11 @@ require_file_or_pending() {
   local name="$1"
   local path="$2"
   local detail="$3"
+  local expected_title="$4"
   REAL_EVIDENCE_TOTAL=$((REAL_EVIDENCE_TOTAL + 1))
   if [[ -n "$path" && -f "$path" ]]; then
     local incomplete_reason
-    if incomplete_reason="$(template_incomplete_reason "$path")"; then
+    if incomplete_reason="$(template_incomplete_reason "$path" "$expected_title")"; then
       result "$name" "invalid-template" "path=$path reason=$incomplete_reason"
       return
     fi
@@ -184,11 +190,11 @@ section "required real evidence"
 if [[ -n "$TEMPLATE_DIR" ]]; then
   result "evidence-templates" "written" "$TEMPLATE_DIR"
 fi
-require_file_or_pending "noc-soc-incident-host-agentless" "${PKG72_INCIDENT_EVIDENCE:-}" "set PKG72_INCIDENT_EVIDENCE to a controlled incident evidence file with host + Agentless correlation"
-require_file_or_pending "offline-replay-24h" "${PKG72_REPLAY_24H_EVIDENCE:-}" "set PKG72_REPLAY_24H_EVIDENCE to a 24h offline/replay evidence file with duplicate-rate analysis"
-require_file_or_pending "regulated-client-minimal-collection" "${PKG72_REGULATED_CLIENT_EVIDENCE:-}" "set PKG72_REGULATED_CLIENT_EVIDENCE to a regulated-client reduced-collection validation file"
-require_file_or_pending "noise-cost-before-after" "${PKG72_NOISE_COST_EVIDENCE:-}" "set PKG72_NOISE_COST_EVIDENCE to before/after noise and cost comparison"
-require_file_or_pending "datadog-scenario-benchmark" "${PKG72_DATADOG_BENCHMARK_EVIDENCE:-}" "set PKG72_DATADOG_BENCHMARK_EVIDENCE to scenario-matched Datadog comparison evidence"
+require_file_or_pending "noc-soc-incident-host-agentless" "${PKG72_INCIDENT_EVIDENCE:-}" "set PKG72_INCIDENT_EVIDENCE to a controlled incident evidence file with host + Agentless correlation" "PKG-72 - Incidente NOC/SOC com host + Agentless"
+require_file_or_pending "offline-replay-24h" "${PKG72_REPLAY_24H_EVIDENCE:-}" "set PKG72_REPLAY_24H_EVIDENCE to a 24h offline/replay evidence file with duplicate-rate analysis" "PKG-72 - Replay offline 24h"
+require_file_or_pending "regulated-client-minimal-collection" "${PKG72_REGULATED_CLIENT_EVIDENCE:-}" "set PKG72_REGULATED_CLIENT_EVIDENCE to a regulated-client reduced-collection validation file" "PKG-72 - Cliente regulado com coleta reduzida"
+require_file_or_pending "noise-cost-before-after" "${PKG72_NOISE_COST_EVIDENCE:-}" "set PKG72_NOISE_COST_EVIDENCE to before/after noise and cost comparison" "PKG-72 - Ruido/custo antes e depois"
+require_file_or_pending "datadog-scenario-benchmark" "${PKG72_DATADOG_BENCHMARK_EVIDENCE:-}" "set PKG72_DATADOG_BENCHMARK_EVIDENCE to scenario-matched Datadog comparison evidence" "PKG-72 - Benchmark comparavel Datadog"
 
 section "benchmark scenarios"
 result "noc_soc_context" "pending-real" "measure time_to_diagnosis, evidence_completeness and operator_steps against comparable Datadog scenario"
