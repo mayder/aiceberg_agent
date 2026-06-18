@@ -68,6 +68,7 @@ func runtimeCollectorSpecs(cfg config.Config) []agentruntime.CollectorSpec {
 		{Name: "sysmetrics_health", Version: "legacy-compatible", Endpoint: "/v1/ingest/health", Interval: 10 * time.Minute, Priority: 30},
 		{Name: "sysmetrics_inventory", Version: "legacy-compatible", Endpoint: "/v1/ingest/inventory", Interval: 8 * time.Hour, Priority: 40},
 		{Name: "sysmetrics_bootstrap", Version: "legacy-compatible", Endpoint: "/v1/ingest/bootstrap", Interval: 24 * time.Hour, Priority: 50},
+		{Name: "custommetrics", Version: "1-compatible", Endpoint: "/v1/ingest/metrics", Interval: cfg.CustomMetricsInterval, Priority: 15},
 		{Name: "networkcapture", Version: "legacy-compatible", Endpoint: "/v1/ingest/network_capture", Interval: 10 * time.Second, Priority: 20},
 		{Name: "oslogs", Version: "legacy-compatible", Endpoint: "/v1/logs/raw", Interval: cfg.OSLogInterval, Priority: 20},
 	}
@@ -75,15 +76,18 @@ func runtimeCollectorSpecs(cfg config.Config) []agentruntime.CollectorSpec {
 
 func sanitizePrefsSnapshot(p config.CollectPrefs) map[string]any {
 	return map[string]any{
-		"version":                  strings.TrimSpace(p.Version),
-		"paused":                   p.Paused,
-		"agentless_enabled":        p.AgentlessEnabled,
-		"agentless_poll_interval":  p.AgentlessPollSec,
-		"agentless_flush_interval": p.AgentlessFlushSec,
-		"agentless_jobs_limit":     p.AgentlessJobsLimit,
-		"agentless_lock_sec":       p.AgentlessLockSec,
-		"agentless_flush_batch":    p.AgentlessFlushBatch,
-		"network_passive_mode":     strings.TrimSpace(p.NetworkPassiveMode),
+		"version":                   strings.TrimSpace(p.Version),
+		"paused":                    p.Paused,
+		"agentless_enabled":         p.AgentlessEnabled,
+		"agentless_poll_interval":   p.AgentlessPollSec,
+		"agentless_flush_interval":  p.AgentlessFlushSec,
+		"agentless_jobs_limit":      p.AgentlessJobsLimit,
+		"agentless_lock_sec":        p.AgentlessLockSec,
+		"agentless_flush_batch":     p.AgentlessFlushBatch,
+		"custom_metrics_enabled":    p.CustomMetricsEnabled,
+		"custom_metrics_interval":   p.CustomMetricsIntervalSec,
+		"custom_metrics_max_series": p.CustomMetricsMaxSeries,
+		"network_passive_mode":      strings.TrimSpace(p.NetworkPassiveMode),
 		"collect_flags": map[string]bool{
 			"cpu":        p.CPU,
 			"memory":     p.Memory,
@@ -124,6 +128,14 @@ func buildAgentEnvSnapshot(cfg config.Config) map[string]any {
 		"hub_listen_addr":   strings.TrimSpace(cfg.HubListenAddr),
 		"skip_bootstrap":    cfg.SkipBootstrap,
 		"selfheal_poll_sec": int(cfg.SelfHealPollInterval.Seconds()),
+		"custom_metrics": map[string]any{
+			"enabled":      cfg.CustomMetricsEnabled,
+			"udp_addr":     strings.TrimSpace(cfg.CustomMetricsUDPAddr),
+			"http_addr":    strings.TrimSpace(cfg.CustomMetricsHTTPAddr),
+			"interval_sec": int(cfg.CustomMetricsInterval.Seconds()),
+			"max_series":   cfg.CustomMetricsMaxSeries,
+			"max_bytes":    cfg.CustomMetricsMaxBytes,
+		},
 	}
 }
 
@@ -362,6 +374,7 @@ func isEnvAllowlisted(key string) bool {
 		"OUTBOX_",
 		"PREFS_",
 		"OSLOG_",
+		"CUSTOM_METRICS_",
 		"LOG_",
 		"HEALTH_",
 		"TLS_",

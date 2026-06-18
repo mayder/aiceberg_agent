@@ -81,6 +81,14 @@ type ConfigPayload struct {
 		ExcludeRegex string   `json:"exclude_regex,omitempty"`
 		MinSeverity  string   `json:"min_severity,omitempty"`
 	} `json:"logs"`
+	CustomMetrics struct {
+		Enabled   *bool  `json:"enabled,omitempty"`
+		UDPAddr   string `json:"udp_addr,omitempty"`
+		HTTPAddr  string `json:"http_addr,omitempty"`
+		Interval  int    `json:"interval,omitempty"`
+		MaxSeries int    `json:"max_series,omitempty"`
+		MaxBytes  int    `json:"max_bytes,omitempty"`
+	} `json:"custom_metrics,omitempty"`
 	CollectNow *[]string          `json:"collect_now,omitempty"`
 	Update     *UpdatePayload     `json:"update,omitempty"`
 	AutoUpdate *AutoUpdatePayload `json:"auto_update,omitempty"`
@@ -117,6 +125,24 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- C
 	}
 	if payload.Logs.MinSeverity != "" {
 		collect.OSLogMinSeverity = payload.Logs.MinSeverity
+	}
+	if payload.CustomMetrics.Enabled != nil {
+		collect.CustomMetricsEnabled = *payload.CustomMetrics.Enabled
+	}
+	if payload.CustomMetrics.UDPAddr != "" {
+		collect.CustomMetricsUDPAddr = payload.CustomMetrics.UDPAddr
+	}
+	if payload.CustomMetrics.HTTPAddr != "" {
+		collect.CustomMetricsHTTPAddr = payload.CustomMetrics.HTTPAddr
+	}
+	if payload.CustomMetrics.Interval > 0 {
+		collect.CustomMetricsIntervalSec = payload.CustomMetrics.Interval
+	}
+	if payload.CustomMetrics.MaxSeries > 0 {
+		collect.CustomMetricsMaxSeries = payload.CustomMetrics.MaxSeries
+	}
+	if payload.CustomMetrics.MaxBytes > 0 {
+		collect.CustomMetricsMaxBytes = payload.CustomMetrics.MaxBytes
 	}
 	if payload.Agentless.Enabled != nil {
 		collect.AgentlessEnabled = *payload.Agentless.Enabled

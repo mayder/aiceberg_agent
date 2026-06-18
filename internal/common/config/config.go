@@ -55,6 +55,12 @@ type Config struct {
 	OSLogIncludeRegex        string
 	OSLogExcludeRegex        string
 	OSLogMinSeverity         string
+	CustomMetricsEnabled     bool
+	CustomMetricsUDPAddr     string
+	CustomMetricsHTTPAddr    string
+	CustomMetricsInterval    time.Duration
+	CustomMetricsMaxSeries   int
+	CustomMetricsMaxBytes    int
 	AgentlessEnabled         bool
 	AgentlessPollInterval    time.Duration
 	AgentlessFlushInterval   time.Duration
@@ -115,6 +121,12 @@ type CollectPrefs struct {
 	OSLogIncludeRegex          string   `json:"oslog_include_regex,omitempty"`
 	OSLogExcludeRegex          string   `json:"oslog_exclude_regex,omitempty"`
 	OSLogMinSeverity           string   `json:"oslog_min_severity,omitempty"`
+	CustomMetricsEnabled       bool     `json:"custom_metrics_enabled,omitempty"`
+	CustomMetricsUDPAddr       string   `json:"custom_metrics_udp_addr,omitempty"`
+	CustomMetricsHTTPAddr      string   `json:"custom_metrics_http_addr,omitempty"`
+	CustomMetricsIntervalSec   int      `json:"custom_metrics_interval,omitempty"`
+	CustomMetricsMaxSeries     int      `json:"custom_metrics_max_series,omitempty"`
+	CustomMetricsMaxBytes      int      `json:"custom_metrics_max_bytes,omitempty"`
 	AgentlessEnabled           bool     `json:"agentless_enabled,omitempty"`
 	AgentlessPollSec           int      `json:"agentless_poll_interval,omitempty"`
 	AgentlessFlushSec          int      `json:"agentless_flush_interval,omitempty"`
@@ -193,6 +205,12 @@ func Load(configPath string) (Config, error) {
 		OSLogIncludeRegex:      getenv("OSLOG_INCLUDE_REGEX", ""),
 		OSLogExcludeRegex:      getenv("OSLOG_EXCLUDE_REGEX", ""),
 		OSLogMinSeverity:       getenv("OSLOG_MIN_SEVERITY", ""),
+		CustomMetricsEnabled:   strings.ToLower(getenv("CUSTOM_METRICS_ENABLED", "")) == "true",
+		CustomMetricsUDPAddr:   getenv("CUSTOM_METRICS_UDP_ADDR", "127.0.0.1:8125"),
+		CustomMetricsHTTPAddr:  getenv("CUSTOM_METRICS_HTTP_ADDR", "127.0.0.1:8126"),
+		CustomMetricsInterval:  time.Duration(intEnv("CUSTOM_METRICS_INTERVAL", 10)) * time.Second,
+		CustomMetricsMaxSeries: intEnv("CUSTOM_METRICS_MAX_SERIES", 1000),
+		CustomMetricsMaxBytes:  intEnv("CUSTOM_METRICS_MAX_BYTES", 65536),
 		AgentlessEnabled:       strings.ToLower(getenv("AGENTLESS_ENABLED", "true")) == "true",
 		AgentlessOutboxPath:    getenv("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"),
 		AgentlessOutboxMaxMB:   intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),

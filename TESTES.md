@@ -193,6 +193,12 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Cobrir redaction de token/senha/Authorization, atributos JSON sanitizados, multiline, cursor por arquivo/canal, filtros include/exclude/min severity e `dropped_count` sem conteudo descartado.
 - Validacao real Windows/Linux/container/proxy/disco cheio fica pendente para PKG-69.
 
+## PKG-61 - Metricas custom locais
+
+- Unitario focado: `go test ./internal/platform/collectors/custommetrics ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.
+- Cobrir parser DogStatsD-like, HTTP local, tipos count/gauge/histogram/distribution/set/service_check, tags canonicas, limite de cardinalidade, `accepted_count` e `dropped_count`.
+- Validacao real de alto volume, UDS, container e app externa fica pendente para PKG-69.
+
 ## Validação por lote
 
 Objetivo: dar feedback rápido, sem gastar tempo com bateria completa a cada subentrega.

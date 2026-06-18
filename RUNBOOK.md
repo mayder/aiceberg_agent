@@ -141,6 +141,21 @@ Rollback: desligar logs por `OSLOG_ENABLED=false` ou remover flags remotas `OSLo
 
 Nao registrar conteudo descartado por filtro; usar apenas `dropped_count`.
 
+### PKG-61 - Metricas custom locais
+
+Contrato tecnico: `docs/pkg61_custom_metrics.md`.
+
+Configuracoes locais:
+
+- `CUSTOM_METRICS_ENABLED=true`;
+- `CUSTOM_METRICS_UDP_ADDR=127.0.0.1:8125`;
+- `CUSTOM_METRICS_HTTP_ADDR=127.0.0.1:8126`;
+- `CUSTOM_METRICS_INTERVAL=10`;
+- `CUSTOM_METRICS_MAX_SERIES=1000`;
+- `CUSTOM_METRICS_MAX_BYTES=65536`.
+
+Rollback: definir `CUSTOM_METRICS_ENABLED=false` ou enviar config remota `custom_metrics.enabled=false`. Nao ha SQL do PKG-61.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.

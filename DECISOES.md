@@ -75,6 +75,17 @@ Referências:
 - Impacto em rollback: desativar `OSLOG_ENABLED`/flags remotas de logs ou publicar versao anterior.
 - Como reverter: remover campos aditivos e filtros do coletor `oslogs`.
 
+### DEC-20260618-04 - Metricas custom usam receptor local desligado por padrao
+
+- Status: aceita
+- Contexto: PKG-61 precisa permitir metricas de aplicacoes locais sem compartilhar credencial da API e sem misturar com snapshots base do host.
+- Decisao: criar coletor `custommetrics`, desligado por padrao, com UDP DogStatsD-like e HTTP local loopback. O coletor agrega por janela e envia contrato aditivo em `body.custom_metrics` para `/v1/ingest/metrics`.
+- Alternativas consideradas: exigir integracao direta da app com a API ou criar persistencia nova no agente.
+- Consequencias: o backend preserva o payload em `raw_json`; materializacao/telas podem evoluir sem quebrar o agente.
+- Impacto em testes: unitarios cobrem parser, agregacao, limite de cardinalidade e HTTP local.
+- Impacto em rollback: desligar `CUSTOM_METRICS_ENABLED` ou config remota `custom_metrics.enabled=false`.
+- Como reverter: remover o coletor do scheduler e ignorar `body.custom_metrics`.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

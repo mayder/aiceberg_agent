@@ -41,6 +41,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
 	"github.com/you/aiceberg_agent/internal/interfaces/health"
 	"github.com/you/aiceberg_agent/internal/interfaces/hub"
+	"github.com/you/aiceberg_agent/internal/platform/collectors/custommetrics"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/networkcapture"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/oslogs"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/sysmetrics"
@@ -136,6 +137,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	inventoryUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_inventory", inventoryEndpoint, 8*time.Hour, inventoryKeys()), outboxRepo, log, authHeader, identityHeader, inventoryEndpoint)
 	bootstrapUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_bootstrap", bootstrapEndpoint, 24*time.Hour, bootstrapKeys()), outboxRepo, log, authHeader, identityHeader, bootstrapEndpoint)
 	networkCaptureUC := usecase.NewCollectAndBufferWithIdentity(networkcapture.New(prefStore.Get), outboxRepo, log, authHeader, identityHeader, networkCaptureEndpoint)
+	customMetricsUC := usecase.NewCollectAndBufferWithIdentity(custommetrics.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
 
 	commandChan := make(chan usecase.ControlCommand, 10)
 	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore, commandChan)
@@ -420,6 +422,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var tPing *time.Ticker
 	var tCfgSync *time.Ticker
 	var tOsCollect *time.Ticker
+	var tCustomMetrics *time.Ticker
 	var tAgentlessTick *time.Ticker
 	var tSelfHeal *time.Ticker
 	tPing = time.NewTicker(cfg.PingInterval)
@@ -427,6 +430,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	if osLogCollectUC != nil {
 		tOsCollect = time.NewTicker(cfg.OSLogInterval)
 	}
+	tCustomMetrics = time.NewTicker(cfg.CustomMetricsInterval)
 	if agentlessUC != nil {
 		tAgentlessTick = time.NewTicker(5 * time.Second)
 	}
@@ -443,6 +447,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	}
 	if tOsCollect != nil {
 		defer tOsCollect.Stop()
+	}
+	if tCustomMetrics != nil {
+		defer tCustomMetrics.Stop()
 	}
 	if tAgentlessTick != nil {
 		defer tAgentlessTick.Stop()
@@ -687,6 +694,13 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				})
 			}
 			counters.lastCollectMs.Store(time.Since(start).Milliseconds())
+		case <-readTick(tCustomMetrics):
+			if err := customMetricsUC.Execute(ctx); err != nil {
+				counters.collectErr.Add(1)
+				reportWorkerError(ctx, "collect_custom_metrics_failed", "warning", "open", err, map[string]any{
+					"route": metricsEndpoint,
+				})
+			}
 		case <-tHealth.C:
 			if err := healthUC.Execute(ctx); err != nil {
 				reportWorkerError(ctx, "collect_health_failed", "warning", "open", err, map[string]any{
