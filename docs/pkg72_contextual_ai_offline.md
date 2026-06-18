@@ -138,6 +138,8 @@ Para testar regressão do gate sem depender de evidência real:
 scripts/pkg72_contextual_evidence_gate_selftest.sh
 ```
 
+O mesmo autoteste roda no `./check.sh` do agente.
+
 Antes de tentar fechar o pacote, execute em modo bloqueante:
 
 ```bash

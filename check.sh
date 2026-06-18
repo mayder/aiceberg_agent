@@ -95,4 +95,7 @@ go vet ./...
 log "go test"
 go test ./...
 
+log "pkg72 evidence gate self-test"
+scripts/pkg72_contextual_evidence_gate_selftest.sh
+
 log "OK"
