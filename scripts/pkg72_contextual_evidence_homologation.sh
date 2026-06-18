@@ -7,6 +7,8 @@ cd "$ROOT"
 EVIDENCE_FILE="${PKG72_EVIDENCE_FILE:-/tmp/aiceberg_pkg72_contextual_evidence.md}"
 GO_TEST_LOG="${PKG72_GO_TEST_LOG:-/tmp/aiceberg_pkg72_go_test.log}"
 REQUIRE_REAL_EVIDENCE="${PKG72_REQUIRE_REAL_EVIDENCE:-false}"
+REQUIRE_CLOSURE_ACCEPTED="${PKG72_REQUIRE_CLOSURE_ACCEPTED:-false}"
+ACCEPT_CLOSURE="${PKG72_ACCEPT_CLOSURE:-false}"
 TEMPLATE_DIR="${PKG72_TEMPLATE_DIR:-}"
 EVIDENCE_MANIFEST_TSV="${PKG72_EVIDENCE_MANIFEST_TSV:-}"
 REAL_EVIDENCE_PRESENT=0
@@ -237,12 +239,20 @@ result "agent_plus_agentless" "pending-real" "measure correlation_detected, fals
 result "noise_reduction" "pending-real" "measure noise_before, noise_after and manual_review_required"
 
 section "closure rule"
+closure_accepted=0
 if [[ "$REAL_EVIDENCE_PRESENT" -eq "$REAL_EVIDENCE_TOTAL" ]]; then
-  result "real-evidence-manifest" "ready-for-review" "$REAL_EVIDENCE_PRESENT/$REAL_EVIDENCE_TOTAL files present with SHA256; manual review and benchmark acceptance still required"
+  result "real-evidence-manifest" "ready-for-review" "$REAL_EVIDENCE_PRESENT/$REAL_EVIDENCE_TOTAL files present with SHA256; explicit closure acceptance still required"
+  if [[ "$ACCEPT_CLOSURE" == "true" ]]; then
+    closure_accepted=1
+  fi
 else
   result "real-evidence-manifest" "incomplete" "$REAL_EVIDENCE_PRESENT/$REAL_EVIDENCE_TOTAL files present"
 fi
-result "pkg72-status" "not-closed" "do not mark PKG-72 100% until every required real evidence item above is present, reviewed and accepted"
+if [[ "$closure_accepted" -eq 1 ]]; then
+  result "pkg72-status" "accepted-for-closure" "all required real evidence is present and PKG72_ACCEPT_CLOSURE=true"
+else
+  result "pkg72-status" "not-closed" "do not mark PKG-72 100% until every required real evidence item above is present and PKG72_ACCEPT_CLOSURE=true"
+fi
 result "evidence-file" "written" "$EVIDENCE_FILE"
 if [[ -n "$EVIDENCE_MANIFEST_TSV" ]]; then
   result "evidence-manifest-tsv" "written" "$EVIDENCE_MANIFEST_TSV"
@@ -251,4 +261,9 @@ fi
 if [[ "$REQUIRE_REAL_EVIDENCE" == "true" && "$REAL_EVIDENCE_PRESENT" -ne "$REAL_EVIDENCE_TOTAL" ]]; then
   result "gate" "failed" "PKG72_REQUIRE_REAL_EVIDENCE=true and real evidence manifest is incomplete"
   exit 2
+fi
+
+if [[ "$REQUIRE_CLOSURE_ACCEPTED" == "true" && "$closure_accepted" -ne 1 ]]; then
+  result "gate" "failed" "PKG72_REQUIRE_CLOSURE_ACCEPTED=true and closure acceptance is missing"
+  exit 3
 fi

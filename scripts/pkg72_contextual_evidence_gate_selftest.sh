@@ -35,6 +35,18 @@ assert_contains() {
   }
 }
 
+run_with_all_evidence() {
+  local evidence_file="$1"
+  shift
+  PKG72_EVIDENCE_FILE="$evidence_file" \
+  PKG72_INCIDENT_EVIDENCE="$TMP_DIR/all/noc_soc_incident_host_agentless.md" \
+  PKG72_REPLAY_24H_EVIDENCE="$TMP_DIR/all/offline_replay_24h.md" \
+  PKG72_REGULATED_CLIENT_EVIDENCE="$TMP_DIR/all/regulated_client_minimal_collection.md" \
+  PKG72_NOISE_COST_EVIDENCE="$TMP_DIR/all/noise_cost_before_after.md" \
+  PKG72_DATADOG_BENCHMARK_EVIDENCE="$TMP_DIR/all/datadog_scenario_benchmark.md" \
+  "$@" scripts/pkg72_contextual_evidence_homologation.sh >/dev/null
+}
+
 PKG72_TEMPLATE_DIR="$TMP_DIR/templates" \
 PKG72_EVIDENCE_FILE="$TMP_DIR/template-generation.md" \
 scripts/pkg72_contextual_evidence_homologation.sh >/dev/null
@@ -87,6 +99,37 @@ assert_contains "$TMP_DIR/no-approval.md" "noc-soc-incident-host-agentless: inva
 assert_contains "$TMP_DIR/no-approval.md" "reason=template closure approval is not yes"
 assert_contains "$TMP_DIR/no-approval.tsv" $'noc-soc-incident-host-agentless\tinvalid-template\t'
 assert_contains "$TMP_DIR/no-approval.tsv" "template closure approval is not yes"
+
+mkdir -p "$TMP_DIR/all"
+cp "$TMP_DIR/templates/"*.md "$TMP_DIR/all/"
+for template in "$TMP_DIR/all/"*.md; do
+  fill_template "$template" "pass"
+done
+
+set +e
+PKG72_EVIDENCE_FILE="$TMP_DIR/closure-missing-evidence.md" \
+PKG72_REQUIRE_CLOSURE_ACCEPTED=true \
+scripts/pkg72_contextual_evidence_homologation.sh >/dev/null 2>&1
+closure_missing_evidence_exit=$?
+set -e
+
+if [[ "$closure_missing_evidence_exit" -ne 3 ]]; then
+  echo "expected closure gate exit 3 without evidence, got $closure_missing_evidence_exit" >&2
+  exit 1
+fi
+
+set +e
+run_with_all_evidence "$TMP_DIR/closure-no-accept.md" env PKG72_REQUIRE_CLOSURE_ACCEPTED=true
+closure_no_accept_exit=$?
+set -e
+
+if [[ "$closure_no_accept_exit" -ne 3 ]]; then
+  echo "expected closure gate exit 3 without explicit accept, got $closure_no_accept_exit" >&2
+  exit 1
+fi
+
+run_with_all_evidence "$TMP_DIR/closure-accepted.md" env PKG72_REQUIRE_CLOSURE_ACCEPTED=true PKG72_ACCEPT_CLOSURE=true
+assert_contains "$TMP_DIR/closure-accepted.md" "pkg72-status: accepted-for-closure"
 
 set +e
 PKG72_EVIDENCE_FILE="$TMP_DIR/blocking.md" \

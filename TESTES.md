@@ -236,6 +236,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Templates de evidencia real: `PKG72_TEMPLATE_DIR=/tmp/aiceberg_pkg72_templates scripts/pkg72_contextual_evidence_homologation.sh`.
 - Manifesto auditavel de evidencia real: `PKG72_EVIDENCE_MANIFEST_TSV=/tmp/aiceberg_pkg72_manifest.tsv scripts/pkg72_contextual_evidence_homologation.sh`.
 - Gate bloqueante de fechamento: `PKG72_REQUIRE_REAL_EVIDENCE=true scripts/pkg72_contextual_evidence_homologation.sh`.
+- Gate de aceite final: `PKG72_REQUIRE_CLOSURE_ACCEPTED=true PKG72_ACCEPT_CLOSURE=true scripts/pkg72_contextual_evidence_homologation.sh`; sem `PKG72_ACCEPT_CLOSURE=true`, o roteiro nao autoriza fechamento mesmo com arquivos anexados.
 - O gate nao conta template sem preenchimento, com campos de evidencia/metrica vazios, com `Status` diferente de `pass`, sem aprovacao de fechamento `yes` ou anexado na variavel errada como evidencia real.
 - Cobrir `contextual_evidence`, privacidade sensivel, IA deterministica sem LLM, bloqueio de acao destrutiva, replay local ate ACK, topologia relay -> HUB -> AIceberg e claim de superioridade bloqueado sem benchmark.
 - Validacao real de incidente NOC/SOC, replay 24h offline, agent+agentless, cliente regulado e benchmark contra Datadog fica pendente ate ambiente controlado.

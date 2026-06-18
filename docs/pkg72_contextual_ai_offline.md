@@ -159,6 +159,14 @@ PKG72_REQUIRE_REAL_EVIDENCE=true scripts/pkg72_contextual_evidence_homologation.
 
 Esse modo retorna erro se qualquer evidência real obrigatória estiver ausente.
 
+Para autorizar fechamento técnico após revisão dos anexos reais, use também o gate explícito:
+
+```bash
+PKG72_REQUIRE_CLOSURE_ACCEPTED=true PKG72_ACCEPT_CLOSURE=true scripts/pkg72_contextual_evidence_homologation.sh
+```
+
+Sem `PKG72_ACCEPT_CLOSURE=true`, o roteiro mantém `pkg72-status: not-closed`, mesmo quando todos os arquivos de evidência existem.
+
 ## Rollback
 
 Ignorar `contextual_evidence` no backend ou remover o bloco do snapshot. Não altera ingestão, scheduler, outbox nem Agentless.
