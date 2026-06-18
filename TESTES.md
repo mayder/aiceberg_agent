@@ -211,6 +211,12 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Cobrir normalizacao Docker, labels sensiveis mascaradas, compose service, CPU, memoria, rede e IO.
 - Validacao real Docker/containerd/logs/autodiscovery fica pendente para PKG-69.
 
+## PKG-70 - Rede avancada, USM e workload security
+
+- Unitario focado: `go test ./internal/platform/collectors/networkcapture`.
+- Cobrir servico inferido sem OpenTelemetry, dependencia `service -> database`, fallback eBPF, NPM/top talkers, redaction de IP publico e sinais SOC sem acao destrutiva.
+- Validacao real de kernel eBPF, permissao sem eBPF, fluxo `web -> api -> db`, container, Kubernetes e overhead fica pendente ate ambiente controlado.
+
 ## Validação por lote
 
 Objetivo: dar feedback rápido, sem gastar tempo com bateria completa a cada subentrega.

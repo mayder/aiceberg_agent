@@ -100,14 +100,17 @@ type collector struct {
 }
 
 type capturePayload struct {
-	Capture         captureMeta             `json:"capture"`
-	Flows           []flowRow               `json:"flows,omitempty"`
-	SocketSnapshot  []socketSnapshotRow     `json:"socket_snapshot,omitempty"`
-	Peers           []peerRow               `json:"peers,omitempty"`
-	Listeners       []listenerRow           `json:"listeners,omitempty"`
-	Interfaces      []ifaceDelta            `json:"interfaces,omitempty"`
-	LocalCtx        *localContext           `json:"local_context,omitempty"`
-	PassiveAdvanced *passiveAdvancedPayload `json:"passive_advanced,omitempty"`
+	Capture         captureMeta              `json:"capture"`
+	Flows           []flowRow                `json:"flows,omitempty"`
+	SocketSnapshot  []socketSnapshotRow      `json:"socket_snapshot,omitempty"`
+	Peers           []peerRow                `json:"peers,omitempty"`
+	Listeners       []listenerRow            `json:"listeners,omitempty"`
+	Interfaces      []ifaceDelta             `json:"interfaces,omitempty"`
+	LocalCtx        *localContext            `json:"local_context,omitempty"`
+	PassiveAdvanced *passiveAdvancedPayload  `json:"passive_advanced,omitempty"`
+	ServiceMap      *serviceMapPayload       `json:"service_map,omitempty"`
+	NPM             *networkPerfPayload      `json:"network_performance,omitempty"`
+	Workload        *workloadSecurityPayload `json:"workload_security,omitempty"`
 }
 
 type captureMeta struct {
@@ -193,19 +196,22 @@ type pcapFlowRow struct {
 }
 
 type passiveCollectOptions struct {
-	requestedMode  string
-	window         time.Duration
-	interval       time.Duration
-	maxFlows       int
-	maxPeers       int
-	maxListeners   int
-	commandTimeout time.Duration
-	pcapEnabled    bool
-	pcapIface      string
-	pcapDuration   time.Duration
-	pcapPackets    int
-	externalSpecs  []string
-	externalMax    int
+	requestedMode   string
+	window          time.Duration
+	interval        time.Duration
+	maxFlows        int
+	maxPeers        int
+	maxListeners    int
+	commandTimeout  time.Duration
+	advancedEnabled bool
+	usmEnabled      bool
+	workloadEnabled bool
+	pcapEnabled     bool
+	pcapIface       string
+	pcapDuration    time.Duration
+	pcapPackets     int
+	externalSpecs   []string
+	externalMax     int
 }
 
 type externalSourceStatus struct {
@@ -830,6 +836,13 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		if options.requestedMode != "socket" || options.pcapEnabled || len(advanced.NetlinkLinks) > 0 || advanced.PCAP != nil || len(advanced.ExternalSources) > 0 {
 			payload.PassiveAdvanced = advanced
 		}
+		if options.advancedEnabled || options.usmEnabled {
+			payload.ServiceMap = buildServiceMapPayload(flowRows, payload.Listeners, advanced, options)
+			payload.NPM = buildNetworkPerfPayload(flowRows)
+		}
+		if options.workloadEnabled {
+			payload.Workload = buildWorkloadSecurityPayload(flowRows)
+		}
 		return json.Marshal(payload)
 	}
 
@@ -899,6 +912,9 @@ func (c *collector) resolveOptions() passiveCollectOptions {
 	if prefs.NetworkCaptureTimeoutMs > 0 {
 		options.commandTimeout = time.Duration(prefs.NetworkCaptureTimeoutMs) * time.Millisecond
 	}
+	options.advancedEnabled = prefs.NetworkAdvancedEnabled
+	options.usmEnabled = prefs.USMEnabled
+	options.workloadEnabled = prefs.WorkloadSecurityEnabled
 	options.pcapEnabled = prefs.NetworkPCAPEnabled
 	options.pcapIface = strings.TrimSpace(prefs.NetworkPCAPIface)
 	if prefs.NetworkPCAPDurationSec > 0 {

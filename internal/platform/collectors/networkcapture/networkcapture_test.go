@@ -346,6 +346,113 @@ func TestBuildSocketSnapshotAggregatesBySocketTuple(t *testing.T) {
 	}
 }
 
+func TestBuildServiceMapInfersNonInstrumentedServiceAndDBDependency(t *testing.T) {
+	advanced := &passiveAdvancedPayload{
+		AppliedMode: "socket_snapshot",
+		Capabilities: passiveCapabilities{
+			Netlink: true,
+			PCAP:    false,
+			EBPF:    false,
+		},
+	}
+	payload := buildServiceMapPayload([]flowRow{
+		{
+			Protocol:      "tcp",
+			Direction:     "egress",
+			LocalIP:       "10.0.0.10",
+			LocalPort:     48000,
+			RemoteIP:      "10.0.0.20",
+			RemotePort:    5432,
+			RemoteScope:   "private",
+			State:         "ESTABLISHED",
+			Process:       "legacy-api",
+			DNSQuery:      "db.internal.local",
+			ServiceName:   "",
+			Samples:       3,
+			BytesIn:       1200,
+			BytesOut:      2400,
+			FirstSeenUnix: 100,
+			LastSeenUnix:  120,
+		},
+	}, nil, advanced, passiveCollectOptions{
+		requestedMode:   "auto",
+		advancedEnabled: true,
+		usmEnabled:      true,
+	})
+
+	if payload == nil || !payload.Enabled {
+		t.Fatalf("expected enabled service map")
+	}
+	var foundService bool
+	for _, service := range payload.Services {
+		if service.Service == "legacy-api" && service.Confidence == "inferred" {
+			foundService = true
+			break
+		}
+	}
+	if !foundService {
+		t.Fatalf("expected inferred legacy-api service, got %#v", payload.Services)
+	}
+	if len(payload.Dependencies) != 1 {
+		t.Fatalf("expected one dependency, got %#v", payload.Dependencies)
+	}
+	dep := payload.Dependencies[0]
+	if dep.SourceService != "legacy-api" || dep.TargetService != "db.internal.local" || dep.TargetType != "database" {
+		t.Fatalf("unexpected dependency: %#v", dep)
+	}
+	if dep.Confidence != "confirmed" {
+		t.Fatalf("expected confirmed dependency from repeated flow with DNS, got %q", dep.Confidence)
+	}
+	if payload.SystemProbe.EBPFActive {
+		t.Fatalf("ebpf must not be active without applied ebpf mode")
+	}
+	if payload.SystemProbe.Fallback == "" {
+		t.Fatalf("expected fallback status")
+	}
+}
+
+func TestBuildNetworkPerfAndWorkloadSecuritySignals(t *testing.T) {
+	flows := []flowRow{
+		{
+			Protocol:    "tcp",
+			Direction:   "egress",
+			RemoteIP:    "203.0.113.10",
+			RemotePort:  22,
+			RemoteScope: "public",
+			State:       "SYN_SENT",
+			Process:     "nc",
+			Samples:     4,
+			ResetHits:   1,
+			TimeoutHits: 3,
+			RiskTags:    []string{"failed_handshake", "admin_port_exposure"},
+		},
+	}
+
+	npm := buildNetworkPerfPayload(flows)
+	if len(npm.TopTalkers) != 1 {
+		t.Fatalf("expected top talker, got %#v", npm.TopTalkers)
+	}
+	if npm.TopTalkers[0].RemoteIP != "203.0.113.0/24" {
+		t.Fatalf("expected public ip mask, got %q", npm.TopTalkers[0].RemoteIP)
+	}
+	if len(npm.ExposedAdminPorts) != 1 {
+		t.Fatalf("expected admin exposure, got %#v", npm.ExposedAdminPorts)
+	}
+
+	workload := buildWorkloadSecurityPayload(flows)
+	if workload.DestructiveAction {
+		t.Fatalf("workload security must not perform destructive action")
+	}
+	if len(workload.Signals) < 2 {
+		t.Fatalf("expected security signals, got %#v", workload.Signals)
+	}
+	for _, signal := range workload.Signals {
+		if signal.RemoteIP == "203.0.113.10" {
+			t.Fatalf("expected masked remote ip in signal: %#v", signal)
+		}
+	}
+}
+
 func TestExtractHostFromCmdlineURL(t *testing.T) {
 	cmdline := `curl --max-time 3 https://api.example.com:443/health`
 	got := extractHostFromCmdline(cmdline)

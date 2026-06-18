@@ -163,6 +163,17 @@ Referências:
 - Impacto em rollback: nao altera runtime.
 - Como reverter: remover script/matriz sem impacto no binario.
 
+### DEC-20260618-12 - USM e workload security evoluem sobre networkcapture
+
+- Status: aceita
+- Contexto: PKG-70 precisa descobrir servicos sem instrumentacao, dependencias e sinais de workload security sem criar grafo paralelo nem exigir eBPF em todos os hosts.
+- Decisao: evoluir `networkcapture` com payloads aditivos `service_map`, `network_performance` e `workload_security`, ativados por `network_advanced_enabled`, `usm_enabled` e `workload_security_enabled`. O modo `network_passive_mode=ebpf` apenas declara tentativa de system probe e degrada para socket/netlink quando nao suportado.
+- Alternativas consideradas: criar novo coletor USM separado ou exigir eBPF como dependencia obrigatoria.
+- Consequencias: backend antigo continua aceitando payloads atuais; USM fica opt-in, auditavel e com fallback claro. Workload security gera evidencia SOC, sem acao destrutiva automatica.
+- Impacto em testes: unitarios cobrem servico inferido, dependencia por trafego, fallback eBPF, NPM e sinais de seguranca.
+- Impacto em rollback: desligar `network_advanced_enabled`, `usm_enabled`, `workload_security_enabled`, `network_pcap_enabled` e voltar `network_passive_mode=socket`.
+- Como reverter: ignorar/remover os blocos aditivos e manter `networkcapture` legado.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

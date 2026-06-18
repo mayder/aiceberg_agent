@@ -215,6 +215,9 @@ type CollectPrefs struct {
 	NetworkCaptureMaxPeers     int                `json:"network_capture_max_peers,omitempty"`
 	NetworkCaptureMaxListeners int                `json:"network_capture_max_listeners,omitempty"`
 	NetworkCaptureTimeoutMs    int                `json:"network_capture_timeout_ms,omitempty"`
+	NetworkAdvancedEnabled     bool               `json:"network_advanced_enabled,omitempty"`
+	USMEnabled                 bool               `json:"usm_enabled,omitempty"`
+	WorkloadSecurityEnabled    bool               `json:"workload_security_enabled,omitempty"`
 	NetworkPCAPEnabled         bool               `json:"network_pcap_enabled,omitempty"`
 	NetworkPCAPIface           string             `json:"network_pcap_iface,omitempty"`
 	NetworkPCAPDurationSec     int                `json:"network_pcap_duration_sec,omitempty"`

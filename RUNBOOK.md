@@ -277,6 +277,28 @@ O comando valida ambiente local, testes focados e `./check.sh`, e lista pendenci
 
 Rollback: nao altera runtime; se a validacao real falhar, reabrir pacote tecnico correspondente e manter artefato anterior.
 
+### PKG-70 - Rede avancada, USM e workload security
+
+Contrato tecnico: `docs/pkg70_network_usm_workload.md`.
+
+Configuracoes principais:
+
+- `network_advanced_enabled=true`;
+- `usm_enabled=true`;
+- `workload_security_enabled=true`;
+- `network_passive_mode=auto|socket|netlink|pcap|ebpf`;
+- `network_pcap_enabled=true` quando PCAP for permitido.
+
+Operacao segura:
+
+- manter desligado por padrao;
+- ativar primeiro em canario;
+- validar permissao de host antes de `pcap` ou `ebpf`;
+- tratar `workload_security.signals` como evidencia SOC/NOC, sem bloqueio automatico;
+- revisar overhead de CPU/memoria antes de ativacao ampla.
+
+Rollback: definir `network_advanced_enabled=false`, `usm_enabled=false`, `workload_security_enabled=false`, `network_pcap_enabled=false` e `network_passive_mode=socket`. Nao ha SQL do PKG-70.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.
