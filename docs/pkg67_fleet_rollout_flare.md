@@ -30,7 +30,7 @@ Politica recomendada para backend/orquestrador:
 }
 ```
 
-O agente atual continua recebendo `update.version/url/sha256/force` por `/v1/agent/config`. A decisao de liberar onda global, canario ou rollback fica no backend e deve usar `update-report` como trilha.
+O agente atual continua recebendo `update.version/url/sha256/force` por `/v1/agent/config`. A decisao de liberar onda global, canario ou rollback fica no backend e deve usar `update-report` como trilha. Payload sensivel de config/update deve vir assinado conforme `docs/pkg68_security_hardening.md`, com escopo, `key_id`, `signed_at` e `expires_at`.
 
 ## Rollback
 
@@ -38,7 +38,7 @@ O auto-update ja persiste `.pending_update.json` no diretorio de updates. O snap
 
 Rollback operacional:
 
-1. Publicar artefato anterior conhecido e hash.
+1. Publicar artefato anterior conhecido e hash SHA256.
 2. Enviar `update` apenas para escopo canario.
 3. Acompanhar `precheck`, `download`, `validation`, `apply`, `restart`, `reconnect` e `version_confirmed`.
 4. Expandir somente se o canario fechar sem falha.
