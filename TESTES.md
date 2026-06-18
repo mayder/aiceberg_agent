@@ -170,6 +170,14 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 7. Rodar validação completa somente quando o pacote estiver 100%.
 8. Registrar validação e bloqueios.
 
+## PKG-58 - Inventario e matriz de paridade do agente
+
+- Matriz unica: `/Users/brenomayder/projects/web/public/aiceberg_web/docs/agente_datadog_paridade.md`.
+- Inventario deste repo: `docs/pkg58_inventario_agente_atual.md`.
+- Validacao focada: `go test ./internal/bootstrap ./internal/common/config ./internal/domain/usecase ./internal/platform/collectors/sysmetrics ./internal/platform/collectors/oslogs ./internal/platform/collectors/networkcapture`.
+- Fechamento do pacote coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`.
+- PKG-58 nao valida runtime novo nem paridade operacional; Windows, Linux, container e Kubernetes ficam pendentes ate PKG-69.
+
 ## Validação por lote
 
 Objetivo: dar feedback rápido, sem gastar tempo com bateria completa a cada subentrega.

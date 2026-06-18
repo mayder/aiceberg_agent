@@ -42,7 +42,16 @@ Referências:
 
 ## Decisões
 
-Ainda não há decisões registradas.
+### DEC-20260618-01 - Matriz evidencial para evolucao Datadog-like do agente
+
+- Status: aceita
+- Contexto: a evolucao do agente para capacidades Datadog-like envolve mudancas coordenadas no `aiceberg_agent` e no `aiceberg_web`, com risco de quebrar snapshots, ingestao, canal, update remoto e Agentless HUB.
+- Decisao: usar a matriz unica do web em `docs/agente_datadog_paridade.md` e manter neste repo o inventario tecnico `docs/pkg58_inventario_agente_atual.md`. Cada pacote de runtime deve preservar contratos atuais, introduzir flags/configs de rollback e preencher evidencia por ambiente antes de declarar paridade.
+- Alternativas consideradas: manter backlog local solto ou implementar capacidades por demanda sem matriz.
+- Consequencias: PKG-59 a PKG-72 precisam apontar dependencias, validacao e rollback antes de fechar.
+- Impacto em testes: PKG-58 exige validacao documental e checks dos dois repos; runtime novo exige testes por pacote.
+- Impacto em rollback: nenhum runtime novo e ativado por esta decisao.
+- Como reverter: corrigir ou remover os documentos do PKG-58 antes de iniciar pacote dependente.
 
 ## Adaptacao deste projeto
 

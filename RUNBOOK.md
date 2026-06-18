@@ -71,6 +71,31 @@ Padronizar como rodar, diagnosticar, publicar, validar e reverter o projeto.
 - `.env.example` documenta chaves sem valores reais quando existir.
 - Nunca registrar token, senha ou chave em log, docs, print ou commit.
 
+## Matriz de paridade do agente
+
+A matriz operacional fica no repo web em:
+
+```txt
+/Users/brenomayder/projects/web/public/aiceberg_web/docs/agente_datadog_paridade.md
+```
+
+O inventario tecnico local fica em:
+
+```txt
+docs/pkg58_inventario_agente_atual.md
+```
+
+Antes de implementar PKG-59 a PKG-72:
+
+1. Confirmar dependencia na matriz.
+2. Preservar contratos HTTP legados e `/v1/agent/channel`.
+3. Adicionar payload novo de forma opcional ou versionada.
+4. Criar flag/config de rollback antes de ativar coletor novo.
+5. Validar agente instalado anteriormente.
+6. Garantir que logs e flare nao exponham token, segredo, payload sensivel ou comando inseguro.
+
+Nao declarar superioridade sobre Datadog sem benchmark, evidencia funcional e comparacao objetiva registrada na matriz.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.
