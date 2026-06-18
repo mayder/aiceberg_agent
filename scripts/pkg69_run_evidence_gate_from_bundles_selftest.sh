@@ -100,6 +100,19 @@ assert_contains "$TMP_DIR/gate.md" "real-evidence-manifest: incomplete"
 assert_contains "$TMP_DIR/gate.tsv" "$TMP_DIR/bundles/relay/evidence.md"
 assert_contains "$TMP_DIR/gate.tsv" "$TMP_DIR/bundles/proxy/evidence.md"
 
+mkdir -p "$TMP_DIR/bundles-tampered"
+cp -R "$TMP_DIR/bundles/relay" "$TMP_DIR/bundles-tampered/relay"
+printf '\n# tampered\n' >>"$TMP_DIR/bundles-tampered/relay/evidence.md"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/bundles-tampered/relay" >/dev/null 2>"$TMP_DIR/tampered.err"
+tampered_exit=$?
+set -e
+if [[ "$tampered_exit" -eq 0 ]]; then
+  echo "expected tampered bundle to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/tampered.err" "bundle evidence sha256 mismatch"
+
 set +e
 PKG69_EVIDENCE_FILE="$TMP_DIR/required.md" \
 PKG69_REQUIRE_REAL_EVIDENCE=true \
