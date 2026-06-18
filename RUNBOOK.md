@@ -367,6 +367,7 @@ Diagnostico:
 - `collect_support_flare` inclui o mesmo snapshot sanitizado;
 - `superiority_benchmark.claim_allowed=false` ate benchmark real.
 - `scripts/pkg72_contextual_evidence_homologation.sh` gera evidencia local, lista explicitamente pendencias reais e registra SHA256/tamanho das evidencias anexadas.
+- `PKG72_TEMPLATE_DIR=/tmp/aiceberg_pkg72_templates scripts/pkg72_contextual_evidence_homologation.sh` gera modelos editaveis das cinco evidencias reais.
 - `PKG72_REQUIRE_REAL_EVIDENCE=true scripts/pkg72_contextual_evidence_homologation.sh` deve ser usado como gate bloqueante antes de tentar fechar o pacote.
 
 Configuracoes opcionais:

@@ -124,6 +124,12 @@ O script passa localmente quando os contratos automatizados estão íntegros, ma
 - `PKG72_NOISE_COST_EVIDENCE`;
 - `PKG72_DATADOG_BENCHMARK_EVIDENCE`.
 
+Para gerar modelos editáveis das evidências reais:
+
+```bash
+PKG72_TEMPLATE_DIR=/tmp/aiceberg_pkg72_templates scripts/pkg72_contextual_evidence_homologation.sh
+```
+
 Antes de tentar fechar o pacote, execute em modo bloqueante:
 
 ```bash
