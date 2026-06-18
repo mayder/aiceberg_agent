@@ -47,6 +47,8 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 	t.Setenv("HUB_TOKEN", "runtime-hub-secret-def456")
 	t.Setenv("API_KEY", "runtime-api-secret-xyz789")
 	t.Setenv("SELFHEAL_POLL_INTERVAL", "45")
+	t.Setenv("PRIVACY_PROFILE", "sensitive")
+	t.Setenv("SENSITIVE_MODE", "true")
 
 	cfg := config.Config{
 		AgentMode:            "hub",
@@ -150,6 +152,32 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 	}
 	if tokenMeta["exists"] != true {
 		t.Fatalf("expected token file to exist: %#v", tokenMeta)
+	}
+
+	evidence, ok := snap["contextual_evidence"].(map[string]any)
+	if !ok {
+		t.Fatalf("contextual_evidence missing or invalid: %#v", snap["contextual_evidence"])
+	}
+	localAI, ok := evidence["local_ai"].(map[string]any)
+	if !ok {
+		t.Fatalf("local_ai missing: %#v", evidence)
+	}
+	if localAI["llm_required"] != false || localAI["destructive_action"] != false {
+		t.Fatalf("local_ai must be deterministic and non destructive: %#v", localAI)
+	}
+	privacy, ok := evidence["privacy"].(map[string]any)
+	if !ok {
+		t.Fatalf("privacy missing: %#v", evidence)
+	}
+	if privacy["profile"] != "sensitive" || privacy["sensitive_mode"] != true {
+		t.Fatalf("unexpected privacy evidence: %#v", privacy)
+	}
+	benchmark, ok := evidence["superiority_benchmark"].(map[string]any)
+	if !ok {
+		t.Fatalf("superiority_benchmark missing: %#v", evidence)
+	}
+	if benchmark["claim_allowed"] != false {
+		t.Fatalf("superiority claim must remain blocked without benchmark: %#v", benchmark)
 	}
 }
 

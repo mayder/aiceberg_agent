@@ -59,9 +59,158 @@ func buildSelfHealRuntimeSnapshot(
 	out["agent_env"] = buildAgentEnvSnapshot(cfg)
 	out["fleet_runtime"] = buildFleetRuntimeSnapshot(cfg, mode, prefs)
 	out["security_runtime"] = buildSecurityRuntimeSnapshot(cfg)
+	out["contextual_evidence"] = buildContextualEvidenceSnapshot(cfg, mode, prefs, settings, workerAvailable)
 	out["scheduler_snapshot"] = agentruntime.SchedulerSnapshotForCollectors(runtimeCollectorSpecs(cfg))
 	if selfUpdateUC != nil {
 		out["auto_update_runtime"] = selfUpdateUC.Snapshot()
+	}
+	return out
+}
+
+func buildContextualEvidenceSnapshot(
+	cfg config.Config,
+	mode string,
+	prefs config.CollectPrefs,
+	settings usecase.AgentlessSettings,
+	workerAvailable bool,
+) map[string]any {
+	return map[string]any{
+		"schema_version": 1,
+		"host_evidence": map[string]any{
+			"includes": []string{"health", "processes", "services", "ports", "logs", "network", "runtime"},
+			"gaps":     contextualEvidenceGaps(prefs, settings, workerAvailable),
+			"noc_soc_attachment_policy": map[string]any{
+				"send_raw_sensitive_payload": false,
+				"attach_summary":             true,
+				"attach_gap_list":            true,
+			},
+		},
+		"local_ai": map[string]any{
+			"mode":               "deterministic_rules",
+			"llm_required":       false,
+			"destructive_action": false,
+			"rules": []string{
+				"redaction",
+				"dedupe",
+				"noise_scoring",
+				"gap_detection",
+				"agent_agentless_divergence",
+			},
+		},
+		"offline_first": map[string]any{
+			"outbox_path_configured": strings.TrimSpace(cfg.OutboxPath) != "",
+			"outbox_max_mb":          cfg.OutboxMaxMB,
+			"http_idempotency":       cfg.HTTPIdempotency,
+			"hub_or_relay_mode":      mode == "hub" || mode == "relay",
+			"proxy_configured":       proxyConfigured(),
+			"local_export_support":   "support_flare_redacted",
+		},
+		"privacy": map[string]any{
+			"profile":              privacyProfile(),
+			"sensitive_mode":       sensitiveModeEnabled(),
+			"minimized_collectors": minimizedCollectors(prefs),
+			"raw_secret_logging":   false,
+		},
+		"agent_agentless": map[string]any{
+			"agentless_effective_enabled": settings.Enabled,
+			"agentless_worker_available":  workerAvailable,
+			"correlation_strategy": []string{
+				"host_ok_network_failing",
+				"network_ok_local_service_failing",
+				"agent_recent_snmp_stale",
+			},
+		},
+		"superiority_benchmark": map[string]any{
+			"claim_allowed": false,
+			"required_evidence": []string{
+				"time_to_diagnosis",
+				"noise_reduction",
+				"executive_evidence",
+				"deployment_effort",
+				"agent_plus_agentless",
+			},
+		},
+	}
+}
+
+func contextualEvidenceGaps(prefs config.CollectPrefs, settings usecase.AgentlessSettings, workerAvailable bool) []string {
+	gaps := make([]string, 0, 8)
+	if !prefs.Logs {
+		gaps = append(gaps, "logs_disabled")
+	}
+	if !prefs.Processes {
+		gaps = append(gaps, "processes_disabled")
+	}
+	if !prefs.Services {
+		gaps = append(gaps, "services_disabled")
+	}
+	if !prefs.Network {
+		gaps = append(gaps, "network_metrics_disabled")
+	}
+	if strings.TrimSpace(prefs.NetworkPassiveMode) == "" || strings.EqualFold(strings.TrimSpace(prefs.NetworkPassiveMode), "socket") {
+		gaps = append(gaps, "advanced_network_limited")
+	}
+	if settings.Enabled && !workerAvailable {
+		gaps = append(gaps, "agentless_worker_unavailable")
+	}
+	if !settings.Enabled {
+		gaps = append(gaps, "agentless_disabled")
+	}
+	return uniqueStrings(gaps, 16)
+}
+
+func minimizedCollectors(prefs config.CollectPrefs) []string {
+	disabled := make([]string, 0, 12)
+	flags := map[string]bool{
+		"logs":       prefs.Logs,
+		"processes":  prefs.Processes,
+		"services":   prefs.Services,
+		"network":    prefs.Network,
+		"inventory":  prefs.Inventory,
+		"oslog_diag": prefs.OSLogDiag,
+	}
+	for name, enabled := range flags {
+		if !enabled {
+			disabled = append(disabled, name)
+		}
+	}
+	return uniqueStrings(disabled, 16)
+}
+
+func privacyProfile() string {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("PRIVACY_PROFILE")))
+	switch value {
+	case "standard", "sensitive", "minimal":
+		return value
+	default:
+		return "standard"
+	}
+}
+
+func sensitiveModeEnabled() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("SENSITIVE_MODE")))
+	return value == "true" || value == "1" || value == "yes"
+}
+
+func uniqueStrings(items []string, limit int) []string {
+	if len(items) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(items))
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		value := strings.TrimSpace(item)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
 	}
 	return out
 }

@@ -320,6 +320,30 @@ Operacao segura:
 
 Rollback: remover a entrada da integracao em `local_checks` ou definir `local_checks_enabled=false`. Nao ha SQL do PKG-71.
 
+### PKG-72 - Evidencia contextual, IA local e offline
+
+Contrato tecnico: `docs/pkg72_contextual_ai_offline.md`.
+
+Diagnostico:
+
+- `inspect_runtime_config` inclui `contextual_evidence`;
+- `collect_support_flare` inclui o mesmo snapshot sanitizado;
+- `superiority_benchmark.claim_allowed=false` ate benchmark real.
+
+Configuracoes opcionais:
+
+- `PRIVACY_PROFILE=standard|sensitive|minimal`;
+- `SENSITIVE_MODE=true`.
+
+Operacao segura:
+
+- IA local e deterministica, sem LLM obrigatorio;
+- nenhuma acao destrutiva automatica;
+- usar evidencia e lacunas como apoio NOC/SOC;
+- validar replay offline e correlacao agentless em ambiente real antes de declarar diferencial.
+
+Rollback: ignorar `contextual_evidence` no backend. Nao ha SQL do PKG-72.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.

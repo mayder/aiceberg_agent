@@ -185,6 +185,17 @@ Referências:
 - Impacto em rollback: desativar a integracao especifica em `local_checks` ou `local_checks_enabled=false`.
 - Como reverter: remover manifests novos e voltar ao runtime de checks basicos do PKG-66.
 
+### DEC-20260618-14 - Diferenciais AIceberg começam por evidencia contextual deterministica
+
+- Status: aceita
+- Contexto: PKG-72 precisa mostrar diferenciais de NOC/SOC, IA local, offline e agent+agentless sem declarar superioridade sem benchmark.
+- Decisao: adicionar `contextual_evidence` ao snapshot seguro com evidencias, lacunas, regras deterministicas, privacidade, offline-first e estrategia agent+agentless. `superiority_benchmark.claim_allowed=false` permanece ate haver comparacao objetiva.
+- Alternativas consideradas: embutir LLM local no agente ou declarar superioridade por implementacao de pacotes.
+- Consequencias: o backend pode exibir evidencias e lacunas sem mudar ingestao; IA local fica limitada a regras auditaveis e sem acao destrutiva.
+- Impacto em testes: unitario cobre snapshot, privacidade sensivel, bloqueio de acao destrutiva e bloqueio de claim.
+- Impacto em rollback: ignorar `contextual_evidence` no backend ou remover o bloco do snapshot.
+- Como reverter: remover `buildContextualEvidenceSnapshot` sem afetar coletores existentes.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

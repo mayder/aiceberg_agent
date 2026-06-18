@@ -223,6 +223,12 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Cobrir OpenMetrics com allowlist/cardinalidade, labels permitidas, JMX via Jolokia, metadados de manifest oficial e bloqueio de tipo arbitrario.
 - Validacao real de `/metrics`, app Java, Windows Server, bancos/fila/web servers e autodiscovery container/Kubernetes fica pendente ate ambiente controlado.
 
+## PKG-72 - Diferenciais AIceberg
+
+- Unitario focado: `go test ./internal/bootstrap`.
+- Cobrir `contextual_evidence`, privacidade sensivel, IA deterministica sem LLM, bloqueio de acao destrutiva e claim de superioridade bloqueado sem benchmark.
+- Validacao real de incidente NOC/SOC, replay 24h offline, agent+agentless, cliente regulado e benchmark contra Datadog fica pendente ate ambiente controlado.
+
 ## Validação por lote
 
 Objetivo: dar feedback rápido, sem gastar tempo com bateria completa a cada subentrega.
