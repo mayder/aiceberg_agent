@@ -411,6 +411,46 @@ func TestBuildServiceMapInfersNonInstrumentedServiceAndDBDependency(t *testing.T
 	}
 }
 
+func TestBuildServiceMapMapsEnvVersionFromMetadata(t *testing.T) {
+	payload := buildServiceMapPayload(nil, []listenerRow{
+		{
+			Protocol:       "tcp",
+			LocalPort:      8080,
+			Process:        "api-server",
+			ServiceName:    "checkout",
+			ServiceEnv:     "prod",
+			ServiceVersion: "1.2.3",
+			Samples:        1,
+		},
+		{
+			Protocol:   "tcp",
+			LocalPort:  9090,
+			Process:    "worker",
+			ProcessCmd: `worker --env staging --version 2026.06.18`,
+			Samples:    1,
+		},
+	}, nil, passiveCollectOptions{advancedEnabled: true})
+
+	services := map[string]discoveredServiceRow{}
+	for _, service := range payload.Services {
+		services[service.Service] = service
+	}
+	checkout := services["checkout"]
+	if checkout.Env != "prod" || checkout.Version != "1.2.3" {
+		t.Fatalf("expected explicit env/version, got %#v", checkout)
+	}
+	if !containsString(checkout.Evidence, "env:explicit") || !containsString(checkout.Evidence, "version:explicit") {
+		t.Fatalf("expected explicit metadata evidence, got %#v", checkout.Evidence)
+	}
+	worker := services["worker"]
+	if worker.Env != "staging" || worker.Version != "2026.06.18" {
+		t.Fatalf("expected cmdline env/version, got %#v", worker)
+	}
+	if !containsString(worker.Evidence, "env:cmdline") || !containsString(worker.Evidence, "version:cmdline") {
+		t.Fatalf("expected cmdline metadata evidence, got %#v", worker.Evidence)
+	}
+}
+
 func TestBuildNetworkPerfAndWorkloadSecuritySignals(t *testing.T) {
 	flows := []flowRow{
 		{
@@ -451,6 +491,15 @@ func TestBuildNetworkPerfAndWorkloadSecuritySignals(t *testing.T) {
 			t.Fatalf("expected masked remote ip in signal: %#v", signal)
 		}
 	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestExtractHostFromCmdlineURL(t *testing.T) {

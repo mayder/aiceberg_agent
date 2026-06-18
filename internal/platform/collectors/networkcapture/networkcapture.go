@@ -270,6 +270,8 @@ type flowRow struct {
 	ParentPID         int32    `json:"parent_pid,omitempty"`
 	Process           string   `json:"process,omitempty"`
 	ServiceName       string   `json:"service_name,omitempty"`
+	ServiceEnv        string   `json:"service_env,omitempty"`
+	ServiceVersion    string   `json:"service_version,omitempty"`
 	ProcessUser       string   `json:"process_user,omitempty"`
 	ProcessExe        string   `json:"process_exe,omitempty"`
 	ProcessCmd        string   `json:"process_cmdline,omitempty"`
@@ -316,18 +318,20 @@ type peerRow struct {
 }
 
 type listenerRow struct {
-	Protocol    string `json:"protocol,omitempty"`
-	LocalIP     string `json:"local_ip,omitempty"`
-	LocalPort   uint32 `json:"local_port,omitempty"`
-	State       string `json:"state,omitempty"`
-	PID         int32  `json:"pid,omitempty"`
-	ParentPID   int32  `json:"parent_pid,omitempty"`
-	Process     string `json:"process,omitempty"`
-	ServiceName string `json:"service_name,omitempty"`
-	ProcessUser string `json:"process_user,omitempty"`
-	ProcessExe  string `json:"process_exe,omitempty"`
-	ProcessCmd  string `json:"process_cmdline,omitempty"`
-	Samples     int    `json:"samples"`
+	Protocol       string `json:"protocol,omitempty"`
+	LocalIP        string `json:"local_ip,omitempty"`
+	LocalPort      uint32 `json:"local_port,omitempty"`
+	State          string `json:"state,omitempty"`
+	PID            int32  `json:"pid,omitempty"`
+	ParentPID      int32  `json:"parent_pid,omitempty"`
+	Process        string `json:"process,omitempty"`
+	ServiceName    string `json:"service_name,omitempty"`
+	ServiceEnv     string `json:"service_env,omitempty"`
+	ServiceVersion string `json:"service_version,omitempty"`
+	ProcessUser    string `json:"process_user,omitempty"`
+	ProcessExe     string `json:"process_exe,omitempty"`
+	ProcessCmd     string `json:"process_cmdline,omitempty"`
+	Samples        int    `json:"samples"`
 }
 
 type ifaceDelta struct {

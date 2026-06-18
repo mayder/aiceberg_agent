@@ -29,7 +29,7 @@ O payload antigo permanece:
 
 Novos blocos opcionais:
 
-- `service_map.services`: servicos confirmados por listener ou inferidos por processo/porta/trafego.
+- `service_map.services`: servicos confirmados por listener ou inferidos por processo/porta/trafego, com `env` e `version` quando vierem de metadado explicito ou cmdline reconhecido.
 - `service_map.dependencies`: relacao `source_service -> target_service`, tipo do destino, porta, protocolo, amostras e trafego estimado.
 - `service_map.system_probe`: modo pedido, modo aplicado, suporte eBPF, fallback e capacidades.
 - `network_performance`: estados de conexao, top talkers e portas administrativas expostas.
@@ -60,6 +60,7 @@ Esses sinais sao evidencia para SOC/NOC. O agente nao bloqueia processo, arquivo
 Cobertura focada:
 
 - servico legado sem OTEL aparece como `inferred`;
+- `service`, `env` e `version` sao preenchidos por metadado explicito ou cmdline com evidencia `env:*`/`version:*`;
 - dependencia para banco por DNS/porta vira `service -> database`;
 - eBPF fica inativo com fallback quando nao aplicado;
 - NPM mascara IP publico;

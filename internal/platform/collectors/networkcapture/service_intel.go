@@ -142,6 +142,7 @@ func buildServiceMapPayload(flows []flowRow, listeners []listenerRow, advanced *
 		row := ensureService(service, "confirmed", "listener", []string{
 			"listener:" + listener.Protocol + "/" + strconv.FormatUint(uint64(listener.LocalPort), 10),
 		})
+		applyServiceMetadata(row, listener.ServiceEnv, listener.ServiceVersion, listener.ProcessCmd)
 		if listener.LocalPort > 0 {
 			row.ListenPorts = appendUniquePort(row.ListenPorts, listener.LocalPort, 16)
 		}
@@ -156,6 +157,7 @@ func buildServiceMapPayload(flows []flowRow, listeners []listenerRow, advanced *
 		source := ensureService(sourceService, "inferred", "traffic", []string{
 			"flow:" + flow.Protocol + "/" + strconv.FormatUint(uint64(flow.RemotePort), 10),
 		})
+		applyServiceMetadata(source, flow.ServiceEnv, flow.ServiceVersion, flow.ProcessCmd)
 		if p := sanitizeProcessName(flow.Process); p != "" {
 			source.Processes = uniqueStrings(append(source.Processes, p), 8)
 		}
@@ -429,6 +431,94 @@ func targetTypeForPort(port uint32) string {
 	default:
 		return "service"
 	}
+}
+
+func applyServiceMetadata(row *discoveredServiceRow, envRaw, versionRaw, cmdline string) {
+	if row == nil {
+		return
+	}
+	env, envEvidence := serviceEnvFromMetadata(envRaw, cmdline)
+	if row.Env == "" && env != "" {
+		row.Env = env
+		row.Evidence = uniqueStrings(append(row.Evidence, envEvidence), 6)
+	}
+	version, versionEvidence := serviceVersionFromMetadata(versionRaw, cmdline)
+	if row.Version == "" && version != "" {
+		row.Version = version
+		row.Evidence = uniqueStrings(append(row.Evidence, versionEvidence), 6)
+	}
+}
+
+func serviceEnvFromMetadata(explicit, cmdline string) (string, string) {
+	if env := sanitizeServiceToken(explicit); env != "" {
+		return env, "env:explicit"
+	}
+	for _, flag := range []string{"--env", "-env", "--environment", "-environment", "deployment.environment", "env"} {
+		if value := valueAfterFlag(cmdline, flag); value != "" {
+			if env := sanitizeServiceToken(value); env != "" {
+				return env, "env:cmdline"
+			}
+		}
+	}
+	return "", ""
+}
+
+func serviceVersionFromMetadata(explicit, cmdline string) (string, string) {
+	if version := sanitizeVersionToken(explicit); version != "" {
+		return version, "version:explicit"
+	}
+	for _, flag := range []string{"--version", "-version", "service.version", "version"} {
+		if value := valueAfterFlag(cmdline, flag); value != "" {
+			if version := sanitizeVersionToken(value); version != "" {
+				return version, "version:cmdline"
+			}
+		}
+	}
+	return "", ""
+}
+
+func valueAfterFlag(cmdline, flag string) string {
+	fields := strings.Fields(strings.TrimSpace(cmdline))
+	if len(fields) == 0 {
+		return ""
+	}
+	normalizedFlag := strings.TrimSpace(flag)
+	for i, field := range fields {
+		field = strings.TrimSpace(field)
+		if field == normalizedFlag && i+1 < len(fields) {
+			return strings.Trim(fields[i+1], `"'`)
+		}
+		if strings.HasPrefix(field, normalizedFlag+"=") {
+			return strings.Trim(strings.TrimPrefix(field, normalizedFlag+"="), `"'`)
+		}
+	}
+	return ""
+}
+
+func sanitizeVersionToken(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '.' || r == '-' || r == '_' || r == '+':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('-')
+		}
+		if b.Len() >= 80 {
+			break
+		}
+	}
+	return strings.Trim(b.String(), ".-_+")
 }
 
 func confidenceForService(service, source string) string {

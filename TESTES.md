@@ -215,7 +215,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 ## PKG-70 - Rede avancada, USM e workload security
 
 - Unitario focado: `go test ./internal/platform/collectors/networkcapture`.
-- Cobrir servico inferido sem OpenTelemetry, dependencia `service -> database`, fallback eBPF, NPM/top talkers, redaction de IP publico e sinais SOC sem acao destrutiva.
+- Cobrir servico inferido sem OpenTelemetry, `service/env/version` por metadado explicito ou cmdline, dependencia `service -> database`, fallback eBPF, NPM/top talkers, redaction de IP publico e sinais SOC sem acao destrutiva.
 - Validacao real de kernel eBPF, permissao sem eBPF, fluxo `web -> api -> db`, container, Kubernetes e overhead fica pendente ate ambiente controlado.
 
 ## PKG-71 - Integracoes avancadas
