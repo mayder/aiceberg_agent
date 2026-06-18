@@ -104,4 +104,7 @@ scripts/pkg69_operational_evidence_gate_selftest.sh
 log "pkg69 evidence bundle self-test"
 scripts/pkg69_bundle_evidence_selftest.sh
 
+log "pkg69 host evidence collector self-test"
+scripts/pkg69_collect_host_evidence_selftest.sh
+
 log "OK"

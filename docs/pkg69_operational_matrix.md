@@ -24,6 +24,12 @@ Para empacotar uma evidencia real ja coletada:
 scripts/pkg69_bundle_evidence.sh relay-hub-direct-hosts /tmp/template-preenchido.md /tmp/evidencia-bruta
 ```
 
+Para coletar evidencia read-only no host real e gerar o bundle:
+
+```bash
+PKG69_RUN_SMOKE=true scripts/pkg69_collect_host_evidence.sh linux-debian /tmp/template-preenchido.md
+```
+
 Para bloquear fechamento sem todos os anexos reais:
 
 ```bash
@@ -49,11 +55,11 @@ O script de homologacao executa:
 - `./check.sh`;
 - listagem explicita de cenarios pendentes de ambiente real.
 
-O gate `scripts/pkg69_operational_evidence_gate.sh` gera templates por ambiente/cenario, valida titulo, status `pass`, campos obrigatorios, topologia preenchida sem placeholder, anexo local existente e nao vazio em `Evidencia bruta anexada`, rollback validado, aprovacao de fechamento e SHA256/tamanho do template e do anexo bruto no manifest TSV. O helper `scripts/pkg69_bundle_evidence.sh` prepara esse pacote de evidencia a partir de um template preenchido e um arquivo/diretorio bruto, atualizando o campo de anexo e criando `MANIFEST.tsv`; seu self-test roda no `./check.sh`. Campos criticos tambem sao validados por conteudo, incluindo metricas numericas, limites iniciais de CPU/RSS, `ingest_confirmed=yes|true`, `recovered=yes|true`, `version_confirmed reportado=yes|true`, RBAC Kubernetes sem `secrets/exec/delete` e `relay_direct_api_attempts=0` para a topologia `relay -> hub -> AIceberg`. O self-test `scripts/pkg69_operational_evidence_gate_selftest.sh` roda dentro de `./check.sh`.
+O gate `scripts/pkg69_operational_evidence_gate.sh` gera templates por ambiente/cenario, valida titulo, status `pass`, campos obrigatorios, topologia preenchida sem placeholder, anexo local existente e nao vazio em `Evidencia bruta anexada`, rollback validado, aprovacao de fechamento e SHA256/tamanho do template e do anexo bruto no manifest TSV. O helper `scripts/pkg69_bundle_evidence.sh` prepara esse pacote de evidencia a partir de um template preenchido e um arquivo/diretorio bruto, atualizando o campo de anexo e criando `MANIFEST.tsv`; seu self-test roda no `./check.sh`. O coletor `scripts/pkg69_collect_host_evidence.sh` executa comandos read-only no host, redige variaveis sensiveis de ambiente, pode rodar `scripts/smoke.sh` com `PKG69_RUN_SMOKE=true` e entao chama o helper de bundle; seu self-test tambem roda no `./check.sh`. Campos criticos tambem sao validados por conteudo, incluindo metricas numericas, limites iniciais de CPU/RSS, `ingest_confirmed=yes|true`, `recovered=yes|true`, `version_confirmed reportado=yes|true`, RBAC Kubernetes sem `secrets/exec/delete` e `relay_direct_api_attempts=0` para a topologia `relay -> hub -> AIceberg`. O self-test `scripts/pkg69_operational_evidence_gate_selftest.sh` roda dentro de `./check.sh`.
 
 Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 
-- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, reconexao pos-update local com `version_confirmed` e `version_mismatch_after_restart`, `HTTP_PROXY` autenticado local, TLS invalido rejeitado por padrao, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg em canal/ping/self-heal/update, e2e local multi-processo direct/hub/relay, smoke POSIX com RSS/CPU/goroutines locais, testes focados de API indisponivel/rede intermitente/payload grande/outbox cheia com logs dedicados, gate endurecido para topologia preenchida, anexo bruto local nao vazio com hash/tamanho no manifest, helper de bundle com self-test, rollback validado, limites CPU/RSS e RBAC Kubernetes e `./check.sh`;
+- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, reconexao pos-update local com `version_confirmed` e `version_mismatch_after_restart`, `HTTP_PROXY` autenticado local, TLS invalido rejeitado por padrao, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg em canal/ping/self-heal/update, e2e local multi-processo direct/hub/relay, smoke POSIX com RSS/CPU/goroutines locais, testes focados de API indisponivel/rede intermitente/payload grande/outbox cheia com logs dedicados, gate endurecido para topologia preenchida, anexo bruto local nao vazio com hash/tamanho no manifest, helper de bundle e coletor read-only com self-tests, rollback validado, limites CPU/RSS e RBAC Kubernetes e `./check.sh`;
 - Docker daemon indisponivel no host local;
 - `kubectl` disponivel, mas sem validacao de cluster/DaemonSet/Helm;
 - Helm e PowerShell indisponiveis neste host;

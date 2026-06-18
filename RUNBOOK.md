@@ -326,6 +326,8 @@ scripts/pkg69_operational_evidence_gate.sh
 
 Para empacotar uma evidencia real ja coletada, use `scripts/pkg69_bundle_evidence.sh <cenario> <template-preenchido.md> <arquivo-ou-diretorio-bruto> [saida]`.
 
+Para coletar evidencia read-only no proprio host e gerar o bundle, use `scripts/pkg69_collect_host_evidence.sh <cenario> <template-preenchido.md> [saida]`. Com `PKG69_RUN_SMOKE=true`, o script tambem executa `scripts/smoke.sh` e anexa log/JSON ao artefato bruto. O gate continua obrigatorio depois da coleta.
+
 Para fechamento, preencher os templates dos ambientes reais e rodar com `PKG69_REQUIRE_REAL_EVIDENCE=true` e `PKG69_REQUIRE_CLOSURE_ACCEPTED=true`. O pacote nao deve ser marcado como 100% enquanto o gate reportar `pkg69-status: not-closed`. Cada template precisa preencher `Topologia` com `direct -> AIceberg`, `hub -> AIceberg`, `relay -> hub -> AIceberg` ou `direct/hub/relay hosts separados`, apontar `Evidencia bruta anexada` para arquivo/diretorio local existente e nao vazio, e registrar rollback validado. O manifest TSV inclui SHA256/tamanho do template e do anexo bruto. Na evidencia de Relay/Hub/Direct, `relay_direct_api_attempts` precisa ser `0`. Evidencia com CPU/RSS acima dos limites iniciais ou Kubernetes permitindo `secrets`, `exec` ou `delete` nao passa no gate.
 
 Rollback: nao altera runtime; se a validacao real falhar, reabrir pacote tecnico correspondente e manter artefato anterior.
