@@ -124,6 +124,14 @@ O script passa localmente quando os contratos automatizados estão íntegros, ma
 - `PKG72_NOISE_COST_EVIDENCE`;
 - `PKG72_DATADOG_BENCHMARK_EVIDENCE`.
 
+Antes de tentar fechar o pacote, execute em modo bloqueante:
+
+```bash
+PKG72_REQUIRE_REAL_EVIDENCE=true scripts/pkg72_contextual_evidence_homologation.sh
+```
+
+Esse modo retorna erro se qualquer evidência real obrigatória estiver ausente.
+
 ## Rollback
 
 Ignorar `contextual_evidence` no backend ou remover o bloco do snapshot. Não altera ingestão, scheduler, outbox nem Agentless.
