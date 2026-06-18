@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+section() {
+  printf '\n## %s\n\n' "$1"
+}
+
+result() {
+  local name="$1"
+  local status="$2"
+  local detail="$3"
+  printf -- '- %s: %s — %s\n' "$name" "$status" "$detail"
+}
+
+section "PKG-69 operational homologation"
+result "repo" "info" "$ROOT"
+result "os" "info" "$(uname -srm)"
+result "go" "info" "$(go version 2>/dev/null || echo 'go indisponivel')"
+
+section "environment readiness"
+command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 \
+  && result "docker" "ready" "daemon acessivel" \
+  || result "docker" "pending" "daemon indisponivel neste host"
+command -v kubectl >/dev/null 2>&1 \
+  && result "kubectl" "available" "$(kubectl version --client=true --short 2>/dev/null || kubectl version --client=true 2>/dev/null || echo 'client instalado')" \
+  || result "kubectl" "pending" "cliente indisponivel"
+command -v helm >/dev/null 2>&1 \
+  && result "helm" "available" "$(helm version --short 2>/dev/null || echo 'client instalado')" \
+  || result "helm" "pending" "cliente indisponivel"
+command -v powershell.exe >/dev/null 2>&1 || command -v pwsh >/dev/null 2>&1 \
+  && result "windows-powershell" "available" "shell Windows/PowerShell detectado" \
+  || result "windows-powershell" "pending" "validacao Windows requer host Windows"
+
+section "focused validation"
+go test ./internal/common/config ./internal/domain/usecase ./internal/bootstrap ./internal/platform/collectors/oslogs ./internal/platform/collectors/custommetrics ./internal/platform/collectors/otlp ./internal/platform/collectors/containers ./internal/platform/collectors/kubernetes ./internal/platform/collectors/localchecks >/tmp/aiceberg_pkg69_go_test.log
+result "go-test-focused" "pass" "log=/tmp/aiceberg_pkg69_go_test.log"
+
+section "full check"
+./check.sh >/tmp/aiceberg_pkg69_check.log
+result "check.sh" "pass" "log=/tmp/aiceberg_pkg69_check.log"
+
+section "pending real-environment scenarios"
+result "windows-server" "pending" "executar smoke.ps1 e update controlado em Windows Server"
+result "windows-desktop" "pending" "executar smoke.ps1 e EventLog real em Windows desktop"
+result "linux-debian-rhel" "pending" "executar smoke.sh, systemd e instalador em distros alvo"
+result "docker" "pending" "validar CONTAINER_ENABLED com daemon real e carga controlada"
+result "kubernetes" "pending" "validar DaemonSet/Helm/RBAC em cluster controlado"
+result "proxy-auth" "pending" "validar HTTP_PROXY/HTTPS_PROXY autenticado"
+result "disk-full" "pending" "validar outbox sob limite e erro de disco"
+result "payload-large" "pending" "validar DogStatsD/OTLP/logs em alto volume"
+result "remote-update-rollback" "pending" "validar artefato anterior, hash e version_confirmed"

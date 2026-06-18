@@ -227,6 +227,8 @@ Para operação de frota, `inspect_runtime_config` expõe `fleet_runtime` e o co
 
 Para endurecer config remota e update, configure `REMOTE_CONFIG_SIGNATURE_SECRET` e, quando pronto para enforcement, `REMOTE_CONFIG_SIGNATURE_REQUIRED=true`. Veja `docs/pkg68_security_hardening.md`.
 
+Para homologação operacional, rode `scripts/pkg69_operational_homologation.sh` e acompanhe a matriz em `docs/pkg69_operational_matrix.md`.
+
 Notas:
 - API de produção é o padrão (`https://api.aiceberg.com.br`) e o agente junta `/v1/...` sozinho; use `API_BASE_URL` apenas para apontar para ambientes de teste.
 - Bootstrap (`POST /v1/agent/bootstrap`) já envia `versao_agente` com `internal/common/version.Version`, então a API acompanha qual versão do agente cada host executa.

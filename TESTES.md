@@ -433,6 +433,12 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 - Cobertura local: HMAC de config, bloqueio de payload sensivel sem assinatura, expiracao, downgrade sem force, token rotation e TLS inseguro contra producao.
 - Validacao real pendente para PKG-69: proxy autenticado, TLS invalido, revogacao backend, FIPS/pinning e rotacao com agentes reais.
 
+### PKG-69 - Matriz operacional
+
+- Local reproduzivel: `scripts/pkg69_operational_homologation.sh`.
+- Cobertura local: readiness de ferramentas, testes focados dos pacotes PKG-59 a PKG-68 e `./check.sh`.
+- Fechamento real exige executar matriz em Windows Server, Windows desktop, Linux Debian/RHEL, Docker e Kubernetes controlado.
+
 ## Politica minima de testes
 
 - Unitário: validar regra de negocio, casos de erro e limites sem depender de rede, banco real ou UI.

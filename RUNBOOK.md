@@ -263,6 +263,20 @@ Regras:
 
 Rollback: desativar obrigatoriedade de assinatura ou permitir unsigned sensitive apenas durante janela controlada. Nao ha SQL do PKG-68.
 
+### PKG-69 - Matriz operacional real
+
+Contrato tecnico: `docs/pkg69_operational_matrix.md`.
+
+Comando local:
+
+```bash
+scripts/pkg69_operational_homologation.sh
+```
+
+O comando valida ambiente local, testes focados e `./check.sh`, e lista pendencias reais por Windows, Linux, Docker, Kubernetes, proxy, disco, payload e update rollback.
+
+Rollback: nao altera runtime; se a validacao real falhar, reabrir pacote tecnico correspondente e manter artefato anterior.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.

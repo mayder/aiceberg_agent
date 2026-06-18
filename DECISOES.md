@@ -152,6 +152,17 @@ Referências:
 - Impacto em rollback: desativar `REMOTE_CONFIG_SIGNATURE_REQUIRED` ou permitir unsigned sensitive temporariamente.
 - Como reverter: remover validação de assinatura e token rotation do config payload.
 
+### DEC-20260618-11 - Homologacao operacional separa local de ambiente real
+
+- Status: aceita
+- Contexto: PKG-69 precisa provar maturidade por ambiente e falha, sem tratar `./check.sh` local como homologacao multiplataforma.
+- Decisao: criar `scripts/pkg69_operational_homologation.sh` e `docs/pkg69_operational_matrix.md` para registrar evidencia local, prontidao de ferramentas e pendencias por Windows, Linux, Docker, Kubernetes, proxy, disco, payload e update rollback.
+- Alternativas consideradas: declarar pacotes anteriores como fechados apenas por testes unitarios e check local.
+- Consequencias: a matriz diferencia validacao local de validacao real; pendencias reais seguem explicitas ate execucao em ambiente controlado.
+- Impacto em testes: script roda testes focados e `./check.sh`.
+- Impacto em rollback: nao altera runtime.
+- Como reverter: remover script/matriz sem impacto no binario.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`
