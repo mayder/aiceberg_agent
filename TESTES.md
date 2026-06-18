@@ -202,7 +202,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 ## PKG-62 - OTLP HTTP/JSON
 
 - Unitario focado: `go test ./internal/platform/collectors/otlp ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.
-- Cobrir HTTP local loopback, metrics/logs/traces JSON, resource attributes, `trace_id`/`span_id`, limite de itens e `dropped_count`.
+- Cobrir HTTP local loopback, metrics/logs/traces JSON, resource attributes essenciais, limite de atributos/cardinalidade, redaction de atributos sensiveis, `trace_id`/`span_id`, limite de itens e `dropped_count`.
 - Validacao real com exporter OpenTelemetry, gRPC/protobuf e consumo de CPU/memoria fica pendente para PKG-69.
 
 ## PKG-64 - Containers Docker inicial

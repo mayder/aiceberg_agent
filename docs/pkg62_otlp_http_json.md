@@ -51,10 +51,13 @@ Resource attributes mapeados:
 - `deployment.environment` -> `env`;
 - `service.version` -> `version`.
 
+Atributos OTLP sao limitados a 32 chaves por item, com truncamento de valores longos e redaction de chaves sensiveis. Chaves semanticas essenciais, como `service.name`, `deployment.environment`, `host.name`, `service.version`, atributos HTTP/DB/Kubernetes/container e excecao, sao preservadas antes de atributos customizados para evitar explosao de cardinalidade.
+
 ## Limites
 
 - `OTLP_MAX_BYTES` limita o corpo HTTP.
 - `OTLP_MAX_ITEMS` limita cardinalidade/volume da janela.
+- Atributos por item sao limitados e sensiveis sao mascarados antes de entrar no snapshot.
 - `dropped_count` registra descartes sem persistir payload rejeitado.
 - Persistencia APM dedicada fica para PKG-63/PKG-69.
 

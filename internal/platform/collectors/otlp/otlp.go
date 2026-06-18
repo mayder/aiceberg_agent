@@ -19,7 +19,11 @@ import (
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
 
-const schemaVersion = 1
+const (
+	schemaVersion      = 1
+	maxAttributeCount  = 32
+	maxAttributeLength = 256
+)
 
 type Receiver struct {
 	prefs                func() config.CollectPrefs
@@ -634,19 +638,63 @@ func resourceAttributes(v any) map[string]any {
 }
 
 func attributes(v any) map[string]any {
-	out := map[string]any{}
+	raw := make([][2]string, 0)
 	for _, attr := range array(v) {
 		m := mapValue(attr)
 		key := stringValue(m["key"])
 		if key == "" {
 			continue
 		}
-		out[key] = valueToString(m["value"])
+		raw = append(raw, [2]string{key, sanitizeAttributeValue(key, valueToString(m["value"]))})
 	}
+	out := limitedAttributes(raw)
 	if len(out) == 0 {
 		return nil
 	}
 	return out
+}
+
+func limitedAttributes(raw [][2]string) map[string]any {
+	out := map[string]any{}
+	for _, item := range raw {
+		if isEssentialOTLPAttribute(item[0]) {
+			out[item[0]] = item[1]
+		}
+	}
+	for _, item := range raw {
+		if len(out) >= maxAttributeCount {
+			break
+		}
+		if _, exists := out[item[0]]; exists {
+			continue
+		}
+		out[item[0]] = item[1]
+	}
+	return out
+}
+
+func sanitizeAttributeValue(key string, value string) string {
+	if isSensitiveLogKey(key) {
+		return "[redacted]"
+	}
+	if len(value) > maxAttributeLength {
+		return value[:maxAttributeLength]
+	}
+	return value
+}
+
+func isEssentialOTLPAttribute(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "host.name", "service.name", "deployment.environment", "service.version",
+		"telemetry.sdk.name", "telemetry.sdk.language", "telemetry.sdk.version",
+		"http.method", "http.route", "http.status_code",
+		"db.system", "db.name", "net.peer.name", "url.path",
+		"k8s.namespace.name", "k8s.pod.name", "container.name",
+		"exception.type", "exception.message":
+		return true
+	default:
+		return false
+	}
 }
 
 func baseItem(resource map[string]any) map[string]any {

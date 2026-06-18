@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -127,6 +128,56 @@ func TestReceiverRedactsAndFiltersOTLPLogs(t *testing.T) {
 	}
 }
 
+func TestReceiverLimitsAttributesAndPreservesEssentials(t *testing.T) {
+	addr := freeTCPAddr(t)
+	receiver := NewReceiver(config.Config{
+		OTLPEnabled:  true,
+		OTLPHTTPAddr: addr,
+		OTLPInterval: time.Second,
+		OTLPMaxItems: 10,
+		OTLPMaxBytes: 8192,
+	}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if _, err := receiver.MetricsCollector().Collect(ctx); err != nil {
+		t.Fatalf("start receiver: %v", err)
+	}
+
+	postOTLP(t, addr, "/v1/metrics", otlpMetricWithManyResourceAttributes())
+
+	metricsRaw, err := receiver.MetricsCollector().Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	var payload struct {
+		OTLP snapshot `json:"otlp"`
+	}
+	if err := json.Unmarshal(metricsRaw, &payload); err != nil {
+		t.Fatalf("invalid metrics payload: %v", err)
+	}
+	if len(payload.OTLP.Items) != 1 {
+		t.Fatalf("expected one metric item, got %#v", payload.OTLP.Items)
+	}
+	resource, ok := payload.OTLP.Items[0]["resource"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected resource attributes, got %#v", payload.OTLP.Items[0]["resource"])
+	}
+	if len(resource) > maxAttributeCount {
+		t.Fatalf("expected resource capped at %d attrs, got %d", maxAttributeCount, len(resource))
+	}
+	for _, key := range []string{"service.name", "deployment.environment", "host.name"} {
+		if resource[key] == "" {
+			t.Fatalf("expected essential attribute %q preserved in %#v", key, resource)
+		}
+	}
+	if resource["token"] != "[redacted]" {
+		t.Fatalf("expected sensitive attribute redacted, got %#v", resource["token"])
+	}
+	if payload.OTLP.Items[0]["service"] != "api" || payload.OTLP.Items[0]["env"] != "prod" {
+		t.Fatalf("expected mapped service/env, got %#v", payload.OTLP.Items[0])
+	}
+}
+
 func TestReceiverSamplesTracesButKeepsErrorsAndSlowSpans(t *testing.T) {
 	addr := freeTCPAddr(t)
 	receiver := NewReceiver(config.Config{
@@ -185,6 +236,21 @@ func postOTLP(t *testing.T, addr, path, body string) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("post %s status %d", path, resp.StatusCode)
 	}
+}
+
+func otlpMetricWithManyResourceAttributes() string {
+	attrs := []string{
+		`{"key":"token","value":{"stringValue":"abc123"}}`,
+	}
+	for i := 0; i < 40; i++ {
+		attrs = append(attrs, `{"key":"custom.attr.`+strconv.Itoa(i)+`","value":{"stringValue":"value`+strconv.Itoa(i)+`"}}`)
+	}
+	attrs = append(attrs,
+		`{"key":"service.name","value":{"stringValue":"api"}}`,
+		`{"key":"deployment.environment","value":{"stringValue":"prod"}}`,
+		`{"key":"host.name","value":{"stringValue":"host-a"}}`,
+	)
+	return `{"resourceMetrics":[{"resource":{"attributes":[` + strings.Join(attrs, ",") + `]},"scopeMetrics":[{"metrics":[{"name":"jobs.processed","gauge":{"dataPoints":[{"asDouble":1}]}}]}]}]}`
 }
 
 func freeTCPAddr(t *testing.T) string {
