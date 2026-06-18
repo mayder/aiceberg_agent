@@ -63,10 +63,12 @@ scripts/pkg69_bundle_evidence.sh relay-hub-direct-hosts "$template" "$raw" "$TMP
 PKG69_GAP_REPORT_FILE="$TMP_DIR/report.md" \
 PKG69_EVIDENCE_FILE="$TMP_DIR/gate.md" \
 PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/manifest.tsv" \
-scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/bundles" >/dev/null 2>"$TMP_DIR/report.err"
+scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/bundles" >"$TMP_DIR/report.out" 2>"$TMP_DIR/report.err"
 
 assert_contains "$TMP_DIR/report.md" "# PKG-69 - Relatorio de lacunas de evidencia"
 assert_contains "$TMP_DIR/report.md" "- Fechamento: BLOQUEADO - faltam evidencias reais obrigatorias."
+assert_contains "$TMP_DIR/report.out" "closure_status=BLOQUEADO"
+assert_contains "$TMP_DIR/report.out" "closure_reason=faltam evidencias reais obrigatorias"
 assert_contains "$TMP_DIR/report.md" '| `relay-hub-direct-hosts` | OK |'
 assert_contains "$TMP_DIR/report.md" '| `windows-server` | PENDENTE |'
 assert_contains "$TMP_DIR/report.md" 'Executar smoke.ps1 e update/rollback controlado em Windows Server'
@@ -130,7 +132,7 @@ set +e
 PKG69_GAP_REPORT_FILE="$TMP_DIR/invalid-report.md" \
 PKG69_EVIDENCE_FILE="$TMP_DIR/invalid-gate.md" \
 PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/invalid-manifest.tsv" \
-scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/invalid" >/dev/null 2>"$TMP_DIR/invalid-report.err"
+scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/invalid" >"$TMP_DIR/invalid-report.out" 2>"$TMP_DIR/invalid-report.err"
 invalid_exit=$?
 set -e
 if [[ "$invalid_exit" -ne 2 ]]; then
@@ -139,5 +141,6 @@ if [[ "$invalid_exit" -ne 2 ]]; then
 fi
 assert_contains "$TMP_DIR/invalid-report.md" '| `proxy-tls` | INVALIDO | field requests_ok must be numeric |'
 assert_contains "$TMP_DIR/invalid-report.md" "- Fechamento: BLOQUEADO - existem evidencias invalidas."
+assert_contains "$TMP_DIR/invalid-report.out" "closure_reason=existem evidencias invalidas"
 
 echo "PKG-69 evidence gap report self-test OK"

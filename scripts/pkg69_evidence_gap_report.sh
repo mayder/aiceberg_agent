@@ -135,6 +135,8 @@ fi
 printf 'report=%s\n' "$REPORT_FILE"
 printf 'manifest=%s\n' "$MANIFEST_TSV"
 printf 'evidence=%s\n' "$EVIDENCE_FILE"
+printf 'closure_status=%s\n' "$closure_status"
+printf 'closure_reason=%s\n' "$closure_reason"
 
 if [[ "$invalid" -gt 0 ]]; then
   exit 2
