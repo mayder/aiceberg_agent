@@ -21,7 +21,8 @@ Environment:
                              Exit non-zero when any scenario is pending.
   PKG69_GAP_REPORT_REQUIRE_ACCEPTED=true
                              Exit non-zero when evidence is complete but closure
-                             was not explicitly accepted.
+                             was not explicitly accepted. Also rejects synthetic
+                             evidence markers through the gate.
   PKG69_ACCEPT_CLOSURE=true  Explicit closure acceptance after review.
 USAGE
 }
@@ -40,13 +41,19 @@ REQUIRE_ACCEPTED="${PKG69_GAP_REPORT_REQUIRE_ACCEPTED:-false}"
 ACCEPT_CLOSURE="${PKG69_ACCEPT_CLOSURE:-false}"
 
 run_gate() {
+  local reject_synthetic="${PKG69_REJECT_SYNTHETIC_EVIDENCE:-false}"
+  if [[ "$REQUIRE_ACCEPTED" == "true" ]]; then
+    reject_synthetic="true"
+  fi
   if [[ "$#" -gt 0 ]]; then
     PKG69_EVIDENCE_FILE="$EVIDENCE_FILE" \
     PKG69_EVIDENCE_MANIFEST_TSV="$MANIFEST_TSV" \
+    PKG69_REJECT_SYNTHETIC_EVIDENCE="$reject_synthetic" \
       scripts/pkg69_run_evidence_gate_from_bundles.sh "$@" >/dev/null
   else
     PKG69_EVIDENCE_FILE="$EVIDENCE_FILE" \
     PKG69_EVIDENCE_MANIFEST_TSV="$MANIFEST_TSV" \
+    PKG69_REJECT_SYNTHETIC_EVIDENCE="$reject_synthetic" \
       scripts/pkg69_operational_evidence_gate.sh >/dev/null
   fi
 }

@@ -9,6 +9,7 @@ EVIDENCE_MANIFEST_TSV="${PKG69_EVIDENCE_MANIFEST_TSV:-}"
 TEMPLATE_DIR="${PKG69_TEMPLATE_DIR:-}"
 REQUIRE_REAL_EVIDENCE="${PKG69_REQUIRE_REAL_EVIDENCE:-false}"
 REQUIRE_CLOSURE_ACCEPTED="${PKG69_REQUIRE_CLOSURE_ACCEPTED:-false}"
+REJECT_SYNTHETIC_EVIDENCE="${PKG69_REJECT_SYNTHETIC_EVIDENCE:-false}"
 ACCEPT_CLOSURE="${PKG69_ACCEPT_CLOSURE:-false}"
 REAL_EVIDENCE_PRESENT=0
 REAL_EVIDENCE_TOTAL=0
@@ -370,7 +371,7 @@ template_incomplete_reason() {
     echo "$scenario_reason"
     return 0
   fi
-  if [[ "$REQUIRE_REAL_EVIDENCE" == "true" || "$REQUIRE_CLOSURE_ACCEPTED" == "true" ]]; then
+  if [[ "$REQUIRE_REAL_EVIDENCE" == "true" || "$REQUIRE_CLOSURE_ACCEPTED" == "true" || "$REJECT_SYNTHETIC_EVIDENCE" == "true" ]]; then
     local synthetic_reason
     if synthetic_reason="$(require_no_synthetic_marker "$path")"; then
       echo "$synthetic_reason"

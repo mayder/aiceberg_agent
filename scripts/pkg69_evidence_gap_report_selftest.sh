@@ -55,6 +55,18 @@ fill_synthetic_template() {
   set_field "$path" "update_report_status" "success"
 }
 
+mark_real_template() {
+  local path="$1"
+
+  set_field "$path" "Responsavel" "pkg69-reviewer"
+  set_field "$path" "Cliente/lab" "controlled-lab-69"
+  set_field "$path" "Host/agente/HUB/relay" "controlled-host-69"
+  set_field "$path" "Versao agente" "0.8.8"
+  set_field "$path" "Artefato instalado" "aiceberg-agent-linux-amd64.tar.gz"
+  set_field "$path" "Observacoes" "controlled lab evidence path"
+  set_field "$path" "Revisor" "pkg69-reviewer"
+}
+
 scenario_for_template() {
   case "$(basename "$1")" in
     windows_server.md) printf 'windows-server\n' ;;
@@ -235,18 +247,49 @@ PKG69_GAP_REPORT_REQUIRE_ACCEPTED=true \
 scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/all-bundles" >"$TMP_DIR/complete-required-accepted.out" 2>"$TMP_DIR/complete-required-accepted.err"
 required_accept_exit=$?
 set -e
-if [[ "$required_accept_exit" -ne 4 ]]; then
-  echo "expected accepted required report exit 4 without acceptance, got $required_accept_exit" >&2
+if [[ "$required_accept_exit" -ne 2 ]]; then
+  echo "expected accepted required report exit 2 with synthetic markers, got $required_accept_exit" >&2
   exit 1
 fi
-assert_contains "$TMP_DIR/complete-required-accepted.out" "closure_status=PRONTO_PARA_REVISAO"
+assert_contains "$TMP_DIR/complete-required-accepted-report.md" "must not contain self-test or synthetic markers when real evidence is required"
+
+real_templates_dir="$TMP_DIR/real-templates"
+PKG69_TEMPLATE_DIR="$real_templates_dir" \
+PKG69_EVIDENCE_FILE="$TMP_DIR/real-template-generation.md" \
+PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/real-template-generation.tsv" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+
+for generated_template in "$real_templates_dir"/*.md; do
+  scenario="$(scenario_for_template "$generated_template")"
+  topology="direct -> AIceberg"
+  if [[ "$scenario" == "relay-hub-direct-hosts" ]]; then
+    topology="direct/hub/relay hosts separados"
+  fi
+  fill_synthetic_template "$generated_template" "$topology"
+  mark_real_template "$generated_template"
+  scripts/pkg69_bundle_evidence.sh "$scenario" "$generated_template" "$raw" "$TMP_DIR/real-bundles/$scenario" >/dev/null
+done
+
+set +e
+PKG69_GAP_REPORT_FILE="$TMP_DIR/real-complete-required-accepted-report.md" \
+PKG69_EVIDENCE_FILE="$TMP_DIR/real-complete-required-accepted-gate.md" \
+PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/real-complete-required-accepted-manifest.tsv" \
+PKG69_GAP_REPORT_REQUIRE_ACCEPTED=true \
+scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/real-bundles" >"$TMP_DIR/real-complete-required-accepted.out" 2>"$TMP_DIR/real-complete-required-accepted.err"
+real_required_accept_exit=$?
+set -e
+if [[ "$real_required_accept_exit" -ne 4 ]]; then
+  echo "expected accepted required report exit 4 without acceptance, got $real_required_accept_exit" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/real-complete-required-accepted.out" "closure_status=PRONTO_PARA_REVISAO"
 
 PKG69_GAP_REPORT_FILE="$TMP_DIR/accepted-report.md" \
 PKG69_EVIDENCE_FILE="$TMP_DIR/accepted-gate.md" \
 PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/accepted-manifest.tsv" \
 PKG69_GAP_REPORT_REQUIRE_ACCEPTED=true \
 PKG69_ACCEPT_CLOSURE=true \
-scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/all-bundles" >"$TMP_DIR/accepted-report.out" 2>"$TMP_DIR/accepted-report.err"
+scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/real-bundles" >"$TMP_DIR/accepted-report.out" 2>"$TMP_DIR/accepted-report.err"
 
 assert_contains "$TMP_DIR/accepted-report.md" "- Fechamento: ACEITO_PARA_FECHAMENTO - todas as evidencias reais estao presentes e PKG69_ACCEPT_CLOSURE=true."
 assert_contains "$TMP_DIR/accepted-report.out" "closure_status=ACEITO_PARA_FECHAMENTO"
