@@ -33,8 +33,11 @@ manifest_result() {
   local path="$3"
   local sha256="$4"
   local bytes="$5"
-  local reason="$6"
-  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$status" "$path" "$sha256" "$bytes" "$reason" >>"$EVIDENCE_MANIFEST_TSV"
+  local artifact_path="$6"
+  local artifact_sha256="$7"
+  local artifact_bytes="$8"
+  local reason="$9"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$status" "$path" "$sha256" "$bytes" "$artifact_path" "$artifact_sha256" "$artifact_bytes" "$reason" >>"$EVIDENCE_MANIFEST_TSV"
 }
 
 file_size_bytes() {
@@ -43,6 +46,39 @@ file_size_bytes() {
 
 file_sha256() {
   shasum -a 256 "$1" | awk '{print $1}'
+}
+
+resolve_artifact_path() {
+  local template_path="$1"
+  local value="$2"
+  if [[ "$value" = /* ]]; then
+    printf '%s\n' "$value"
+  else
+    printf '%s/%s\n' "$(dirname "$template_path")" "$value"
+  fi
+}
+
+artifact_size_bytes() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    file_size_bytes "$path"
+    return
+  fi
+  find "$path" -type f -exec wc -c {} + | awk '{sum += $1} END {print sum + 0}'
+}
+
+artifact_sha256() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    file_sha256 "$path"
+    return
+  fi
+  (
+    cd "$path"
+    find . -type f -print | sort | while IFS= read -r file; do
+      shasum -a 256 "$file"
+    done
+  ) | shasum -a 256 | awk '{print $1}'
 }
 
 field_value() {
@@ -90,13 +126,17 @@ require_existing_artifact_field() {
     return 0
   fi
   local artifact_path
-  if [[ "$value" = /* ]]; then
-    artifact_path="$value"
-  else
-    artifact_path="$(dirname "$path")/$value"
-  fi
+  artifact_path="$(resolve_artifact_path "$path" "$value")"
   if [[ ! -e "$artifact_path" ]]; then
     echo "field $field artifact does not exist: $value"
+    return 0
+  fi
+  if [[ -f "$artifact_path" && ! -s "$artifact_path" ]]; then
+    echo "field $field artifact is empty: $value"
+    return 0
+  fi
+  if [[ -d "$artifact_path" && "$(artifact_size_bytes "$artifact_path")" == "0" ]]; then
+    echo "field $field artifact directory has no non-empty files: $value"
     return 0
   fi
   return 1
@@ -274,19 +314,27 @@ require_file_or_pending() {
     local incomplete_reason
     if incomplete_reason="$(template_incomplete_reason "$path" "$expected_title")"; then
       result "$name" "invalid-template" "path=$path reason=$incomplete_reason"
-      manifest_result "$name" "invalid-template" "$path" "-" "-" "$incomplete_reason"
+      manifest_result "$name" "invalid-template" "$path" "-" "-" "-" "-" "-" "$incomplete_reason"
       return
     fi
     REAL_EVIDENCE_PRESENT=$((REAL_EVIDENCE_PRESENT + 1))
     local sha256
     local bytes
+    local raw_value
+    local raw_path
+    local raw_sha256
+    local raw_bytes
     sha256="$(file_sha256 "$path")"
     bytes="$(file_size_bytes "$path")"
-    result "$name" "evidence" "path=$path sha256=$sha256 bytes=$bytes"
-    manifest_result "$name" "evidence" "$path" "$sha256" "$bytes" "-"
+    raw_value="$(field_value "$path" "Evidencia bruta anexada")"
+    raw_path="$(resolve_artifact_path "$path" "$raw_value")"
+    raw_sha256="$(artifact_sha256 "$raw_path")"
+    raw_bytes="$(artifact_size_bytes "$raw_path")"
+    result "$name" "evidence" "path=$path sha256=$sha256 bytes=$bytes artifact=$raw_path artifact_sha256=$raw_sha256 artifact_bytes=$raw_bytes"
+    manifest_result "$name" "evidence" "$path" "$sha256" "$bytes" "$raw_path" "$raw_sha256" "$raw_bytes" "-"
   else
     result "$name" "pending" "$detail"
-    manifest_result "$name" "pending" "-" "-" "-" "$detail"
+    manifest_result "$name" "pending" "-" "-" "-" "-" "-" "-" "$detail"
   fi
 }
 
@@ -506,7 +554,7 @@ generate_templates() {
 
 : >"$EVIDENCE_FILE"
 if [[ -n "$EVIDENCE_MANIFEST_TSV" ]]; then
-  printf 'name\tstatus\tpath\tsha256\tbytes\treason\n' >"$EVIDENCE_MANIFEST_TSV"
+  printf 'name\tstatus\tpath\tsha256\tbytes\tartifact_path\tartifact_sha256\tartifact_bytes\treason\n' >"$EVIDENCE_MANIFEST_TSV"
 fi
 generate_templates
 

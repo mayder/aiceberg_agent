@@ -112,6 +112,16 @@ cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-missing-artifa
 fill_template "$TMP_DIR/relay-missing-artifact.md" "pass"
 perl -0pi -e 's/- Evidencia bruta anexada: raw.log/- Evidencia bruta anexada: missing.log/' "$TMP_DIR/relay-missing-artifact.md"
 
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-empty-artifact.md"
+fill_template "$TMP_DIR/relay-empty-artifact.md" "pass"
+: >"$TMP_DIR/empty.log"
+perl -0pi -e 's/- Evidencia bruta anexada: raw.log/- Evidencia bruta anexada: empty.log/' "$TMP_DIR/relay-empty-artifact.md"
+
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-empty-dir-artifact.md"
+fill_template "$TMP_DIR/relay-empty-dir-artifact.md" "pass"
+mkdir -p "$TMP_DIR/emptydir"
+perl -0pi -e 's/- Evidencia bruta anexada: raw.log/- Evidencia bruta anexada: emptydir/' "$TMP_DIR/relay-empty-dir-artifact.md"
+
 cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-rollback-not-validated.md"
 fill_template "$TMP_DIR/relay-rollback-not-validated.md" "pass"
 perl -0pi -e 's/- Rollback validado: sim/- Rollback validado: no/' "$TMP_DIR/relay-rollback-not-validated.md"
@@ -133,8 +143,9 @@ PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/correct-slot.tsv" \
 PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-pass.md" \
 scripts/pkg69_operational_evidence_gate.sh >/dev/null
 assert_contains "$TMP_DIR/correct-slot.md" "relay-hub-direct-hosts: evidence"
-assert_contains "$TMP_DIR/correct-slot.tsv" $'name\tstatus\tpath\tsha256\tbytes\treason'
+assert_contains "$TMP_DIR/correct-slot.tsv" $'name\tstatus\tpath\tsha256\tbytes\tartifact_path\tartifact_sha256\tartifact_bytes\treason'
 assert_contains "$TMP_DIR/correct-slot.tsv" $'relay-hub-direct-hosts\tevidence\t'
+assert_contains "$TMP_DIR/correct-slot.tsv" "raw.log"
 
 PKG69_EVIDENCE_FILE="$TMP_DIR/wrong-slot.md" \
 PKG69_WINDOWS_SERVER_EVIDENCE="$TMP_DIR/relay-pass.md" \
@@ -171,6 +182,18 @@ PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-missing-artifact.md" \
 scripts/pkg69_operational_evidence_gate.sh >/dev/null
 assert_contains "$TMP_DIR/relay-missing-artifact.md.out" "relay-hub-direct-hosts: invalid-template"
 assert_contains "$TMP_DIR/relay-missing-artifact.md.out" "reason=field Evidencia bruta anexada artifact does not exist: missing.log"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/relay-empty-artifact.md.out" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-empty-artifact.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/relay-empty-artifact.md.out" "relay-hub-direct-hosts: invalid-template"
+assert_contains "$TMP_DIR/relay-empty-artifact.md.out" "reason=field Evidencia bruta anexada artifact is empty: empty.log"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/relay-empty-dir-artifact.md.out" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-empty-dir-artifact.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/relay-empty-dir-artifact.md.out" "relay-hub-direct-hosts: invalid-template"
+assert_contains "$TMP_DIR/relay-empty-dir-artifact.md.out" "reason=field Evidencia bruta anexada artifact directory has no non-empty files: emptydir"
 
 PKG69_EVIDENCE_FILE="$TMP_DIR/relay-rollback-not-validated.md.out" \
 PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-rollback-not-validated.md" \
