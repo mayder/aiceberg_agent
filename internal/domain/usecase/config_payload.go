@@ -146,15 +146,19 @@ type ConfigPayload struct {
 		TracePreserveErrors  *bool    `json:"trace_preserve_errors,omitempty"`
 	} `json:"apm,omitempty"`
 	Containers struct {
-		Enabled      *bool  `json:"enabled,omitempty"`
-		DockerSocket string `json:"docker_socket,omitempty"`
-		Interval     int    `json:"interval,omitempty"`
-		MaxItems     int    `json:"max_items,omitempty"`
-		IncludeRegex string `json:"include_regex,omitempty"`
-		ExcludeRegex string `json:"exclude_regex,omitempty"`
-		LogsEnabled  *bool  `json:"logs_enabled,omitempty"`
-		LogsMaxLines int    `json:"logs_max_lines,omitempty"`
-		LogsMaxBytes int    `json:"logs_max_bytes,omitempty"`
+		Enabled             *bool  `json:"enabled,omitempty"`
+		Runtime             string `json:"runtime,omitempty"`
+		DockerSocket        string `json:"docker_socket,omitempty"`
+		ContainerdSocket    string `json:"containerd_socket,omitempty"`
+		ContainerdNamespace string `json:"containerd_namespace,omitempty"`
+		CtrPath             string `json:"ctr_path,omitempty"`
+		Interval            int    `json:"interval,omitempty"`
+		MaxItems            int    `json:"max_items,omitempty"`
+		IncludeRegex        string `json:"include_regex,omitempty"`
+		ExcludeRegex        string `json:"exclude_regex,omitempty"`
+		LogsEnabled         *bool  `json:"logs_enabled,omitempty"`
+		LogsMaxLines        int    `json:"logs_max_lines,omitempty"`
+		LogsMaxBytes        int    `json:"logs_max_bytes,omitempty"`
 	} `json:"containers,omitempty"`
 	Kubernetes struct {
 		Enabled   *bool  `json:"enabled,omitempty"`
@@ -276,8 +280,20 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	if payload.Containers.Enabled != nil {
 		collect.ContainerEnabled = *payload.Containers.Enabled
 	}
+	if payload.Containers.Runtime != "" {
+		collect.ContainerRuntime = payload.Containers.Runtime
+	}
 	if payload.Containers.DockerSocket != "" {
 		collect.ContainerDockerSocket = payload.Containers.DockerSocket
+	}
+	if payload.Containers.ContainerdSocket != "" {
+		collect.ContainerContainerdSocket = payload.Containers.ContainerdSocket
+	}
+	if payload.Containers.ContainerdNamespace != "" {
+		collect.ContainerContainerdNS = payload.Containers.ContainerdNamespace
+	}
+	if payload.Containers.CtrPath != "" {
+		collect.ContainerCtrPath = payload.Containers.CtrPath
 	}
 	if payload.Containers.Interval > 0 {
 		collect.ContainerIntervalSec = payload.Containers.Interval
@@ -487,7 +503,11 @@ func payloadHasSensitiveConfig(payload ConfigPayload) bool {
 		payload.TokenRotation != nil ||
 		payload.CollectNow != nil ||
 		payload.LocalChecks.Checks != nil ||
+		strings.TrimSpace(payload.Containers.Runtime) != "" ||
 		strings.TrimSpace(payload.Containers.DockerSocket) != "" ||
+		strings.TrimSpace(payload.Containers.ContainerdSocket) != "" ||
+		strings.TrimSpace(payload.Containers.ContainerdNamespace) != "" ||
+		strings.TrimSpace(payload.Containers.CtrPath) != "" ||
 		strings.TrimSpace(payload.Kubernetes.TokenPath) != ""
 }
 

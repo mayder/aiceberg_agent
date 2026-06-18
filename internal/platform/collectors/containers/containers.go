@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,17 +22,21 @@ import (
 const schemaVersion = 1
 
 type collector struct {
-	prefs         func() config.CollectPrefs
-	baseEnabled   bool
-	socket        string
-	interval      time.Duration
-	maxItems      int
-	include       string
-	exclude       string
-	logsEnabled   bool
-	logCursorPath string
-	logMaxLines   int
-	logMaxBytes   int
+	prefs          func() config.CollectPrefs
+	baseEnabled    bool
+	runtime        string
+	socket         string
+	containerdSock string
+	containerdNS   string
+	ctrPath        string
+	interval       time.Duration
+	maxItems       int
+	include        string
+	exclude        string
+	logsEnabled    bool
+	logCursorPath  string
+	logMaxLines    int
+	logMaxBytes    int
 }
 
 func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -44,17 +49,21 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 		maxItems = 200
 	}
 	return &collector{
-		prefs:         prefsProvider,
-		baseEnabled:   cfg.ContainerEnabled,
-		socket:        cfg.ContainerDockerSocket,
-		interval:      interval,
-		maxItems:      maxItems,
-		include:       cfg.ContainerIncludeRegex,
-		exclude:       cfg.ContainerExcludeRegex,
-		logsEnabled:   cfg.ContainerLogsEnabled,
-		logCursorPath: cfg.ContainerLogsCursorPath,
-		logMaxLines:   cfg.ContainerLogsMaxLines,
-		logMaxBytes:   cfg.ContainerLogsMaxBytes,
+		prefs:          prefsProvider,
+		baseEnabled:    cfg.ContainerEnabled,
+		runtime:        cfg.ContainerRuntime,
+		socket:         cfg.ContainerDockerSocket,
+		containerdSock: cfg.ContainerContainerdSocket,
+		containerdNS:   cfg.ContainerContainerdNamespace,
+		ctrPath:        cfg.ContainerCtrPath,
+		interval:       interval,
+		maxItems:       maxItems,
+		include:        cfg.ContainerIncludeRegex,
+		exclude:        cfg.ContainerExcludeRegex,
+		logsEnabled:    cfg.ContainerLogsEnabled,
+		logCursorPath:  cfg.ContainerLogsCursorPath,
+		logMaxLines:    cfg.ContainerLogsMaxLines,
+		logMaxBytes:    cfg.ContainerLogsMaxBytes,
 	}
 }
 
@@ -66,10 +75,27 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	if !c.enabled() {
 		return nil, nil
 	}
-	if strings.TrimSpace(c.socket) == "" {
+	runtimeName, dockerSocket, containerdSocket, containerdNS, ctrPath := c.effectiveRuntimeConfig()
+	if runtimeName == "containerd" {
+		return c.collectContainerd(ctx, ctrPath, containerdSocket, containerdNS)
+	}
+	payload, err := c.collectDocker(ctx, dockerSocket)
+	if err == nil || runtimeName == "docker" {
+		return payload, err
+	}
+	if hasUnixSocket(containerdSocket) {
+		if fallback, fallbackErr := c.collectContainerd(ctx, ctrPath, containerdSocket, containerdNS); fallbackErr == nil {
+			return fallback, nil
+		}
+	}
+	return nil, err
+}
+
+func (c *collector) collectDocker(ctx context.Context, socket string) ([]byte, error) {
+	if strings.TrimSpace(socket) == "" {
 		return nil, errors.New("docker socket vazio")
 	}
-	client := dockerClient(c.socket)
+	client := dockerClient(socket)
 	containers, err := listDockerContainers(ctx, client, c.maxItems)
 	if err != nil {
 		return nil, err
@@ -108,6 +134,72 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		},
 	}
 	return json.Marshal(payload)
+}
+
+func (c *collector) collectContainerd(ctx context.Context, ctrPath, socket, namespace string) ([]byte, error) {
+	rows, err := listContainerdContainers(ctx, ctrPath, socket, namespace, c.maxItems)
+	if err != nil {
+		return nil, err
+	}
+	include, exclude := c.effectiveFilters()
+	rows = filterContainers(rows, nil, include, exclude)
+	payload := map[string]any{
+		"containers": map[string]any{
+			"schema_version":       schemaVersion,
+			"source":               "containerd_ctr",
+			"items":                normalizeContainers(rows, nil, nil),
+			"logs":                 nil,
+			"autodiscovery_checks": autodiscoveryChecks(rows),
+			"dropped_count":        maxInt(0, len(rows)-c.maxItems),
+		},
+	}
+	return json.Marshal(payload)
+}
+
+func (c *collector) effectiveRuntime() string {
+	runtimeName, _, _, _, _ := c.effectiveRuntimeConfig()
+	return runtimeName
+}
+
+func (c *collector) effectiveRuntimeConfig() (string, string, string, string, string) {
+	runtimeName := strings.ToLower(strings.TrimSpace(c.runtime))
+	dockerSocket := c.socket
+	containerdSocket := c.containerdSock
+	containerdNS := c.containerdNS
+	ctrPath := c.ctrPath
+	if c.prefs != nil {
+		prefs := c.prefs()
+		if p := strings.ToLower(strings.TrimSpace(prefs.ContainerRuntime)); p != "" {
+			runtimeName = p
+		}
+		if strings.TrimSpace(prefs.ContainerDockerSocket) != "" {
+			dockerSocket = prefs.ContainerDockerSocket
+		}
+		if strings.TrimSpace(prefs.ContainerContainerdSocket) != "" {
+			containerdSocket = prefs.ContainerContainerdSocket
+		}
+		if strings.TrimSpace(prefs.ContainerContainerdNS) != "" {
+			containerdNS = prefs.ContainerContainerdNS
+		}
+		if strings.TrimSpace(prefs.ContainerCtrPath) != "" {
+			ctrPath = prefs.ContainerCtrPath
+		}
+	}
+	switch runtimeName {
+	case "docker", "containerd":
+	default:
+		runtimeName = "auto"
+	}
+	if strings.TrimSpace(containerdSocket) == "" {
+		containerdSocket = "/run/containerd/containerd.sock"
+	}
+	if strings.TrimSpace(containerdNS) == "" {
+		containerdNS = "k8s.io"
+	}
+	if strings.TrimSpace(ctrPath) == "" {
+		ctrPath = "ctr"
+	}
+	return runtimeName, dockerSocket, containerdSocket, containerdNS, ctrPath
 }
 
 func (c *collector) effectiveLogSettings() (bool, string, int, int) {
@@ -169,6 +261,110 @@ func dockerClient(socket string) *http.Client {
 			},
 		},
 	}
+}
+
+func listContainerdContainers(ctx context.Context, ctrPath, socket, namespace string, maxItems int) ([]dockerContainer, error) {
+	ctrPath = strings.TrimSpace(ctrPath)
+	if ctrPath == "" {
+		ctrPath = "ctr"
+	}
+	socket = strings.TrimSpace(socket)
+	if socket == "" {
+		socket = "/run/containerd/containerd.sock"
+	}
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		namespace = "k8s.io"
+	}
+	if !hasUnixSocket(socket) {
+		return nil, errors.New("containerd socket indisponivel")
+	}
+	idsRaw, err := runCtr(ctx, ctrPath, socket, namespace, "containers", "list", "--quiet")
+	if err != nil {
+		return nil, err
+	}
+	ids := nonEmptyLines(idsRaw)
+	limit := maxItems
+	if limit <= 0 {
+		limit = 200
+	}
+	if len(ids) > limit {
+		ids = ids[:limit]
+	}
+	out := make([]dockerContainer, 0, len(ids))
+	for _, id := range ids {
+		infoRaw, err := runCtr(ctx, ctrPath, socket, namespace, "containers", "info", id)
+		if err != nil {
+			continue
+		}
+		if row, ok := parseContainerdInfo(infoRaw); ok {
+			out = append(out, row)
+		}
+	}
+	return out, nil
+}
+
+func runCtr(ctx context.Context, ctrPath, socket, namespace string, args ...string) ([]byte, error) {
+	base := []string{"--address", socket, "--namespace", namespace}
+	base = append(base, args...)
+	cmd := exec.CommandContext(ctx, ctrPath, base...)
+	return cmd.Output()
+}
+
+func parseContainerdInfo(raw []byte) (dockerContainer, bool) {
+	var info struct {
+		ID     string            `json:"ID"`
+		Image  string            `json:"Image"`
+		Labels map[string]string `json:"Labels"`
+		Spec   struct {
+			Process struct {
+				User struct {
+					UID uint32 `json:"uid"`
+					GID uint32 `json:"gid"`
+				} `json:"user"`
+			} `json:"process"`
+		} `json:"Spec"`
+	}
+	if err := json.Unmarshal(raw, &info); err != nil {
+		return dockerContainer{}, false
+	}
+	id := strings.TrimSpace(info.ID)
+	if id == "" {
+		return dockerContainer{}, false
+	}
+	name := id
+	if value := strings.TrimSpace(info.Labels["io.kubernetes.container.name"]); value != "" {
+		name = value
+	}
+	row := dockerContainer{
+		ID:     id,
+		Names:  []string{"/" + name},
+		Image:  info.Image,
+		Labels: info.Labels,
+		State:  "unknown",
+		Status: "containerd",
+	}
+	return row, true
+}
+
+func hasUnixSocket(path string) bool {
+	info, err := os.Stat(strings.TrimSpace(path))
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeSocket != 0
+}
+
+func nonEmptyLines(raw []byte) []string {
+	lines := strings.Split(string(raw), "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			out = append(out, line)
+		}
+	}
+	return out
 }
 
 func listDockerContainers(ctx context.Context, client *http.Client, maxItems int) ([]dockerContainer, error) {

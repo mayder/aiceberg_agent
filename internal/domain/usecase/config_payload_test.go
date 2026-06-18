@@ -275,6 +275,37 @@ func TestApplyConfigPayloadAppliesContainerFilters(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadAppliesContainerRuntimeSettings(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	payload := ConfigPayload{
+		Version: "cfg-containers-runtime",
+		Collect: config.CollectPrefs{
+			ContainerEnabled: true,
+		},
+	}
+	payload.Containers.Runtime = "containerd"
+	payload.Containers.ContainerdSocket = "/run/containerd/containerd.sock"
+	payload.Containers.ContainerdNamespace = "k8s.io"
+	payload.Containers.CtrPath = "/usr/bin/ctr"
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if got.ContainerRuntime != "containerd" || got.ContainerContainerdSocket != "/run/containerd/containerd.sock" {
+		t.Fatalf("expected container runtime persisted, got runtime=%q socket=%q", got.ContainerRuntime, got.ContainerContainerdSocket)
+	}
+	if got.ContainerContainerdNS != "k8s.io" || got.ContainerCtrPath != "/usr/bin/ctr" {
+		t.Fatalf("expected containerd namespace and ctr path, got ns=%q ctr=%q", got.ContainerContainerdNS, got.ContainerCtrPath)
+	}
+}
+
 func TestApplyConfigPayloadAppliesContainerLogSettings(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}

@@ -192,7 +192,11 @@ Contrato tecnico: `docs/pkg64_containers.md`.
 Configuracoes locais:
 
 - `CONTAINER_ENABLED=true`;
+- `CONTAINER_RUNTIME=auto|docker|containerd`;
 - `CONTAINER_DOCKER_SOCKET=/var/run/docker.sock`;
+- `CONTAINER_CONTAINERD_SOCKET=/run/containerd/containerd.sock`;
+- `CONTAINER_CONTAINERD_NAMESPACE=k8s.io`;
+- `CONTAINER_CTR_PATH=ctr`;
 - `CONTAINER_INTERVAL=30`;
 - `CONTAINER_MAX_ITEMS=200`.
 - `CONTAINER_INCLUDE_REGEX` e `CONTAINER_EXCLUDE_REGEX` para restringir imagem, nome, labels, namespace, service e user.

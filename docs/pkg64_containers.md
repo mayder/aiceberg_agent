@@ -2,7 +2,7 @@
 
 ## Escopo entregue
 
-O agente possui coletor `containers`, desligado por padrao, que usa Docker API via socket Unix local.
+O agente possui coletor `containers`, desligado por padrao, que usa Docker API via socket Unix local e pode detectar containerd via `ctr` local quando configurado.
 
 Dados coletados:
 
@@ -15,12 +15,17 @@ Dados coletados:
 - CPU, memoria, rede e IO quando `/stats?stream=false` responder.
 - checks de autodiscovery derivados de labels.
 - logs Docker JSON por `log_path`, com cursor, tags de container e redaction.
+- containerd: id, nome, imagem, labels e namespace quando `ctr containers info` retornar metadados.
 
 ## Configuracao
 
 ```env
 CONTAINER_ENABLED=true
+CONTAINER_RUNTIME=auto
 CONTAINER_DOCKER_SOCKET=/var/run/docker.sock
+CONTAINER_CONTAINERD_SOCKET=/run/containerd/containerd.sock
+CONTAINER_CONTAINERD_NAMESPACE=k8s.io
+CONTAINER_CTR_PATH=ctr
 CONTAINER_INTERVAL=30
 CONTAINER_MAX_ITEMS=200
 CONTAINER_INCLUDE_REGEX=prod|backend
@@ -37,7 +42,11 @@ Config remota equivalente:
 {
   "containers": {
     "enabled": true,
+    "runtime": "auto",
     "docker_socket": "/var/run/docker.sock",
+    "containerd_socket": "/run/containerd/containerd.sock",
+    "containerd_namespace": "k8s.io",
+    "ctr_path": "ctr",
     "interval": 30,
     "max_items": 200,
     "include_regex": "prod|backend",
@@ -55,6 +64,7 @@ O coletor envia `body.containers` para `/v1/ingest/metrics`:
 
 - `schema_version`;
 - `source=docker_socket`;
+- `source=containerd_ctr` quando o runtime efetivo for containerd;
 - `items[]`;
 - `logs.events[]`;
 - `autodiscovery_checks`;
@@ -81,11 +91,13 @@ Cada check recebe `container_id`, `container_name`, `image` e `service` quando e
 - Labels com `secret`, `token` ou `password` sao mascaradas.
 - Nao coleta env vars nem conteudo de volumes.
 - Acesso ao Docker socket deve ser concedido explicitamente pelo operador.
+- Acesso ao socket containerd e ao binario `ctr` deve ser concedido explicitamente pelo operador.
+- Config remota de runtime, socket containerd ou caminho `ctr` e tratada como sensivel e deve seguir a politica de assinatura do agente.
 - `include_regex` e `exclude_regex` atuam sobre id, nome, imagem, labels, namespace local, service e user.
 
 ## Limites
 
-- Containerd nativo, envio de logs por rota dedicada e validacao real de carga ficam pendentes.
+- Metricas/logs containerd nativos, envio de logs por rota dedicada e validacao real de carga ficam pendentes.
 - Sem leitura de secrets montados.
 
 ## Rollback

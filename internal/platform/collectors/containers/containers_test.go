@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/you/aiceberg_agent/internal/common/config"
 )
 
 func TestNormalizeContainersRedactsSensitiveLabelsAndAddsStats(t *testing.T) {
@@ -116,6 +118,62 @@ func TestAutodiscoveryChecksFromDockerLabels(t *testing.T) {
 	}
 	if checks[1]["key"] != "tcp" || checks[1]["value"] != "8080" {
 		t.Fatalf("expected simple label check, got %#v", checks[1])
+	}
+}
+
+func TestParseContainerdInfoMapsIdentityAndLabels(t *testing.T) {
+	raw := []byte(`{
+		"ID":"sha256:abcdef1234567890",
+		"Image":"registry/app:1",
+		"Labels":{
+			"io.kubernetes.container.name":"api",
+			"io.kubernetes.pod.namespace":"prod",
+			"aiceberg.ai/check.tcp":"8080",
+			"token":"secret"
+		}
+	}`)
+
+	row, ok := parseContainerdInfo(raw)
+	if !ok {
+		t.Fatalf("expected containerd info parsed")
+	}
+	if shortID(row.ID) != "abcdef123456" || firstName(row.Names) != "api" {
+		t.Fatalf("expected normalized identity, got %#v", row)
+	}
+	normalized := normalizeContainers([]dockerContainer{row}, nil, nil)
+	if normalized[0]["namespace"] != "prod" {
+		t.Fatalf("expected Kubernetes namespace from labels, got %#v", normalized[0])
+	}
+	labels := normalized[0]["labels"].(map[string]string)
+	if labels["token"] != "[redacted]" {
+		t.Fatalf("expected sensitive label redacted, got %#v", labels)
+	}
+	checks := autodiscoveryChecks([]dockerContainer{row})
+	if len(checks) != 1 || checks[0]["container_id"] != "abcdef123456" {
+		t.Fatalf("expected autodiscovery from containerd labels, got %#v", checks)
+	}
+}
+
+func TestEffectiveRuntimeFallsBackToAutoAndAcceptsPrefs(t *testing.T) {
+	c := &collector{runtime: "invalid"}
+	if got := c.effectiveRuntime(); got != "auto" {
+		t.Fatalf("expected auto runtime, got %q", got)
+	}
+	c.prefs = func() config.CollectPrefs {
+		return config.CollectPrefs{
+			ContainerRuntime:          "containerd",
+			ContainerDockerSocket:     "/tmp/docker.sock",
+			ContainerContainerdSocket: "/tmp/containerd.sock",
+			ContainerContainerdNS:     "prod",
+			ContainerCtrPath:          "/usr/bin/ctr",
+		}
+	}
+	if got := c.effectiveRuntime(); got != "containerd" {
+		t.Fatalf("expected prefs runtime, got %q", got)
+	}
+	_, dockerSocket, containerdSocket, namespace, ctrPath := c.effectiveRuntimeConfig()
+	if dockerSocket != "/tmp/docker.sock" || containerdSocket != "/tmp/containerd.sock" || namespace != "prod" || ctrPath != "/usr/bin/ctr" {
+		t.Fatalf("expected prefs runtime config, got docker=%q containerd=%q ns=%q ctr=%q", dockerSocket, containerdSocket, namespace, ctrPath)
 	}
 }
 

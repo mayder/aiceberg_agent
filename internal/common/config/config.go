@@ -90,7 +90,11 @@ type Config struct {
 	APMTraceSlowThresholdMs            int
 	APMTracePreserveErrors             bool
 	ContainerEnabled                   bool
+	ContainerRuntime                   string
 	ContainerDockerSocket              string
+	ContainerContainerdSocket          string
+	ContainerContainerdNamespace       string
+	ContainerCtrPath                   string
 	ContainerInterval                  time.Duration
 	ContainerMaxItems                  int
 	ContainerIncludeRegex              string
@@ -203,7 +207,11 @@ type CollectPrefs struct {
 	APMTraceSlowThresholdMs    int                `json:"apm_trace_slow_threshold_ms,omitempty"`
 	APMTracePreserveErrors     bool               `json:"apm_trace_preserve_errors,omitempty"`
 	ContainerEnabled           bool               `json:"container_enabled,omitempty"`
+	ContainerRuntime           string             `json:"container_runtime,omitempty"`
 	ContainerDockerSocket      string             `json:"container_docker_socket,omitempty"`
+	ContainerContainerdSocket  string             `json:"container_containerd_socket,omitempty"`
+	ContainerContainerdNS      string             `json:"container_containerd_namespace,omitempty"`
+	ContainerCtrPath           string             `json:"container_ctr_path,omitempty"`
 	ContainerIntervalSec       int                `json:"container_interval,omitempty"`
 	ContainerMaxItems          int                `json:"container_max_items,omitempty"`
 	ContainerIncludeRegex      string             `json:"container_include_regex,omitempty"`
@@ -329,7 +337,11 @@ func Load(configPath string) (Config, error) {
 		APMTraceSlowThresholdMs:            intEnv("APM_TRACE_SLOW_THRESHOLD_MS", 1000),
 		APMTracePreserveErrors:             strings.ToLower(getenv("APM_TRACE_PRESERVE_ERRORS", "true")) != "false",
 		ContainerEnabled:                   strings.ToLower(getenv("CONTAINER_ENABLED", "")) == "true",
+		ContainerRuntime:                   getenv("CONTAINER_RUNTIME", "auto"),
 		ContainerDockerSocket:              getenv("CONTAINER_DOCKER_SOCKET", "/var/run/docker.sock"),
+		ContainerContainerdSocket:          getenv("CONTAINER_CONTAINERD_SOCKET", "/run/containerd/containerd.sock"),
+		ContainerContainerdNamespace:       getenv("CONTAINER_CONTAINERD_NAMESPACE", "k8s.io"),
+		ContainerCtrPath:                   getenv("CONTAINER_CTR_PATH", "ctr"),
 		ContainerInterval:                  time.Duration(intEnv("CONTAINER_INTERVAL", 30)) * time.Second,
 		ContainerMaxItems:                  intEnv("CONTAINER_MAX_ITEMS", 200),
 		ContainerIncludeRegex:              getenv("CONTAINER_INCLUDE_REGEX", ""),
