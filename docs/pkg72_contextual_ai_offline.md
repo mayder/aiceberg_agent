@@ -132,6 +132,12 @@ PKG72_TEMPLATE_DIR=/tmp/aiceberg_pkg72_templates scripts/pkg72_contextual_eviden
 
 Templates gerados e não preenchidos, preenchidos com `Status` diferente de `pass` ou anexados na variável errada são marcados como `invalid-template` e não contam para o gate de fechamento.
 
+Para testar regressão do gate sem depender de evidência real:
+
+```bash
+scripts/pkg72_contextual_evidence_gate_selftest.sh
+```
+
 Antes de tentar fechar o pacote, execute em modo bloqueante:
 
 ```bash

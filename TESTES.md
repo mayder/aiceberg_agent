@@ -227,6 +227,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 
 - Unitario focado: `go test ./internal/bootstrap ./internal/data/local/outbox`.
 - Homologacao reproduzivel: `scripts/pkg72_contextual_evidence_homologation.sh`.
+- Autoteste do gate de evidencias: `scripts/pkg72_contextual_evidence_gate_selftest.sh`.
 - Templates de evidencia real: `PKG72_TEMPLATE_DIR=/tmp/aiceberg_pkg72_templates scripts/pkg72_contextual_evidence_homologation.sh`.
 - Gate bloqueante de fechamento: `PKG72_REQUIRE_REAL_EVIDENCE=true scripts/pkg72_contextual_evidence_homologation.sh`.
 - O gate nao conta template sem preenchimento, com `Status` diferente de `pass` ou anexado na variavel errada como evidencia real.

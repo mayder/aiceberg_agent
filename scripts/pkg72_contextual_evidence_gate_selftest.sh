@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+TMP_DIR="$(mktemp -d /tmp/aiceberg_pkg72_gate_selftest.XXXXXX)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+fill_template() {
+  local path="$1"
+  local status="$2"
+  perl -0pi -e \
+    's/- Data UTC:/- Data UTC: 2026-06-18T00:00:00Z/;
+     s/- Responsavel:/- Responsavel: gate-selftest/;
+     s/- Cliente\/lab:/- Cliente\/lab: local/;
+     s/- Host\/agente\/HUB\/relay:/- Host\/agente\/HUB\/relay: host-1/;
+     s/- Versao agente:/- Versao agente: selftest/;
+     s/- Evidencia bruta anexada:/- Evidencia bruta anexada: raw.log/;
+     s/- Observacoes:/- Observacoes: selftest/;
+     s/- Rollback validado:/- Rollback validado: sim/' "$path"
+  perl -0pi -e "s/- Status: pending\\|pass\\|fail/- Status: $status/" "$path"
+}
+
+assert_contains() {
+  local path="$1"
+  local pattern="$2"
+  grep -Fq "$pattern" "$path" || {
+    echo "expected pattern not found: $pattern" >&2
+    echo "file: $path" >&2
+    exit 1
+  }
+}
+
+PKG72_TEMPLATE_DIR="$TMP_DIR/templates" \
+PKG72_EVIDENCE_FILE="$TMP_DIR/template-generation.md" \
+scripts/pkg72_contextual_evidence_homologation.sh >/dev/null
+
+cp "$TMP_DIR/templates/noc_soc_incident_host_agentless.md" "$TMP_DIR/noc-pass.md"
+fill_template "$TMP_DIR/noc-pass.md" "pass"
+
+cp "$TMP_DIR/templates/noc_soc_incident_host_agentless.md" "$TMP_DIR/noc-fail.md"
+fill_template "$TMP_DIR/noc-fail.md" "fail"
+
+PKG72_EVIDENCE_FILE="$TMP_DIR/correct-slot.md" \
+PKG72_INCIDENT_EVIDENCE="$TMP_DIR/noc-pass.md" \
+scripts/pkg72_contextual_evidence_homologation.sh >/dev/null
+assert_contains "$TMP_DIR/correct-slot.md" "noc-soc-incident-host-agentless: evidence"
+
+PKG72_EVIDENCE_FILE="$TMP_DIR/wrong-slot.md" \
+PKG72_DATADOG_BENCHMARK_EVIDENCE="$TMP_DIR/noc-pass.md" \
+scripts/pkg72_contextual_evidence_homologation.sh >/dev/null
+assert_contains "$TMP_DIR/wrong-slot.md" "datadog-scenario-benchmark: invalid-template"
+assert_contains "$TMP_DIR/wrong-slot.md" "reason=template title mismatch"
+
+PKG72_EVIDENCE_FILE="$TMP_DIR/fail-status.md" \
+PKG72_INCIDENT_EVIDENCE="$TMP_DIR/noc-fail.md" \
+scripts/pkg72_contextual_evidence_homologation.sh >/dev/null
+assert_contains "$TMP_DIR/fail-status.md" "noc-soc-incident-host-agentless: invalid-template"
+assert_contains "$TMP_DIR/fail-status.md" "reason=template status is not pass"
+
+set +e
+PKG72_EVIDENCE_FILE="$TMP_DIR/blocking.md" \
+PKG72_REQUIRE_REAL_EVIDENCE=true \
+scripts/pkg72_contextual_evidence_homologation.sh >/dev/null 2>&1
+blocking_exit=$?
+set -e
+
+if [[ "$blocking_exit" -ne 2 ]]; then
+  echo "expected blocking gate exit 2, got $blocking_exit" >&2
+  exit 1
+fi
+
+echo "PKG-72 evidence gate self-test OK"
