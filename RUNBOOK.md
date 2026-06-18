@@ -330,6 +330,8 @@ Para coletar evidencia read-only no proprio host e gerar o bundle, use `scripts/
 
 Para rodar o gate a partir de uma pasta com bundles ja coletados, use `scripts/pkg69_run_evidence_gate_from_bundles.sh <pasta-bundles>`. O script mapeia cada `MANIFEST.tsv` para a variavel `PKG69_*_EVIDENCE` correta e chama o gate oficial; com `PKG69_REQUIRE_REAL_EVIDENCE=true`, continua falhando enquanto qualquer cenario obrigatorio estiver ausente.
 
+Para gerar um relatorio acionavel de lacunas, use `scripts/pkg69_evidence_gap_report.sh <pasta-bundles>`. O relatorio Markdown lista cenario, status, motivo e proxima acao a partir do manifest do gate.
+
 Para fechamento, preencher os templates dos ambientes reais e rodar com `PKG69_REQUIRE_REAL_EVIDENCE=true` e `PKG69_REQUIRE_CLOSURE_ACCEPTED=true`. O pacote nao deve ser marcado como 100% enquanto o gate reportar `pkg69-status: not-closed`. Cada template precisa preencher `Data UTC` em formato `YYYY-MM-DDTHH:MM:SSZ`, `Topologia` com `direct -> AIceberg`, `hub -> AIceberg`, `relay -> hub -> AIceberg` ou `direct/hub/relay hosts separados`, apontar `Evidencia bruta anexada` para arquivo/diretorio local existente e nao vazio, e registrar rollback validado. O manifest TSV inclui SHA256/tamanho do template e do anexo bruto. Na evidencia de Relay/Hub/Direct, `relay_direct_api_attempts` precisa ser `0`. Evidencia com CPU/RSS acima dos limites iniciais ou Kubernetes permitindo `secrets`, `exec` ou `delete` nao passa no gate.
 
 Rollback: nao altera runtime; se a validacao real falhar, reabrir pacote tecnico correspondente e manter artefato anterior.
