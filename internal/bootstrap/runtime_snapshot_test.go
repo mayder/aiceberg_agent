@@ -234,6 +234,26 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 	if benchmark["claim_allowed"] != false {
 		t.Fatalf("superiority claim must remain blocked without benchmark: %#v", benchmark)
 	}
+	if benchmark["status"] != "pending_evidence" {
+		t.Fatalf("benchmark must remain pending until objective evidence exists: %#v", benchmark)
+	}
+	comparisonPolicy, ok := benchmark["comparison_policy"].(map[string]any)
+	if !ok {
+		t.Fatalf("comparison_policy missing: %#v", benchmark)
+	}
+	if comparisonPolicy["declare_superiority_without_benchmark"] != false || comparisonPolicy["requires_same_scenario"] != true || comparisonPolicy["requires_raw_evidence_reference"] != true {
+		t.Fatalf("comparison policy must block weak superiority claims: %#v", comparisonPolicy)
+	}
+	scenarios, ok := benchmark["scenarios"].([]map[string]any)
+	if !ok {
+		t.Fatalf("benchmark scenarios missing: %#v", benchmark)
+	}
+	if len(scenarios) != 4 {
+		t.Fatalf("expected 4 benchmark scenarios, got %#v", scenarios)
+	}
+	if !strings.Contains(fmt.Sprint(benchmark["required_evidence"]), "datadog_reference") {
+		t.Fatalf("benchmark must require Datadog reference evidence: %#v", benchmark)
+	}
 }
 
 func TestBuildOfflineFirstEvidenceRelayKeepsHubOnlyTopology(t *testing.T) {

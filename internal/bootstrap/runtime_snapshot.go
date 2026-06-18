@@ -133,16 +133,7 @@ func buildContextualEvidenceSnapshot(
 				"agent_recent_snmp_stale",
 			},
 		},
-		"superiority_benchmark": map[string]any{
-			"claim_allowed": false,
-			"required_evidence": []string{
-				"time_to_diagnosis",
-				"noise_reduction",
-				"executive_evidence",
-				"deployment_effort",
-				"agent_plus_agentless",
-			},
-		},
+		"superiority_benchmark": buildSuperiorityBenchmarkEvidence(),
 	}
 }
 
@@ -195,6 +186,65 @@ func buildOfflineFirstEvidence(cfg config.Config, mode string, settings usecase.
 			"signature":           offlineFirstSignature(cfg, mode, settings),
 		},
 		"local_export_support": "support_flare_redacted",
+	}
+}
+
+func buildSuperiorityBenchmarkEvidence() map[string]any {
+	return map[string]any{
+		"claim_allowed": false,
+		"status":        "pending_evidence",
+		"comparison_policy": map[string]any{
+			"declare_superiority_without_benchmark": false,
+			"requires_same_scenario":                true,
+			"requires_raw_evidence_reference":       true,
+			"requires_operator_review":              true,
+		},
+		"scenarios": []map[string]any{
+			{
+				"code":   "noc_soc_context",
+				"target": "NOC/SOC terceirizado com evidência executiva",
+				"metrics": []string{
+					"time_to_diagnosis",
+					"evidence_completeness",
+					"operator_steps",
+				},
+			},
+			{
+				"code":   "sovereign_offline",
+				"target": "ambiente restrito sem internet direta",
+				"metrics": []string{
+					"offline_replay_success",
+					"duplicate_rate",
+					"support_export_integrity",
+				},
+			},
+			{
+				"code":   "agent_plus_agentless",
+				"target": "falha cruzada entre host local e rede Agentless",
+				"metrics": []string{
+					"correlation_detected",
+					"false_positive_rate",
+					"agentless_observation_link",
+				},
+			},
+			{
+				"code":   "noise_reduction",
+				"target": "redução de ruído sem veredito automático",
+				"metrics": []string{
+					"noise_before",
+					"noise_after",
+					"manual_review_required",
+				},
+			},
+		},
+		"required_evidence": []string{
+			"time_to_diagnosis",
+			"noise_reduction",
+			"executive_evidence",
+			"deployment_effort",
+			"agent_plus_agentless",
+			"datadog_reference",
+		},
 	}
 }
 

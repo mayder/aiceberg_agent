@@ -15,7 +15,7 @@ Campos principais:
 - `offline_first`: outbox, idempotência, compressão, retenção local, HUB/relay/proxy e export local assinado por integridade;
 - `privacy`: perfil `standard|sensitive|minimal`, modo sensível e coletores minimizados;
 - `agent_agentless`: estratégia de correlação entre agente e agentless;
-- `superiority_benchmark`: trava explícita para impedir claim sem evidência.
+- `superiority_benchmark`: trava explícita para impedir claim sem evidência, cenários comparáveis e métricas obrigatórias.
 
 ## IA local/governada
 
@@ -67,6 +67,17 @@ A estratégia documentada no snapshot cobre:
 
 O web correlaciona as últimas `asset_observation` Agentless vinculadas ao agente/HUB para SNMP, ICMP, TCP, TLS, HTTP e HTTPS. A validação real de falha cruzada em ambiente controlado fica pendente.
 
+## Benchmark
+
+`superiority_benchmark.claim_allowed=false` permanece até existir comparação objetiva. O snapshot expõe `status=pending_evidence`, política que bloqueia superioridade sem benchmark e cenários mínimos:
+
+- `noc_soc_context`: tempo de diagnóstico, completude da evidência e passos do operador;
+- `sovereign_offline`: sucesso de replay offline, taxa de duplicação e integridade do export de suporte;
+- `agent_plus_agentless`: correlação detectada, falso positivo e vínculo com observação Agentless;
+- `noise_reduction`: ruído antes/depois e revisão manual obrigatória.
+
+Cada cenário exige referência Datadog comparável e evidência bruta rastreável antes de qualquer declaração de superioridade.
+
 ## Validação local realizada
 
 - `go test ./internal/bootstrap`
@@ -84,6 +95,7 @@ Cobertura:
 - offline-first expõe retenção, replay idempotente, compressão e export local assinado.
 - BoltStore preserva o replay entre restart até ACK e aceita ACK repetido/ID desconhecido de forma idempotente.
 - web correlaciona evidência Agentless recente com o painel contextual do agente.
+- benchmark expõe cenários, métricas e política que mantém superioridade bloqueada sem evidência comparável.
 
 ## Pendências reais
 
