@@ -17,6 +17,64 @@ assert_contains() {
   }
 }
 
+set_field() {
+  local path="$1"
+  local field="$2"
+  local value="$3"
+  FIELD="$field" VALUE="$value" perl -0pi -e 's#^- \Q$ENV{FIELD}\E:.*$#- $ENV{FIELD}: $ENV{VALUE}#m' "$path"
+}
+
+fill_synthetic_template() {
+  local path="$1"
+  local topology="$2"
+
+  set_field "$path" "Data UTC" "2026-06-18T00:00:00Z"
+  set_field "$path" "Responsavel" "gap-report-selftest"
+  set_field "$path" "Cliente/lab" "local"
+  set_field "$path" "Host/agente/HUB/relay" "selftest-host"
+  set_field "$path" "Versao agente" "selftest"
+  set_field "$path" "Artefato instalado" "selftest.tar.gz"
+  set_field "$path" "Topologia" "$topology"
+  set_field "$path" "Status" "pass"
+  set_field "$path" "Evidencia bruta anexada" "old.log"
+  set_field "$path" "Observacoes" "selftest synthetic complete path"
+  set_field "$path" "Rollback validado" "sim"
+  set_field "$path" "Revisor" "gap-report-selftest"
+  set_field "$path" "Aprovacao fechamento" "yes"
+
+  perl -0pi -e 's#^- ([^:\n]+):[[:space:]]*$#- $1: yes#mg' "$path"
+  for field in proc_cpu_percent proc_rss_bytes queue_items containers_seen container_logs_seen pods_seen events_seen requests_ok requests_failed_expected retry_count offset_ms degraded_collectors queued_before replayed_after duplicate_count free_bytes_before accepted_count dropped_count; do
+    set_field "$path" "$field" "1"
+  done
+  set_field "$path" "secrets_allowed" "no"
+  set_field "$path" "exec_allowed" "no"
+  set_field "$path" "delete_allowed" "no"
+  set_field "$path" "status_before" "ok"
+  set_field "$path" "status_after" "ok"
+  set_field "$path" "relay_direct_api_attempts" "0"
+  set_field "$path" "update_report_status" "success"
+}
+
+scenario_for_template() {
+  case "$(basename "$1")" in
+    windows_server.md) printf 'windows-server\n' ;;
+    windows_desktop.md) printf 'windows-desktop\n' ;;
+    linux_debian.md) printf 'linux-debian\n' ;;
+    linux_rhel.md) printf 'linux-rhel\n' ;;
+    docker_runtime.md) printf 'docker-runtime\n' ;;
+    kubernetes_rbac.md) printf 'kubernetes-rbac\n' ;;
+    proxy_tls.md) printf 'proxy-tls\n' ;;
+    clock_skew.md) printf 'clock-skew\n' ;;
+    permission_ebpf.md) printf 'permission-ebpf\n' ;;
+    reboot_during_collection.md) printf 'reboot-during-collection\n' ;;
+    disk_full.md) printf 'disk-full\n' ;;
+    high_volume_overhead.md) printf 'high-volume-overhead\n' ;;
+    relay_hub_direct_hosts.md) printf 'relay-hub-direct-hosts\n' ;;
+    remote_update_rollback.md) printf 'remote-update-rollback\n' ;;
+    *) return 1 ;;
+  esac
+}
+
 template="$TMP_DIR/relay.md"
 raw="$TMP_DIR/raw.log"
 cat >"$template" <<'EOF'
@@ -142,5 +200,30 @@ fi
 assert_contains "$TMP_DIR/invalid-report.md" '| `proxy-tls` | INVALIDO | field requests_ok must be numeric |'
 assert_contains "$TMP_DIR/invalid-report.md" "- Fechamento: BLOQUEADO - existem evidencias invalidas."
 assert_contains "$TMP_DIR/invalid-report.out" "closure_reason=existem evidencias invalidas"
+
+templates_dir="$TMP_DIR/templates"
+PKG69_TEMPLATE_DIR="$templates_dir" \
+PKG69_EVIDENCE_FILE="$TMP_DIR/template-generation.md" \
+PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/template-generation.tsv" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+
+for generated_template in "$templates_dir"/*.md; do
+  scenario="$(scenario_for_template "$generated_template")"
+  topology="direct -> AIceberg"
+  if [[ "$scenario" == "relay-hub-direct-hosts" ]]; then
+    topology="direct/hub/relay hosts separados"
+  fi
+  fill_synthetic_template "$generated_template" "$topology"
+  scripts/pkg69_bundle_evidence.sh "$scenario" "$generated_template" "$raw" "$TMP_DIR/all-bundles/$scenario" >/dev/null
+done
+
+PKG69_GAP_REPORT_FILE="$TMP_DIR/complete-report.md" \
+PKG69_EVIDENCE_FILE="$TMP_DIR/complete-gate.md" \
+PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/complete-manifest.tsv" \
+scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/all-bundles" >"$TMP_DIR/complete-report.out" 2>"$TMP_DIR/complete-report.err"
+
+assert_contains "$TMP_DIR/complete-report.md" "- Fechamento: PRONTO_PARA_REVISAO - todas as evidencias reais estao presentes; ainda exige revisao e aceite explicito."
+assert_contains "$TMP_DIR/complete-report.md" "14/14 evidencias OK; 0 pendentes; 0 invalidas."
+assert_contains "$TMP_DIR/complete-report.out" "closure_status=PRONTO_PARA_REVISAO"
 
 echo "PKG-69 evidence gap report self-test OK"
