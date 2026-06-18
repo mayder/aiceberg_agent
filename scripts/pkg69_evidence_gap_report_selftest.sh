@@ -71,6 +71,20 @@ assert_contains "$TMP_DIR/report.md" '| `windows-server` | PENDENTE |'
 assert_contains "$TMP_DIR/report.md" 'Executar smoke.ps1 e update/rollback controlado em Windows Server'
 assert_contains "$TMP_DIR/report.md" '13 pendentes'
 
+set +e
+PKG69_GAP_REPORT_FILE="$TMP_DIR/required-report.md" \
+PKG69_EVIDENCE_FILE="$TMP_DIR/required-gate.md" \
+PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/required-manifest.tsv" \
+PKG69_GAP_REPORT_REQUIRE_COMPLETE=true \
+scripts/pkg69_evidence_gap_report.sh "$TMP_DIR/bundles" >/dev/null 2>"$TMP_DIR/required-report.err"
+required_exit=$?
+set -e
+if [[ "$required_exit" -ne 3 ]]; then
+  echo "expected incomplete required report exit 3, got $required_exit" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/required-report.md" '13 pendentes'
+
 invalid_template="$TMP_DIR/proxy-invalid.md"
 cat >"$invalid_template" <<'EOF'
 # PKG-69 - Proxy TLS

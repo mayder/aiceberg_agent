@@ -17,6 +17,8 @@ Environment:
   PKG69_GAP_REPORT_FILE      Output markdown path.
   PKG69_EVIDENCE_FILE        Gate evidence markdown path.
   PKG69_EVIDENCE_MANIFEST_TSV Gate manifest TSV path.
+  PKG69_GAP_REPORT_REQUIRE_COMPLETE=true
+                             Exit non-zero when any scenario is pending.
 USAGE
 }
 
@@ -29,6 +31,7 @@ timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 EVIDENCE_FILE="${PKG69_EVIDENCE_FILE:-/tmp/aiceberg_pkg69_gap_gate_${timestamp}.md}"
 MANIFEST_TSV="${PKG69_EVIDENCE_MANIFEST_TSV:-/tmp/aiceberg_pkg69_gap_manifest_${timestamp}.tsv}"
 REPORT_FILE="${PKG69_GAP_REPORT_FILE:-/tmp/aiceberg_pkg69_gap_report_${timestamp}.md}"
+REQUIRE_COMPLETE="${PKG69_GAP_REPORT_REQUIRE_COMPLETE:-false}"
 
 run_gate() {
   if [[ "$#" -gt 0 ]]; then
@@ -125,4 +128,7 @@ printf 'evidence=%s\n' "$EVIDENCE_FILE"
 
 if [[ "$invalid" -gt 0 ]]; then
   exit 2
+fi
+if [[ "$REQUIRE_COMPLETE" == "true" && "$pending" -gt 0 ]]; then
+  exit 3
 fi
