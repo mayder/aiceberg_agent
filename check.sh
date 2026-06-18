@@ -101,4 +101,7 @@ scripts/pkg72_contextual_evidence_gate_selftest.sh
 log "pkg69 evidence gate self-test"
 scripts/pkg69_operational_evidence_gate_selftest.sh
 
+log "pkg69 evidence bundle self-test"
+scripts/pkg69_bundle_evidence_selftest.sh
+
 log "OK"
