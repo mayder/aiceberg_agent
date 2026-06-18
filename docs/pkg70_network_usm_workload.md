@@ -64,6 +64,13 @@ Cobertura focada:
 - eBPF fica inativo com fallback quando nao aplicado;
 - NPM mascara IP publico;
 - workload security emite sinais sem acao destrutiva.
+- web persiste `service_map.dependencies` e `workload_security.signals` como `AgenteNetworkRelation`, usando sinais como evidencia SOC/NOC sem bloqueio automatico.
+
+Validacao web focada:
+
+```bash
+vendor/bin/codecept run -c api api ContractCest:ingestNetworkCaptureServiceMapEWorkloadSecurityPersistemRelacoes
+```
 
 ## Pendencias de homologacao real
 
@@ -72,7 +79,7 @@ Cobertura focada:
 - fluxo controlado `web -> api -> db`;
 - container e Kubernetes reais correlacionando labels/pods com trafego;
 - overhead de CPU/memoria com `network_advanced_enabled`, `usm_enabled` e `workload_security_enabled`;
-- SOC/NOC consumindo os sinais no web.
+- SOC/NOC consumindo os sinais em ambiente real.
 
 ## Rollback
 
