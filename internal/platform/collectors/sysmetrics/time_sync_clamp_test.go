@@ -27,3 +27,27 @@ func TestClampAbsInt64(t *testing.T) {
 		})
 	}
 }
+
+func TestTimeSyncStatusClassifiesClockSkew(t *testing.T) {
+	cases := []struct {
+		name     string
+		offsetMs int64
+		want     string
+	}{
+		{name: "normal", offsetMs: 250, want: "ok"},
+		{name: "normal negative", offsetMs: -999, want: "ok"},
+		{name: "warning", offsetMs: 1_000, want: "warning"},
+		{name: "warning negative", offsetMs: -4_999, want: "warning"},
+		{name: "critical", offsetMs: 5_000, want: "critical"},
+		{name: "critical negative", offsetMs: -30_000, want: "critical"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := timeSyncStatus(tc.offsetMs)
+			if got != tc.want {
+				t.Fatalf("timeSyncStatus(%d)=%q want=%q", tc.offsetMs, got, tc.want)
+			}
+		})
+	}
+}

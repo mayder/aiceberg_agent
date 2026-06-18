@@ -240,6 +240,10 @@ var (
 // Compatibilidade defensiva para ambientes com coluna SQL estreita (ex.: MEDIUMINT).
 // Evita perder o snapshot inteiro quando o offset NTP extrapola o range suportado no backend.
 const snapshotTimeOffsetMaxAbsMs int64 = 8_388_607
+const (
+	timeSyncWarningOffsetMs  int64 = 1_000
+	timeSyncCriticalOffsetMs int64 = 5_000
+)
 
 type gpuSnapshot struct {
 	Vendor       string  `json:"vendor"`
@@ -273,6 +277,7 @@ type timeSyncSnap struct {
 	Source    string  `json:"source"`
 	OffsetMs  int64   `json:"offset_ms,omitempty"`
 	RTTMs     int64   `json:"rtt_ms,omitempty"`
+	Status    string  `json:"status,omitempty"`
 	Error     string  `json:"error,omitempty"`
 	LastCheck float64 `json:"last_check_unix,omitempty"`
 }
@@ -875,7 +880,23 @@ func timeSyncCheck(hostname string, timeout time.Duration) timeSyncSnap {
 		ts.Error = "offset_ms_clamped"
 	}
 	ts.RTTMs = resp.RTT.Milliseconds()
+	ts.Status = timeSyncStatus(ts.OffsetMs)
 	return ts
+}
+
+func timeSyncStatus(offsetMs int64) string {
+	abs := offsetMs
+	if abs < 0 {
+		abs = -abs
+	}
+	switch {
+	case abs >= timeSyncCriticalOffsetMs:
+		return "critical"
+	case abs >= timeSyncWarningOffsetMs:
+		return "warning"
+	default:
+		return "ok"
+	}
 }
 
 func clampAbsInt64(v, maxAbs int64) int64 {

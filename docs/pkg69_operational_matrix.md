@@ -16,13 +16,14 @@ O script de homologacao executa:
 - testes focados dos coletores e contratos adicionados em PKG-59 a PKG-68;
 - validacao local da cadeia Ed25519 de artefato de update, aceitando assinatura valida e rejeitando assinatura invalida antes do `apply`;
 - validacao local de download via `HTTP_PROXY` autenticado e timeout sem finalizar artefato parcial;
+- validacao local de clock skew com `time_sync.status` em `ok`, `warning` e `critical`, preservando clamp de offset extremo;
 - cenarios locais automatizados de API indisponivel, backoff, payload grande e outbox cheia;
 - `./check.sh`;
 - listagem explicita de cenarios pendentes de ambiente real.
 
 Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 
-- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, `HTTP_PROXY` autenticado local, timeout de download sem artefato finalizado, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
+- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, `HTTP_PROXY` autenticado local, timeout de download sem artefato finalizado, classificacao local de clock skew, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
 - Docker daemon indisponivel no host local;
 - `kubectl` disponivel, mas sem validacao de cluster/DaemonSet/Helm;
 - Helm e PowerShell indisponiveis neste host;
@@ -86,7 +87,7 @@ Hashes 0.8.8:
 | Proxy/TLS | proxy autenticado e TLS invalido controlado | parcial local para `HTTP_PROXY`; proxy real/TLS pendente |
 | Disco cheio/outbox cheia | erro claro, sem corrupcao | parcial local |
 | Payload grande | limite/queda controlada em DogStatsD, OTLP e logs | parcial local |
-| Clock errado | health/time sync com diagnostico | pendente |
+| Clock errado | health/time sync com diagnostico | parcial local para `time_sync.status`; NTP/clock real pendente |
 | Reboot durante coleta | servico retorna e outbox preserva dados | pendente |
 | Update quebrado | `update-report` com falha e rollback seguro | pendente; cadeia Ed25519 e timeout de download validados localmente antes do apply |
 | Permissao insuficiente | degradacao com status claro | pendente |
