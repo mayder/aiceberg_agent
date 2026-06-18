@@ -40,6 +40,8 @@ go test ./internal/common/config ./internal/domain/usecase ./internal/data/local
 result "go-test-focused" "pass" "log=/tmp/aiceberg_pkg69_go_test.log"
 go test ./internal/domain/usecase -run 'TestSelfUpdate_(VerifiesTrustedArtifactSignature|RejectsInvalidTrustedArtifactSignature)' >/tmp/aiceberg_pkg69_artifact_trust_test.log
 result "artifact-trust-local" "pass" "Ed25519 aceita assinatura valida e rejeita assinatura invalida antes do apply; log=/tmp/aiceberg_pkg69_artifact_trust_test.log"
+go test ./internal/domain/usecase -run 'TestSelfUpdate_ReportPendingResult(ConfirmsVersionAfterReconnect|MarksVersionMismatchAfterRollback)' >/tmp/aiceberg_pkg69_update_rollback_test.log
+result "update-rollback-local" "pass" "reconexao confirma version_confirmed quando a versao aplica e reporta apply_failed/version_mismatch_after_restart quando rollback mantem versao anterior; log=/tmp/aiceberg_pkg69_update_rollback_test.log"
 {
   go test ./internal/common/httpx -run TestNewClientUsesAuthenticatedHTTPProxyFromEnvironment
   go test ./internal/domain/usecase -run TestSelfUpdate_DownloadTimeoutDoesNotFinalizePartialFile
@@ -126,4 +128,4 @@ result "payload-large" "partial" "limites cobertos por testes locais; falta alto
 result "high-volume" "partial" "burst local de cardinalidade custom_metrics coberto; falta carga real DogStatsD/OTLP/logs com CPU/mem"
 result "cpu-mem-overhead" "partial" "smoke local registra overhead de coleta normal; falta idle/logs altos/OTLP alto/containers por ambiente"
 result "relay-hub-direct" "partial" "contratos locais e e2e multi-processo cobrem relay->hub->AIceberg; falta smoke real em hosts separados"
-result "remote-update-rollback" "pending" "validar artefato anterior, hash e version_confirmed"
+result "remote-update-rollback" "partial" "version_confirmed e mismatch apos rollback cobertos localmente; falta download remoto real com artefato assinado e rollback de servico"

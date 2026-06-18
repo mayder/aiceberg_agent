@@ -30,6 +30,7 @@ O script de homologacao executa:
 - deteccao de Docker, kubectl, Helm e PowerShell;
 - testes focados dos coletores e contratos adicionados em PKG-59 a PKG-68;
 - validacao local da cadeia Ed25519 de artefato de update, aceitando assinatura valida e rejeitando assinatura invalida antes do `apply`;
+- validacao local de reconexao pos-update: `version_confirmed` quando a versao aplica e `apply_failed/version_mismatch_after_restart` quando rollback mantem a versao anterior;
 - validacao local de download via `HTTP_PROXY` autenticado e timeout sem finalizar artefato parcial;
 - validacao local de clock skew com `time_sync.status` em `ok`, `warning` e `critical`, preservando clamp de offset extremo;
 - validacao local de degradacao PCAP/tcpdump com permissao insuficiente, interface invalida e captura vazia sem crash;
@@ -46,7 +47,7 @@ O gate `scripts/pkg69_operational_evidence_gate.sh` gera templates por ambiente/
 
 Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 
-- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, `HTTP_PROXY` autenticado local, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg em canal/ping/self-heal/update, e2e local multi-processo direct/hub/relay, smoke POSIX com RSS/CPU/goroutines locais, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
+- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, reconexao pos-update local com `version_confirmed` e `version_mismatch_after_restart`, `HTTP_PROXY` autenticado local, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg em canal/ping/self-heal/update, e2e local multi-processo direct/hub/relay, smoke POSIX com RSS/CPU/goroutines locais, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
 - Docker daemon indisponivel no host local;
 - `kubectl` disponivel, mas sem validacao de cluster/DaemonSet/Helm;
 - Helm e PowerShell indisponiveis neste host;
@@ -112,7 +113,7 @@ Hashes 0.8.8:
 | Payload grande | limite/queda controlada em DogStatsD, OTLP e logs | parcial local |
 | Clock errado | health/time sync com diagnostico | parcial local para `time_sync.status`; NTP/clock real pendente |
 | Reboot durante coleta | servico retorna e outbox preserva dados | parcial local para reabertura bbolt; reboot real pendente |
-| Update quebrado | `update-report` com falha e rollback seguro | pendente; cadeia Ed25519 e timeout de download validados localmente antes do apply |
+| Update quebrado | `update-report` com falha e rollback seguro | parcial local; cadeia Ed25519, timeout de download, `version_confirmed` e mismatch apos rollback cobertos localmente; update remoto real pendente |
 | Relay/Hub/Direct | relay envia somente para Hub; Hub encaminha ao AIceberg | parcial local com e2e multi-processo; smoke real em hosts separados pendente |
 | Permissao insuficiente | degradacao com status claro | parcial local para PCAP/tcpdump; host real pendente |
 | Kubernetes RBAC minimo | sem permissao a secrets/exec/delete | pendente |

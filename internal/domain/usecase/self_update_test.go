@@ -584,3 +584,74 @@ func TestSelfUpdate_ReportPendingResultConfirmsVersionAfterReconnect(t *testing.
 		t.Fatalf("expected version_confirmed stage, got %v", update["stage"])
 	}
 }
+
+func TestSelfUpdate_ReportPendingResultMarksVersionMismatchAfterRollback(t *testing.T) {
+	var received []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/agent/update-report" {
+			http.NotFound(w, r)
+			return
+		}
+		raw, _ := io.ReadAll(r.Body)
+		payload := map[string]any{}
+		_ = json.Unmarshal(raw, &payload)
+		received = append(received, payload)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer srv.Close()
+
+	cfg := config.Config{
+		Agent:             config.AgentCfg{Token: "agent-token"},
+		APIBaseURL:        srv.URL,
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     t.TempDir(),
+		AutoUpdateCommand: "echo ok",
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	targetVersion := version.Version + "-rollback-target"
+	artifact := downloadedArtifact{
+		FilePath:  filepath.Join(cfg.AutoUpdateDir, targetVersion, "pkg.bin"),
+		DirPath:   filepath.Join(cfg.AutoUpdateDir, targetVersion),
+		SHA256:    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		SizeBytes: 456,
+		Source:    "pending_state",
+	}
+	opts := uc.effectiveOptions()
+	if err := uc.savePendingState(opts.dir, targetVersion, "old-version", artifact, opts); err != nil {
+		t.Fatalf("savePendingState failed: %v", err)
+	}
+
+	if err := uc.ReportPendingResult(context.Background()); err != nil {
+		t.Fatalf("ReportPendingResult failed: %v", err)
+	}
+	if len(received) != 2 {
+		t.Fatalf("expected reconnect and failed confirmation reports, got %d", len(received))
+	}
+	if status, _ := received[0]["status"].(string); status != "reconnected" {
+		t.Fatalf("expected reconnected status, got %v", received[0]["status"])
+	}
+	failed := received[1]
+	if status, _ := failed["status"].(string); status != "apply_failed" {
+		t.Fatalf("expected apply_failed status, got %v", failed["status"])
+	}
+	if code, _ := failed["reason_code"].(string); code != "version_mismatch_after_restart" {
+		t.Fatalf("expected version_mismatch_after_restart, got %v", failed["reason_code"])
+	}
+	update, ok := failed["update"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected update metadata")
+	}
+	if stage, _ := update["stage"].(string); stage != "version_confirmed" {
+		t.Fatalf("expected version_confirmed stage, got %v", update["stage"])
+	}
+	if failureClass, _ := update["failure_class"].(string); failureClass != "reconexao" {
+		t.Fatalf("expected reconexao failure class, got %v", update["failure_class"])
+	}
+	if current, _ := failed["current_version"].(string); current != version.Version {
+		t.Fatalf("expected current version to remain previous runtime version, got %v", failed["current_version"])
+	}
+	if pending, err := uc.loadPendingState(opts.dir); err != nil || pending != nil {
+		t.Fatalf("expected pending state cleared after mismatch report, pending=%#v err=%v", pending, err)
+	}
+}
