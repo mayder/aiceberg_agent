@@ -96,6 +96,7 @@ Cobertura:
 - perfil de privacidade sensível refletido;
 - `TestBuildContextualEvidenceMinimalProfileAvoidsRawSecrets` valida perfil `minimal`, coletores minimizados, política sem payload sensível bruto e ausência de segredo cru na evidência contextual; protege o contrato local, mas não substitui validação real em cliente regulado.
 - `TestBuildContextualEvidenceAgentAgentlessCorrelationGaps` valida estratégias de divergência Agent+Agentless e lacunas quando Agentless está desligado ou worker indisponível; protege o contrato local, mas não substitui falha controlada real.
+- `TestBuildSuperiorityBenchmarkEvidenceBlocksWeakClaims` valida claim bloqueado, política comparável, quatro cenários, métricas e referência Datadog obrigatória; protege o contrato local, mas não substitui benchmark real.
 - claim de superioridade bloqueado sem benchmark.
 - offline-first expõe retenção, replay idempotente, compressão e export local assinado.
 - BoltStore preserva o replay entre restart até ACK e aceita ACK repetido/ID desconhecido de forma idempotente.

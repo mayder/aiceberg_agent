@@ -226,6 +226,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 ## PKG-72 - Diferenciais AIceberg
 
 - Unitario focado: `go test ./internal/bootstrap ./internal/data/local/outbox`.
+- Benchmark local bloqueante: `TestBuildSuperiorityBenchmarkEvidenceBlocksWeakClaims` valida claim bloqueado, politica comparavel, quatro cenarios, metricas e referencia Datadog obrigatoria; nao substitui benchmark real.
 - Reducao de ruido local assistiva: `TestBuildLocalAINoiseReductionIsAssistiveOnly` valida pre-classificacao deterministica sem supressao automatica, sem descarte bruto, com benchmark e revisao humana obrigatorios; nao substitui comparacao real antes/depois.
 - Correlacao local Agent+Agentless: `TestBuildContextualEvidenceAgentAgentlessCorrelationGaps` valida estrategias de divergencia e lacunas quando Agentless esta desligado ou worker indisponivel; nao substitui falha controlada real.
 - Privacidade minima local: `TestBuildContextualEvidenceMinimalProfileAvoidsRawSecrets` valida `PRIVACY_PROFILE=minimal`, coletores minimizados, politica sem payload sensivel bruto e ausencia de segredo cru na evidencia contextual; nao substitui validacao real de cliente regulado.

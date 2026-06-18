@@ -387,6 +387,52 @@ func TestBuildContextualEvidenceAgentAgentlessCorrelationGaps(t *testing.T) {
 	}
 }
 
+func TestBuildSuperiorityBenchmarkEvidenceBlocksWeakClaims(t *testing.T) {
+	benchmark := buildSuperiorityBenchmarkEvidence()
+
+	if benchmark["claim_allowed"] != false || benchmark["status"] != "pending_evidence" {
+		t.Fatalf("benchmark must block superiority claims until evidence exists: %#v", benchmark)
+	}
+	policy := benchmark["comparison_policy"].(map[string]any)
+	for _, key := range []string{
+		"requires_same_scenario",
+		"requires_raw_evidence_reference",
+		"requires_operator_review",
+	} {
+		if policy[key] != true {
+			t.Fatalf("benchmark policy must require %s=true: %#v", key, policy)
+		}
+	}
+	if policy["declare_superiority_without_benchmark"] != false {
+		t.Fatalf("benchmark policy must block unbenchmarked claims: %#v", policy)
+	}
+	required := fmt.Sprint(benchmark["required_evidence"])
+	for _, item := range []string{"time_to_diagnosis", "noise_reduction", "agent_plus_agentless", "datadog_reference"} {
+		assertTextContains(t, required, item)
+	}
+	scenarios := benchmark["scenarios"].([]map[string]any)
+	if len(scenarios) != 4 {
+		t.Fatalf("expected four benchmark scenarios, got %#v", scenarios)
+	}
+	expectedMetrics := map[string][]string{
+		"noc_soc_context":      {"time_to_diagnosis", "evidence_completeness", "operator_steps"},
+		"sovereign_offline":    {"offline_replay_success", "duplicate_rate", "support_export_integrity"},
+		"agent_plus_agentless": {"correlation_detected", "false_positive_rate", "agentless_observation_link"},
+		"noise_reduction":      {"noise_before", "noise_after", "manual_review_required"},
+	}
+	for _, scenario := range scenarios {
+		code := fmt.Sprint(scenario["code"])
+		metrics, ok := expectedMetrics[code]
+		if !ok {
+			t.Fatalf("unexpected benchmark scenario: %#v", scenario)
+		}
+		gotMetrics := fmt.Sprint(scenario["metrics"])
+		for _, metric := range metrics {
+			assertTextContains(t, gotMetrics, metric)
+		}
+	}
+}
+
 func assertMaskedToken(t *testing.T, values map[string]any, key, raw string) {
 	t.Helper()
 
