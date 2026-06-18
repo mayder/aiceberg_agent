@@ -96,6 +96,7 @@ Cobertura:
 - claim de superioridade bloqueado sem benchmark.
 - offline-first expõe retenção, replay idempotente, compressão e export local assinado.
 - BoltStore preserva o replay entre restart até ACK e aceita ACK repetido/ID desconhecido de forma idempotente.
+- `TestBoltStoreSimulates24hOfflineReplayWithoutDuplicatesAfterAck` simula 24 envelopes horários, replay repetido antes do ACK e ACK idempotente com IDs duplicados; protege o contrato local, mas não substitui a evidência real de 24h.
 - web correlaciona evidência Agentless recente com o painel contextual do agente.
 - benchmark expõe cenários, métricas e política que mantém superioridade bloqueada sem evidência comparável.
 - roteiro de homologação gera `/tmp/aiceberg_pkg72_contextual_evidence.md` com validações locais, pendências reais explícitas e manifesto SHA256/tamanho das evidências anexadas.
