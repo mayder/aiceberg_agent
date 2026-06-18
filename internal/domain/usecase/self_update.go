@@ -2,7 +2,9 @@ package usecase
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -156,6 +158,12 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 	artifact, err := uc.download(ctx, payload, opts)
 	if err != nil {
 		uc.reportStatusBestEffort(ctx, payload, "download_failed", "download_failed", err.Error(), version.Version, updateStageEvidence("download", classifyUpdateFailure("download", "download_failed", err)))
+		return err
+	}
+	if err := uc.validateArtifactTrust(payload, artifact); err != nil {
+		meta := uc.buildUpdateRuntimeEvidence(artifact, opts, nil)
+		addUpdateStageEvidence(meta, "validation", "trust_chain")
+		uc.reportStatusBestEffort(ctx, payload, "validation_failed", "trust_chain", err.Error(), version.Version, meta)
 		return err
 	}
 
@@ -384,6 +392,78 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts
 		return downloadedArtifact{}, errors.New("download update failed: no source")
 	}
 	return downloadedArtifact{}, fmt.Errorf("download update failed: %s", strings.Join(errs, " | "))
+}
+
+func (uc *SelfUpdate) validateArtifactTrust(payload *UpdatePayload, artifact downloadedArtifact) error {
+	if payload == nil {
+		return errors.New("missing update payload")
+	}
+	publicKeyRaw := strings.TrimSpace(uc.cfg.AutoUpdateTrustPublicKey)
+	trustRequired := uc.cfg.AutoUpdateTrustRequired || publicKeyRaw != ""
+	if !trustRequired && strings.TrimSpace(payload.Signature) == "" && strings.TrimSpace(payload.SigningKeyID) == "" {
+		return nil
+	}
+	if publicKeyRaw == "" {
+		return errors.New("artifact trust public key missing")
+	}
+	publicKey, err := decodeEd25519PublicKey(publicKeyRaw)
+	if err != nil {
+		return fmt.Errorf("artifact trust public key invalid: %w", err)
+	}
+	signature, err := decodeSignature(payload.Signature)
+	if err != nil {
+		return fmt.Errorf("artifact signature invalid: %w", err)
+	}
+	algorithm := strings.TrimSpace(payload.SignatureAlgorithm)
+	if algorithm == "" {
+		algorithm = "ed25519-sha256"
+	}
+	if !strings.EqualFold(algorithm, "ed25519-sha256") {
+		return fmt.Errorf("artifact signature algorithm unsupported: %s", algorithm)
+	}
+	sha := normalizeSHA256(artifact.SHA256)
+	if sha == "" {
+		return errors.New("artifact sha256 missing for trust validation")
+	}
+	message := artifactTrustMessage(payload.Version, sha, payload.SigningKeyID)
+	if !ed25519.Verify(publicKey, []byte(message), signature) {
+		return errors.New("artifact signature verification failed")
+	}
+	return nil
+}
+
+func decodeEd25519PublicKey(value string) (ed25519.PublicKey, error) {
+	raw, err := decodeSignature(value)
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("expected %d bytes, got %d", ed25519.PublicKeySize, len(raw))
+	}
+	return ed25519.PublicKey(raw), nil
+}
+
+func decodeSignature(value string) ([]byte, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, errors.New("empty value")
+	}
+	if raw, err := hex.DecodeString(strings.TrimPrefix(value, "hex:")); err == nil {
+		return raw, nil
+	}
+	if raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(value, "base64:")); err == nil {
+		return raw, nil
+	}
+	return nil, errors.New("expected hex or base64")
+}
+
+func artifactTrustMessage(targetVersion, artifactSHA256, signingKeyID string) string {
+	return strings.Join([]string{
+		"aiceberg-agent-update:v1",
+		strings.TrimSpace(targetVersion),
+		normalizeSHA256(artifactSHA256),
+		strings.TrimSpace(signingKeyID),
+	}, "\n")
 }
 
 func (uc *SelfUpdate) downloadSources(rawURL string, useAuth bool) []updateDownloadSource {
@@ -801,6 +881,11 @@ func (uc *SelfUpdate) buildUpdateRuntimeEvidence(artifact downloadedArtifact, op
 	}
 	if sha := normalizeSHA256(artifact.SHA256); sha != "" {
 		out["download_sha256"] = sha
+	}
+	if uc.cfg.AutoUpdateTrustRequired || strings.TrimSpace(uc.cfg.AutoUpdateTrustPublicKey) != "" {
+		out["artifact_trust_required"] = uc.cfg.AutoUpdateTrustRequired
+		out["artifact_trust_public_key_configured"] = strings.TrimSpace(uc.cfg.AutoUpdateTrustPublicKey) != ""
+		out["artifact_signature_algorithm"] = "ed25519-sha256"
 	}
 	if strings.TrimSpace(artifact.Source) != "" {
 		out["download_source"] = strings.TrimSpace(artifact.Source)

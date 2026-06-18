@@ -159,6 +159,8 @@ type Config struct {
 	AutoUpdateRetryInterval            time.Duration
 	AutoUpdateMaxMB                    int
 	AutoUpdateUseAgentAuth             bool
+	AutoUpdateTrustRequired            bool
+	AutoUpdateTrustPublicKey           string
 	AgentClientID                      int
 	AgentID                            int
 	AgentInstallationID                string
@@ -440,6 +442,8 @@ func Load(configPath string) (Config, error) {
 		AutoUpdateWorkDir:                  getenv("AUTO_UPDATE_WORKDIR", ""),
 		AutoUpdateMaxMB:                    intEnv("AUTO_UPDATE_MAX_MB", 300),
 		AutoUpdateUseAgentAuth:             strings.ToLower(getenv("AUTO_UPDATE_USE_AGENT_AUTH", "")) == "true",
+		AutoUpdateTrustRequired:            strings.ToLower(getenv("AUTO_UPDATE_TRUST_REQUIRED", "")) == "true",
+		AutoUpdateTrustPublicKey:           getenv("AUTO_UPDATE_TRUST_PUBLIC_KEY", ""),
 		AgentClientID:                      intEnv("AGENT_CLIENT_ID", 0),
 		AgentID:                            intEnv("AGENT_ID", 0),
 		AgentInstallationID:                getenv("AGENT_INSTALLATION_ID", ""),

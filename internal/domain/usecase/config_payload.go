@@ -29,10 +29,13 @@ type ControlCommand struct {
 }
 
 type UpdatePayload struct {
-	Version string `json:"version,omitempty"`
-	URL     string `json:"url,omitempty"`
-	SHA256  string `json:"sha256,omitempty"`
-	Force   bool   `json:"force,omitempty"`
+	Version            string `json:"version,omitempty"`
+	URL                string `json:"url,omitempty"`
+	SHA256             string `json:"sha256,omitempty"`
+	Force              bool   `json:"force,omitempty"`
+	SignatureAlgorithm string `json:"signature_algorithm,omitempty"`
+	Signature          string `json:"signature,omitempty"`
+	SigningKeyID       string `json:"signing_key_id,omitempty"`
 }
 
 func (u *UpdatePayload) Clone() *UpdatePayload {

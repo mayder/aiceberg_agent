@@ -461,7 +461,7 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 ### PKG-68 - Seguranca e assinatura
 
 - Unitario focado: `go test ./internal/common/config ./internal/common/httpx ./internal/domain/usecase ./internal/bootstrap`.
-- Cobertura local: HMAC de config, bloqueio de payload sensivel sem assinatura, expiracao, downgrade sem force, token rotation e TLS inseguro contra producao.
+- Cobertura local: HMAC de config, bloqueio de payload sensivel sem assinatura, expiracao, downgrade sem force, cadeia Ed25519 de artefato de update, token rotation e TLS inseguro contra producao.
 - Validacao real pendente para PKG-69: proxy autenticado, TLS invalido, revogacao backend, FIPS/pinning e rotacao com agentes reais.
 
 ### PKG-69 - Matriz operacional

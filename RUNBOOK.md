@@ -287,6 +287,8 @@ Variaveis:
 - `REMOTE_CONFIG_SIGNATURE_SECRET`;
 - `REMOTE_CONFIG_SIGNATURE_REQUIRED=true`;
 - `REMOTE_CONFIG_ALLOW_UNSIGNED_SENSITIVE=false`;
+- `AUTO_UPDATE_TRUST_REQUIRED=true`;
+- `AUTO_UPDATE_TRUST_PUBLIC_KEY=<ed25519-public-key-hex-ou-base64>`;
 - `TLS_INSECURE_SKIP_VERIFY=false`;
 - `TLS_INSECURE_ALLOW_PROD=false`.
 
@@ -294,6 +296,7 @@ Regras:
 
 - payload sensivel sem assinatura deve ser rejeitado quando segredo de assinatura existir;
 - downgrade de update sem `force=true` e bloqueado;
+- update com assinatura/cadeia de artefato invalida deve falhar antes do `apply`;
 - `token_rotation.new_token` nunca deve aparecer em log;
 - `security_runtime` deve indicar politica sem expor segredo;
 - proxy corporativo segue `HTTP_PROXY`, `HTTPS_PROXY` e `NO_PROXY`.

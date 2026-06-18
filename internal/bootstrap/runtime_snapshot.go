@@ -350,6 +350,8 @@ func buildSecurityRuntimeSnapshot(cfg config.Config) map[string]any {
 		"remote_config_signature_required":          cfg.RemoteConfigSignatureRequired,
 		"remote_config_signature_secret_configured": strings.TrimSpace(cfg.RemoteConfigSignatureSecret) != "",
 		"remote_config_unsigned_sensitive_allowed":  cfg.RemoteConfigAllowUnsignedSensitive,
+		"auto_update_trust_required":                cfg.AutoUpdateTrustRequired,
+		"auto_update_trust_public_key_configured":   strings.TrimSpace(cfg.AutoUpdateTrustPublicKey) != "",
 		"tls_insecure_skip_verify":                  cfg.TLSInsecureSkip,
 		"tls_insecure_allow_prod":                   cfg.TLSInsecureAllowProd,
 		"proxy_configured":                          proxyConfigured(),

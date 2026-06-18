@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -84,6 +86,82 @@ func TestSelfUpdate_ChecksumMismatch(t *testing.T) {
 
 	if err := uc.Execute(context.Background(), payload); err == nil {
 		t.Fatalf("expected checksum error")
+	}
+}
+
+func TestSelfUpdate_VerifiesTrustedArtifactSignature(t *testing.T) {
+	pkg := []byte("trusted package")
+	sum := sha256.Sum256(pkg)
+	versionTarget := testUpdateVersion()
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	message := artifactTrustMessage(versionTarget, hex.EncodeToString(sum[:]), "fleet-key-v1")
+	signature := ed25519.Sign(privateKey, []byte(message))
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(pkg)
+	}))
+	defer srv.Close()
+
+	cfg := config.Config{
+		AutoUpdateEnabled:        true,
+		AutoUpdateDir:            t.TempDir(),
+		AutoUpdateTimeout:        2 * time.Second,
+		AutoUpdateMaxMB:          5,
+		AutoUpdateTrustRequired:  true,
+		AutoUpdateTrustPublicKey: hex.EncodeToString(publicKey),
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	payload := &UpdatePayload{
+		Version:            versionTarget,
+		URL:                srv.URL + "/pkg.bin",
+		SHA256:             hex.EncodeToString(sum[:]),
+		SignatureAlgorithm: "ed25519-sha256",
+		Signature:          hex.EncodeToString(signature),
+		SigningKeyID:       "fleet-key-v1",
+	}
+
+	if err := uc.Execute(context.Background(), payload); err != nil {
+		t.Fatalf("expected trusted update, got %v", err)
+	}
+}
+
+func TestSelfUpdate_RejectsInvalidTrustedArtifactSignature(t *testing.T) {
+	pkg := []byte("trusted package")
+	sum := sha256.Sum256(pkg)
+	publicKey, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(pkg)
+	}))
+	defer srv.Close()
+
+	cfg := config.Config{
+		AutoUpdateEnabled:        true,
+		AutoUpdateDir:            t.TempDir(),
+		AutoUpdateTimeout:        2 * time.Second,
+		AutoUpdateMaxMB:          5,
+		AutoUpdateTrustRequired:  true,
+		AutoUpdateTrustPublicKey: hex.EncodeToString(publicKey),
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	payload := &UpdatePayload{
+		Version:      testUpdateVersion(),
+		URL:          srv.URL + "/pkg.bin",
+		SHA256:       hex.EncodeToString(sum[:]),
+		Signature:    hex.EncodeToString(make([]byte, ed25519.SignatureSize)),
+		SigningKeyID: "fleet-key-v1",
+	}
+
+	if err := uc.Execute(context.Background(), payload); err == nil || !strings.Contains(err.Error(), "signature verification failed") {
+		t.Fatalf("expected signature verification failure, got %v", err)
 	}
 }
 

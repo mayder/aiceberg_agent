@@ -152,6 +152,17 @@ Referências:
 - Impacto em rollback: desativar `REMOTE_CONFIG_SIGNATURE_REQUIRED` ou permitir unsigned sensitive temporariamente.
 - Como reverter: remover validação de assinatura e token rotation do config payload.
 
+### DEC-20260618-16 - Update valida cadeia Ed25519 de artefato
+
+- Status: aceita
+- Contexto: SHA256 valida integridade do download, mas nao prova a origem do artefato publicado.
+- Decisao: adicionar validacao opt-in/obrigatoria de assinatura Ed25519 do update sobre versao, SHA256 e `signing_key_id`, ativada por `AUTO_UPDATE_TRUST_PUBLIC_KEY` ou `AUTO_UPDATE_TRUST_REQUIRED=true`.
+- Alternativas consideradas: manter apenas SHA256 ou exigir PKI completa imediatamente.
+- Consequencias: agentes legados continuam aceitando SHA256; clientes regulados podem exigir assinatura antes do `apply`; publicacao oficial precisa gerar assinatura correspondente.
+- Impacto em testes: unitarios cobrem assinatura valida e assinatura invalida antes do `apply`.
+- Impacto em rollback: remover `AUTO_UPDATE_TRUST_REQUIRED` ou limpar `AUTO_UPDATE_TRUST_PUBLIC_KEY` durante janela controlada.
+- Como reverter: publicar agente anterior ou remover os campos de assinatura do payload remoto.
+
 ### DEC-20260618-11 - Homologacao operacional separa local de ambiente real
 
 - Status: aceita
