@@ -53,6 +53,13 @@ go test ./internal/data/local/outbox -run TestBoltStorePreservesQueueAcrossColle
 result "restart-replay-local" "pass" "outbox preserva fila antes/depois de restart e ACK parcial; log=/tmp/aiceberg_pkg69_restart_replay_test.log"
 go test ./internal/platform/collectors/custommetrics -run TestCollectorBoundsHighVolumeCardinalityBurst >/tmp/aiceberg_pkg69_high_volume_test.log
 result "high-volume-local" "pass" "custom_metrics limita burst de cardinalidade e contabiliza drops; log=/tmp/aiceberg_pkg69_high_volume_test.log"
+{
+  go test ./internal/domain/channel -run TestTopologyPreservesRelayThroughHubOnly
+  go test ./internal/domain/usecase -run 'Test(AgentChannelClientRunDirectSkipsRelayMode|AgentChannelClientRelayUsesHubURLOnly|AgentChannelClientSnapshotRelayTopology|PingBackendRelayUsesHubURLForLegacyPing|SelfUpdate_RelayDownloadsViaHubProxy|SelfUpdate_RelayDownloadDoesNotFallbackToDirect)'
+  go test ./internal/data/remote -run 'TestAgentControlClient(FetchSelfHealCommandsRelayUsesHub|ReportSelfHealRelayDoesNotFallbackToAPI)'
+  go test ./internal/interfaces/hub -run 'TestHub(ChannelForwardsRelayPresenceToAiceberg|ChannelForwardsRelayCommandEventToAiceberg|ChannelRejectsNonRelayMode|IngestPreservesRelayIdentityHeader)'
+} >/tmp/aiceberg_pkg69_relay_topology_test.log
+result "relay-topology-local" "pass" "relay usa HUB_URL para canal/ping/selfheal/update e o Hub encaminha ao AIceberg; log=/tmp/aiceberg_pkg69_relay_topology_test.log"
 result "api-unavailable-local" "pass" "flush_outbox tests preserve pending envelopes on transport/API error"
 result "network-intermittent-local" "pass" "flush_outbox tests backoff and later retry behavior"
 result "payload-large-local" "pass" "collectors enforce max bytes/items in focused tests"
@@ -95,4 +102,5 @@ result "disk-full" "partial" "outbox cheia coberta por teste local; falta disco 
 result "payload-large" "partial" "limites cobertos por testes locais; falta alto volume real DogStatsD/OTLP/logs"
 result "high-volume" "partial" "burst local de cardinalidade custom_metrics coberto; falta carga real DogStatsD/OTLP/logs com CPU/mem"
 result "cpu-mem-overhead" "partial" "smoke local registra overhead de coleta normal; falta idle/logs altos/OTLP alto/containers por ambiente"
+result "relay-hub-direct" "partial" "contratos locais cobrem relay->hub->AIceberg; falta smoke real com nos separados"
 result "remote-update-rollback" "pending" "validar artefato anterior, hash e version_confirmed"

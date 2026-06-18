@@ -314,7 +314,7 @@ Comando local:
 scripts/pkg69_operational_homologation.sh
 ```
 
-O comando valida ambiente local, testes focados, burst local de cardinalidade custom metrics, smoke POSIX com RSS/CPU/goroutines locais, `./check.sh`, e lista pendencias reais por Windows, Linux, Docker, Kubernetes, proxy, disco, payload, alto volume com CPU/mem e update rollback.
+O comando valida ambiente local, testes focados, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg para canal/ping/self-heal/update, smoke POSIX com RSS/CPU/goroutines locais, `./check.sh`, e lista pendencias reais por Windows, Linux, Docker, Kubernetes, proxy, disco, payload, alto volume com CPU/mem e update rollback.
 
 Rollback: nao altera runtime; se a validacao real falhar, reabrir pacote tecnico correspondente e manter artefato anterior.
 

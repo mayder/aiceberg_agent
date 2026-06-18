@@ -467,7 +467,7 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 ### PKG-69 - Matriz operacional
 
 - Local reproduzivel: `scripts/pkg69_operational_homologation.sh`.
-- Cobertura local: readiness de ferramentas, testes focados dos pacotes PKG-59 a PKG-68, cadeia Ed25519 de artefato de update, `HTTP_PROXY` autenticado, timeout de download sem artefato finalizado, classificacao de clock skew, degradacao PCAP/tcpdump por permissao, replay de outbox apos restart local, burst de cardinalidade custom metrics com drops contabilizados, smoke POSIX com RSS/CPU/goroutines locais e `./check.sh`.
+- Cobertura local: readiness de ferramentas, testes focados dos pacotes PKG-59 a PKG-68, cadeia Ed25519 de artefato de update, `HTTP_PROXY` autenticado, timeout de download sem artefato finalizado, classificacao de clock skew, degradacao PCAP/tcpdump por permissao, replay de outbox apos restart local, burst de cardinalidade custom metrics com drops contabilizados, topologia relay -> hub -> AIceberg para canal/ping/self-heal/update, smoke POSIX com RSS/CPU/goroutines locais e `./check.sh`.
 - Fechamento real exige executar matriz em Windows Server, Windows desktop, Linux Debian/RHEL, Docker e Kubernetes controlado.
 
 ## Politica minima de testes
