@@ -17,6 +17,9 @@ rules:
   - apiGroups: [""]
     resources: ["nodes", "pods", "events"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -62,6 +65,12 @@ spec:
                   key: token
             - name: KUBERNETES_ENABLED
               value: "true"
+            - name: KUBERNETES_LOGS_ENABLED
+              value: "false"
+            - name: KUBERNETES_LOGS_MAX_LINES
+              value: "200"
+            - name: KUBERNETES_LOGS_MAX_BYTES
+              value: "262144"
             - name: KUBERNETES_NODE_NAME
               valueFrom:
                 fieldRef:

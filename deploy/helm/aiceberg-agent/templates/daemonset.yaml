@@ -47,6 +47,20 @@ spec:
               value: {{ .Values.kubernetes.maxItems | quote }}
             - name: KUBERNETES_MAX_EVENTS
               value: {{ .Values.kubernetes.maxEvents | quote }}
+            - name: KUBERNETES_LOGS_ENABLED
+              value: {{ .Values.kubernetes.logs.enabled | quote }}
+            - name: KUBERNETES_LOGS_MAX_LINES
+              value: {{ .Values.kubernetes.logs.maxLines | quote }}
+            - name: KUBERNETES_LOGS_MAX_BYTES
+              value: {{ .Values.kubernetes.logs.maxBytes | quote }}
+            {{- if .Values.kubernetes.logs.includeRegex }}
+            - name: KUBERNETES_LOGS_INCLUDE_REGEX
+              value: {{ .Values.kubernetes.logs.includeRegex | quote }}
+            {{- end }}
+            {{- if .Values.kubernetes.logs.excludeRegex }}
+            - name: KUBERNETES_LOGS_EXCLUDE_REGEX
+              value: {{ .Values.kubernetes.logs.excludeRegex | quote }}
+            {{- end }}
             - name: KUBERNETES_NODE_NAME
               valueFrom:
                 fieldRef:

@@ -112,6 +112,12 @@ type Config struct {
 	KubernetesInterval                 time.Duration
 	KubernetesMaxItems                 int
 	KubernetesMaxEvents                int
+	KubernetesLogsEnabled              bool
+	KubernetesLogsCursorPath           string
+	KubernetesLogsMaxLines             int
+	KubernetesLogsMaxBytes             int
+	KubernetesLogsIncludeRegex         string
+	KubernetesLogsExcludeRegex         string
 	LocalChecksEnabled                 bool
 	LocalChecksInterval                time.Duration
 	LocalChecksMaxChecks               int
@@ -229,6 +235,12 @@ type CollectPrefs struct {
 	KubernetesIntervalSec      int                `json:"kubernetes_interval,omitempty"`
 	KubernetesMaxItems         int                `json:"kubernetes_max_items,omitempty"`
 	KubernetesMaxEvents        int                `json:"kubernetes_max_events,omitempty"`
+	KubernetesLogsEnabled      bool               `json:"kubernetes_logs_enabled,omitempty"`
+	KubernetesLogsCursorPath   string             `json:"kubernetes_logs_cursor_path,omitempty"`
+	KubernetesLogsMaxLines     int                `json:"kubernetes_logs_max_lines,omitempty"`
+	KubernetesLogsMaxBytes     int                `json:"kubernetes_logs_max_bytes,omitempty"`
+	KubernetesLogsIncludeRegex string             `json:"kubernetes_logs_include_regex,omitempty"`
+	KubernetesLogsExcludeRegex string             `json:"kubernetes_logs_exclude_regex,omitempty"`
 	LocalChecksEnabled         bool               `json:"local_checks_enabled,omitempty"`
 	LocalChecksIntervalSec     int                `json:"local_checks_interval,omitempty"`
 	LocalChecksMaxChecks       int                `json:"local_checks_max_checks,omitempty"`
@@ -359,6 +371,12 @@ func Load(configPath string) (Config, error) {
 		KubernetesInterval:                 time.Duration(intEnv("KUBERNETES_INTERVAL", 30)) * time.Second,
 		KubernetesMaxItems:                 intEnv("KUBERNETES_MAX_ITEMS", 500),
 		KubernetesMaxEvents:                intEnv("KUBERNETES_MAX_EVENTS", 100),
+		KubernetesLogsEnabled:              strings.ToLower(getenv("KUBERNETES_LOGS_ENABLED", "")) == "true",
+		KubernetesLogsCursorPath:           getenv("KUBERNETES_LOGS_CURSOR_PATH", "./data/kubernetes_logs.cursor"),
+		KubernetesLogsMaxLines:             intEnv("KUBERNETES_LOGS_MAX_LINES", 200),
+		KubernetesLogsMaxBytes:             intEnv("KUBERNETES_LOGS_MAX_BYTES", 256*1024),
+		KubernetesLogsIncludeRegex:         getenv("KUBERNETES_LOGS_INCLUDE_REGEX", ""),
+		KubernetesLogsExcludeRegex:         getenv("KUBERNETES_LOGS_EXCLUDE_REGEX", ""),
 		LocalChecksEnabled:                 strings.ToLower(getenv("LOCAL_CHECKS_ENABLED", "")) == "true",
 		LocalChecksInterval:                time.Duration(intEnv("LOCAL_CHECKS_INTERVAL", 30)) * time.Second,
 		LocalChecksMaxChecks:               intEnv("LOCAL_CHECKS_MAX_CHECKS", 100),

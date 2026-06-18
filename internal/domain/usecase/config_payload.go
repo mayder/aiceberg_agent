@@ -161,15 +161,21 @@ type ConfigPayload struct {
 		LogsMaxBytes        int    `json:"logs_max_bytes,omitempty"`
 	} `json:"containers,omitempty"`
 	Kubernetes struct {
-		Enabled   *bool  `json:"enabled,omitempty"`
-		APIURL    string `json:"api_url,omitempty"`
-		TokenPath string `json:"token_path,omitempty"`
-		CAPath    string `json:"ca_path,omitempty"`
-		NodeName  string `json:"node_name,omitempty"`
-		Namespace string `json:"namespace,omitempty"`
-		Interval  int    `json:"interval,omitempty"`
-		MaxItems  int    `json:"max_items,omitempty"`
-		MaxEvents int    `json:"max_events,omitempty"`
+		Enabled          *bool  `json:"enabled,omitempty"`
+		APIURL           string `json:"api_url,omitempty"`
+		TokenPath        string `json:"token_path,omitempty"`
+		CAPath           string `json:"ca_path,omitempty"`
+		NodeName         string `json:"node_name,omitempty"`
+		Namespace        string `json:"namespace,omitempty"`
+		Interval         int    `json:"interval,omitempty"`
+		MaxItems         int    `json:"max_items,omitempty"`
+		MaxEvents        int    `json:"max_events,omitempty"`
+		LogsEnabled      *bool  `json:"logs_enabled,omitempty"`
+		LogsCursorPath   string `json:"logs_cursor_path,omitempty"`
+		LogsMaxLines     int    `json:"logs_max_lines,omitempty"`
+		LogsMaxBytes     int    `json:"logs_max_bytes,omitempty"`
+		LogsIncludeRegex string `json:"logs_include_regex,omitempty"`
+		LogsExcludeRegex string `json:"logs_exclude_regex,omitempty"`
 	} `json:"kubernetes,omitempty"`
 	LocalChecks struct {
 		Enabled   *bool                     `json:"enabled,omitempty"`
@@ -342,6 +348,24 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	}
 	if payload.Kubernetes.MaxEvents > 0 {
 		collect.KubernetesMaxEvents = payload.Kubernetes.MaxEvents
+	}
+	if payload.Kubernetes.LogsEnabled != nil {
+		collect.KubernetesLogsEnabled = *payload.Kubernetes.LogsEnabled
+	}
+	if payload.Kubernetes.LogsCursorPath != "" {
+		collect.KubernetesLogsCursorPath = payload.Kubernetes.LogsCursorPath
+	}
+	if payload.Kubernetes.LogsMaxLines > 0 {
+		collect.KubernetesLogsMaxLines = payload.Kubernetes.LogsMaxLines
+	}
+	if payload.Kubernetes.LogsMaxBytes > 0 {
+		collect.KubernetesLogsMaxBytes = payload.Kubernetes.LogsMaxBytes
+	}
+	if payload.Kubernetes.LogsIncludeRegex != "" {
+		collect.KubernetesLogsIncludeRegex = payload.Kubernetes.LogsIncludeRegex
+	}
+	if payload.Kubernetes.LogsExcludeRegex != "" {
+		collect.KubernetesLogsExcludeRegex = payload.Kubernetes.LogsExcludeRegex
 	}
 	if payload.LocalChecks.Enabled != nil {
 		collect.LocalChecksEnabled = *payload.LocalChecks.Enabled

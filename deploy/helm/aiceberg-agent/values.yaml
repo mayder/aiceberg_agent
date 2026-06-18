@@ -15,6 +15,12 @@ kubernetes:
   maxItems: 500
   maxEvents: 100
   namespace: ""
+  logs:
+    enabled: false
+    maxLines: 200
+    maxBytes: 262144
+    includeRegex: ""
+    excludeRegex: ""
 
 containers:
   enabled: false

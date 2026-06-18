@@ -1,14 +1,17 @@
 package kubernetes
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -20,16 +23,22 @@ import (
 const schemaVersion = 1
 
 type collector struct {
-	prefs       func() config.CollectPrefs
-	baseEnabled bool
-	apiURL      string
-	tokenPath   string
-	caPath      string
-	nodeName    string
-	namespace   string
-	interval    time.Duration
-	maxItems    int
-	maxEvents   int
+	prefs         func() config.CollectPrefs
+	baseEnabled   bool
+	apiURL        string
+	tokenPath     string
+	caPath        string
+	nodeName      string
+	namespace     string
+	interval      time.Duration
+	maxItems      int
+	maxEvents     int
+	logsEnabled   bool
+	logCursorPath string
+	logMaxLines   int
+	logMaxBytes   int
+	logInclude    string
+	logExclude    string
 }
 
 func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -46,16 +55,22 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 		maxEvents = 100
 	}
 	return &collector{
-		prefs:       prefsProvider,
-		baseEnabled: cfg.KubernetesEnabled,
-		apiURL:      strings.TrimRight(cfg.KubernetesAPIURL, "/"),
-		tokenPath:   cfg.KubernetesTokenPath,
-		caPath:      cfg.KubernetesCAPath,
-		nodeName:    cfg.KubernetesNodeName,
-		namespace:   cfg.KubernetesNamespace,
-		interval:    interval,
-		maxItems:    maxItems,
-		maxEvents:   maxEvents,
+		prefs:         prefsProvider,
+		baseEnabled:   cfg.KubernetesEnabled,
+		apiURL:        strings.TrimRight(cfg.KubernetesAPIURL, "/"),
+		tokenPath:     cfg.KubernetesTokenPath,
+		caPath:        cfg.KubernetesCAPath,
+		nodeName:      cfg.KubernetesNodeName,
+		namespace:     cfg.KubernetesNamespace,
+		interval:      interval,
+		maxItems:      maxItems,
+		maxEvents:     maxEvents,
+		logsEnabled:   cfg.KubernetesLogsEnabled,
+		logCursorPath: cfg.KubernetesLogsCursorPath,
+		logMaxLines:   cfg.KubernetesLogsMaxLines,
+		logMaxBytes:   cfg.KubernetesLogsMaxBytes,
+		logInclude:    cfg.KubernetesLogsIncludeRegex,
+		logExclude:    cfg.KubernetesLogsExcludeRegex,
 	}
 }
 
@@ -96,10 +111,48 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 			"pods":                 normalizePods(pods),
 			"nodes":                normalizeNodes(nodes),
 			"events":               normalizeEvents(events),
+			"logs":                 c.collectPodLogs(ctx, client, c.apiURL, string(token), pods),
 			"autodiscovery_checks": autodiscoveryChecks(pods),
 		},
 	}
 	return json.Marshal(payload)
+}
+
+func (c *collector) effectiveLogSettings() (bool, string, int, int, string, string) {
+	enabled := c.logsEnabled
+	cursorPath := c.logCursorPath
+	maxLines := c.logMaxLines
+	maxBytes := c.logMaxBytes
+	include := c.logInclude
+	exclude := c.logExclude
+	if c.prefs != nil {
+		p := c.prefs()
+		if p.KubernetesLogsEnabled {
+			enabled = true
+		}
+		if strings.TrimSpace(p.KubernetesLogsCursorPath) != "" {
+			cursorPath = p.KubernetesLogsCursorPath
+		}
+		if p.KubernetesLogsMaxLines > 0 {
+			maxLines = p.KubernetesLogsMaxLines
+		}
+		if p.KubernetesLogsMaxBytes > 0 {
+			maxBytes = p.KubernetesLogsMaxBytes
+		}
+		if strings.TrimSpace(p.KubernetesLogsIncludeRegex) != "" {
+			include = p.KubernetesLogsIncludeRegex
+		}
+		if strings.TrimSpace(p.KubernetesLogsExcludeRegex) != "" {
+			exclude = p.KubernetesLogsExcludeRegex
+		}
+	}
+	if maxLines <= 0 {
+		maxLines = 200
+	}
+	if maxBytes <= 0 {
+		maxBytes = 256 * 1024
+	}
+	return enabled, cursorPath, maxLines, maxBytes, include, exclude
 }
 
 func (c *collector) enabled() bool {
@@ -182,6 +235,133 @@ func getJSON(ctx context.Context, client *http.Client, rawURL, token string, tar
 		return errors.New("kubernetes api status " + resp.Status)
 	}
 	return json.NewDecoder(resp.Body).Decode(target)
+}
+
+func (c *collector) collectPodLogs(ctx context.Context, client *http.Client, apiURL, token string, pods []pod) map[string]any {
+	enabled, cursorPath, maxLines, maxBytes, includeRegex, excludeRegex := c.effectiveLogSettings()
+	if !enabled {
+		return nil
+	}
+	include := compileRegex(includeRegex)
+	exclude := compileRegex(excludeRegex)
+	cursor := loadLogCursor(cursorPath)
+	events := []map[string]any{}
+	dropped := 0
+	for _, p := range pods {
+		for _, spec := range p.Spec.Containers {
+			if len(events) >= maxLines {
+				dropped++
+				continue
+			}
+			if !matchesLogFilter(p, spec, include, exclude) {
+				continue
+			}
+			read, drop := fetchPodContainerLogs(ctx, client, apiURL, token, p, spec, cursor, maxLines-len(events), maxBytes)
+			events = append(events, read...)
+			dropped += drop
+		}
+	}
+	_ = saveLogCursor(cursorPath, cursor)
+	if len(events) == 0 && dropped == 0 {
+		return nil
+	}
+	return map[string]any{
+		"schema_version": schemaVersion,
+		"events":         events,
+		"dropped_count":  dropped,
+	}
+}
+
+func fetchPodContainerLogs(ctx context.Context, client *http.Client, apiURL, token string, p pod, spec containerSpec, cursor map[string]string, maxLines, maxBytes int) ([]map[string]any, int) {
+	if maxLines <= 0 {
+		return nil, 0
+	}
+	key := podLogCursorKey(p, spec)
+	values := url.Values{}
+	values.Set("container", spec.Name)
+	values.Set("timestamps", "true")
+	values.Set("tailLines", intString(maxLines))
+	if since := strings.TrimSpace(cursor[key]); since != "" {
+		values.Set("sinceTime", since)
+	}
+	rawURL := strings.TrimRight(apiURL, "/") + "/api/v1/namespaces/" + url.PathEscape(p.Metadata.Namespace) + "/pods/" + url.PathEscape(p.Metadata.Name) + "/log?" + values.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, 1
+	}
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+	req.Header.Set("Accept", "text/plain")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, 1
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, 1
+	}
+	return readPodLogStream(io.LimitReader(resp.Body, int64(maxBytes)), p, spec, cursor, key, maxLines, maxBytes)
+}
+
+func readPodLogStream(reader io.Reader, p pod, spec containerSpec, cursor map[string]string, cursorKey string, maxLines, maxBytes int) ([]map[string]any, int) {
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 1024), maxBytes)
+	events := []map[string]any{}
+	dropped := 0
+	for scanner.Scan() {
+		if len(events) >= maxLines {
+			dropped++
+			continue
+		}
+		event, timestamp, ok := parsePodLogLine(scanner.Text(), p, spec, maxBytes)
+		if !ok {
+			dropped++
+			continue
+		}
+		events = append(events, event)
+		if timestamp != "" {
+			cursor[cursorKey] = timestamp
+		}
+	}
+	return events, dropped
+}
+
+func parsePodLogLine(line string, p pod, spec containerSpec, maxBytes int) (map[string]any, string, bool) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return nil, "", false
+	}
+	timestamp, message := splitKubernetesTimestamp(line)
+	if maxBytes > 0 && len(message) > maxBytes {
+		message = message[:maxBytes]
+	}
+	message, redactionStatus := redactPodLogMessage(message)
+	event := map[string]any{
+		"namespace":        p.Metadata.Namespace,
+		"pod":              p.Metadata.Name,
+		"pod_uid":          p.Metadata.UID,
+		"node_name":        p.Spec.NodeName,
+		"container":        spec.Name,
+		"image":            spec.Image,
+		"timestamp_utc":    timestamp,
+		"message":          message,
+		"redaction_status": redactionStatus,
+		"transport":        "kubernetes_pod_log",
+		"source_tool":      "kubernetes",
+		"source_category":  "pod_log",
+	}
+	return event, timestamp, true
+}
+
+func splitKubernetesTimestamp(line string) (string, string) {
+	idx := strings.IndexByte(line, ' ')
+	if idx <= 0 {
+		return "", line
+	}
+	candidate := strings.TrimSpace(line[:idx])
+	if _, err := time.Parse(time.RFC3339Nano, candidate); err == nil {
+		return candidate, strings.TrimSpace(line[idx+1:])
+	}
+	return "", line
 }
 
 type podList struct {
@@ -404,6 +584,116 @@ func autodiscoveryChecks(pods []pod) []map[string]any {
 		}
 	}
 	return out
+}
+
+func matchesLogFilter(p pod, spec containerSpec, include, exclude *regexp.Regexp) bool {
+	target := podLogFilterText(p, spec)
+	if include != nil && !include.MatchString(target) {
+		return false
+	}
+	if exclude != nil && exclude.MatchString(target) {
+		return false
+	}
+	return true
+}
+
+func podLogFilterText(p pod, spec containerSpec) string {
+	parts := []string{p.Metadata.Namespace, p.Metadata.Name, p.Metadata.UID, p.Spec.NodeName, spec.Name, spec.Image}
+	for key, value := range p.Metadata.Labels {
+		parts = append(parts, key+"="+value)
+	}
+	for key, value := range p.Metadata.Annotations {
+		if strings.HasPrefix(key, "aiceberg.ai/") {
+			parts = append(parts, key+"="+value)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func compileRegex(value string) *regexp.Regexp {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	re, err := regexp.Compile(value)
+	if err != nil {
+		return nil
+	}
+	return re
+}
+
+var podLogSensitivePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)(authorization\s*:\s*(?:bearer|basic)\s+)[^\s]+`),
+	regexp.MustCompile(`(?i)("(?:password|passwd|pwd|token|secret|api[_-]?key|cookie)"\s*:\s*)"[^"]*"`),
+	regexp.MustCompile(`(?i)\b(password|passwd|pwd|token|secret|api[_-]?key|cookie)\s*=\s*("[^"]+"|'[^']+'|[^\s&;]+)`),
+	regexp.MustCompile(`(?i)\b(password|passwd|pwd|token|secret|api[_-]?key|cookie)\s*:\s*("[^"]+"|'[^']+'|[^\s,}]+)`),
+}
+
+func redactPodLogMessage(message string) (string, string) {
+	redacted := message
+	for _, pattern := range podLogSensitivePatterns {
+		redacted = pattern.ReplaceAllStringFunc(redacted, func(match string) string {
+			if strings.HasPrefix(strings.TrimSpace(match), `"`) {
+				if idx := strings.Index(match, ":"); idx >= 0 {
+					return match[:idx+1] + `"[redacted]"`
+				}
+			}
+			if idx := strings.Index(match, "="); idx >= 0 {
+				return match[:idx+1] + "[redacted]"
+			}
+			if idx := strings.Index(match, ":"); idx >= 0 {
+				prefix := match[:idx+1]
+				if strings.Contains(strings.ToLower(prefix), "authorization") {
+					parts := strings.Fields(match)
+					if len(parts) >= 2 {
+						return parts[0] + " " + parts[1] + " [redacted]"
+					}
+				}
+				return prefix + "[redacted]"
+			}
+			return "[redacted]"
+		})
+	}
+	if redacted != message {
+		return redacted, "redacted"
+	}
+	return message, "none"
+}
+
+func podLogCursorKey(p pod, spec containerSpec) string {
+	return p.Metadata.Namespace + "/" + p.Metadata.Name + "/" + spec.Name
+}
+
+func loadLogCursor(path string) map[string]string {
+	cursor := map[string]string{}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return cursor
+	}
+	_ = json.Unmarshal(data, &cursor)
+	return cursor
+}
+
+func saveLogCursor(path string, cursor map[string]string) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepathDir(path), 0o755); err != nil {
+		return err
+	}
+	data, err := json.Marshal(cursor)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o600)
+}
+
+func filepathDir(path string) string {
+	idx := strings.LastIndexAny(path, `/\`)
+	if idx <= 0 {
+		return "."
+	}
+	return path[:idx]
 }
 
 func safeMap(values map[string]string) map[string]string {

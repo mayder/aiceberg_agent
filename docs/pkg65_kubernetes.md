@@ -16,6 +16,12 @@ KUBERNETES_NAMESPACE=<namespace opcional>
 KUBERNETES_INTERVAL=30
 KUBERNETES_MAX_ITEMS=500
 KUBERNETES_MAX_EVENTS=100
+KUBERNETES_LOGS_ENABLED=false
+KUBERNETES_LOGS_CURSOR_PATH=./data/kubernetes_logs.cursor
+KUBERNETES_LOGS_MAX_LINES=200
+KUBERNETES_LOGS_MAX_BYTES=262144
+KUBERNETES_LOGS_INCLUDE_REGEX=prod|backend
+KUBERNETES_LOGS_EXCLUDE_REGEX=debug|secret
 ```
 
 Config remota:
@@ -29,7 +35,12 @@ Config remota:
     "namespace": "aiceberg",
     "interval": 30,
     "max_items": 500,
-    "max_events": 100
+    "max_events": 100,
+    "logs_enabled": true,
+    "logs_max_lines": 200,
+    "logs_max_bytes": 262144,
+    "logs_include_regex": "prod|backend",
+    "logs_exclude_regex": "debug|secret"
   }
 }
 ```
@@ -42,9 +53,10 @@ O coletor envia `body.kubernetes` para `/v1/ingest/metrics`:
 - `pods`: namespace, nome, UID, node, fase, IPs, labels/annotations sanitizadas, owner e containers;
 - `containers`: imagem, requests, limits, ports, ready, restart_count, state, image_id e container_id curto;
 - `events`: eventos Kubernetes limitados por lote, com mensagem truncada;
+- `logs.events[]`: logs de pod/container via API `pods/log`, com cursor por timestamp, filtros e redaction;
 - `autodiscovery_checks`: checks derivados de annotations.
 
-Nao sao enviados secrets, env vars, volumes nem `kubectl.kubernetes.io/last-applied-configuration`.
+Nao sao enviados secrets, env vars, volumes nem `kubectl.kubernetes.io/last-applied-configuration`. Conteudo sensivel detectado em linhas de log e mascarado antes do payload.
 
 ## Autodiscovery
 
@@ -83,11 +95,12 @@ RBAC minimo:
 - `nodes`: `get`, `list`, `watch`;
 - `pods`: `get`, `list`, `watch`;
 - `events`: `get`, `list`, `watch`.
+- `pods/log`: `get`, somente quando logs de pod forem habilitados.
 
 ## Limites atuais
 
 - Coleta uso real CPU/memoria via Metrics API ou kubelet fica pendente.
-- Logs de pod/container nativos ficam pendentes para integrar com o pipeline de logs sem duplicar cursor.
+- Validacao real de logs de pod/container em cluster fica pendente.
 - Autodiscovery executavel fica pendente do runtime de checks/plugins do PKG-66.
 - Validacao real em cluster, upgrade/rollback do chart e remocao limpa ficam pendentes para PKG-69.
 

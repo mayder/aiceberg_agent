@@ -222,8 +222,12 @@ Configuracoes principais:
 - `KUBERNETES_INTERVAL=30`;
 - `KUBERNETES_MAX_ITEMS=500`;
 - `KUBERNETES_MAX_EVENTS=100`.
+- `KUBERNETES_LOGS_ENABLED=false`;
+- `KUBERNETES_LOGS_MAX_LINES=200`;
+- `KUBERNETES_LOGS_MAX_BYTES=262144`;
+- `KUBERNETES_LOGS_INCLUDE_REGEX` e `KUBERNETES_LOGS_EXCLUDE_REGEX` para limitar logs por namespace, pod, container, imagem, node e labels.
 
-RBAC minimo: leitura de `nodes`, `pods` e `events`. Nao conceder `secrets`, `exec`, `pods/log`, `update`, `patch` ou `delete` sem nova decisao.
+RBAC minimo: leitura de `nodes`, `pods`, `events` e `get` em `pods/log` quando logs forem habilitados. Nao conceder `secrets`, `exec`, `update`, `patch` ou `delete` sem nova decisao.
 
 Rollback: `helm uninstall aiceberg-agent -n aiceberg`, `kubectl delete -f deploy/kubernetes/aiceberg-agent.yaml` ou config remota `kubernetes.enabled=false`. Nao ha SQL do PKG-65.
 

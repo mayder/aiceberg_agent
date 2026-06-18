@@ -1,6 +1,9 @@
 package kubernetes
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalizePodsRedactsSensitiveAnnotationsAndAddsContainerStatus(t *testing.T) {
 	p := pod{}
@@ -58,5 +61,61 @@ func TestAutodiscoveryChecksFromAnnotations(t *testing.T) {
 	}
 	if checks[1]["key"] != "tcp" || checks[1]["value"] != "8080" {
 		t.Fatalf("expected simple annotation check, got %#v", checks[1])
+	}
+}
+
+func TestParsePodLogLineAddsTagsAndRedactsSecrets(t *testing.T) {
+	p := pod{}
+	p.Metadata.Name = "api-123"
+	p.Metadata.Namespace = "prod"
+	p.Metadata.UID = "uid-1"
+	p.Spec.NodeName = "node-a"
+	spec := containerSpec{Name: "api", Image: "api:1"}
+
+	event, timestamp, ok := parsePodLogLine("2026-06-18T10:00:00Z started password=secret", p, spec, 1024)
+	if !ok {
+		t.Fatalf("expected log parsed")
+	}
+	if timestamp != "2026-06-18T10:00:00Z" || event["timestamp_utc"] != timestamp {
+		t.Fatalf("expected timestamp preserved, got event=%#v timestamp=%q", event, timestamp)
+	}
+	if event["namespace"] != "prod" || event["pod"] != "api-123" || event["container"] != "api" || event["node_name"] != "node-a" {
+		t.Fatalf("expected Kubernetes tags, got %#v", event)
+	}
+	if strings.Contains(event["message"].(string), "secret") || event["redaction_status"] != "redacted" {
+		t.Fatalf("expected redacted message, got %#v", event)
+	}
+}
+
+func TestReadPodLogStreamUpdatesCursor(t *testing.T) {
+	p := pod{}
+	p.Metadata.Name = "api-123"
+	p.Metadata.Namespace = "prod"
+	spec := containerSpec{Name: "api", Image: "api:1"}
+	cursor := map[string]string{}
+	key := podLogCursorKey(p, spec)
+
+	events, dropped := readPodLogStream(strings.NewReader("2026-06-18T10:00:00Z first\n2026-06-18T10:00:01Z second\n"), p, spec, cursor, key, 10, 1024)
+	if dropped != 0 || len(events) != 2 {
+		t.Fatalf("expected two events, got events=%#v dropped=%d", events, dropped)
+	}
+	if cursor[key] != "2026-06-18T10:00:01Z" {
+		t.Fatalf("expected latest cursor timestamp, got %q", cursor[key])
+	}
+}
+
+func TestMatchesLogFilterByNamespacePodContainerImageAndLabels(t *testing.T) {
+	p := pod{}
+	p.Metadata.Name = "api-123"
+	p.Metadata.Namespace = "prod"
+	p.Metadata.Labels = map[string]string{"app": "api", "tier": "backend"}
+	p.Spec.NodeName = "node-a"
+	spec := containerSpec{Name: "api", Image: "api:1"}
+
+	if !matchesLogFilter(p, spec, compileRegex("prod|backend|api:1"), nil) {
+		t.Fatalf("expected include filter to match")
+	}
+	if matchesLogFilter(p, spec, nil, compileRegex("node-a|backend")) {
+		t.Fatalf("expected exclude filter to reject")
 	}
 }

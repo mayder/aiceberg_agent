@@ -334,6 +334,43 @@ func TestApplyConfigPayloadAppliesContainerLogSettings(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadAppliesKubernetesLogSettings(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	logsEnabled := true
+	payload := ConfigPayload{
+		Version: "cfg-kubernetes-logs",
+		Collect: config.CollectPrefs{
+			KubernetesEnabled: true,
+		},
+	}
+	payload.Kubernetes.LogsEnabled = &logsEnabled
+	payload.Kubernetes.LogsCursorPath = "/var/lib/aiceberg/kubernetes_logs.cursor"
+	payload.Kubernetes.LogsMaxLines = 75
+	payload.Kubernetes.LogsMaxBytes = 8192
+	payload.Kubernetes.LogsIncludeRegex = "prod|backend"
+	payload.Kubernetes.LogsExcludeRegex = "secret|debug"
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if !got.KubernetesLogsEnabled || got.KubernetesLogsCursorPath != "/var/lib/aiceberg/kubernetes_logs.cursor" {
+		t.Fatalf("expected Kubernetes log enable/cursor persisted, got enabled=%v cursor=%q", got.KubernetesLogsEnabled, got.KubernetesLogsCursorPath)
+	}
+	if got.KubernetesLogsMaxLines != 75 || got.KubernetesLogsMaxBytes != 8192 {
+		t.Fatalf("expected Kubernetes log limits persisted, got lines=%d bytes=%d", got.KubernetesLogsMaxLines, got.KubernetesLogsMaxBytes)
+	}
+	if got.KubernetesLogsIncludeRegex != "prod|backend" || got.KubernetesLogsExcludeRegex != "secret|debug" {
+		t.Fatalf("expected Kubernetes log filters persisted, got include=%q exclude=%q", got.KubernetesLogsIncludeRegex, got.KubernetesLogsExcludeRegex)
+	}
+}
+
 func TestApplyConfigPayloadWithSecurityRequiresSignatureForSensitivePayload(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}
