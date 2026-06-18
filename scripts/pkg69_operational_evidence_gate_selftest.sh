@@ -55,6 +55,7 @@ fill_template() {
      s/- hub -> AIceberg confirmado: selftest/- hub -> AIceberg confirmado: yes/g;
      s/- relay -> hub -> AIceberg confirmado: selftest/- relay -> hub -> AIceberg confirmado: yes/g;
      s/- relay sem conexao direta com API AIceberg: selftest/- relay sem conexao direta com API AIceberg: yes/g;
+     s/- agentless via Hub quando aplicavel: selftest/- agentless via Hub quando aplicavel: yes/g;
      s/- direct_ingested: selftest/- direct_ingested: yes/g;
      s/- hub_ingested: selftest/- hub_ingested: yes/g;
      s/- relay_ingested_via_hub: selftest/- relay_ingested_via_hub: yes/g;
@@ -115,6 +116,10 @@ perl -0pi -e 's/- relay_direct_api_attempts: 0/- relay_direct_api_attempts: 1/' 
 cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-direct-api-text.md"
 fill_template "$TMP_DIR/relay-direct-api-text.md" "pass"
 perl -0pi -e 's/- relay sem conexao direta com API AIceberg: yes/- relay sem conexao direta com API AIceberg: no/' "$TMP_DIR/relay-direct-api-text.md"
+
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-agentless-not-via-hub.md"
+fill_template "$TMP_DIR/relay-agentless-not-via-hub.md" "pass"
+perl -0pi -e 's/- agentless via Hub quando aplicavel: yes/- agentless via Hub quando aplicavel: no/' "$TMP_DIR/relay-agentless-not-via-hub.md"
 
 cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-no-approval.md"
 fill_template "$TMP_DIR/relay-no-approval.md" "pass"
@@ -212,6 +217,12 @@ PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-direct-api-text.md" \
 scripts/pkg69_operational_evidence_gate.sh >/dev/null
 assert_contains "$TMP_DIR/relay-direct-api-text.md.out" "relay-hub-direct-hosts: invalid-template"
 assert_contains "$TMP_DIR/relay-direct-api-text.md.out" "reason=field relay sem conexao direta com API AIceberg must be yes, true or sim"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/relay-agentless-not-via-hub.md.out" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-agentless-not-via-hub.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/relay-agentless-not-via-hub.md.out" "relay-hub-direct-hosts: invalid-template"
+assert_contains "$TMP_DIR/relay-agentless-not-via-hub.md.out" "reason=field agentless via Hub quando aplicavel must be yes, true or sim"
 
 PKG69_EVIDENCE_FILE="$TMP_DIR/relay-missing-artifact.md.out" \
 PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-missing-artifact.md" \

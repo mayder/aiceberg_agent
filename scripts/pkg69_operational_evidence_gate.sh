@@ -282,6 +282,7 @@ scenario_incomplete_reason() {
       if reason="$(require_bool_field "$path" "hub -> AIceberg confirmado")"; then echo "$reason"; return 0; fi
       if reason="$(require_bool_field "$path" "relay -> hub -> AIceberg confirmado")"; then echo "$reason"; return 0; fi
       if reason="$(require_bool_field "$path" "relay sem conexao direta com API AIceberg")"; then echo "$reason"; return 0; fi
+      if reason="$(require_bool_field "$path" "agentless via Hub quando aplicavel")"; then echo "$reason"; return 0; fi
       if reason="$(require_bool_field "$path" "direct_ingested")"; then echo "$reason"; return 0; fi
       if reason="$(require_bool_field "$path" "hub_ingested")"; then echo "$reason"; return 0; fi
       if reason="$(require_bool_field "$path" "relay_ingested_via_hub")"; then echo "$reason"; return 0; fi
