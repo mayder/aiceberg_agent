@@ -167,6 +167,32 @@ func TestApplyConfigPayload_QueuesPolicyBeforeSelfUpdate(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadAppliesLogLocalTransportAddresses(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	payload := ConfigPayload{
+		Version: "cfg-logs-local",
+		Collect: config.CollectPrefs{
+			OSLogFiles: true,
+		},
+	}
+	payload.Logs.UDPAddr = "127.0.0.1:1514"
+	payload.Logs.TCPAddr = "127.0.0.1:1515"
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if got.OSLogUDPAddr != "127.0.0.1:1514" || got.OSLogTCPAddr != "127.0.0.1:1515" {
+		t.Fatalf("expected local log addresses persisted, got udp=%q tcp=%q", got.OSLogUDPAddr, got.OSLogTCPAddr)
+	}
+}
+
 func TestApplyConfigPayloadWithSecurityRequiresSignatureForSensitivePayload(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}

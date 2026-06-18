@@ -34,6 +34,7 @@ type collector struct {
 	include     string
 	exclude     string
 	minSeverity string
+	local       *localReceiver
 }
 
 func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -55,6 +56,7 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 		include:     cfg.OSLogIncludeRegex,
 		exclude:     cfg.OSLogExcludeRegex,
 		minSeverity: cfg.OSLogMinSeverity,
+		local:       newLocalReceiver(cfg.OSLogUDPAddr, cfg.OSLogTCPAddr, cfg.OSLogBatchLines, cfg.OSLogMaxBytes),
 	}
 }
 
@@ -113,6 +115,9 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	if p.OSLogMinSeverity != "" {
 		c.minSeverity = p.OSLogMinSeverity
 	}
+	if p.OSLogUDPAddr != "" || p.OSLogTCPAddr != "" {
+		c.ensureLocalReceiver(p.OSLogUDPAddr, p.OSLogTCPAddr)
+	}
 	if len(p.OSLogFilesList) > 0 {
 		c.files = p.OSLogFilesList
 	}
@@ -123,25 +128,37 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		c.maxBytes = p.OSLogMaxBytes
 	}
 
-	if len(c.files) == 0 {
+	if len(c.files) == 0 && c.local == nil {
 		return nil, nil
 	}
 	hostname, _ := os.Hostname()
 	c.errors = c.errors[:0]
 	var events []logEvent
 	droppedCount := 0
-	for _, path := range c.files {
-		evs := c.readFile(path, hostname)
-		for _, ev := range evs {
-			if shouldDropLogEvent(ev, c.include, c.exclude, c.minSeverity) {
-				droppedCount++
-				continue
+	if len(c.files) > 0 {
+		for _, path := range c.files {
+			evs := c.readFile(path, hostname)
+			for _, ev := range evs {
+				if shouldDropLogEvent(ev, c.include, c.exclude, c.minSeverity) {
+					droppedCount++
+					continue
+				}
+				events = append(events, ev)
+				if len(events) >= c.batchLines {
+					break
+				}
 			}
-			events = append(events, ev)
 			if len(events) >= c.batchLines {
 				break
 			}
 		}
+	}
+	for _, ev := range c.readLocal(hostname) {
+		if shouldDropLogEvent(ev, c.include, c.exclude, c.minSeverity) {
+			droppedCount++
+			continue
+		}
+		events = append(events, ev)
 		if len(events) >= c.batchLines {
 			break
 		}
@@ -157,6 +174,29 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	}
 	_ = saveCursor(c.cursorPath, c.cursor)
 	return json.Marshal(payload{Events: events, DroppedCount: droppedCount})
+}
+
+func (c *collector) ensureLocalReceiver(udpAddr, tcpAddr string) {
+	if c.local != nil && c.local.matches(udpAddr, tcpAddr) {
+		return
+	}
+	if c.local != nil {
+		c.local.Close()
+	}
+	c.local = newLocalReceiver(udpAddr, tcpAddr, c.batchLines, c.maxBytes)
+}
+
+func (c *collector) readLocal(hostname string) []logEvent {
+	if c.local == nil {
+		return nil
+	}
+	items, warnings := c.local.Drain(c.batchLines)
+	c.errors = append(c.errors, warnings...)
+	events := make([]logEvent, 0, len(items))
+	for _, item := range items {
+		events = append(events, c.buildLocalEvent(hostname, item))
+	}
+	return events
 }
 
 func (c *collector) readFile(path, hostname string) []logEvent {
@@ -254,6 +294,41 @@ func (c *collector) buildEvent(path, hostname, line string) logEvent {
 		Transport:       "agent_file",
 		SourceTool:      "linux_syslog",
 		SourceCategory:  sourceCategoryForUnix(path, facility),
+	}
+}
+
+func (c *collector) buildLocalEvent(hostname string, item localLogEntry) logEvent {
+	msg := item.Message
+	if len(msg) > c.maxBytes {
+		msg = msg[:c.maxBytes]
+	}
+	attributes := jsonAttributes(msg)
+	msg, redactionStatus := redactMessage(msg)
+	category := ""
+	if c.detect {
+		category = detectUnixCategory(msg)
+	}
+	now := item.ReceivedAt.UTC().Format(time.RFC3339Nano)
+	if now == "" {
+		now = time.Now().UTC().Format(time.RFC3339Nano)
+	}
+	sourceTool := "local_" + item.Transport
+	sourcePath := "local://" + item.Transport
+	return logEvent{
+		SchemaVersion:   logSchemaVersion,
+		Timestamp:       now,
+		TimestampUTC:    now,
+		Source:          hostname,
+		Host:            hostname,
+		File:            sourcePath,
+		Path:            sourcePath,
+		Message:         msg,
+		Category:        category,
+		Attributes:      attributes,
+		RedactionStatus: redactionStatus,
+		Transport:       "agent_" + item.Transport,
+		SourceTool:      sourceTool,
+		SourceCategory:  "log",
 	}
 }
 

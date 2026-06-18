@@ -134,8 +134,10 @@ Configuracoes locais:
 - `OSLOG_INCLUDE_REGEX`;
 - `OSLOG_EXCLUDE_REGEX`;
 - `OSLOG_MIN_SEVERITY`.
+- `OSLOG_UDP_ADDR` e `OSLOG_TCP_ADDR` para listeners locais opcionais em POSIX.
 
 Config remota equivalente em `logs.include_regex`, `logs.exclude_regex` e `logs.min_severity`.
+Listeners locais tambem podem ser enviados como `logs.udp_addr` e `logs.tcp_addr`.
 
 Rollback: desligar logs por `OSLOG_ENABLED=false` ou remover flags remotas `OSLogFiles`/`OSLogWinChannels`. Se a regressao for no binario, publicar a versao anterior.
 

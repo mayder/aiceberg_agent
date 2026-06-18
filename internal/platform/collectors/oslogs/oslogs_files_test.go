@@ -6,6 +6,8 @@ package oslogs
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,6 +41,90 @@ func TestCollectorCollectDisabled(t *testing.T) {
 	}
 	if data != nil {
 		t.Fatalf("expected nil data when disabled")
+	}
+}
+
+func TestCollectorCollectsLocalUDPAndTCPLogs(t *testing.T) {
+	cfg := config.Config{
+		OSLogFiles:      []string{filepath.Join(t.TempDir(), "missing.log")},
+		OSLogCursorPath: filepath.Join(t.TempDir(), "cursor.json"),
+		OSLogBatchLines: 10,
+		OSLogMaxBytes:   512,
+		OSLogInterval:   time.Second,
+		OSLogUDPAddr:    "127.0.0.1:0",
+		OSLogTCPAddr:    "127.0.0.1:0",
+	}
+	prefs := func() config.CollectPrefs {
+		return config.CollectPrefs{OSLogFiles: true}
+	}
+	c := New(cfg, prefs)
+	collector, ok := c.(*collector)
+	if !ok || collector.local == nil {
+		t.Fatalf("expected local receiver")
+	}
+	defer collector.local.Close()
+
+	udpConn, err := net.Dial("udp", collector.local.udpLocalAddr())
+	if err != nil {
+		t.Fatalf("dial udp: %v", err)
+	}
+	if _, err := fmt.Fprintln(udpConn, "udp auth token=secret"); err != nil {
+		t.Fatalf("write udp: %v", err)
+	}
+	_ = udpConn.Close()
+
+	tcpConn, err := net.Dial("tcp", collector.local.tcpLocalAddr())
+	if err != nil {
+		t.Fatalf("dial tcp: %v", err)
+	}
+	if _, err := fmt.Fprintln(tcpConn, `{"level":"info","message":"tcp ok","password":"secret"}`); err != nil {
+		t.Fatalf("write tcp: %v", err)
+	}
+	_ = tcpConn.Close()
+
+	transports := map[string]bool{}
+	var payload struct {
+		Events []map[string]any `json:"events"`
+	}
+	for i := 0; i < 20; i++ {
+		data, err := c.Collect(context.Background())
+		if err != nil {
+			t.Fatalf("collect: %v", err)
+		}
+		if len(data) > 0 {
+			var current struct {
+				Events []map[string]any `json:"events"`
+			}
+			if err := json.Unmarshal(data, &current); err != nil {
+				t.Fatalf("invalid payload: %v", err)
+			}
+			payload.Events = append(payload.Events, current.Events...)
+			for _, event := range current.Events {
+				transport, _ := event["transport"].(string)
+				transports[transport] = true
+			}
+			if transports["agent_udp"] && transports["agent_tcp"] {
+				break
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if len(payload.Events) < 2 {
+		t.Fatalf("expected udp and tcp events, got %#v", payload.Events)
+	}
+	for _, event := range payload.Events {
+		transport, _ := event["transport"].(string)
+		transports[transport] = true
+		msg, _ := event["message"].(string)
+		if strings.Contains(msg, "secret") {
+			t.Fatalf("local log leaked secret: %q", msg)
+		}
+		if event["source_category"] != "log" {
+			t.Fatalf("expected source_category log, got %#v", event)
+		}
+	}
+	if !transports["agent_udp"] || !transports["agent_tcp"] {
+		t.Fatalf("expected agent_udp and agent_tcp transports, got %#v", transports)
 	}
 }
 

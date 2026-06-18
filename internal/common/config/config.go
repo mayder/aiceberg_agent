@@ -72,6 +72,8 @@ type Config struct {
 	OSLogIncludeRegex                  string
 	OSLogExcludeRegex                  string
 	OSLogMinSeverity                   string
+	OSLogUDPAddr                       string
+	OSLogTCPAddr                       string
 	CustomMetricsEnabled               bool
 	CustomMetricsUDPAddr               string
 	CustomMetricsHTTPAddr              string
@@ -173,6 +175,8 @@ type CollectPrefs struct {
 	OSLogIncludeRegex          string             `json:"oslog_include_regex,omitempty"`
 	OSLogExcludeRegex          string             `json:"oslog_exclude_regex,omitempty"`
 	OSLogMinSeverity           string             `json:"oslog_min_severity,omitempty"`
+	OSLogUDPAddr               string             `json:"oslog_udp_addr,omitempty"`
+	OSLogTCPAddr               string             `json:"oslog_tcp_addr,omitempty"`
 	CustomMetricsEnabled       bool               `json:"custom_metrics_enabled,omitempty"`
 	CustomMetricsUDPAddr       string             `json:"custom_metrics_udp_addr,omitempty"`
 	CustomMetricsHTTPAddr      string             `json:"custom_metrics_http_addr,omitempty"`
@@ -287,6 +291,8 @@ func Load(configPath string) (Config, error) {
 		OSLogIncludeRegex:                  getenv("OSLOG_INCLUDE_REGEX", ""),
 		OSLogExcludeRegex:                  getenv("OSLOG_EXCLUDE_REGEX", ""),
 		OSLogMinSeverity:                   getenv("OSLOG_MIN_SEVERITY", ""),
+		OSLogUDPAddr:                       getenv("OSLOG_UDP_ADDR", ""),
+		OSLogTCPAddr:                       getenv("OSLOG_TCP_ADDR", ""),
 		CustomMetricsEnabled:               strings.ToLower(getenv("CUSTOM_METRICS_ENABLED", "")) == "true",
 		CustomMetricsUDPAddr:               getenv("CUSTOM_METRICS_UDP_ADDR", "127.0.0.1:8125"),
 		CustomMetricsHTTPAddr:              getenv("CUSTOM_METRICS_HTTP_ADDR", "127.0.0.1:8126"),
