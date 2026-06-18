@@ -37,6 +37,8 @@ command -v powershell.exe >/dev/null 2>&1 || command -v pwsh >/dev/null 2>&1 \
 section "focused validation"
 go test ./internal/common/config ./internal/domain/usecase ./internal/data/local/outbox ./internal/bootstrap ./internal/platform/collectors/oslogs ./internal/platform/collectors/custommetrics ./internal/platform/collectors/otlp ./internal/platform/collectors/containers ./internal/platform/collectors/kubernetes ./internal/platform/collectors/localchecks >/tmp/aiceberg_pkg69_go_test.log
 result "go-test-focused" "pass" "log=/tmp/aiceberg_pkg69_go_test.log"
+go test ./internal/domain/usecase -run 'TestSelfUpdate_(VerifiesTrustedArtifactSignature|RejectsInvalidTrustedArtifactSignature)' >/tmp/aiceberg_pkg69_artifact_trust_test.log
+result "artifact-trust-local" "pass" "Ed25519 aceita assinatura valida e rejeita assinatura invalida antes do apply; log=/tmp/aiceberg_pkg69_artifact_trust_test.log"
 result "api-unavailable-local" "pass" "flush_outbox tests preserve pending envelopes on transport/API error"
 result "network-intermittent-local" "pass" "flush_outbox tests backoff and later retry behavior"
 result "payload-large-local" "pass" "collectors enforce max bytes/items in focused tests"

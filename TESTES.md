@@ -467,7 +467,7 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 ### PKG-69 - Matriz operacional
 
 - Local reproduzivel: `scripts/pkg69_operational_homologation.sh`.
-- Cobertura local: readiness de ferramentas, testes focados dos pacotes PKG-59 a PKG-68 e `./check.sh`.
+- Cobertura local: readiness de ferramentas, testes focados dos pacotes PKG-59 a PKG-68, cadeia Ed25519 de artefato de update e `./check.sh`.
 - Fechamento real exige executar matriz em Windows Server, Windows desktop, Linux Debian/RHEL, Docker e Kubernetes controlado.
 
 ## Politica minima de testes

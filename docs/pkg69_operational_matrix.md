@@ -14,13 +14,14 @@ O script de homologacao executa:
 
 - deteccao de Docker, kubectl, Helm e PowerShell;
 - testes focados dos coletores e contratos adicionados em PKG-59 a PKG-68;
+- validacao local da cadeia Ed25519 de artefato de update, aceitando assinatura valida e rejeitando assinatura invalida antes do `apply`;
 - cenarios locais automatizados de API indisponivel, backoff, payload grande e outbox cheia;
 - `./check.sh`;
 - listagem explicita de cenarios pendentes de ambiente real.
 
 Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 
-- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
+- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
 - Docker daemon indisponivel no host local;
 - `kubectl` disponivel, mas sem validacao de cluster/DaemonSet/Helm;
 - Helm e PowerShell indisponiveis neste host;
@@ -86,7 +87,7 @@ Hashes 0.8.8:
 | Payload grande | limite/queda controlada em DogStatsD, OTLP e logs | parcial local |
 | Clock errado | health/time sync com diagnostico | pendente |
 | Reboot durante coleta | servico retorna e outbox preserva dados | pendente |
-| Update quebrado | `update-report` com falha e rollback seguro | pendente |
+| Update quebrado | `update-report` com falha e rollback seguro | pendente; cadeia Ed25519 validada localmente antes do apply |
 | Permissao insuficiente | degradacao com status claro | pendente |
 | Kubernetes RBAC minimo | sem permissao a secrets/exec/delete | pendente |
 | Alto volume simultaneo | CPU/memoria dentro do limite definido | pendente |
@@ -110,5 +111,5 @@ PKG-69 so pode ser fechado quando:
 - cenarios marcados como `parcial local` forem reexecutados em ambiente real quando dependerem de SO/rede/disco/carga;
 - `./check.sh` passar no `aiceberg_agent` e no `aiceberg_web`;
 - artefatos oficiais forem gerados com SHA256;
-- download/update remoto controlado for testado;
+- download/update remoto controlado for testado com artefato assinado;
 - matriz web `docs/agente_datadog_paridade.md` refletir validado vs pendente.
