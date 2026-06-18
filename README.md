@@ -223,6 +223,8 @@ Para Kubernetes, use o manifest `deploy/kubernetes/aiceberg-agent.yaml` ou o cha
 
 Para checks locais extensíveis, habilite `LOCAL_CHECKS_ENABLED=true` e configure `local_checks` remoto ou `LOCAL_CHECKS_JSON`. O runtime usa allowlist e nao executa shell generico; veja `docs/pkg66_local_checks.md`.
 
+Para operação de frota, `inspect_runtime_config` expõe `fleet_runtime` e o comando permitido `collect_support_flare` coleta evidência sanitizada para suporte; veja `docs/pkg67_fleet_rollout_flare.md`.
+
 Notas:
 - API de produção é o padrão (`https://api.aiceberg.com.br`) e o agente junta `/v1/...` sozinho; use `API_BASE_URL` apenas para apontar para ambientes de teste.
 - Bootstrap (`POST /v1/agent/bootstrap`) já envia `versao_agente` com `internal/common/version.Version`, então a API acompanha qual versão do agente cada host executa.

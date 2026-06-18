@@ -421,6 +421,12 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 - Cobertura local: HTTP, TCP, OpenMetrics, tipo nao permitido, timeout por contexto e redaction de credenciais.
 - Validacao real pendente para PKG-69/PKG-71: apps reais, bancos reais, JMX real, IIS/WMI real e ponte automatica com autodiscovery Kubernetes.
 
+### PKG-67 - Fleet, rollout e flare
+
+- Unitario focado: `go test ./internal/domain/channel ./internal/domain/usecase ./internal/bootstrap`.
+- Cobertura local: comando `collect_support_flare` na allowlist, redaction recursiva e `fleet_runtime` no snapshot.
+- Validacao real pendente para PKG-69: rollout canario com agentes em versoes diferentes, rollback por artefato anterior e bundle de suporte em host real.
+
 ## Politica minima de testes
 
 - Unitário: validar regra de negocio, casos de erro e limites sem depender de rede, banco real ou UI.

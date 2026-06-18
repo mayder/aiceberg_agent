@@ -222,6 +222,25 @@ Tipos permitidos: `http`, `tcp`, `openmetrics`, `jmx`, `postgresql`, `mysql`, `r
 
 Rollback: definir `LOCAL_CHECKS_ENABLED=false` ou config remota `local_checks.enabled=false`. Nao ha SQL do PKG-66.
 
+### PKG-67 - Fleet, rollout e flare seguro
+
+Contrato tecnico: `docs/pkg67_fleet_rollout_flare.md`.
+
+Diagnostico:
+
+- `inspect_runtime_config` mostra `fleet_runtime`;
+- `collect_support_flare` coleta evidencias sanitizadas;
+- acompanhar update remoto por `/v1/agent/update-report`.
+
+Politica operacional:
+
+- rollout global exige canario;
+- update precisa `version`, `url` e `sha256`;
+- rollback usa artefato anterior conhecido e acompanha `version_confirmed`;
+- flare nao pode conter token, secret, password, authorization ou cookie.
+
+Rollback: desabilitar auto-update remoto e o comando `collect_support_flare` no backend. Nao ha SQL do PKG-67.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.

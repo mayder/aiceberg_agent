@@ -130,6 +130,17 @@ Referências:
 - Impacto em rollback: desligar `LOCAL_CHECKS_ENABLED` ou config remota `local_checks.enabled=false`.
 - Como reverter: remover coletor `localchecks` do scheduler.
 
+### DEC-20260618-09 - Fleet usa snapshot sanitizado e flare sem shell
+
+- Status: aceita
+- Contexto: PKG-67 precisa apoiar operacao de frota, rollout e diagnostico sem coletar segredo nem abrir execucao remota generica.
+- Decisao: expor `fleet_runtime` no snapshot sanitizado com versao, modo, config hash, drift basico e estado de rollback; adicionar comando permitido `collect_support_flare` com redaction recursiva.
+- Alternativas consideradas: coletar arquivos arbitrarios por comando remoto ou criar um agente de frota separado.
+- Consequencias: o backend pode montar visao de frota e canario usando evidencias existentes; coleta profunda de bundle fica restrita a allowlist e pode evoluir incrementalmente.
+- Impacto em testes: unitarios cobrem redaction do flare e allowlist do comando.
+- Impacto em rollback: remover comando da allowlist ou desabilitar no backend.
+- Como reverter: remover `collect_support_flare` e `fleet_runtime` do snapshot.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

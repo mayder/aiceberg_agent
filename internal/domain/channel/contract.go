@@ -41,6 +41,7 @@ const (
 	CommandValidateAPIConnectivity = "validate_api_connectivity"
 	CommandResyncClock             = "resync_clock"
 	CommandInspectRuntimeConfig    = "inspect_runtime_config"
+	CommandCollectSupportFlare     = "collect_support_flare"
 )
 
 var LegacyHTTPContracts = map[string][]string{
@@ -136,6 +137,7 @@ func AllowedCommandCodes() map[string]struct{} {
 		CommandValidateAPIConnectivity: {},
 		CommandResyncClock:             {},
 		CommandInspectRuntimeConfig:    {},
+		CommandCollectSupportFlare:     {},
 	}
 }
 

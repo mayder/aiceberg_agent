@@ -3,6 +3,7 @@ package app
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/common/version"
 	agentruntime "github.com/you/aiceberg_agent/internal/domain/runtime"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
 	bolt "go.etcd.io/bbolt"
@@ -55,11 +57,42 @@ func buildSelfHealRuntimeSnapshot(
 		},
 	}
 	out["agent_env"] = buildAgentEnvSnapshot(cfg)
+	out["fleet_runtime"] = buildFleetRuntimeSnapshot(cfg, mode, prefs)
 	out["scheduler_snapshot"] = agentruntime.SchedulerSnapshotForCollectors(runtimeCollectorSpecs(cfg))
 	if selfUpdateUC != nil {
 		out["auto_update_runtime"] = selfUpdateUC.Snapshot()
 	}
 	return out
+}
+
+func buildFleetRuntimeSnapshot(cfg config.Config, mode string, prefs config.CollectPrefs) map[string]any {
+	prefsSnapshot := sanitizePrefsSnapshot(prefs)
+	configHash := hashMap(prefsSnapshot)
+	driftStatus := "unknown"
+	if strings.TrimSpace(prefs.Version) != "" {
+		driftStatus = "applied"
+	}
+	return map[string]any{
+		"agent_version":        strings.TrimSpace(version.Version),
+		"goos":                 runtime.GOOS,
+		"goarch":               runtime.GOARCH,
+		"mode":                 strings.TrimSpace(mode),
+		"config_version":       strings.TrimSpace(prefs.Version),
+		"config_hash":          configHash,
+		"config_drift_status":  driftStatus,
+		"auto_update_enabled":  cfg.AutoUpdateEnabled,
+		"rollback_state":       inspectLocalStateEntry(filepath.Join(cfg.AutoUpdateDir, ".pending_update.json"), true),
+		"last_snapshot_source": "runtime",
+	}
+}
+
+func hashMap(value map[string]any) string {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
 }
 
 func runtimeCollectorSpecs(cfg config.Config) []agentruntime.CollectorSpec {

@@ -30,6 +30,7 @@ type SelfHealDeps struct {
 	ClearAgentlessLock  func()
 	HasAgentlessWorker  func() bool
 	RuntimeSnapshot     func() map[string]any
+	SupportFlare        func(context.Context) (map[string]any, error)
 }
 
 type SelfHealExecutor struct {
@@ -210,6 +211,19 @@ func (uc *SelfHealExecutor) executeCode(ctx context.Context, cmd entities.SelfHe
 		return "runtime configuration snapshot collected", uc.withRuntimeEvidence(map[string]any{
 			"snapshot_source": "selfheal.inspect_runtime_config",
 		}), nil
+	case "collect_support_flare":
+		evidence := uc.withRuntimeEvidence(map[string]any{
+			"snapshot_source": "selfheal.collect_support_flare",
+			"flare_kind":      "support",
+		})
+		if uc.deps.SupportFlare != nil {
+			flare, err := uc.deps.SupportFlare(ctx)
+			if err != nil {
+				return "support flare collection failed", sanitizeEvidence(evidence), err
+			}
+			evidence["flare"] = flare
+		}
+		return "support flare collected", sanitizeEvidence(evidence), nil
 	default:
 		return "unsupported self-healing command", map[string]any{"command_code": code}, fmt.Errorf("unsupported command: %s", code)
 	}
@@ -227,6 +241,60 @@ func (uc *SelfHealExecutor) withRuntimeEvidence(base map[string]any) map[string]
 	for k, v := range snapshot {
 		if _, exists := out[k]; !exists {
 			out[k] = v
+		}
+	}
+	return out
+}
+
+func sanitizeEvidence(value map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range value {
+		out[k] = sanitizeAny(k, v)
+	}
+	return out
+}
+
+func sanitizeAny(key string, value any) any {
+	lowerKey := strings.ToLower(key)
+	if strings.Contains(lowerKey, "token") ||
+		strings.Contains(lowerKey, "secret") ||
+		strings.Contains(lowerKey, "password") ||
+		strings.Contains(lowerKey, "authorization") ||
+		strings.Contains(lowerKey, "cookie") {
+		return "[redacted]"
+	}
+	switch typed := value.(type) {
+	case map[string]any:
+		return sanitizeEvidence(typed)
+	case []any:
+		out := make([]any, 0, len(typed))
+		for _, item := range typed {
+			out = append(out, sanitizeAny(key, item))
+		}
+		return out
+	case string:
+		return redactSupportString(typed)
+	default:
+		return value
+	}
+}
+
+func redactSupportString(value string) string {
+	out := value
+	for _, marker := range []string{"token=", "secret=", "password=", "authorization=", "cookie="} {
+		lower := strings.ToLower(out)
+		if idx := strings.Index(lower, marker); idx >= 0 {
+			end := idx + len(marker)
+			if marker == "authorization=" || marker == "cookie=" {
+				for end < len(out) && out[end] != '&' && out[end] != '\n' {
+					end++
+				}
+			} else {
+				for end < len(out) && out[end] != ' ' && out[end] != '&' && out[end] != '\n' {
+					end++
+				}
+			}
+			out = out[:idx+len(marker)] + "[redacted]" + out[end:]
 		}
 	}
 	return out

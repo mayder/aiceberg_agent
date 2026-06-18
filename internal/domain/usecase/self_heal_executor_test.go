@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
@@ -187,6 +188,48 @@ func TestSelfHealExecutorInspectRuntimeConfig(t *testing.T) {
 	}
 	if reporter.reports[2].Status != "success" {
 		t.Fatalf("expected final success report, got %s", reporter.reports[2].Status)
+	}
+}
+
+func TestSelfHealExecutorCollectSupportFlareRedactsSecrets(t *testing.T) {
+	log := logger.New("info")
+	t.Cleanup(func() { log.Sync() })
+	reporter := &fakeSelfHealReporter{}
+	exec := NewSelfHealExecutor(log, reporter, SelfHealDeps{
+		RuntimeSnapshot: func() map[string]any {
+			return map[string]any{
+				"fleet_runtime": map[string]any{"config_hash": "abc"},
+				"token":         "raw-token",
+			}
+		},
+		SupportFlare: func(context.Context) (map[string]any, error) {
+			return map[string]any{
+				"log": "authorization=Bearer abc token=123 ok",
+				"nested": map[string]any{
+					"api_secret": "secret-value",
+				},
+			}, nil
+		},
+	})
+
+	status, msg, evidence := exec.Execute(context.Background(), entities.SelfHealCommand{
+		CommandID: "cmd-flare",
+		Code:      "collect_support_flare",
+	})
+
+	if status != "success" {
+		t.Fatalf("expected success, got %s (%s)", status, msg)
+	}
+	if evidence["token"] != "[redacted]" {
+		t.Fatalf("expected token redacted, got %#v", evidence)
+	}
+	flare := evidence["flare"].(map[string]any)
+	if strings.Contains(flare["log"].(string), "abc") || strings.Contains(flare["log"].(string), "123") {
+		t.Fatalf("expected log redacted, got %#v", flare["log"])
+	}
+	nested := flare["nested"].(map[string]any)
+	if nested["api_secret"] != "[redacted]" {
+		t.Fatalf("expected nested secret redacted, got %#v", nested)
 	}
 }
 
