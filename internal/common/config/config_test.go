@@ -30,6 +30,16 @@ func TestLoadUsesAgentModeOverridePath(t *testing.T) {
 	}
 }
 
+func TestLoadBlocksTLSInsecureForProductionAPI(t *testing.T) {
+	t.Setenv("AGENT_TOKEN", "token")
+	t.Setenv("API_BASE_URL", "https://api.aiceberg.com.br")
+	t.Setenv("TLS_INSECURE_SKIP_VERIFY", "true")
+
+	if _, err := Load(""); err == nil {
+		t.Fatalf("expected TLS insecure blocked for production API")
+	}
+}
+
 func TestAgentIdentityClaimSignsDeclaredIdentityWithoutRawToken(t *testing.T) {
 	cfg := Config{
 		Agent:               AgentCfg{Token: "agent-token-secret"},

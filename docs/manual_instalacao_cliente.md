@@ -66,5 +66,6 @@ Depois edite `/etc/aiceberg/agent.env` para definir `AGENT_TOKEN` e demais vari�
 - Kubernetes: use `deploy/kubernetes/aiceberg-agent.yaml` ou o chart `deploy/helm/aiceberg-agent`. Crie antes o secret `aiceberg-agent` com a chave `token`. O RBAC padrao e somente leitura para nodes, pods e events.
 - Checks locais: habilite com `LOCAL_CHECKS_ENABLED=true` e envie `LOCAL_CHECKS_JSON` ou config remota `local_checks`. Tipos permitidos nao executam shell arbitrario.
 - Frota/suporte: o diagnóstico remoto pode usar `inspect_runtime_config` e `collect_support_flare`; ambos retornam dados sanitizados e não executam shell genérico.
+- Segurança: para config remota sensivel, configure `REMOTE_CONFIG_SIGNATURE_SECRET` e depois `REMOTE_CONFIG_SIGNATURE_REQUIRED=true`. `TLS_INSECURE_SKIP_VERIFY` deve ficar desligado em produção.
 - O token fica salvo localmente para sobrevivência a reboot/upgrade.
 - Em caso de bloqueio de rede, permitir tráfego HTTPS de saída para `api.aiceberg.com.br`. Log local: veja o diretório de dados/logs citado acima.

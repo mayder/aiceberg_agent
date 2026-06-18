@@ -153,11 +153,15 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore, commandChan)
 
 	var pendingCfg *hub.PendingConfigStore
-	onIngestConfig := func(auth string, cfg usecase.IngestConfig) {
-		if cfg.Payload == nil {
+	onIngestConfig := func(auth string, ingestCfg usecase.IngestConfig) {
+		if ingestCfg.Payload == nil {
 			return
 		}
-		version, applied, err := usecase.ApplyConfigPayload(log, prefStore, commandChan, *cfg.Payload)
+		version, applied, err := usecase.ApplyConfigPayloadWithSecurity(log, prefStore, commandChan, *ingestCfg.Payload, usecase.ConfigSecurityOptions{
+			SignatureSecret:        cfg.RemoteConfigSignatureSecret,
+			SignatureRequired:      cfg.RemoteConfigSignatureRequired,
+			AllowUnsignedSensitive: cfg.RemoteConfigAllowUnsignedSensitive,
+		})
 		if err != nil {
 			log.Error(logger.KV("ingest config persist failed",
 				"version", version,
@@ -173,14 +177,18 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	}
 	if mode == "hub" {
 		pendingCfg = hub.NewPendingConfigStore()
-		onIngestConfig = func(auth string, cfg usecase.IngestConfig) {
-			if len(cfg.Raw) > 0 && auth != authHeader {
-				pendingCfg.Set(auth, cfg.Raw)
+		onIngestConfig = func(auth string, ingestCfg usecase.IngestConfig) {
+			if len(ingestCfg.Raw) > 0 && auth != authHeader {
+				pendingCfg.Set(auth, ingestCfg.Raw)
 			}
-			if cfg.Payload == nil || auth != authHeader {
+			if ingestCfg.Payload == nil || auth != authHeader {
 				return
 			}
-			version, applied, err := usecase.ApplyConfigPayload(log, prefStore, commandChan, *cfg.Payload)
+			version, applied, err := usecase.ApplyConfigPayloadWithSecurity(log, prefStore, commandChan, *ingestCfg.Payload, usecase.ConfigSecurityOptions{
+				SignatureSecret:        cfg.RemoteConfigSignatureSecret,
+				SignatureRequired:      cfg.RemoteConfigSignatureRequired,
+				AllowUnsignedSensitive: cfg.RemoteConfigAllowUnsignedSensitive,
+			})
 			if err != nil {
 				log.Error(logger.KV("ingest config persist failed",
 					"version", version,
@@ -950,6 +958,24 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				}
 			case "self_update_policy":
 				selfUpdateUC.ApplyRemoteConfig(cmd.AutoUpdate)
+			case "rotate_agent_token":
+				if cmd.TokenRotation == nil || strings.TrimSpace(cmd.TokenRotation.NewToken) == "" {
+					reportWorkerError(ctx, "agent_token_rotation_failed", "error", "open", errors.New("missing token rotation payload"), map[string]any{
+						"source": "config",
+					})
+					break
+				}
+				if err := persistToken(strings.TrimSpace(cmd.TokenRotation.NewToken)); err != nil {
+					reportWorkerError(ctx, "agent_token_rotation_failed", "error", "open", err, map[string]any{
+						"source": "config",
+					})
+					break
+				}
+				log.Info(logger.KV("agent token rotated",
+					"source", "config",
+					"previous_expires_at", strings.TrimSpace(cmd.TokenRotation.PreviousExpiresAt),
+					"reason", strings.TrimSpace(cmd.TokenRotation.Reason),
+				))
 			}
 		case <-readTick(tOsCollect):
 			if osLogCollectUC != nil {

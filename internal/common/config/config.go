@@ -32,93 +32,97 @@ type LocalCheckConfig struct {
 }
 
 type Config struct {
-	Agent                    AgentCfg
-	APIBaseURL               string
-	APIKey                   string
-	HTTPGzip                 bool
-	HTTPIdempotency          bool
-	IngestTimeout            time.Duration
-	OutboxFlushBatch         int
-	OutboxFlushInterval      time.Duration
-	TLSInsecureSkip          bool
-	OutboxPath               string
-	OutboxMaxMB              int
-	OutboxMaxPerAgent        int
-	HealthPort               int
-	PingInterval             time.Duration
-	ConfigSyncInterval       time.Duration
-	ChannelHeartbeatInterval time.Duration
-	PrefsPath                string
-	AgentMode                string
-	AgentModeOverridePath    string
-	HubURL                   string
-	HubToken                 string
-	HubListenAddr            string
-	SkipBootstrap            bool
-	OSLogEnabled             bool
-	OSLogFiles               []string
-	OSLogCursorPath          string
-	OSLogBatchLines          int
-	OSLogMaxBytes            int
-	OSLogInterval            time.Duration
-	OSLogWinChannels         []string
-	OSLogEnrich              bool
-	OSLogDetections          bool
-	OSLogDiag                bool
-	OSLogIncludeRegex        string
-	OSLogExcludeRegex        string
-	OSLogMinSeverity         string
-	CustomMetricsEnabled     bool
-	CustomMetricsUDPAddr     string
-	CustomMetricsHTTPAddr    string
-	CustomMetricsInterval    time.Duration
-	CustomMetricsMaxSeries   int
-	CustomMetricsMaxBytes    int
-	OTLPEnabled              bool
-	OTLPHTTPAddr             string
-	OTLPInterval             time.Duration
-	OTLPMaxItems             int
-	OTLPMaxBytes             int
-	ContainerEnabled         bool
-	ContainerDockerSocket    string
-	ContainerInterval        time.Duration
-	ContainerMaxItems        int
-	KubernetesEnabled        bool
-	KubernetesAPIURL         string
-	KubernetesTokenPath      string
-	KubernetesCAPath         string
-	KubernetesNodeName       string
-	KubernetesNamespace      string
-	KubernetesInterval       time.Duration
-	KubernetesMaxItems       int
-	KubernetesMaxEvents      int
-	LocalChecksEnabled       bool
-	LocalChecksInterval      time.Duration
-	LocalChecksMaxChecks     int
-	LocalChecksMaxBytes      int
-	LocalChecks              []LocalCheckConfig
-	AgentlessEnabled         bool
-	AgentlessPollInterval    time.Duration
-	AgentlessFlushInterval   time.Duration
-	SelfHealPollInterval     time.Duration
-	AgentlessOutboxPath      string
-	AgentlessOutboxMaxMB     int
-	AgentlessJobsLimit       int
-	AgentlessLockSec         int
-	AgentlessFlushBatch      int
-	AgentlessDebug           bool
-	AutoUpdateEnabled        bool
-	AutoUpdateDir            string
-	AutoUpdateCommand        string
-	AutoUpdateWorkDir        string
-	AutoUpdateTimeout        time.Duration
-	AutoUpdateRetryInterval  time.Duration
-	AutoUpdateMaxMB          int
-	AutoUpdateUseAgentAuth   bool
-	AgentClientID            int
-	AgentID                  int
-	AgentInstallationID      string
-	AgentIdentitySecret      string
+	Agent                              AgentCfg
+	APIBaseURL                         string
+	APIKey                             string
+	HTTPGzip                           bool
+	HTTPIdempotency                    bool
+	IngestTimeout                      time.Duration
+	OutboxFlushBatch                   int
+	OutboxFlushInterval                time.Duration
+	TLSInsecureSkip                    bool
+	TLSInsecureAllowProd               bool
+	RemoteConfigSignatureSecret        string
+	RemoteConfigSignatureRequired      bool
+	RemoteConfigAllowUnsignedSensitive bool
+	OutboxPath                         string
+	OutboxMaxMB                        int
+	OutboxMaxPerAgent                  int
+	HealthPort                         int
+	PingInterval                       time.Duration
+	ConfigSyncInterval                 time.Duration
+	ChannelHeartbeatInterval           time.Duration
+	PrefsPath                          string
+	AgentMode                          string
+	AgentModeOverridePath              string
+	HubURL                             string
+	HubToken                           string
+	HubListenAddr                      string
+	SkipBootstrap                      bool
+	OSLogEnabled                       bool
+	OSLogFiles                         []string
+	OSLogCursorPath                    string
+	OSLogBatchLines                    int
+	OSLogMaxBytes                      int
+	OSLogInterval                      time.Duration
+	OSLogWinChannels                   []string
+	OSLogEnrich                        bool
+	OSLogDetections                    bool
+	OSLogDiag                          bool
+	OSLogIncludeRegex                  string
+	OSLogExcludeRegex                  string
+	OSLogMinSeverity                   string
+	CustomMetricsEnabled               bool
+	CustomMetricsUDPAddr               string
+	CustomMetricsHTTPAddr              string
+	CustomMetricsInterval              time.Duration
+	CustomMetricsMaxSeries             int
+	CustomMetricsMaxBytes              int
+	OTLPEnabled                        bool
+	OTLPHTTPAddr                       string
+	OTLPInterval                       time.Duration
+	OTLPMaxItems                       int
+	OTLPMaxBytes                       int
+	ContainerEnabled                   bool
+	ContainerDockerSocket              string
+	ContainerInterval                  time.Duration
+	ContainerMaxItems                  int
+	KubernetesEnabled                  bool
+	KubernetesAPIURL                   string
+	KubernetesTokenPath                string
+	KubernetesCAPath                   string
+	KubernetesNodeName                 string
+	KubernetesNamespace                string
+	KubernetesInterval                 time.Duration
+	KubernetesMaxItems                 int
+	KubernetesMaxEvents                int
+	LocalChecksEnabled                 bool
+	LocalChecksInterval                time.Duration
+	LocalChecksMaxChecks               int
+	LocalChecksMaxBytes                int
+	LocalChecks                        []LocalCheckConfig
+	AgentlessEnabled                   bool
+	AgentlessPollInterval              time.Duration
+	AgentlessFlushInterval             time.Duration
+	SelfHealPollInterval               time.Duration
+	AgentlessOutboxPath                string
+	AgentlessOutboxMaxMB               int
+	AgentlessJobsLimit                 int
+	AgentlessLockSec                   int
+	AgentlessFlushBatch                int
+	AgentlessDebug                     bool
+	AutoUpdateEnabled                  bool
+	AutoUpdateDir                      string
+	AutoUpdateCommand                  string
+	AutoUpdateWorkDir                  string
+	AutoUpdateTimeout                  time.Duration
+	AutoUpdateRetryInterval            time.Duration
+	AutoUpdateMaxMB                    int
+	AutoUpdateUseAgentAuth             bool
+	AgentClientID                      int
+	AgentID                            int
+	AgentInstallationID                string
+	AgentIdentitySecret                string
 }
 
 func parseLocalChecks(raw string) []LocalCheckConfig {
@@ -245,83 +249,87 @@ func Load(configPath string) (Config, error) {
 	autoUpdateTimeout := time.Duration(intEnv("AUTO_UPDATE_TIMEOUT", 300)) * time.Second
 	autoUpdateRetry := time.Duration(intEnv("AUTO_UPDATE_RETRY_INTERVAL", 1800)) * time.Second
 	cfg := Config{
-		Agent:                  AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
-		APIBaseURL:             getenv("API_BASE_URL", "https://api.aiceberg.com.br"),
-		APIKey:                 getenv("API_KEY", ""),
-		HTTPGzip:               strings.ToLower(getenv("HTTP_GZIP", "")) == "true",
-		HTTPIdempotency:        strings.ToLower(getenv("HTTP_IDEMPOTENCY", "true")) == "true",
-		OutboxFlushBatch:       intEnv("OUTBOX_FLUSH_BATCH", 50),
-		TLSInsecureSkip:        strings.ToLower(getenv("TLS_INSECURE_SKIP_VERIFY", "")) == "true",
-		OutboxPath:             getenv("OUTBOX_PATH", "./data/outbox.db"),
-		OutboxMaxMB:            intEnv("OUTBOX_MAX_MB", 200),
-		OutboxMaxPerAgent:      intEnv("OUTBOX_MAX_PER_AGENT", 0),
-		HealthPort:             port,
-		PrefsPath:              getenv("PREFS_PATH", "./data/collect_prefs.json"),
-		AgentMode:              strings.ToLower(getenv("AGENT_MODE", "direct")),
-		AgentModeOverridePath:  getenv("AGENT_MODE_OVERRIDE_PATH", ""),
-		HubURL:                 getenv("HUB_URL", ""),
-		HubToken:               getenv("HUB_TOKEN", ""),
-		HubListenAddr:          getenv("HUB_LISTEN_ADDR", ""),
-		SkipBootstrap:          strings.ToLower(getenv("SKIP_BOOTSTRAP", "")) == "true",
-		OSLogEnabled:           strings.ToLower(getenv("OSLOG_ENABLED", "")) == "true",
-		OSLogFiles:             splitCsv(getenv("OSLOG_FILES", "")),
-		OSLogCursorPath:        getenv("OSLOG_CURSOR_PATH", "./data/oslogs.cursor"),
-		OSLogBatchLines:        intEnv("OSLOG_BATCH_LINES", 200),
-		OSLogMaxBytes:          intEnv("OSLOG_MAX_BYTES", 256*1024),
-		OSLogInterval:          time.Duration(intEnv("OSLOG_INTERVAL", 15)) * time.Second,
-		OSLogWinChannels:       splitCsv(getenv("OSLOG_WIN_CHANNELS", "")),
-		OSLogEnrich:            strings.ToLower(getenv("OSLOG_ENRICH", "")) == "true",
-		OSLogDetections:        strings.ToLower(getenv("OSLOG_DETECTIONS", "")) == "true",
-		OSLogDiag:              strings.ToLower(getenv("OSLOG_DIAG", "")) == "true",
-		OSLogIncludeRegex:      getenv("OSLOG_INCLUDE_REGEX", ""),
-		OSLogExcludeRegex:      getenv("OSLOG_EXCLUDE_REGEX", ""),
-		OSLogMinSeverity:       getenv("OSLOG_MIN_SEVERITY", ""),
-		CustomMetricsEnabled:   strings.ToLower(getenv("CUSTOM_METRICS_ENABLED", "")) == "true",
-		CustomMetricsUDPAddr:   getenv("CUSTOM_METRICS_UDP_ADDR", "127.0.0.1:8125"),
-		CustomMetricsHTTPAddr:  getenv("CUSTOM_METRICS_HTTP_ADDR", "127.0.0.1:8126"),
-		CustomMetricsInterval:  time.Duration(intEnv("CUSTOM_METRICS_INTERVAL", 10)) * time.Second,
-		CustomMetricsMaxSeries: intEnv("CUSTOM_METRICS_MAX_SERIES", 1000),
-		CustomMetricsMaxBytes:  intEnv("CUSTOM_METRICS_MAX_BYTES", 65536),
-		OTLPEnabled:            strings.ToLower(getenv("OTLP_ENABLED", "")) == "true",
-		OTLPHTTPAddr:           getenv("OTLP_HTTP_ADDR", "127.0.0.1:4318"),
-		OTLPInterval:           time.Duration(intEnv("OTLP_INTERVAL", 10)) * time.Second,
-		OTLPMaxItems:           intEnv("OTLP_MAX_ITEMS", 1000),
-		OTLPMaxBytes:           intEnv("OTLP_MAX_BYTES", 1024*1024),
-		ContainerEnabled:       strings.ToLower(getenv("CONTAINER_ENABLED", "")) == "true",
-		ContainerDockerSocket:  getenv("CONTAINER_DOCKER_SOCKET", "/var/run/docker.sock"),
-		ContainerInterval:      time.Duration(intEnv("CONTAINER_INTERVAL", 30)) * time.Second,
-		ContainerMaxItems:      intEnv("CONTAINER_MAX_ITEMS", 200),
-		KubernetesEnabled:      strings.ToLower(getenv("KUBERNETES_ENABLED", "")) == "true",
-		KubernetesAPIURL:       getenv("KUBERNETES_API_URL", "https://kubernetes.default.svc"),
-		KubernetesTokenPath:    getenv("KUBERNETES_TOKEN_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/token"),
-		KubernetesCAPath:       getenv("KUBERNETES_CA_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"),
-		KubernetesNodeName:     getenv("KUBERNETES_NODE_NAME", ""),
-		KubernetesNamespace:    getenv("KUBERNETES_NAMESPACE", ""),
-		KubernetesInterval:     time.Duration(intEnv("KUBERNETES_INTERVAL", 30)) * time.Second,
-		KubernetesMaxItems:     intEnv("KUBERNETES_MAX_ITEMS", 500),
-		KubernetesMaxEvents:    intEnv("KUBERNETES_MAX_EVENTS", 100),
-		LocalChecksEnabled:     strings.ToLower(getenv("LOCAL_CHECKS_ENABLED", "")) == "true",
-		LocalChecksInterval:    time.Duration(intEnv("LOCAL_CHECKS_INTERVAL", 30)) * time.Second,
-		LocalChecksMaxChecks:   intEnv("LOCAL_CHECKS_MAX_CHECKS", 100),
-		LocalChecksMaxBytes:    intEnv("LOCAL_CHECKS_MAX_BYTES", 1024*1024),
-		LocalChecks:            parseLocalChecks(getenv("LOCAL_CHECKS_JSON", "")),
-		AgentlessEnabled:       strings.ToLower(getenv("AGENTLESS_ENABLED", "true")) == "true",
-		AgentlessOutboxPath:    getenv("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"),
-		AgentlessOutboxMaxMB:   intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),
-		AgentlessJobsLimit:     intEnv("AGENTLESS_JOBS_LIMIT", 50),
-		AgentlessLockSec:       intEnv("AGENTLESS_LOCK_SEC", 60),
-		AgentlessFlushBatch:    intEnv("AGENTLESS_FLUSH_BATCH", 100),
-		AgentlessDebug:         strings.ToLower(getenv("AGENTLESS_DEBUG", "")) == "true",
-		AutoUpdateEnabled:      strings.ToLower(getenv("AUTO_UPDATE_ENABLED", "")) == "true",
-		AutoUpdateDir:          getenv("AUTO_UPDATE_DIR", "./data/updates"),
-		AutoUpdateCommand:      getenv("AUTO_UPDATE_COMMAND", ""),
-		AutoUpdateWorkDir:      getenv("AUTO_UPDATE_WORKDIR", ""),
-		AutoUpdateMaxMB:        intEnv("AUTO_UPDATE_MAX_MB", 300),
-		AutoUpdateUseAgentAuth: strings.ToLower(getenv("AUTO_UPDATE_USE_AGENT_AUTH", "")) == "true",
-		AgentClientID:          intEnv("AGENT_CLIENT_ID", 0),
-		AgentID:                intEnv("AGENT_ID", 0),
-		AgentInstallationID:    getenv("AGENT_INSTALLATION_ID", ""),
-		AgentIdentitySecret:    getenv("AGENT_IDENTITY_SECRET", ""),
+		Agent:                              AgentCfg{LogLevel: getenv("LOG_LEVEL", "info"), Token: loadToken()},
+		APIBaseURL:                         getenv("API_BASE_URL", "https://api.aiceberg.com.br"),
+		APIKey:                             getenv("API_KEY", ""),
+		HTTPGzip:                           strings.ToLower(getenv("HTTP_GZIP", "")) == "true",
+		HTTPIdempotency:                    strings.ToLower(getenv("HTTP_IDEMPOTENCY", "true")) == "true",
+		OutboxFlushBatch:                   intEnv("OUTBOX_FLUSH_BATCH", 50),
+		TLSInsecureSkip:                    strings.ToLower(getenv("TLS_INSECURE_SKIP_VERIFY", "")) == "true",
+		TLSInsecureAllowProd:               strings.ToLower(getenv("TLS_INSECURE_ALLOW_PROD", "")) == "true",
+		RemoteConfigSignatureSecret:        getenv("REMOTE_CONFIG_SIGNATURE_SECRET", ""),
+		RemoteConfigSignatureRequired:      strings.ToLower(getenv("REMOTE_CONFIG_SIGNATURE_REQUIRED", "")) == "true",
+		RemoteConfigAllowUnsignedSensitive: strings.ToLower(getenv("REMOTE_CONFIG_ALLOW_UNSIGNED_SENSITIVE", "")) == "true",
+		OutboxPath:                         getenv("OUTBOX_PATH", "./data/outbox.db"),
+		OutboxMaxMB:                        intEnv("OUTBOX_MAX_MB", 200),
+		OutboxMaxPerAgent:                  intEnv("OUTBOX_MAX_PER_AGENT", 0),
+		HealthPort:                         port,
+		PrefsPath:                          getenv("PREFS_PATH", "./data/collect_prefs.json"),
+		AgentMode:                          strings.ToLower(getenv("AGENT_MODE", "direct")),
+		AgentModeOverridePath:              getenv("AGENT_MODE_OVERRIDE_PATH", ""),
+		HubURL:                             getenv("HUB_URL", ""),
+		HubToken:                           getenv("HUB_TOKEN", ""),
+		HubListenAddr:                      getenv("HUB_LISTEN_ADDR", ""),
+		SkipBootstrap:                      strings.ToLower(getenv("SKIP_BOOTSTRAP", "")) == "true",
+		OSLogEnabled:                       strings.ToLower(getenv("OSLOG_ENABLED", "")) == "true",
+		OSLogFiles:                         splitCsv(getenv("OSLOG_FILES", "")),
+		OSLogCursorPath:                    getenv("OSLOG_CURSOR_PATH", "./data/oslogs.cursor"),
+		OSLogBatchLines:                    intEnv("OSLOG_BATCH_LINES", 200),
+		OSLogMaxBytes:                      intEnv("OSLOG_MAX_BYTES", 256*1024),
+		OSLogInterval:                      time.Duration(intEnv("OSLOG_INTERVAL", 15)) * time.Second,
+		OSLogWinChannels:                   splitCsv(getenv("OSLOG_WIN_CHANNELS", "")),
+		OSLogEnrich:                        strings.ToLower(getenv("OSLOG_ENRICH", "")) == "true",
+		OSLogDetections:                    strings.ToLower(getenv("OSLOG_DETECTIONS", "")) == "true",
+		OSLogDiag:                          strings.ToLower(getenv("OSLOG_DIAG", "")) == "true",
+		OSLogIncludeRegex:                  getenv("OSLOG_INCLUDE_REGEX", ""),
+		OSLogExcludeRegex:                  getenv("OSLOG_EXCLUDE_REGEX", ""),
+		OSLogMinSeverity:                   getenv("OSLOG_MIN_SEVERITY", ""),
+		CustomMetricsEnabled:               strings.ToLower(getenv("CUSTOM_METRICS_ENABLED", "")) == "true",
+		CustomMetricsUDPAddr:               getenv("CUSTOM_METRICS_UDP_ADDR", "127.0.0.1:8125"),
+		CustomMetricsHTTPAddr:              getenv("CUSTOM_METRICS_HTTP_ADDR", "127.0.0.1:8126"),
+		CustomMetricsInterval:              time.Duration(intEnv("CUSTOM_METRICS_INTERVAL", 10)) * time.Second,
+		CustomMetricsMaxSeries:             intEnv("CUSTOM_METRICS_MAX_SERIES", 1000),
+		CustomMetricsMaxBytes:              intEnv("CUSTOM_METRICS_MAX_BYTES", 65536),
+		OTLPEnabled:                        strings.ToLower(getenv("OTLP_ENABLED", "")) == "true",
+		OTLPHTTPAddr:                       getenv("OTLP_HTTP_ADDR", "127.0.0.1:4318"),
+		OTLPInterval:                       time.Duration(intEnv("OTLP_INTERVAL", 10)) * time.Second,
+		OTLPMaxItems:                       intEnv("OTLP_MAX_ITEMS", 1000),
+		OTLPMaxBytes:                       intEnv("OTLP_MAX_BYTES", 1024*1024),
+		ContainerEnabled:                   strings.ToLower(getenv("CONTAINER_ENABLED", "")) == "true",
+		ContainerDockerSocket:              getenv("CONTAINER_DOCKER_SOCKET", "/var/run/docker.sock"),
+		ContainerInterval:                  time.Duration(intEnv("CONTAINER_INTERVAL", 30)) * time.Second,
+		ContainerMaxItems:                  intEnv("CONTAINER_MAX_ITEMS", 200),
+		KubernetesEnabled:                  strings.ToLower(getenv("KUBERNETES_ENABLED", "")) == "true",
+		KubernetesAPIURL:                   getenv("KUBERNETES_API_URL", "https://kubernetes.default.svc"),
+		KubernetesTokenPath:                getenv("KUBERNETES_TOKEN_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/token"),
+		KubernetesCAPath:                   getenv("KUBERNETES_CA_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"),
+		KubernetesNodeName:                 getenv("KUBERNETES_NODE_NAME", ""),
+		KubernetesNamespace:                getenv("KUBERNETES_NAMESPACE", ""),
+		KubernetesInterval:                 time.Duration(intEnv("KUBERNETES_INTERVAL", 30)) * time.Second,
+		KubernetesMaxItems:                 intEnv("KUBERNETES_MAX_ITEMS", 500),
+		KubernetesMaxEvents:                intEnv("KUBERNETES_MAX_EVENTS", 100),
+		LocalChecksEnabled:                 strings.ToLower(getenv("LOCAL_CHECKS_ENABLED", "")) == "true",
+		LocalChecksInterval:                time.Duration(intEnv("LOCAL_CHECKS_INTERVAL", 30)) * time.Second,
+		LocalChecksMaxChecks:               intEnv("LOCAL_CHECKS_MAX_CHECKS", 100),
+		LocalChecksMaxBytes:                intEnv("LOCAL_CHECKS_MAX_BYTES", 1024*1024),
+		LocalChecks:                        parseLocalChecks(getenv("LOCAL_CHECKS_JSON", "")),
+		AgentlessEnabled:                   strings.ToLower(getenv("AGENTLESS_ENABLED", "true")) == "true",
+		AgentlessOutboxPath:                getenv("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"),
+		AgentlessOutboxMaxMB:               intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),
+		AgentlessJobsLimit:                 intEnv("AGENTLESS_JOBS_LIMIT", 50),
+		AgentlessLockSec:                   intEnv("AGENTLESS_LOCK_SEC", 60),
+		AgentlessFlushBatch:                intEnv("AGENTLESS_FLUSH_BATCH", 100),
+		AgentlessDebug:                     strings.ToLower(getenv("AGENTLESS_DEBUG", "")) == "true",
+		AutoUpdateEnabled:                  strings.ToLower(getenv("AUTO_UPDATE_ENABLED", "")) == "true",
+		AutoUpdateDir:                      getenv("AUTO_UPDATE_DIR", "./data/updates"),
+		AutoUpdateCommand:                  getenv("AUTO_UPDATE_COMMAND", ""),
+		AutoUpdateWorkDir:                  getenv("AUTO_UPDATE_WORKDIR", ""),
+		AutoUpdateMaxMB:                    intEnv("AUTO_UPDATE_MAX_MB", 300),
+		AutoUpdateUseAgentAuth:             strings.ToLower(getenv("AUTO_UPDATE_USE_AGENT_AUTH", "")) == "true",
+		AgentClientID:                      intEnv("AGENT_CLIENT_ID", 0),
+		AgentID:                            intEnv("AGENT_ID", 0),
+		AgentInstallationID:                getenv("AGENT_INSTALLATION_ID", ""),
+		AgentIdentitySecret:                getenv("AGENT_IDENTITY_SECRET", ""),
 		PingInterval: func() time.Duration {
 			if pingInterval <= 0 {
 				return 5 * time.Second
@@ -388,6 +396,9 @@ func Load(configPath string) (Config, error) {
 	}
 	if override := loadAgentModeOverride(cfg.AgentModeOverridePath); override != "" {
 		cfg.AgentMode = override
+	}
+	if cfg.TLSInsecureSkip && !cfg.TLSInsecureAllowProd && strings.Contains(strings.ToLower(cfg.APIBaseURL), "api.aiceberg.com.br") {
+		return cfg, fmt.Errorf("TLS_INSECURE_SKIP_VERIFY bloqueado para API de producao")
 	}
 	if cfg.Agent.Token == "" {
 		return cfg, fmt.Errorf("AGENT_TOKEN obrigatório")

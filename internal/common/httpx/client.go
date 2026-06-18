@@ -14,6 +14,7 @@ func NewClient(cfg config.Config, timeout time.Duration) *http.Client {
 		Proxy: http.ProxyFromEnvironment,
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: cfg.TLSInsecureSkip,
+			MinVersion:         tls.VersionTLS12,
 		},
 	}
 	return &http.Client{

@@ -58,11 +58,51 @@ func buildSelfHealRuntimeSnapshot(
 	}
 	out["agent_env"] = buildAgentEnvSnapshot(cfg)
 	out["fleet_runtime"] = buildFleetRuntimeSnapshot(cfg, mode, prefs)
+	out["security_runtime"] = buildSecurityRuntimeSnapshot(cfg)
 	out["scheduler_snapshot"] = agentruntime.SchedulerSnapshotForCollectors(runtimeCollectorSpecs(cfg))
 	if selfUpdateUC != nil {
 		out["auto_update_runtime"] = selfUpdateUC.Snapshot()
 	}
 	return out
+}
+
+func buildSecurityRuntimeSnapshot(cfg config.Config) map[string]any {
+	return map[string]any{
+		"remote_config_signature_required":          cfg.RemoteConfigSignatureRequired,
+		"remote_config_signature_secret_configured": strings.TrimSpace(cfg.RemoteConfigSignatureSecret) != "",
+		"remote_config_unsigned_sensitive_allowed":  cfg.RemoteConfigAllowUnsignedSensitive,
+		"tls_insecure_skip_verify":                  cfg.TLSInsecureSkip,
+		"tls_insecure_allow_prod":                   cfg.TLSInsecureAllowProd,
+		"proxy_configured":                          proxyConfigured(),
+		"fips_mode":                                 "not_claimed",
+		"secrets_sources": map[string]any{
+			"agent_token_path":             strings.TrimSpace(os.Getenv("AGENT_TOKEN_PATH")) != "",
+			"kubernetes_token_path":        strings.TrimSpace(cfg.KubernetesTokenPath) != "",
+			"local_checks_credentials_ref": localChecksHaveCredentials(cfg.LocalChecks),
+		},
+		"remote_command_policy": map[string]any{
+			"allowlist_enabled": true,
+			"shell_blocked":     true,
+		},
+	}
+}
+
+func proxyConfigured() bool {
+	for _, key := range []string{"HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy"} {
+		if strings.TrimSpace(os.Getenv(key)) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func localChecksHaveCredentials(checks []config.LocalCheckConfig) bool {
+	for _, check := range checks {
+		if strings.TrimSpace(check.CredentialsRef) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func buildFleetRuntimeSnapshot(cfg config.Config, mode string, prefs config.CollectPrefs) map[string]any {

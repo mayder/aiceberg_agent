@@ -81,7 +81,11 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 		uc.recordFailure(err)
 		return err
 	}
-	version, applied, err := ApplyConfigPayload(uc.log, uc.store, uc.commands, payload)
+	version, applied, err := ApplyConfigPayloadWithSecurity(uc.log, uc.store, uc.commands, payload, ConfigSecurityOptions{
+		SignatureSecret:        uc.cfg.RemoteConfigSignatureSecret,
+		SignatureRequired:      uc.cfg.RemoteConfigSignatureRequired,
+		AllowUnsignedSensitive: uc.cfg.RemoteConfigAllowUnsignedSensitive,
+	})
 	if err != nil {
 		uc.log.Error(logger.KV("config persist failed",
 			"version", version,

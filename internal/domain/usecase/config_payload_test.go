@@ -166,3 +166,115 @@ func TestApplyConfigPayload_QueuesPolicyBeforeSelfUpdate(t *testing.T) {
 		t.Fatalf("expected second command self_update, got %q", second.Name)
 	}
 }
+
+func TestApplyConfigPayloadWithSecurityRequiresSignatureForSensitivePayload(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+	cmds := make(chan ControlCommand, 1)
+
+	payload := ConfigPayload{
+		Version: "cfg-sec",
+		Collect: config.CollectPrefs{CPU: true},
+		Update:  &UpdatePayload{Version: "99.0.0", URL: "https://example.org/agent.bin"},
+	}
+
+	_, _, err := ApplyConfigPayloadWithSecurity(log, store, cmds, payload, ConfigSecurityOptions{
+		SignatureSecret:   "secret",
+		SignatureRequired: true,
+	})
+	if err == nil {
+		t.Fatalf("expected missing signature error")
+	}
+}
+
+func TestApplyConfigPayloadWithSecurityAcceptsSignedSensitivePayload(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+	cmds := make(chan ControlCommand, 1)
+
+	payload := ConfigPayload{
+		Version: "cfg-sec",
+		Collect: config.CollectPrefs{CPU: true},
+		Update:  &UpdatePayload{Version: "99.0.0", URL: "https://example.org/agent.bin"},
+	}
+	payload.Signature = PayloadSignature{Algorithm: "hmac-sha256"}
+	sig, err := SignConfigPayload(payload, "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload.Signature.Value = sig
+
+	_, applied, err := ApplyConfigPayloadWithSecurity(log, store, cmds, payload, ConfigSecurityOptions{
+		SignatureSecret:   "secret",
+		SignatureRequired: true,
+	})
+	if err != nil {
+		t.Fatalf("expected signed payload accepted, got %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected payload applied")
+	}
+}
+
+func TestApplyConfigPayloadBlocksUnsignedTokenRotation(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+	cmds := make(chan ControlCommand, 1)
+
+	payload := ConfigPayload{
+		Version:       "cfg-token",
+		Collect:       config.CollectPrefs{CPU: true},
+		TokenRotation: &TokenRotationPayload{NewToken: "new-token"},
+	}
+
+	_, _, err := ApplyConfigPayloadWithSecurity(log, store, cmds, payload, ConfigSecurityOptions{
+		SignatureSecret: "secret",
+	})
+	if err == nil {
+		t.Fatalf("expected unsigned sensitive payload blocked")
+	}
+}
+
+func TestApplyConfigPayloadQueuesTokenRotationWhenSigned(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+	cmds := make(chan ControlCommand, 1)
+
+	payload := ConfigPayload{
+		Version:       "cfg-token",
+		Collect:       config.CollectPrefs{CPU: true},
+		TokenRotation: &TokenRotationPayload{NewToken: "new-token", Reason: "rotation"},
+	}
+	payload.Signature = PayloadSignature{Algorithm: "hmac-sha256"}
+	sig, err := SignConfigPayload(payload, "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload.Signature.Value = sig
+
+	_, _, err = ApplyConfigPayloadWithSecurity(log, store, cmds, payload, ConfigSecurityOptions{SignatureSecret: "secret"})
+	if err != nil {
+		t.Fatalf("expected signed token rotation accepted, got %v", err)
+	}
+	cmd := <-cmds
+	if cmd.Name != "rotate_agent_token" || cmd.TokenRotation == nil || cmd.TokenRotation.NewToken != "new-token" {
+		t.Fatalf("unexpected token rotation command: %#v", cmd)
+	}
+}
+
+func TestApplyConfigPayloadBlocksDowngradeWithoutForce(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+	cmds := make(chan ControlCommand, 1)
+
+	payload := ConfigPayload{
+		Version: "cfg-downgrade",
+		Collect: config.CollectPrefs{CPU: true},
+		Update:  &UpdatePayload{Version: "0.0.0", URL: "https://example.org/agent.bin"},
+	}
+
+	_, _, err := ApplyConfigPayload(log, store, cmds, payload)
+	if err == nil {
+		t.Fatalf("expected downgrade blocked")
+	}
+}

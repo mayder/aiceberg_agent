@@ -1,8 +1,18 @@
 package usecase
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/common/version"
 	"github.com/you/aiceberg_agent/internal/data/local/prefs"
 )
 
@@ -15,6 +25,7 @@ type ControlCommand struct {
 	TimeoutMs     int
 	Update        *UpdatePayload
 	AutoUpdate    *AutoUpdatePayload
+	TokenRotation *TokenRotationPayload
 }
 
 type UpdatePayload struct {
@@ -43,6 +54,35 @@ type AutoUpdatePayload struct {
 	WorkDir          *string `json:"workdir,omitempty"`
 }
 
+type TokenRotationPayload struct {
+	NewToken          string `json:"new_token,omitempty"`
+	PreviousExpiresAt string `json:"previous_expires_at,omitempty"`
+	Reason            string `json:"reason,omitempty"`
+}
+
+func (t *TokenRotationPayload) Clone() *TokenRotationPayload {
+	if t == nil {
+		return nil
+	}
+	cp := *t
+	return &cp
+}
+
+type PayloadSignature struct {
+	Algorithm string `json:"algorithm,omitempty"`
+	KeyID     string `json:"key_id,omitempty"`
+	Value     string `json:"value,omitempty"`
+	SignedAt  string `json:"signed_at,omitempty"`
+	ExpiresAt string `json:"expires_at,omitempty"`
+	Scope     string `json:"scope,omitempty"`
+}
+
+type ConfigSecurityOptions struct {
+	SignatureSecret        string
+	SignatureRequired      bool
+	AllowUnsignedSensitive bool
+}
+
 func (a *AutoUpdatePayload) Clone() *AutoUpdatePayload {
 	if a == nil {
 		return nil
@@ -66,9 +106,10 @@ func (a *AutoUpdatePayload) HasAnyValue() bool {
 }
 
 type ConfigPayload struct {
-	Version string              `json:"version,omitempty"`
-	Collect config.CollectPrefs `json:"collect"`
-	Vulns   struct {
+	Version   string              `json:"version,omitempty"`
+	Signature PayloadSignature    `json:"signature,omitempty"`
+	Collect   config.CollectPrefs `json:"collect"`
+	Vulns     struct {
 		SignaturesURL string `json:"signatures_url"`
 	} `json:"vulns"`
 	Logs struct {
@@ -120,10 +161,11 @@ type ConfigPayload struct {
 		MaxBytes  int                       `json:"max_bytes,omitempty"`
 		Checks    []config.LocalCheckConfig `json:"checks,omitempty"`
 	} `json:"local_checks,omitempty"`
-	CollectNow *[]string          `json:"collect_now,omitempty"`
-	Update     *UpdatePayload     `json:"update,omitempty"`
-	AutoUpdate *AutoUpdatePayload `json:"auto_update,omitempty"`
-	Agentless  struct {
+	CollectNow    *[]string             `json:"collect_now,omitempty"`
+	Update        *UpdatePayload        `json:"update,omitempty"`
+	AutoUpdate    *AutoUpdatePayload    `json:"auto_update,omitempty"`
+	TokenRotation *TokenRotationPayload `json:"token_rotation,omitempty"`
+	Agentless     struct {
 		Enabled    *bool `json:"enabled,omitempty"`
 		PollSec    int   `json:"poll_interval,omitempty"`
 		FlushSec   int   `json:"flush_interval,omitempty"`
@@ -134,6 +176,16 @@ type ConfigPayload struct {
 }
 
 func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- ControlCommand, payload ConfigPayload) (string, bool, error) {
+	return ApplyConfigPayloadWithSecurity(log, store, commands, payload, ConfigSecurityOptions{})
+}
+
+func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, commands chan<- ControlCommand, payload ConfigPayload, security ConfigSecurityOptions) (string, bool, error) {
+	if err := ValidateConfigPayloadSecurity(payload, security); err != nil {
+		return payload.Version, false, err
+	}
+	if err := validateUpdatePolicy(payload.Update); err != nil {
+		return payload.Version, false, err
+	}
 	collect := payload.Collect
 	collect.Version = payload.Version
 	collect.CVESignaturesURL = payload.Vulns.SignaturesURL
@@ -270,11 +322,12 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- C
 	collect.CollectNow = nil
 
 	hasUpdate := payload.Update != nil && payload.Update.Version != "" && payload.Update.URL != ""
+	hasTokenRotation := payload.TokenRotation != nil && strings.TrimSpace(payload.TokenRotation.NewToken) != ""
 	// Se o objeto auto_update veio no payload, sempre reaplicamos a política.
 	// Isso permite limpar overrides em runtime quando campos voltam para null no backend.
 	hasAutoUpdate := payload.AutoUpdate != nil
 	cur := store.Get()
-	if cur.Version == collect.Version && collect.Version != "" && len(collectNow) == 0 && !hasUpdate && !hasAutoUpdate {
+	if cur.Version == collect.Version && collect.Version != "" && len(collectNow) == 0 && !hasUpdate && !hasAutoUpdate && !hasTokenRotation {
 		return collect.Version, false, nil
 	}
 
@@ -316,5 +369,133 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- C
 			))
 		}
 	}
+	if hasTokenRotation {
+		select {
+		case commands <- ControlCommand{Name: "rotate_agent_token", TokenRotation: payload.TokenRotation.Clone()}:
+		default:
+			log.Info(logger.KV("command channel full, dropping command",
+				"command", "rotate_agent_token",
+			))
+		}
+	}
 	return collect.Version, true, nil
+}
+
+func ValidateConfigPayloadSecurity(payload ConfigPayload, opts ConfigSecurityOptions) error {
+	sensitive := payloadHasSensitiveConfig(payload)
+	if !opts.SignatureRequired && strings.TrimSpace(opts.SignatureSecret) == "" {
+		return nil
+	}
+	if !opts.SignatureRequired && (!sensitive || opts.AllowUnsignedSensitive) {
+		return nil
+	}
+	if strings.TrimSpace(opts.SignatureSecret) == "" {
+		if opts.SignatureRequired || sensitive {
+			return errors.New("remote config signature secret missing")
+		}
+		return nil
+	}
+	if strings.TrimSpace(payload.Signature.Value) == "" {
+		if opts.SignatureRequired || sensitive {
+			return errors.New("remote config signature missing")
+		}
+		return nil
+	}
+	if payload.Signature.Algorithm != "" && !strings.EqualFold(payload.Signature.Algorithm, "hmac-sha256") {
+		return fmt.Errorf("remote config signature algorithm unsupported: %s", payload.Signature.Algorithm)
+	}
+	if payload.Signature.ExpiresAt != "" {
+		expiresAt, err := time.Parse(time.RFC3339, payload.Signature.ExpiresAt)
+		if err != nil {
+			return fmt.Errorf("remote config signature expires_at invalid: %w", err)
+		}
+		if time.Now().After(expiresAt) {
+			return errors.New("remote config signature expired")
+		}
+	}
+	expected, err := SignConfigPayload(payload, opts.SignatureSecret)
+	if err != nil {
+		return err
+	}
+	got := strings.TrimSpace(payload.Signature.Value)
+	if !hmac.Equal([]byte(strings.ToLower(got)), []byte(strings.ToLower(expected))) {
+		return errors.New("remote config signature invalid")
+	}
+	return nil
+}
+
+func SignConfigPayload(payload ConfigPayload, secret string) (string, error) {
+	payload.Signature.Value = ""
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(raw)
+	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+
+func payloadHasSensitiveConfig(payload ConfigPayload) bool {
+	return payload.Update != nil ||
+		payload.AutoUpdate != nil ||
+		payload.TokenRotation != nil ||
+		payload.CollectNow != nil ||
+		payload.LocalChecks.Checks != nil ||
+		strings.TrimSpace(payload.Containers.DockerSocket) != "" ||
+		strings.TrimSpace(payload.Kubernetes.TokenPath) != ""
+}
+
+func validateUpdatePolicy(payload *UpdatePayload) error {
+	if payload == nil || payload.Version == "" {
+		return nil
+	}
+	cmp := compareVersionStrings(payload.Version, version.Version)
+	if cmp < 0 && !payload.Force {
+		return fmt.Errorf("update downgrade blocked: %s -> %s", version.Version, payload.Version)
+	}
+	return nil
+}
+
+func compareVersionStrings(a, b string) int {
+	as := versionParts(a)
+	bs := versionParts(b)
+	max := len(as)
+	if len(bs) > max {
+		max = len(bs)
+	}
+	for i := 0; i < max; i++ {
+		av, bv := 0, 0
+		if i < len(as) {
+			av = as[i]
+		}
+		if i < len(bs) {
+			bv = bs[i]
+		}
+		if av < bv {
+			return -1
+		}
+		if av > bv {
+			return 1
+		}
+	}
+	return 0
+}
+
+func versionParts(value string) []int {
+	value = strings.TrimPrefix(strings.TrimSpace(value), "v")
+	fields := strings.FieldsFunc(value, func(r rune) bool {
+		return r == '.' || r == '-' || r == '+'
+	})
+	out := make([]int, 0, len(fields))
+	for _, field := range fields {
+		n := 0
+		for _, r := range field {
+			if r < '0' || r > '9' {
+				break
+			}
+			n = n*10 + int(r-'0')
+		}
+		out = append(out, n)
+	}
+	return out
 }

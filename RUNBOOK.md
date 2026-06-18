@@ -241,6 +241,28 @@ Politica operacional:
 
 Rollback: desabilitar auto-update remoto e o comando `collect_support_flare` no backend. Nao ha SQL do PKG-67.
 
+### PKG-68 - Seguranca e assinatura
+
+Contrato tecnico: `docs/pkg68_security_hardening.md`.
+
+Variaveis:
+
+- `REMOTE_CONFIG_SIGNATURE_SECRET`;
+- `REMOTE_CONFIG_SIGNATURE_REQUIRED=true`;
+- `REMOTE_CONFIG_ALLOW_UNSIGNED_SENSITIVE=false`;
+- `TLS_INSECURE_SKIP_VERIFY=false`;
+- `TLS_INSECURE_ALLOW_PROD=false`.
+
+Regras:
+
+- payload sensivel sem assinatura deve ser rejeitado quando segredo de assinatura existir;
+- downgrade de update sem `force=true` e bloqueado;
+- `token_rotation.new_token` nunca deve aparecer em log;
+- `security_runtime` deve indicar politica sem expor segredo;
+- proxy corporativo segue `HTTP_PROXY`, `HTTPS_PROXY` e `NO_PROXY`.
+
+Rollback: desativar obrigatoriedade de assinatura ou permitir unsigned sensitive apenas durante janela controlada. Nao ha SQL do PKG-68.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.

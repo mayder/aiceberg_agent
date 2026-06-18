@@ -427,6 +427,12 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 - Cobertura local: comando `collect_support_flare` na allowlist, redaction recursiva e `fleet_runtime` no snapshot.
 - Validacao real pendente para PKG-69: rollout canario com agentes em versoes diferentes, rollback por artefato anterior e bundle de suporte em host real.
 
+### PKG-68 - Seguranca e assinatura
+
+- Unitario focado: `go test ./internal/common/config ./internal/common/httpx ./internal/domain/usecase ./internal/bootstrap`.
+- Cobertura local: HMAC de config, bloqueio de payload sensivel sem assinatura, expiracao, downgrade sem force, token rotation e TLS inseguro contra producao.
+- Validacao real pendente para PKG-69: proxy autenticado, TLS invalido, revogacao backend, FIPS/pinning e rotacao com agentes reais.
+
 ## Politica minima de testes
 
 - Unitário: validar regra de negocio, casos de erro e limites sem depender de rede, banco real ou UI.
