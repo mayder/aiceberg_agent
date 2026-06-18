@@ -5,8 +5,12 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"os/exec"
+	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -135,4 +139,133 @@ func parseJolokiaMetrics(raw []byte) []map[string]any {
 	add("jvm.gc.collection_count", value["CollectionCount"])
 	add("jvm.gc.collection_time_ms", value["CollectionTime"])
 	return out
+}
+
+func runWindowsIntegration(ctx context.Context, check config.LocalCheckConfig) ([]map[string]any, []string, map[string]any, error) {
+	kind := normalizeKind(check.Kind)
+	serviceCheck := map[string]any{"status": "critical", "integration": integrationManifest(kind)}
+	switch kind {
+	case "iis_wmi":
+		return runIISWindowsCounters(ctx, serviceCheck)
+	case "windows_service":
+		return runWindowsServiceCheck(ctx, check, serviceCheck)
+	default:
+		return nil, nil, serviceCheck, errors.New("integracao windows nao suportada")
+	}
+}
+
+func runIISWindowsCounters(ctx context.Context, serviceCheck map[string]any) ([]map[string]any, []string, map[string]any, error) {
+	if runtime.GOOS != "windows" {
+		serviceCheck["status"] = "skipped"
+		serviceCheck["reason"] = "windows_only"
+		return nil, nil, serviceCheck, errors.New("integracao WMI/IIS exige Windows")
+	}
+	script := `$os=Get-CimInstance Win32_OperatingSystem; $iis=(Get-Counter '\Web Service(_Total)\Current Connections' -ErrorAction SilentlyContinue).CounterSamples[0].CookedValue; [pscustomobject]@{FreePhysicalMemoryKB=$os.FreePhysicalMemory;TotalVisibleMemoryKB=$os.TotalVisibleMemorySize;IisCurrentConnections=$iis} | ConvertTo-Json -Compress`
+	raw, err := runPowerShellJSON(ctx, script)
+	if err != nil {
+		return nil, nil, serviceCheck, err
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, nil, serviceCheck, err
+	}
+	metrics := make([]map[string]any, 0, 3)
+	addMetric := func(name string, value any) {
+		if n, ok := numericValue(value); ok {
+			metrics = append(metrics, map[string]any{"name": name, "type": "gauge", "value": n, "integration": "iis_wmi"})
+		}
+	}
+	addMetric("windows.memory.free_kb", doc["FreePhysicalMemoryKB"])
+	addMetric("windows.memory.total_kb", doc["TotalVisibleMemorySize"])
+	addMetric("iis.current_connections", doc["IisCurrentConnections"])
+	serviceCheck["status"] = "ok"
+	return metrics, nil, serviceCheck, nil
+}
+
+func runWindowsServiceCheck(ctx context.Context, check config.LocalCheckConfig, serviceCheck map[string]any) ([]map[string]any, []string, map[string]any, error) {
+	serviceName := strings.TrimSpace(check.Config["service_name"])
+	if serviceName == "" {
+		serviceName = strings.TrimSpace(check.Target)
+	}
+	if !safeWindowsIdentifier(serviceName) {
+		return nil, nil, serviceCheck, errors.New("windows service_name invalido")
+	}
+	if runtime.GOOS != "windows" {
+		serviceCheck["status"] = "skipped"
+		serviceCheck["reason"] = "windows_only"
+		return nil, nil, serviceCheck, errors.New("integracao Windows Service exige Windows")
+	}
+	script := "$svc=Get-Service -Name '" + strings.ReplaceAll(serviceName, "'", "''") + "' -ErrorAction Stop; [pscustomobject]@{Name=$svc.Name;Status=$svc.Status.ToString()} | ConvertTo-Json -Compress"
+	raw, err := runPowerShellJSON(ctx, script)
+	if err != nil {
+		return nil, nil, serviceCheck, err
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, nil, serviceCheck, err
+	}
+	status := strings.ToLower(strings.TrimSpace(fmtAny(doc["Status"])))
+	running := status == "running"
+	serviceCheck["status"] = "critical"
+	if running {
+		serviceCheck["status"] = "ok"
+	}
+	serviceCheck["windows_status"] = status
+	metrics := []map[string]any{{
+		"name":        "windows.service.running",
+		"type":        "gauge",
+		"value":       boolNumber(running),
+		"integration": "windows_service",
+		"labels":      map[string]string{"service": serviceName},
+	}}
+	return metrics, nil, serviceCheck, nil
+}
+
+func runPowerShellJSON(ctx context.Context, script string) ([]byte, error) {
+	return exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).Output()
+}
+
+func safeWindowsIdentifier(value string) bool {
+	if value == "" || len(value) > 128 {
+		return false
+	}
+	for _, r := range value {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-' || r == '.' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func numericValue(value any) (float64, bool) {
+	switch v := value.(type) {
+	case float64:
+		return v, true
+	case int:
+		return float64(v), true
+	case string:
+		n, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		return n, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func boolNumber(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
+}
+
+func fmtAny(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(v)
+	default:
+		return strings.TrimSpace(fmt.Sprint(value))
+	}
 }

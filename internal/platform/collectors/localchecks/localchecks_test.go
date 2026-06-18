@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -167,6 +168,47 @@ func TestRunTCPCheck(t *testing.T) {
 	}
 	if manifest, ok := serviceCheck["integration"].(map[string]any); !ok || manifest["status"] != "official" {
 		t.Fatalf("expected official integration metadata, got %#v", serviceCheck)
+	}
+}
+
+func TestWindowsIntegrationSkipsOutsideWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("non-Windows guard test")
+	}
+	_, _, serviceCheck, err := execute(context.Background(), config.LocalCheckConfig{
+		Kind:    "iis_wmi",
+		Enabled: true,
+		Config: map[string]string{
+			"homologation_status": "approved",
+			"homologation_ref":    "pkg71-windows-contract",
+		},
+	}, 1024)
+	if err == nil {
+		t.Fatal("expected windows_only error outside Windows")
+	}
+	if serviceCheck["status"] != "skipped" || serviceCheck["reason"] != "windows_only" {
+		t.Fatalf("unexpected windows guard service check %#v", serviceCheck)
+	}
+	if manifest, ok := serviceCheck["integration"].(map[string]any); !ok || manifest["status"] != "experimental" {
+		t.Fatalf("expected experimental integration metadata, got %#v", serviceCheck)
+	}
+}
+
+func TestWindowsServiceRejectsUnsafeServiceName(t *testing.T) {
+	_, _, serviceCheck, err := execute(context.Background(), config.LocalCheckConfig{
+		Kind:    "windows_service",
+		Enabled: true,
+		Target:  "Spooler;Remove-Item",
+		Config: map[string]string{
+			"homologation_status": "approved",
+			"homologation_ref":    "pkg71-windows-contract",
+		},
+	}, 1024)
+	if err == nil {
+		t.Fatal("expected unsafe service name error")
+	}
+	if serviceCheck["status"] != "critical" {
+		t.Fatalf("unexpected service check %#v", serviceCheck)
 	}
 }
 

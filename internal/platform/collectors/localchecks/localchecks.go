@@ -148,7 +148,9 @@ func execute(ctx context.Context, check config.LocalCheckConfig, maxBytes int64)
 		return runOpenMetrics(ctx, check, maxBytes)
 	case "jmx":
 		return runJMX(ctx, check, maxBytes)
-	case "tcp", "postgresql", "mysql", "redis", "iis_wmi", "windows_service":
+	case "iis_wmi", "windows_service":
+		return runWindowsIntegration(ctx, check)
+	case "tcp", "postgresql", "mysql", "redis":
 		return runIntegrationTCP(ctx, check)
 	default:
 		return nil, nil, map[string]any{"status": "critical"}, errors.New("tipo de check local nao permitido")

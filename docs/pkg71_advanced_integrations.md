@@ -46,7 +46,24 @@ Credenciais devem ser passadas por `credentials_ref`, nunca inline.
 
 ## WMI/Windows
 
-`iis_wmi` e `windows_service` continuam catalogados como `experimental` ate validacao em Windows Server. O pacote define manifest/estado/rollback, mas nao declara coleta profunda em Windows sem ambiente real.
+`iis_wmi` e `windows_service` continuam catalogados como `experimental` ate validacao em Windows Server. A execucao exige `homologation_status=approved` e `homologation_ref`.
+
+`iis_wmi` coleta counters locais por PowerShell fixo em Windows:
+
+- `windows.memory.free_kb`;
+- `windows.memory.total_kb`;
+- `iis.current_connections`.
+
+`windows_service` consulta um servico local por `service_name`/`target` validado e emite `windows.service.running`.
+
+Permissoes minimas esperadas:
+
+- usuario local com leitura de WMI/CIM basica;
+- permissao de `Get-Counter` para IIS quando IIS estiver habilitado;
+- permissao de `Get-Service` para o servico configurado;
+- sem credencial inline, sem shell remoto e sem script arbitrario vindo da configuracao.
+
+Fora de Windows, essas integracoes retornam `service_check.status=skipped` com `reason=windows_only`.
 
 ## Bancos, fila e web servers
 
