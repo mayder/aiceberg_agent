@@ -47,7 +47,7 @@ template_incomplete_reason() {
       return 0
     fi
   fi
-  if grep -Eq '^- (Data UTC|Responsavel|Cliente/lab|Host/agente/HUB/relay|Versao agente|Evidencia bruta anexada|Observacoes|Rollback validado):[[:space:]]*$' "$path"; then
+  if grep -Eq '^- [^:]+:[[:space:]]*$' "$path"; then
     echo "template required field blank"
     return 0
   fi
@@ -117,57 +117,57 @@ generate_templates() {
   mkdir -p "$TEMPLATE_DIR"
   write_template "$TEMPLATE_DIR/noc_soc_incident_host_agentless.md" \
     "PKG-72 - Incidente NOC/SOC com host + Agentless" \
-    "- Evidencia host local
-- Observacao Agentless correlata
-- Timestamp comum
-- Link ou ID do incidente NOC/SOC
-- Lacunas reportadas pelo agente" \
-    "- time_to_diagnosis
-- evidence_completeness
-- operator_steps"
+    "- Evidencia host local:
+- Observacao Agentless correlata:
+- Timestamp comum:
+- Link ou ID do incidente NOC/SOC:
+- Lacunas reportadas pelo agente:" \
+    "- time_to_diagnosis:
+- evidence_completeness:
+- operator_steps:"
   write_template "$TEMPLATE_DIR/offline_replay_24h.md" \
     "PKG-72 - Replay offline 24h" \
-    "- Inicio/fim da janela offline
-- Quantidade de envelopes acumulados
-- Replay apos retorno da API
-- Duplicatas observadas
-- Topologia relay -> HUB -> AIceberg preservada quando aplicavel" \
-    "- offline_replay_success
-- duplicate_rate
-- support_export_integrity"
+    "- Inicio/fim da janela offline:
+- Quantidade de envelopes acumulados:
+- Replay apos retorno da API:
+- Duplicatas observadas:
+- Topologia relay -> HUB -> AIceberg preservada quando aplicavel:" \
+    "- offline_replay_success:
+- duplicate_rate:
+- support_export_integrity:"
   write_template "$TEMPLATE_DIR/regulated_client_minimal_collection.md" \
     "PKG-72 - Cliente regulado com coleta reduzida" \
-    "- Perfil de privacidade aplicado
-- Coletores minimizados
-- Campos mascarados/hash
-- Confirmacao de ausencia de segredo bruto
-- Evidencia de rollback da configuracao" \
-    "- minimized_collectors
-- sensitive_mode
-- raw_secret_logging"
+    "- Perfil de privacidade aplicado:
+- Coletores minimizados:
+- Campos mascarados/hash:
+- Confirmacao de ausencia de segredo bruto:
+- Evidencia de rollback da configuracao:" \
+    "- minimized_collectors:
+- sensitive_mode:
+- raw_secret_logging:"
   write_template "$TEMPLATE_DIR/noise_cost_before_after.md" \
     "PKG-72 - Ruido/custo antes e depois" \
-    "- Janela baseline antes
-- Janela depois
-- Regra deterministica aplicada
-- Evidencia preservada
-- Confirmacao de ausencia de supressao automatica" \
-    "- noise_before
-- noise_after
-- manual_review_required
-- cost_before
-- cost_after"
+    "- Janela baseline antes:
+- Janela depois:
+- Regra deterministica aplicada:
+- Evidencia preservada:
+- Confirmacao de ausencia de supressao automatica:" \
+    "- noise_before:
+- noise_after:
+- manual_review_required:
+- cost_before:
+- cost_after:"
   write_template "$TEMPLATE_DIR/datadog_scenario_benchmark.md" \
     "PKG-72 - Benchmark comparavel Datadog" \
-    "- Cenario AIceberg
-- Referencia Datadog usada
-- Mesma janela/carga/ambiente ou justificativa
-- Dados brutos rastreaveis
-- Revisao operacional" \
-    "- time_to_diagnosis
-- deployment_effort
-- agent_plus_agentless
-- executive_evidence"
+    "- Cenario AIceberg:
+- Referencia Datadog usada:
+- Mesma janela/carga/ambiente ou justificativa:
+- Dados brutos rastreaveis:
+- Revisao operacional:" \
+    "- time_to_diagnosis:
+- deployment_effort:
+- agent_plus_agentless:
+- executive_evidence:"
 }
 
 : >"$EVIDENCE_FILE"
