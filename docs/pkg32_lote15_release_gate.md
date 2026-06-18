@@ -80,6 +80,18 @@ Gerados por `./scripts/build_installers.sh` apos `./check.sh` verde nos dois rep
 | `aiceberg-agent-linux-arm64.tar.gz` | `4dd3f9830279405ffbd1827a6186e8bae8784039dcdb7ab867ed1bd9980decc3` |
 | `aiceberg-agent-windows-amd64.zip` | `33c40122ea3b2c089a188367d2845e7ff806acddebced1410f269311616bc7b9` |
 
+## Artefatos 0.8.8
+
+Gerados em 2026-06-18 por `./scripts/build_installers.sh` apos `./check.sh` verde no `aiceberg_agent`. Publicados em `aiceberg_web/cliente/web/downloads/agent/0.8.8/` com `SHA256SUMS` validado localmente.
+
+| Arquivo | SHA-256 |
+| --- | --- |
+| `aiceberg-agent-darwin-amd64.tar.gz` | `4f93259351a1c7c80a57b5a94d62cc25f80af7d6dce3e21b5d3f7e7fd5f872d3` |
+| `aiceberg-agent-darwin-arm64.tar.gz` | `b1ba2d6322e4a9b34208d565632fa14b6dbae99716f25f0949f87c5cec5be0a6` |
+| `aiceberg-agent-linux-amd64.tar.gz` | `7ec788d694956850f8d8e9a1d864d46b764cef0b3473bd5020586cdf4858a9d8` |
+| `aiceberg-agent-linux-arm64.tar.gz` | `c9846007c6a7ff5a62ae77b831e17ff4ed8598ffde948c2869d22e143956dabf` |
+| `aiceberg-agent-windows-amd64.zip` | `482ede3f6a7d8758dd4c00b341d2cad92f4be23014a9a6209827dd3f644cceb5` |
+
 ## Criterio de fechamento
 
 - `./check.sh` verde no `aiceberg_agent`.

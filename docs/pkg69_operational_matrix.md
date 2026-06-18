@@ -45,6 +45,24 @@ Smoke POSIX local executado em 2026-06-18 com `SMOKE_EVIDENCE_FILE=/tmp/aiceberg
 - `agent_log_sha256=55fa32917610298090284f24906b144030424ccb64212da613aa0af7743beae5`;
 - `oslog_fixture_sha256=e14a2773b6da308c2776891300d37c55cd9750137af86071d40b7655c0a35525`.
 
+Artefatos oficiais 0.8.8 gerados em 2026-06-18:
+
+- `./check.sh` passou antes da geracao;
+- `./scripts/build_installers.sh` gerou Linux amd64/arm64, Darwin amd64/arm64 e Windows amd64;
+- compactados publicados localmente em `aiceberg_web/cliente/web/downloads/agent/0.8.8/`;
+- `shasum -a 256 -c SHA256SUMS` passou na pasta publicada;
+- download/update remoto controlado ainda nao foi acionado.
+
+Hashes 0.8.8:
+
+| Arquivo | SHA-256 |
+| --- | --- |
+| `aiceberg-agent-darwin-amd64.tar.gz` | `4f93259351a1c7c80a57b5a94d62cc25f80af7d6dce3e21b5d3f7e7fd5f872d3` |
+| `aiceberg-agent-darwin-arm64.tar.gz` | `b1ba2d6322e4a9b34208d565632fa14b6dbae99716f25f0949f87c5cec5be0a6` |
+| `aiceberg-agent-linux-amd64.tar.gz` | `7ec788d694956850f8d8e9a1d864d46b764cef0b3473bd5020586cdf4858a9d8` |
+| `aiceberg-agent-linux-arm64.tar.gz` | `c9846007c6a7ff5a62ae77b831e17ff4ed8598ffde948c2869d22e143956dabf` |
+| `aiceberg-agent-windows-amd64.zip` | `482ede3f6a7d8758dd4c00b341d2cad92f4be23014a9a6209827dd3f644cceb5` |
+
 ## Ambientes obrigatorios
 
 | Ambiente | Evidencia exigida | Estado atual |
