@@ -225,8 +225,9 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 
 ## PKG-72 - Diferenciais AIceberg
 
-- Unitario focado: `go test ./internal/bootstrap`.
-- Cobrir `contextual_evidence`, privacidade sensivel, IA deterministica sem LLM, bloqueio de acao destrutiva e claim de superioridade bloqueado sem benchmark.
+- Unitario focado: `go test ./internal/bootstrap ./internal/data/local/outbox`.
+- Homologacao reproduzivel: `scripts/pkg72_contextual_evidence_homologation.sh`.
+- Cobrir `contextual_evidence`, privacidade sensivel, IA deterministica sem LLM, bloqueio de acao destrutiva, replay local ate ACK, topologia relay -> HUB -> AIceberg e claim de superioridade bloqueado sem benchmark.
 - Validacao real de incidente NOC/SOC, replay 24h offline, agent+agentless, cliente regulado e benchmark contra Datadog fica pendente ate ambiente controlado.
 
 ## Validação por lote

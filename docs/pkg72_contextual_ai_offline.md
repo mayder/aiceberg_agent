@@ -81,6 +81,8 @@ Cada cenário exige referência Datadog comparável e evidência bruta rastreáv
 ## Validação local realizada
 
 - `go test ./internal/bootstrap`
+- `go test ./internal/data/local/outbox`
+- `scripts/pkg72_contextual_evidence_homologation.sh`
 - `./check.sh`
 
 Cobertura:
@@ -96,6 +98,7 @@ Cobertura:
 - BoltStore preserva o replay entre restart até ACK e aceita ACK repetido/ID desconhecido de forma idempotente.
 - web correlaciona evidência Agentless recente com o painel contextual do agente.
 - benchmark expõe cenários, métricas e política que mantém superioridade bloqueada sem evidência comparável.
+- roteiro de homologação gera `/tmp/aiceberg_pkg72_contextual_evidence.md` com validações locais e pendências reais explícitas.
 
 ## Pendências reais
 
@@ -106,6 +109,20 @@ Cobertura:
 - comparação de ruído/custo antes e depois;
 - benchmark com Datadog por cenário;
 - tela web exibindo evidência e lacunas.
+
+## Roteiro de homologação real
+
+```bash
+scripts/pkg72_contextual_evidence_homologation.sh
+```
+
+O script passa localmente quando os contratos automatizados estão íntegros e marca como `pending` os itens que exigem ambiente controlado. Para anexar evidências reais, informe:
+
+- `PKG72_INCIDENT_EVIDENCE`;
+- `PKG72_REPLAY_24H_EVIDENCE`;
+- `PKG72_REGULATED_CLIENT_EVIDENCE`;
+- `PKG72_NOISE_COST_EVIDENCE`;
+- `PKG72_DATADOG_BENCHMARK_EVIDENCE`.
 
 ## Rollback
 

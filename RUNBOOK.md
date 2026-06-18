@@ -366,6 +366,7 @@ Diagnostico:
 - `inspect_runtime_config` inclui `contextual_evidence`;
 - `collect_support_flare` inclui o mesmo snapshot sanitizado;
 - `superiority_benchmark.claim_allowed=false` ate benchmark real.
+- `scripts/pkg72_contextual_evidence_homologation.sh` gera evidencia local e lista explicitamente pendencias reais.
 
 Configuracoes opcionais:
 
@@ -378,6 +379,7 @@ Operacao segura:
 - nenhuma acao destrutiva automatica;
 - usar evidencia e lacunas como apoio NOC/SOC;
 - validar replay offline e correlacao agentless em ambiente real antes de declarar diferencial.
+- para anexar evidencias reais ao roteiro, use `PKG72_INCIDENT_EVIDENCE`, `PKG72_REPLAY_24H_EVIDENCE`, `PKG72_REGULATED_CLIENT_EVIDENCE`, `PKG72_NOISE_COST_EVIDENCE` e `PKG72_DATADOG_BENCHMARK_EVIDENCE`.
 
 Rollback: ignorar `contextual_evidence` no backend. Nao ha SQL do PKG-72.
 
