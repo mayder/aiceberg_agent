@@ -72,10 +72,11 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	}
 	payload := map[string]any{
 		"containers": map[string]any{
-			"schema_version": schemaVersion,
-			"source":         "docker_socket",
-			"items":          normalizeContainers(containers, statsByID),
-			"dropped_count":  maxInt(0, len(containers)-c.maxItems),
+			"schema_version":       schemaVersion,
+			"source":               "docker_socket",
+			"items":                normalizeContainers(containers, statsByID),
+			"autodiscovery_checks": autodiscoveryChecks(containers),
+			"dropped_count":        maxInt(0, len(containers)-c.maxItems),
 		},
 	}
 	return json.Marshal(payload)
@@ -251,6 +252,46 @@ func composeService(labels map[string]string) string {
 		}
 	}
 	return ""
+}
+
+func autodiscoveryChecks(rows []dockerContainer) []map[string]any {
+	out := []map[string]any{}
+	for _, row := range rows {
+		id := shortID(row.ID)
+		name := firstName(row.Names)
+		if raw := strings.TrimSpace(row.Labels["aiceberg.ai/checks"]); raw != "" {
+			var checks []map[string]any
+			if json.Unmarshal([]byte(raw), &checks) == nil {
+				for _, check := range checks {
+					addContainerCheckIdentity(check, id, name, row)
+					out = append(out, check)
+				}
+			}
+		}
+		for key, value := range row.Labels {
+			if !strings.HasPrefix(key, "aiceberg.ai/check.") {
+				continue
+			}
+			check := map[string]any{
+				"key":   strings.TrimPrefix(key, "aiceberg.ai/check."),
+				"value": value,
+			}
+			addContainerCheckIdentity(check, id, name, row)
+			out = append(out, check)
+		}
+	}
+	return out
+}
+
+func addContainerCheckIdentity(check map[string]any, id, name string, row dockerContainer) {
+	check["container_id"] = id
+	check["container_name"] = name
+	if row.Image != "" {
+		check["image"] = row.Image
+	}
+	if compose := composeService(row.Labels); compose != "" {
+		check["service"] = compose
+	}
 }
 
 func cpuPercent(stats dockerStats) float64 {

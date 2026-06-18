@@ -49,3 +49,30 @@ func TestNormalizeContainersRedactsSensitiveLabelsAndAddsStats(t *testing.T) {
 		t.Fatalf("expected network/io stats, got %#v", out[0])
 	}
 }
+
+func TestAutodiscoveryChecksFromDockerLabels(t *testing.T) {
+	rows := []dockerContainer{{
+		ID:    "abcdef1234567890",
+		Names: []string{"/web"},
+		Image: "web:1",
+		Labels: map[string]string{
+			"com.docker.compose.service": "web",
+			"aiceberg.ai/checks":         `[{"type":"http","url":"http://%%host%%:8080/health"}]`,
+			"aiceberg.ai/check.tcp":      "8080",
+		},
+	}}
+
+	checks := autodiscoveryChecks(rows)
+	if len(checks) != 2 {
+		t.Fatalf("expected two checks, got %#v", checks)
+	}
+	if checks[0]["container_id"] != "abcdef123456" || checks[0]["container_name"] != "web" {
+		t.Fatalf("expected container identity on JSON check, got %#v", checks[0])
+	}
+	if checks[0]["service"] != "web" || checks[0]["image"] != "web:1" {
+		t.Fatalf("expected service and image on check, got %#v", checks[0])
+	}
+	if checks[1]["key"] != "tcp" || checks[1]["value"] != "8080" {
+		t.Fatalf("expected simple label check, got %#v", checks[1])
+	}
+}

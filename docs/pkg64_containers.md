@@ -11,6 +11,7 @@ Dados coletados:
 - rede, portas e network mode;
 - compose/swarm service quando houver label;
 - CPU, memoria, rede e IO quando `/stats?stream=false` responder.
+- checks de autodiscovery derivados de labels.
 
 ## Configuracao
 
@@ -41,7 +42,21 @@ O coletor envia `body.containers` para `/v1/ingest/metrics`:
 - `schema_version`;
 - `source=docker_socket`;
 - `items[]`;
+- `autodiscovery_checks`;
 - `dropped_count`.
+
+## Autodiscovery
+
+Labels suportadas:
+
+```yaml
+labels:
+  aiceberg.ai/checks: '[{"type":"http","url":"http://%%host%%:8080/health"}]'
+  aiceberg.ai/check.tcp: "8080"
+  aiceberg.ai/check.openmetrics: "http://%%host%%:9100/metrics"
+```
+
+Cada check recebe `container_id`, `container_name`, `image` e `service` quando existir label de compose/swarm. A execucao efetiva fica ligada ao runtime de checks/plugins.
 
 ## Segurança
 
@@ -52,7 +67,7 @@ O coletor envia `body.containers` para `/v1/ingest/metrics`:
 
 ## Limites
 
-- Containerd nativo, logs de container, autodiscovery de checks e validacao real de carga ficam pendentes.
+- Containerd nativo, logs de container e validacao real de carga ficam pendentes.
 - Sem leitura de secrets montados.
 
 ## Rollback
