@@ -2,6 +2,7 @@
   "schema_version": 1,
   "policy": {
     "official": "integracoes mantidas no core, com testes e sem shell arbitrario",
+    "beta": "podem ser ativadas em canario com manifest e credencial minima",
     "experimental": "desligadas por padrao; exigem manifest, rollback e validacao focada antes de uso"
   },
   "checks": [
@@ -19,9 +20,11 @@
     },
     {
       "kind": "openmetrics",
-      "version": "1",
-      "capabilities": ["metrics", "service_check"],
-      "config_schema": ["target", "timeout_ms", "tags"]
+      "version": "2",
+      "status": "official",
+      "capabilities": ["metrics", "labels", "cardinality_limit", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags", "metric_allowlist", "label_allowlist", "max_metrics", "max_label_values"],
+      "manifest": "integrations/localchecks/manifests/openmetrics.json"
     },
     {
       "kind": "postgresql",
@@ -38,14 +41,17 @@
     {
       "kind": "redis",
       "version": "1",
+      "status": "official",
       "capabilities": ["tcp_reachability", "service_check"],
-      "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"]
+      "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"],
+      "manifest": "integrations/localchecks/manifests/redis.json"
     },
     {
       "kind": "jmx",
       "version": "1",
-      "capabilities": ["tcp_reachability", "service_check"],
-      "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"]
+      "status": "beta",
+      "capabilities": ["jolokia_http", "jvm_heap", "jvm_threads", "jvm_gc", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags", "credentials_ref", "mode"]
     },
     {
       "kind": "nginx",

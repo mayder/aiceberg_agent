@@ -1,7 +1,6 @@
 package localchecks
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -10,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -131,8 +129,10 @@ func execute(ctx context.Context, check config.LocalCheckConfig, maxBytes int64)
 		return runHTTP(ctx, check, maxBytes)
 	case "openmetrics":
 		return runOpenMetrics(ctx, check, maxBytes)
-	case "tcp", "jmx", "postgresql", "mysql", "redis", "iis_wmi", "windows_service":
-		return runTCP(ctx, check)
+	case "jmx":
+		return runJMX(ctx, check, maxBytes)
+	case "tcp", "postgresql", "mysql", "redis", "iis_wmi", "windows_service":
+		return runIntegrationTCP(ctx, check)
 	default:
 		return nil, nil, map[string]any{"status": "critical"}, errors.New("tipo de check local nao permitido")
 	}
@@ -183,7 +183,7 @@ func runOpenMetrics(ctx context.Context, check config.LocalCheckConfig, maxBytes
 	if resp.StatusCode >= 400 {
 		return nil, nil, map[string]any{"status": "critical", "http_status": resp.StatusCode}, nil
 	}
-	metrics := parseOpenMetrics(io.LimitReader(resp.Body, maxBytes), 200)
+	metrics := parseOpenMetricsForCheck(io.LimitReader(resp.Body, maxBytes), check)
 	return metrics, nil, map[string]any{"status": "ok", "http_status": resp.StatusCode}, nil
 }
 
@@ -201,32 +201,20 @@ func runTCP(ctx context.Context, check config.LocalCheckConfig) ([]map[string]an
 	return nil, nil, map[string]any{"status": "ok"}, nil
 }
 
-func parseOpenMetrics(r io.Reader, max int) []map[string]any {
-	out := []map[string]any{}
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		value, err := strconv.ParseFloat(fields[len(fields)-1], 64)
-		if err != nil {
-			continue
-		}
-		name := fields[0]
-		if idx := strings.Index(name, "{"); idx >= 0 {
-			name = name[:idx]
-		}
-		out = append(out, map[string]any{"name": name, "type": "gauge", "value": value})
-		if len(out) >= max {
-			break
-		}
+func runIntegrationTCP(ctx context.Context, check config.LocalCheckConfig) ([]map[string]any, []string, map[string]any, error) {
+	kind := normalizeKind(check.Kind)
+	metrics, logs, serviceCheck, err := runTCP(ctx, check)
+	serviceCheck["integration"] = integrationManifest(kind)
+	if err != nil {
+		return metrics, logs, serviceCheck, err
 	}
-	return out
+	metrics = append(metrics, map[string]any{
+		"name":        "integration.reachable",
+		"type":        "gauge",
+		"value":       1,
+		"integration": kind,
+	})
+	return metrics, logs, serviceCheck, nil
 }
 
 func validateHTTPURL(raw string) (string, error) {

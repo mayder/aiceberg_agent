@@ -52,6 +52,63 @@ func TestRunOpenMetricsParsesMetrics(t *testing.T) {
 	}
 }
 
+func TestRunOpenMetricsAppliesAllowlistAndLabelLimits(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("http_requests_total{code=\"200\",pod=\"a\"} 12\nhttp_requests_total{code=\"500\",pod=\"b\"} 1\nsecret_metric{token=\"abc\"} 99\n"))
+	}))
+	defer srv.Close()
+
+	metrics, _, serviceCheck, err := execute(context.Background(), config.LocalCheckConfig{
+		Kind:    "openmetrics",
+		Target:  srv.URL,
+		Enabled: true,
+		Config: map[string]string{
+			"metric_allowlist": "http_*",
+			"label_allowlist":  "code",
+			"max_label_values": "1",
+		},
+	}, 1024)
+	if err != nil {
+		t.Fatalf("expected openmetrics ok, got %v", err)
+	}
+	if serviceCheck["status"] != "ok" {
+		t.Fatalf("unexpected service check %#v", serviceCheck)
+	}
+	if len(metrics) != 2 {
+		t.Fatalf("expected 2 allowed metrics, got %#v", metrics)
+	}
+	labels, ok := metrics[0]["labels"].(map[string]string)
+	if !ok || labels["code"] != "200" {
+		t.Fatalf("expected allowed code label, got %#v", metrics[0])
+	}
+	if _, hasLabels := metrics[1]["labels"]; hasLabels {
+		t.Fatalf("expected second metric labels dropped by cardinality limit, got %#v", metrics[1])
+	}
+}
+
+func TestRunJMXJolokiaParsesSafeMetrics(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":200,"value":{"HeapMemoryUsage":{"used":128,"max":512},"ThreadCount":24,"CollectionCount":7,"CollectionTime":42}}`))
+	}))
+	defer srv.Close()
+
+	metrics, _, serviceCheck, err := execute(context.Background(), config.LocalCheckConfig{
+		Kind:    "jmx",
+		Target:  srv.URL,
+		Enabled: true,
+		Config:  map[string]string{"mode": "jolokia"},
+	}, 1024)
+	if err != nil {
+		t.Fatalf("expected jmx ok, got %v", err)
+	}
+	if serviceCheck["status"] != "ok" {
+		t.Fatalf("unexpected service check %#v", serviceCheck)
+	}
+	if len(metrics) < 3 {
+		t.Fatalf("expected jvm metrics, got %#v", metrics)
+	}
+}
+
 func TestRunTCPCheck(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -75,6 +132,9 @@ func TestRunTCPCheck(t *testing.T) {
 	}
 	if serviceCheck["status"] != "ok" {
 		t.Fatalf("unexpected service check %#v", serviceCheck)
+	}
+	if manifest, ok := serviceCheck["integration"].(map[string]any); !ok || manifest["status"] != "official" {
+		t.Fatalf("expected official integration metadata, got %#v", serviceCheck)
 	}
 }
 

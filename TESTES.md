@@ -217,6 +217,12 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Cobrir servico inferido sem OpenTelemetry, dependencia `service -> database`, fallback eBPF, NPM/top talkers, redaction de IP publico e sinais SOC sem acao destrutiva.
 - Validacao real de kernel eBPF, permissao sem eBPF, fluxo `web -> api -> db`, container, Kubernetes e overhead fica pendente ate ambiente controlado.
 
+## PKG-71 - Integracoes avancadas
+
+- Unitario focado: `go test ./internal/platform/collectors/localchecks`.
+- Cobrir OpenMetrics com allowlist/cardinalidade, labels permitidas, JMX via Jolokia, metadados de manifest oficial e bloqueio de tipo arbitrario.
+- Validacao real de `/metrics`, app Java, Windows Server, bancos/fila/web servers e autodiscovery container/Kubernetes fica pendente ate ambiente controlado.
+
 ## Validação por lote
 
 Objetivo: dar feedback rápido, sem gastar tempo com bateria completa a cada subentrega.

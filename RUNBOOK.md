@@ -299,6 +299,27 @@ Operacao segura:
 
 Rollback: definir `network_advanced_enabled=false`, `usm_enabled=false`, `workload_security_enabled=false`, `network_pcap_enabled=false` e `network_passive_mode=socket`. Nao ha SQL do PKG-70.
 
+### PKG-71 - Integracoes avancadas
+
+Contrato tecnico: `docs/pkg71_advanced_integrations.md`.
+
+Catalogo: `integrations/localchecks/catalog.json`.
+
+Manifestos oficiais iniciais:
+
+- `integrations/localchecks/manifests/openmetrics.json`;
+- `integrations/localchecks/manifests/redis.json`.
+
+Operacao segura:
+
+- ativar `official` primeiro;
+- usar `credentials_ref`, nunca senha inline;
+- usar `metric_allowlist` e `label_allowlist` em OpenMetrics;
+- manter `jmx` em `mode=jolokia`;
+- tratar `iis_wmi` e `windows_service` como experimentais ate Windows Server real.
+
+Rollback: remover a entrada da integracao em `local_checks` ou definir `local_checks_enabled=false`. Nao ha SQL do PKG-71.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.

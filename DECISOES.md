@@ -174,6 +174,17 @@ Referências:
 - Impacto em rollback: desligar `network_advanced_enabled`, `usm_enabled`, `workload_security_enabled`, `network_pcap_enabled` e voltar `network_passive_mode=socket`.
 - Como reverter: ignorar/remover os blocos aditivos e manter `networkcapture` legado.
 
+### DEC-20260618-13 - Integracoes avancadas exigem manifest e estado de homologacao
+
+- Status: aceita
+- Contexto: PKG-71 precisa ampliar checks locais sem virar catalogo sem qualidade nem duplicar Agentless.
+- Decisao: evoluir `localchecks` com manifests versionados, status `official|beta|experimental`, OpenMetrics com allowlist/cardinalidade e JMX apenas via Jolokia HTTP. Integracoes profundas de WMI e bancos ficam beta/experimental ate validacao real.
+- Alternativas consideradas: embutir plugins executaveis externos ou coletar JMX/WMI por comando local.
+- Consequencias: o agente continua sem shell arbitrario; integracoes oficiais tem manifest, teste e rollback; ativacao ampla de beta/experimental fica bloqueada por governanca operacional.
+- Impacto em testes: unitarios cobrem OpenMetrics, cardinalidade, Jolokia e metadados oficiais.
+- Impacto em rollback: desativar a integracao especifica em `local_checks` ou `local_checks_enabled=false`.
+- Como reverter: remover manifests novos e voltar ao runtime de checks basicos do PKG-66.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

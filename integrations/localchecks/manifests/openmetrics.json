@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "kind": "openmetrics",
+  "version": "2",
+  "status": "official",
+  "owner": "aiceberg_agent",
+  "permissions": ["http_get"],
+  "config_schema": {
+    "required": ["target"],
+    "optional": ["timeout_ms", "tags", "metric_allowlist", "label_allowlist", "max_metrics", "max_label_values"]
+  },
+  "metrics_emitted": ["openmetrics metric names after allowlist"],
+  "logs_emitted": [],
+  "security": {
+    "secrets": "none",
+    "redaction": ["target query string through common redaction"],
+    "cardinality_limits": ["metric_allowlist", "label_allowlist", "max_metrics", "max_label_values"]
+  },
+  "risk": "high-cardinality labels can increase payload size when allowlist is too broad",
+  "rollback": "disable the openmetrics local check"
+}

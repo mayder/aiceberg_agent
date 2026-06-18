@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "kind": "redis",
+  "version": "1",
+  "status": "official",
+  "owner": "aiceberg_agent",
+  "permissions": ["tcp_connect"],
+  "config_schema": {
+    "required": ["target"],
+    "optional": ["timeout_ms", "tags", "credentials_ref"]
+  },
+  "metrics_emitted": ["integration.reachable"],
+  "logs_emitted": [],
+  "security": {
+    "secrets": "credentials_ref only; no inline password",
+    "redaction": ["credentials_ref"],
+    "network": "tcp reachability only in this package"
+  },
+  "risk": "reachability is not deep Redis telemetry yet",
+  "rollback": "disable the redis local check"
+}
