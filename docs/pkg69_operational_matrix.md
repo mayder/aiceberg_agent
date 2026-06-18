@@ -18,6 +18,14 @@ O script de homologacao executa:
 - `./check.sh`;
 - listagem explicita de cenarios pendentes de ambiente real.
 
+Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
+
+- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
+- Docker daemon indisponivel no host local;
+- `kubectl` disponivel, mas sem validacao de cluster/DaemonSet/Helm;
+- Helm e PowerShell indisponiveis neste host;
+- Windows, Linux real, Docker, Kubernetes, proxy autenticado, disco cheio real, alto volume real e rollback de update seguem pendentes de ambiente controlado.
+
 Smokes por sistema operacional:
 
 ```bash
@@ -29,6 +37,14 @@ Os smokes geram `smoke-evidence.json` no diretório temporário ou no caminho de
 `SMOKE_EVIDENCE_FILE`/`-SmokeEvidenceFile`, com health, métricas, ingestão de logs e SHA256
 dos artefatos locais usados na validação.
 
+Smoke POSIX local executado em 2026-06-18 com `SMOKE_EVIDENCE_FILE=/tmp/aiceberg_pkg69_smoke_evidence.json`:
+
+- `health.status=ok`;
+- `agent_pipeline_version=2-compatible`;
+- ingestao confirmada em `/v1/ingest/bootstrap`, `/v1/ingest/health`, `/v1/ingest/metrics` e `/v1/logs/raw`;
+- `agent_log_sha256=55fa32917610298090284f24906b144030424ccb64212da613aa0af7743beae5`;
+- `oslog_fixture_sha256=e14a2773b6da308c2776891300d37c55cd9750137af86071d40b7655c0a35525`.
+
 ## Ambientes obrigatorios
 
 | Ambiente | Evidencia exigida | Estado atual |
@@ -39,7 +55,7 @@ dos artefatos locais usados na validação.
 | RHEL/Alma/Rocky | `smoke.sh`, systemd, dnf/yum, update | pendente real |
 | Docker | `CONTAINER_ENABLED=true`, Docker socket, labels, recursos | pendente |
 | Kubernetes | DaemonSet/Helm, RBAC minimo, pods/events, rollback chart | pendente |
-| macOS/dev local | testes focados e `./check.sh` | validavel por script |
+| macOS/dev local | testes focados, `./check.sh` e smoke POSIX | validado local em 2026-06-18 |
 
 ## Cenarios obrigatorios
 
