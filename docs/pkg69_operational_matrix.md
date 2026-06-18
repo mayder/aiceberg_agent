@@ -31,7 +31,7 @@ O script de homologacao executa:
 - testes focados dos coletores e contratos adicionados em PKG-59 a PKG-68;
 - validacao local da cadeia Ed25519 de artefato de update, aceitando assinatura valida e rejeitando assinatura invalida antes do `apply`;
 - validacao local de reconexao pos-update: `version_confirmed` quando a versao aplica e `apply_failed/version_mismatch_after_restart` quando rollback mantem a versao anterior;
-- validacao local de download via `HTTP_PROXY` autenticado e timeout sem finalizar artefato parcial;
+- validacao local de download via `HTTP_PROXY` autenticado, rejeicao padrao de TLS invalido e timeout sem finalizar artefato parcial;
 - validacao local de clock skew com `time_sync.status` em `ok`, `warning` e `critical`, preservando clamp de offset extremo;
 - validacao local de degradacao PCAP/tcpdump com permissao insuficiente, interface invalida e captura vazia sem crash;
 - validacao local de restart/reabertura da outbox bbolt preservando itens antes/depois do restart e ACK parcial;
@@ -47,7 +47,7 @@ O gate `scripts/pkg69_operational_evidence_gate.sh` gera templates por ambiente/
 
 Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 
-- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, reconexao pos-update local com `version_confirmed` e `version_mismatch_after_restart`, `HTTP_PROXY` autenticado local, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg em canal/ping/self-heal/update, e2e local multi-processo direct/hub/relay, smoke POSIX com RSS/CPU/goroutines locais, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
+- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, reconexao pos-update local com `version_confirmed` e `version_mismatch_after_restart`, `HTTP_PROXY` autenticado local, TLS invalido rejeitado por padrao, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg em canal/ping/self-heal/update, e2e local multi-processo direct/hub/relay, smoke POSIX com RSS/CPU/goroutines locais, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
 - Docker daemon indisponivel no host local;
 - `kubectl` disponivel, mas sem validacao de cluster/DaemonSet/Helm;
 - Helm e PowerShell indisponiveis neste host;
@@ -108,7 +108,7 @@ Hashes 0.8.8:
 | --- | --- | --- |
 | API indisponivel | backoff, outbox preservada, sem crash | parcial local |
 | Rede intermitente | retry/backoff e flush posterior | parcial local |
-| Proxy/TLS | proxy autenticado e TLS invalido controlado | parcial local para `HTTP_PROXY`; proxy real/TLS pendente |
+| Proxy/TLS | proxy autenticado e TLS invalido controlado | parcial local para `HTTP_PROXY` e rejeicao TLS invalido; proxy real/TLS pendente |
 | Disco cheio/outbox cheia | erro claro, sem corrupcao | parcial local |
 | Payload grande | limite/queda controlada em DogStatsD, OTLP e logs | parcial local |
 | Clock errado | health/time sync com diagnostico | parcial local para `time_sync.status`; NTP/clock real pendente |

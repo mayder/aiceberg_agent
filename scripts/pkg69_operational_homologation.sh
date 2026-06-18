@@ -43,10 +43,10 @@ result "artifact-trust-local" "pass" "Ed25519 aceita assinatura valida e rejeita
 go test ./internal/domain/usecase -run 'TestSelfUpdate_ReportPendingResult(ConfirmsVersionAfterReconnect|MarksVersionMismatchAfterRollback)' >/tmp/aiceberg_pkg69_update_rollback_test.log
 result "update-rollback-local" "pass" "reconexao confirma version_confirmed quando a versao aplica e reporta apply_failed/version_mismatch_after_restart quando rollback mantem versao anterior; log=/tmp/aiceberg_pkg69_update_rollback_test.log"
 {
-  go test ./internal/common/httpx -run TestNewClientUsesAuthenticatedHTTPProxyFromEnvironment
+  go test ./internal/common/httpx -run 'TestNewClient(UsesAuthenticatedHTTPProxyFromEnvironment|RejectsInvalidTLSByDefault)'
   go test ./internal/domain/usecase -run TestSelfUpdate_DownloadTimeoutDoesNotFinalizePartialFile
 } >/tmp/aiceberg_pkg69_update_network_test.log
-result "update-network-local" "pass" "HTTP_PROXY autenticado e timeout de download sem artefato parcial; log=/tmp/aiceberg_pkg69_update_network_test.log"
+result "update-network-local" "pass" "HTTP_PROXY autenticado, TLS invalido rejeitado por padrao e timeout de download sem artefato parcial; log=/tmp/aiceberg_pkg69_update_network_test.log"
 go test ./internal/platform/collectors/sysmetrics -run 'Test(TimeSyncStatusClassifiesClockSkew|ClampAbsInt64)' >/tmp/aiceberg_pkg69_clock_skew_test.log
 result "clock-skew-local" "pass" "time_sync classifica offset ok/warning/critical e limita offset extremo; log=/tmp/aiceberg_pkg69_clock_skew_test.log"
 go test ./internal/platform/collectors/networkcapture -run TestClassifyPCAPUnavailableWarning >/tmp/aiceberg_pkg69_permission_test.log

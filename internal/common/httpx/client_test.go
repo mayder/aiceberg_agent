@@ -50,3 +50,18 @@ func TestNewClientUsesAuthenticatedHTTPProxyFromEnvironment(t *testing.T) {
 		t.Fatalf("expected one proxy hit, got %d", got)
 	}
 }
+
+func TestNewClientRejectsInvalidTLSByDefault(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("tls-ok"))
+	}))
+	defer srv.Close()
+
+	client := NewClient(config.Config{}, 2*time.Second)
+	resp, err := client.Get(srv.URL)
+	if err == nil {
+		defer resp.Body.Close()
+		t.Fatalf("expected invalid TLS certificate to be rejected")
+	}
+}
