@@ -154,6 +154,41 @@ func TestCollectorHTTPIngest(t *testing.T) {
 	}
 }
 
+func TestCollectorHTTPRejectsOversizedPayload(t *testing.T) {
+	addr := freeTCPAddr(t)
+	cfg := config.Config{
+		CustomMetricsEnabled:   true,
+		CustomMetricsHTTPAddr:  addr,
+		CustomMetricsInterval:  time.Second,
+		CustomMetricsMaxSeries: 10,
+		CustomMetricsMaxBytes:  64,
+	}
+	c := New(cfg, nil).(*collector)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if _, err := c.Collect(ctx); err != nil {
+		t.Fatalf("start collect: %v", err)
+	}
+
+	body := bytes.Repeat([]byte("x"), cfg.CustomMetricsMaxBytes+1)
+	resp, err := http.Post("http://"+addr+"/v1/custom-metrics", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("post oversized metric: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413, got %d", resp.StatusCode)
+	}
+
+	raw, err := c.Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	if len(raw) != 0 {
+		t.Fatalf("expected no payload after rejected oversized body, got %s", string(raw))
+	}
+}
+
 func TestCollectorUDSIngest(t *testing.T) {
 	socketFile, err := os.CreateTemp("/tmp", "aiceberg-cm-*.sock")
 	if err != nil {

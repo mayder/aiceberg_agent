@@ -55,6 +55,17 @@ go test ./internal/data/local/outbox -run TestBoltStorePreservesQueueAcrossColle
 result "restart-replay-local" "pass" "outbox preserva fila antes/depois de restart e ACK parcial; log=/tmp/aiceberg_pkg69_restart_replay_test.log"
 go test ./internal/platform/collectors/custommetrics -run TestCollectorBoundsHighVolumeCardinalityBurst >/tmp/aiceberg_pkg69_high_volume_test.log
 result "high-volume-local" "pass" "custom_metrics limita burst de cardinalidade e contabiliza drops; log=/tmp/aiceberg_pkg69_high_volume_test.log"
+go test ./internal/domain/usecase -run TestFlushOutbox_TransportError >/tmp/aiceberg_pkg69_api_unavailable_test.log
+result "api-unavailable-local" "pass" "flush_outbox preserva envelopes pendentes em erro de transporte/API; log=/tmp/aiceberg_pkg69_api_unavailable_test.log"
+go test ./internal/domain/usecase -run TestFlushOutbox_BackoffSkipsFailedRouteTemporarily >/tmp/aiceberg_pkg69_network_backoff_test.log
+result "network-intermittent-local" "pass" "flush_outbox aplica backoff por rota antes de tentar novo envio; log=/tmp/aiceberg_pkg69_network_backoff_test.log"
+{
+  go test ./internal/platform/collectors/custommetrics -run 'TestCollector(BoundsHighVolumeCardinalityBurst|HTTPRejectsOversizedPayload)'
+  go test ./internal/platform/collectors/otlp -run TestReceiverRejectsOversizedPayload
+} >/tmp/aiceberg_pkg69_payload_large_test.log
+result "payload-large-local" "pass" "custom_metrics/OTLP rejeitam payload acima do limite e preservam limite de cardinalidade; log=/tmp/aiceberg_pkg69_payload_large_test.log"
+go test ./internal/data/local/outbox -run TestBoltStoreRejectsOversizedEnvelopeWithoutPartialWrite >/tmp/aiceberg_pkg69_outbox_full_test.log
+result "outbox-full-local" "pass" "bbolt outbox rejeita envelope acima do limite sem escrita parcial; log=/tmp/aiceberg_pkg69_outbox_full_test.log"
 {
   go test ./internal/domain/channel -run TestTopologyPreservesRelayThroughHubOnly
   go test ./internal/domain/usecase -run 'Test(AgentChannelClientRunDirectSkipsRelayMode|AgentChannelClientRelayUsesHubURLOnly|AgentChannelClientSnapshotRelayTopology|PingBackendRelayUsesHubURLForLegacyPing|SelfUpdate_RelayDownloadsViaHubProxy|SelfUpdate_RelayDownloadDoesNotFallbackToDirect)'
@@ -62,10 +73,6 @@ result "high-volume-local" "pass" "custom_metrics limita burst de cardinalidade 
   go test ./internal/interfaces/hub -run 'TestHub(ChannelForwardsRelayPresenceToAiceberg|ChannelForwardsRelayCommandEventToAiceberg|ChannelRejectsNonRelayMode|IngestPreservesRelayIdentityHeader)'
 } >/tmp/aiceberg_pkg69_relay_topology_test.log
 result "relay-topology-local" "pass" "relay usa HUB_URL para canal/ping/selfheal/update e o Hub encaminha ao AIceberg; log=/tmp/aiceberg_pkg69_relay_topology_test.log"
-result "api-unavailable-local" "pass" "flush_outbox tests preserve pending envelopes on transport/API error"
-result "network-intermittent-local" "pass" "flush_outbox tests backoff and later retry behavior"
-result "payload-large-local" "pass" "collectors enforce max bytes/items in focused tests"
-result "outbox-full-local" "pass" "bolt outbox rejects oversized envelope without partial write"
 
 E2E_EVIDENCE_FILE=/tmp/aiceberg_pkg69_e2e_evidence.json PYTHON="$PYTHON" scripts/e2e.sh >/tmp/aiceberg_pkg69_e2e.log
 "$PYTHON" - /tmp/aiceberg_pkg69_e2e_evidence.json <<'PY'

@@ -39,7 +39,7 @@ O script de homologacao executa:
 - validacao local de topologia `direct -> AIceberg`, `hub -> AIceberg` e `relay -> hub -> AIceberg` para canal, ping legado, self-heal, update via proxy do Hub e encaminhamento Hub;
 - e2e local multi-processo com backend fake, agente Hub, agente Relay e agente Direct, validando ingest por token, ping legado, bootstrap e Agentless jobs/observations;
 - smoke POSIX local com evidencia de RSS, CPU e goroutines em coleta normal;
-- cenarios locais automatizados de API indisponivel, backoff, payload grande e outbox cheia;
+- cenarios locais automatizados com testes focados e logs dedicados para API indisponivel (`/tmp/aiceberg_pkg69_api_unavailable_test.log`), backoff/rede intermitente (`/tmp/aiceberg_pkg69_network_backoff_test.log`), payload grande (`/tmp/aiceberg_pkg69_payload_large_test.log`) e outbox cheia (`/tmp/aiceberg_pkg69_outbox_full_test.log`);
 - `./check.sh`;
 - listagem explicita de cenarios pendentes de ambiente real.
 
@@ -47,7 +47,7 @@ O gate `scripts/pkg69_operational_evidence_gate.sh` gera templates por ambiente/
 
 Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 
-- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, reconexao pos-update local com `version_confirmed` e `version_mismatch_after_restart`, `HTTP_PROXY` autenticado local, TLS invalido rejeitado por padrao, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg em canal/ping/self-heal/update, e2e local multi-processo direct/hub/relay, smoke POSIX com RSS/CPU/goroutines locais, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
+- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, reconexao pos-update local com `version_confirmed` e `version_mismatch_after_restart`, `HTTP_PROXY` autenticado local, TLS invalido rejeitado por padrao, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg em canal/ping/self-heal/update, e2e local multi-processo direct/hub/relay, smoke POSIX com RSS/CPU/goroutines locais, testes focados de API indisponivel/rede intermitente/payload grande/outbox cheia com logs dedicados e `./check.sh`;
 - Docker daemon indisponivel no host local;
 - `kubectl` disponivel, mas sem validacao de cluster/DaemonSet/Helm;
 - Helm e PowerShell indisponiveis neste host;

@@ -226,6 +226,39 @@ func TestReceiverSamplesTracesButKeepsErrorsAndSlowSpans(t *testing.T) {
 	}
 }
 
+func TestReceiverRejectsOversizedPayload(t *testing.T) {
+	addr := freeTCPAddr(t)
+	receiver := NewReceiver(config.Config{
+		OTLPEnabled:  true,
+		OTLPHTTPAddr: addr,
+		OTLPInterval: time.Second,
+		OTLPMaxItems: 10,
+		OTLPMaxBytes: 64,
+	}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if _, err := receiver.MetricsCollector().Collect(ctx); err != nil {
+		t.Fatalf("start receiver: %v", err)
+	}
+
+	resp, err := http.Post("http://"+addr+"/v1/metrics", "application/json", bytes.NewReader(bytes.Repeat([]byte("x"), 65)))
+	if err != nil {
+		t.Fatalf("post oversized otlp: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413, got %d", resp.StatusCode)
+	}
+
+	raw, err := receiver.MetricsCollector().Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	if len(raw) != 0 {
+		t.Fatalf("expected no payload after rejected oversized body, got %s", string(raw))
+	}
+}
+
 func postOTLP(t *testing.T, addr, path, body string) {
 	t.Helper()
 	resp, err := http.Post("http://"+addr+path, "application/json", bytes.NewBufferString(body))

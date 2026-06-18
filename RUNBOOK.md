@@ -314,7 +314,7 @@ Comando local:
 scripts/pkg69_operational_homologation.sh
 ```
 
-O comando valida ambiente local, testes focados, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg para canal/ping/self-heal/update, update local com `version_confirmed` e mismatch apos rollback, proxy autenticado e rejeicao padrao de TLS invalido, e2e multi-processo direct/hub/relay, smoke POSIX com RSS/CPU/goroutines locais, `./check.sh`, e lista pendencias reais por Windows, Linux, Docker, Kubernetes, proxy, disco, payload, alto volume com CPU/mem e update rollback.
+O comando valida ambiente local, testes focados, burst local de cardinalidade custom metrics, testes dedicados de API indisponivel, backoff/rede intermitente, payload grande e outbox cheia, topologia relay -> hub -> AIceberg para canal/ping/self-heal/update, update local com `version_confirmed` e mismatch apos rollback, proxy autenticado e rejeicao padrao de TLS invalido, e2e multi-processo direct/hub/relay, smoke POSIX com RSS/CPU/goroutines locais, `./check.sh`, e lista pendencias reais por Windows, Linux, Docker, Kubernetes, proxy, disco, payload, alto volume com CPU/mem e update rollback.
 
 Gate de evidencias reais:
 
