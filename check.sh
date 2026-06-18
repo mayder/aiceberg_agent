@@ -98,4 +98,7 @@ go test ./...
 log "pkg72 evidence gate self-test"
 scripts/pkg72_contextual_evidence_gate_selftest.sh
 
+log "pkg69 evidence gate self-test"
+scripts/pkg69_operational_evidence_gate_selftest.sh
+
 log "OK"

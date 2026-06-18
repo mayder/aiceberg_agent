@@ -10,6 +10,21 @@ Fechar a homologacao operacional dos pacotes PKG-59 a PKG-68 com evidencia por a
 scripts/pkg69_operational_homologation.sh
 ```
 
+Gate de fechamento com evidencias reais:
+
+```bash
+PKG69_TEMPLATE_DIR=/tmp/aiceberg_pkg69_templates \
+PKG69_EVIDENCE_MANIFEST_TSV=/tmp/aiceberg_pkg69_manifest.tsv \
+scripts/pkg69_operational_evidence_gate.sh
+```
+
+Para bloquear fechamento sem todos os anexos reais:
+
+```bash
+PKG69_REQUIRE_REAL_EVIDENCE=true scripts/pkg69_operational_evidence_gate.sh
+PKG69_REQUIRE_CLOSURE_ACCEPTED=true scripts/pkg69_operational_evidence_gate.sh
+```
+
 O script de homologacao executa:
 
 - deteccao de Docker, kubectl, Helm e PowerShell;
@@ -26,6 +41,8 @@ O script de homologacao executa:
 - cenarios locais automatizados de API indisponivel, backoff, payload grande e outbox cheia;
 - `./check.sh`;
 - listagem explicita de cenarios pendentes de ambiente real.
+
+O gate `scripts/pkg69_operational_evidence_gate.sh` gera templates por ambiente/cenario, valida titulo, status `pass`, campos obrigatorios, aprovacao de fechamento e SHA256/tamanho de cada evidencia anexada. O self-test `scripts/pkg69_operational_evidence_gate_selftest.sh` roda dentro de `./check.sh`.
 
 Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 
@@ -122,3 +139,4 @@ PKG-69 so pode ser fechado quando:
 - artefatos oficiais forem gerados com SHA256;
 - download/update remoto controlado for testado com artefato assinado;
 - matriz web `docs/agente_datadog_paridade.md` refletir validado vs pendente.
+- `scripts/pkg69_operational_evidence_gate.sh` tiver todos os anexos reais com manifest pronto e fechamento explicitamente aceito.

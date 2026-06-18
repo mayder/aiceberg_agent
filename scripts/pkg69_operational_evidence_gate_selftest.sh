@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+TMP_DIR="$(mktemp -d /tmp/aiceberg_pkg69_gate_selftest.XXXXXX)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+fill_template() {
+  local path="$1"
+  local status="$2"
+  perl -0pi -e \
+    's/- Data UTC:/- Data UTC: 2026-06-18T00:00:00Z/;
+     s/- Responsavel:/- Responsavel: gate-selftest/;
+     s/- Cliente\/lab:/- Cliente\/lab: local/;
+     s/- Host\/agente\/HUB\/relay:/- Host\/agente\/HUB\/relay: host-1/;
+     s/- Versao agente:/- Versao agente: selftest/;
+     s/- Artefato instalado:/- Artefato instalado: selftest.tar.gz/;
+     s/- Evidencia bruta anexada:/- Evidencia bruta anexada: raw.log/;
+     s/- Observacoes:/- Observacoes: selftest/;
+     s/- Rollback validado:/- Rollback validado: sim/;
+     s/- Revisor:/- Revisor: gate-selftest/' "$path"
+  perl -0pi -e "s/- Status: pending\\|pass\\|fail/- Status: $status/" "$path"
+  perl -0pi -e "s/- Aprovacao fechamento: pending\\|yes\\|no/- Aprovacao fechamento: yes/" "$path"
+  perl -0pi -e 's/^- ([^:\n]+):[[:space:]]*$/- $1: selftest/mg' "$path"
+}
+
+assert_contains() {
+  local path="$1"
+  local pattern="$2"
+  grep -Fq "$pattern" "$path" || {
+    echo "expected pattern not found: $pattern" >&2
+    echo "file: $path" >&2
+    exit 1
+  }
+}
+
+run_with_all_evidence() {
+  local evidence_file="$1"
+  shift
+  PKG69_EVIDENCE_FILE="$evidence_file" \
+  PKG69_WINDOWS_SERVER_EVIDENCE="$TMP_DIR/all/windows_server.md" \
+  PKG69_WINDOWS_DESKTOP_EVIDENCE="$TMP_DIR/all/windows_desktop.md" \
+  PKG69_LINUX_DEBIAN_EVIDENCE="$TMP_DIR/all/linux_debian.md" \
+  PKG69_LINUX_RHEL_EVIDENCE="$TMP_DIR/all/linux_rhel.md" \
+  PKG69_DOCKER_RUNTIME_EVIDENCE="$TMP_DIR/all/docker_runtime.md" \
+  PKG69_KUBERNETES_RBAC_EVIDENCE="$TMP_DIR/all/kubernetes_rbac.md" \
+  PKG69_PROXY_TLS_EVIDENCE="$TMP_DIR/all/proxy_tls.md" \
+  PKG69_CLOCK_SKEW_EVIDENCE="$TMP_DIR/all/clock_skew.md" \
+  PKG69_PERMISSION_EBPF_EVIDENCE="$TMP_DIR/all/permission_ebpf.md" \
+  PKG69_REBOOT_EVIDENCE="$TMP_DIR/all/reboot_during_collection.md" \
+  PKG69_DISK_FULL_EVIDENCE="$TMP_DIR/all/disk_full.md" \
+  PKG69_HIGH_VOLUME_EVIDENCE="$TMP_DIR/all/high_volume_overhead.md" \
+  PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/all/relay_hub_direct_hosts.md" \
+  PKG69_REMOTE_UPDATE_ROLLBACK_EVIDENCE="$TMP_DIR/all/remote_update_rollback.md" \
+  "$@" scripts/pkg69_operational_evidence_gate.sh >/dev/null
+}
+
+PKG69_TEMPLATE_DIR="$TMP_DIR/templates" \
+PKG69_EVIDENCE_FILE="$TMP_DIR/template-generation.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-pass.md"
+fill_template "$TMP_DIR/relay-pass.md" "pass"
+
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-fail.md"
+fill_template "$TMP_DIR/relay-fail.md" "fail"
+
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-empty-specific-field.md"
+fill_template "$TMP_DIR/relay-empty-specific-field.md" "pass"
+perl -0pi -e 's/- relay_direct_api_attempts: selftest/- relay_direct_api_attempts:/' "$TMP_DIR/relay-empty-specific-field.md"
+
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-no-approval.md"
+fill_template "$TMP_DIR/relay-no-approval.md" "pass"
+perl -0pi -e 's/- Aprovacao fechamento: yes/- Aprovacao fechamento: no/' "$TMP_DIR/relay-no-approval.md"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/correct-slot.md" \
+PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/correct-slot.tsv" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-pass.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/correct-slot.md" "relay-hub-direct-hosts: evidence"
+assert_contains "$TMP_DIR/correct-slot.tsv" $'name\tstatus\tpath\tsha256\tbytes\treason'
+assert_contains "$TMP_DIR/correct-slot.tsv" $'relay-hub-direct-hosts\tevidence\t'
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/wrong-slot.md" \
+PKG69_WINDOWS_SERVER_EVIDENCE="$TMP_DIR/relay-pass.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/wrong-slot.md" "windows-server: invalid-template"
+assert_contains "$TMP_DIR/wrong-slot.md" "reason=template title mismatch"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/fail-status.md" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-fail.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/fail-status.md" "relay-hub-direct-hosts: invalid-template"
+assert_contains "$TMP_DIR/fail-status.md" "reason=template status is not pass"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/empty-specific-field.md" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-empty-specific-field.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/empty-specific-field.md" "relay-hub-direct-hosts: invalid-template"
+assert_contains "$TMP_DIR/empty-specific-field.md" "reason=template required field blank"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/no-approval.md" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-no-approval.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/no-approval.md" "relay-hub-direct-hosts: invalid-template"
+assert_contains "$TMP_DIR/no-approval.md" "reason=template closure approval is not yes"
+
+mkdir -p "$TMP_DIR/all"
+cp "$TMP_DIR/templates/"*.md "$TMP_DIR/all/"
+for template in "$TMP_DIR/all/"*.md; do
+  fill_template "$template" "pass"
+done
+
+set +e
+PKG69_EVIDENCE_FILE="$TMP_DIR/closure-missing-evidence.md" \
+PKG69_REQUIRE_CLOSURE_ACCEPTED=true \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null 2>&1
+closure_missing_evidence_exit=$?
+set -e
+
+if [[ "$closure_missing_evidence_exit" -ne 3 ]]; then
+  echo "expected closure gate exit 3 without evidence, got $closure_missing_evidence_exit" >&2
+  exit 1
+fi
+
+set +e
+run_with_all_evidence "$TMP_DIR/closure-no-accept.md" env PKG69_REQUIRE_CLOSURE_ACCEPTED=true
+closure_no_accept_exit=$?
+set -e
+
+if [[ "$closure_no_accept_exit" -ne 3 ]]; then
+  echo "expected closure gate exit 3 without explicit accept, got $closure_no_accept_exit" >&2
+  exit 1
+fi
+
+run_with_all_evidence "$TMP_DIR/closure-accepted.md" env PKG69_REQUIRE_CLOSURE_ACCEPTED=true PKG69_ACCEPT_CLOSURE=true
+assert_contains "$TMP_DIR/closure-accepted.md" "pkg69-status: accepted-for-closure"
+
+set +e
+PKG69_EVIDENCE_FILE="$TMP_DIR/blocking.md" \
+PKG69_REQUIRE_REAL_EVIDENCE=true \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null 2>&1
+blocking_exit=$?
+set -e
+
+if [[ "$blocking_exit" -ne 2 ]]; then
+  echo "expected blocking gate exit 2, got $blocking_exit" >&2
+  exit 1
+fi
+
+echo "PKG-69 evidence gate self-test OK"
