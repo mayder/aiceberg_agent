@@ -104,6 +104,8 @@ PING_INTERVAL=2 \
 CONFIG_SYNC_INTERVAL=5 \
 OUTBOX_PATH="${WORKDIR}/outbox.db" \
 OUTBOX_MAX_MB=5 \
+AGENTLESS_OUTBOX_PATH="${WORKDIR}/agentless_outbox.db" \
+AGENTLESS_OUTBOX_MAX_MB=5 \
 PREFS_PATH="${WORKDIR}/prefs.json" \
 AGENT_TOKEN_PATH="${WORKDIR}/agent.token" \
 AGENT_STATE_PATH="${WORKDIR}/bootstrap.ok" \
@@ -215,8 +217,14 @@ evidence = {
     "health": {
         "status": health.get("status"),
         "agent_pipeline_version": health.get("agent_pipeline_version"),
+        "uptime_sec": health.get("uptime_sec"),
+        "proc_rss_bytes": health.get("proc_rss_bytes"),
+        "proc_cpu_percent": health.get("proc_cpu_percent"),
+        "goroutines": health.get("goroutines"),
         "queue_items": health.get("queue_items"),
         "queue_bytes": health.get("queue_bytes"),
+        "last_collect_ms": health.get("last_collect_ms"),
+        "last_flush_ms": health.get("last_flush_ms"),
         "flush_detail": health.get("flush_detail"),
     },
     "backend": {

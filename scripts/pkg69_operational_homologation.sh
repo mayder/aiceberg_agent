@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+PYTHON="${PYTHON:-python3}"
 
 section() {
   printf '\n## %s\n\n' "$1"
@@ -57,6 +58,25 @@ result "network-intermittent-local" "pass" "flush_outbox tests backoff and later
 result "payload-large-local" "pass" "collectors enforce max bytes/items in focused tests"
 result "outbox-full-local" "pass" "bolt outbox rejects oversized envelope without partial write"
 
+SMOKE_EVIDENCE_FILE=/tmp/aiceberg_pkg69_smoke_evidence.json PYTHON="$PYTHON" scripts/smoke.sh >/tmp/aiceberg_pkg69_smoke.log
+"$PYTHON" - /tmp/aiceberg_pkg69_smoke_evidence.json <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    evidence = json.load(fh)
+health = evidence.get("health", {})
+required = ["proc_rss_bytes", "proc_cpu_percent", "goroutines"]
+missing = [key for key in required if key not in health]
+if missing:
+    raise SystemExit("missing local overhead fields: " + ",".join(missing))
+if not isinstance(health.get("proc_rss_bytes"), int) or health["proc_rss_bytes"] <= 0:
+    raise SystemExit("invalid proc_rss_bytes")
+if not isinstance(health.get("goroutines"), int) or health["goroutines"] <= 0:
+    raise SystemExit("invalid goroutines")
+PY
+result "normal-overhead-local" "pass" "smoke POSIX registra RSS/CPU/goroutines locais; evidence=/tmp/aiceberg_pkg69_smoke_evidence.json log=/tmp/aiceberg_pkg69_smoke.log"
+
 section "full check"
 ./check.sh >/tmp/aiceberg_pkg69_check.log
 result "check.sh" "pass" "log=/tmp/aiceberg_pkg69_check.log"
@@ -74,4 +94,5 @@ result "reboot-during-collection" "partial" "outbox bbolt preserva replay em rea
 result "disk-full" "partial" "outbox cheia coberta por teste local; falta disco cheio real do SO"
 result "payload-large" "partial" "limites cobertos por testes locais; falta alto volume real DogStatsD/OTLP/logs"
 result "high-volume" "partial" "burst local de cardinalidade custom_metrics coberto; falta carga real DogStatsD/OTLP/logs com CPU/mem"
+result "cpu-mem-overhead" "partial" "smoke local registra overhead de coleta normal; falta idle/logs altos/OTLP alto/containers por ambiente"
 result "remote-update-rollback" "pending" "validar artefato anterior, hash e version_confirmed"

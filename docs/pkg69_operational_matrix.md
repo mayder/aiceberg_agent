@@ -20,13 +20,14 @@ O script de homologacao executa:
 - validacao local de degradacao PCAP/tcpdump com permissao insuficiente, interface invalida e captura vazia sem crash;
 - validacao local de restart/reabertura da outbox bbolt preservando itens antes/depois do restart e ACK parcial;
 - validacao local de burst de alta cardinalidade em `custom_metrics`, com limite de series e contagem de drops;
+- smoke POSIX local com evidencia de RSS, CPU e goroutines em coleta normal;
 - cenarios locais automatizados de API indisponivel, backoff, payload grande e outbox cheia;
 - `./check.sh`;
 - listagem explicita de cenarios pendentes de ambiente real.
 
 Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 
-- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, `HTTP_PROXY` autenticado local, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
+- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, `HTTP_PROXY` autenticado local, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, smoke POSIX com RSS/CPU/goroutines locais, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
 - Docker daemon indisponivel no host local;
 - `kubectl` disponivel, mas sem validacao de cluster/DaemonSet/Helm;
 - Helm e PowerShell indisponiveis neste host;
@@ -95,14 +96,14 @@ Hashes 0.8.8:
 | Update quebrado | `update-report` com falha e rollback seguro | pendente; cadeia Ed25519 e timeout de download validados localmente antes do apply |
 | Permissao insuficiente | degradacao com status claro | parcial local para PCAP/tcpdump; host real pendente |
 | Kubernetes RBAC minimo | sem permissao a secrets/exec/delete | pendente |
-| Alto volume simultaneo | CPU/memoria dentro do limite definido | parcial local para cardinalidade custom metrics; carga real CPU/mem pendente |
+| Alto volume simultaneo | CPU/memoria dentro do limite definido | parcial local para cardinalidade custom metrics e overhead de coleta normal; carga real CPU/mem pendente |
 
 ## Limites aceitaveis iniciais
 
 | Perfil | CPU media | Memoria RSS | Observacao |
 | --- | ---: | ---: | --- |
 | idle | <= 2% | <= 150 MB | host sem coletores avancados |
-| coleta normal | <= 5% | <= 250 MB | sysmetrics, logs e health |
+| coleta normal | <= 5% | <= 250 MB | sysmetrics, logs e health; smoke POSIX local registra RSS/CPU/goroutines |
 | alto volume local | <= 15% | <= 500 MB | DogStatsD/OTLP/logs simultaneos |
 | containers/Kubernetes | <= 10% | <= 400 MB | intervalos >= 30s |
 
