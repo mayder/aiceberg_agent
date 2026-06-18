@@ -32,6 +32,8 @@ O coletor envia para `/v1/ingest/metrics` dentro de `body.custom_metrics`:
 
 Cada serie contem nome canonico, tipo, valor/agregados, tags, host, service, env e source quando enviados.
 
+No web, o detalhe do agente mostra **Métricas custom locais** a partir desse payload preservado em `raw_json`, com aceitas/descartadas, janela, tipos, service/env, tags e séries recentes. Não há SQL neste pacote.
+
 ## Configuracao
 
 ```env
