@@ -351,6 +351,42 @@ func TestBuildLocalAINoiseReductionIsAssistiveOnly(t *testing.T) {
 	assertTextContains(t, fmt.Sprint(noise["inputs"]), "redacted_logs")
 }
 
+func TestBuildContextualEvidenceAgentAgentlessCorrelationGaps(t *testing.T) {
+	disabled := buildContextualEvidenceSnapshot(config.Config{}, "direct", config.CollectPrefs{
+		Logs:               true,
+		Processes:          true,
+		Services:           true,
+		Network:            true,
+		NetworkPassiveMode: "safe",
+	}, usecase.AgentlessSettings{Enabled: false}, false)
+
+	disabledHost := disabled["host_evidence"].(map[string]any)
+	assertTextContains(t, fmt.Sprint(disabledHost["gaps"]), "agentless_disabled")
+
+	enabledNoWorker := buildContextualEvidenceSnapshot(config.Config{}, "hub", config.CollectPrefs{
+		Logs:               true,
+		Processes:          true,
+		Services:           true,
+		Network:            true,
+		NetworkPassiveMode: "safe",
+	}, usecase.AgentlessSettings{Enabled: true}, false)
+
+	hostEvidence := enabledNoWorker["host_evidence"].(map[string]any)
+	assertTextContains(t, fmt.Sprint(hostEvidence["gaps"]), "agentless_worker_unavailable")
+	agentless := enabledNoWorker["agent_agentless"].(map[string]any)
+	if agentless["agentless_effective_enabled"] != true || agentless["agentless_worker_available"] != false {
+		t.Fatalf("unexpected agentless evidence: %#v", agentless)
+	}
+	strategy := fmt.Sprint(agentless["correlation_strategy"])
+	for _, expected := range []string{
+		"host_ok_network_failing",
+		"network_ok_local_service_failing",
+		"agent_recent_snmp_stale",
+	} {
+		assertTextContains(t, strategy, expected)
+	}
+}
+
 func assertMaskedToken(t *testing.T, values map[string]any, key, raw string) {
 	t.Helper()
 
