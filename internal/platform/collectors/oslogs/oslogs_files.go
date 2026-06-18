@@ -35,6 +35,7 @@ type collector struct {
 	exclude     string
 	minSeverity string
 	local       *localReceiver
+	journald    journalReader
 }
 
 func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -57,6 +58,12 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 		exclude:     cfg.OSLogExcludeRegex,
 		minSeverity: cfg.OSLogMinSeverity,
 		local:       newLocalReceiver(cfg.OSLogUDPAddr, cfg.OSLogTCPAddr, cfg.OSLogBatchLines, cfg.OSLogMaxBytes),
+		journald: newJournalReader(
+			cfg.OSLogJournaldEnabled,
+			cfg.OSLogJournaldUnits,
+			cfg.OSLogJournaldPriorities,
+			runJournalctl,
+		),
 	}
 }
 
@@ -118,6 +125,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	if p.OSLogUDPAddr != "" || p.OSLogTCPAddr != "" {
 		c.ensureLocalReceiver(p.OSLogUDPAddr, p.OSLogTCPAddr)
 	}
+	c.journald.applyPrefs(p)
 	if len(p.OSLogFilesList) > 0 {
 		c.files = p.OSLogFilesList
 	}
@@ -128,7 +136,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		c.maxBytes = p.OSLogMaxBytes
 	}
 
-	if len(c.files) == 0 && c.local == nil {
+	if len(c.files) == 0 && c.local == nil && !c.journald.enabled {
 		return nil, nil
 	}
 	hostname, _ := os.Hostname()
@@ -151,6 +159,16 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 			if len(events) >= c.batchLines {
 				break
 			}
+		}
+	}
+	for _, ev := range c.journald.read(ctx, c.cursor, hostname, c.batchLines-len(events), c.maxBytes) {
+		if shouldDropLogEvent(ev, c.include, c.exclude, c.minSeverity) {
+			droppedCount++
+			continue
+		}
+		events = append(events, ev)
+		if len(events) >= c.batchLines {
+			break
 		}
 	}
 	for _, ev := range c.readLocal(hostname) {

@@ -128,6 +128,67 @@ func TestCollectorCollectsLocalUDPAndTCPLogs(t *testing.T) {
 	}
 }
 
+func TestCollectorCollectsJournaldWithUnitAndPriorityFilters(t *testing.T) {
+	tmp := t.TempDir()
+	cfg := config.Config{
+		OSLogFiles:              []string{filepath.Join(tmp, "missing.log")},
+		OSLogCursorPath:         filepath.Join(tmp, "cursor.json"),
+		OSLogBatchLines:         10,
+		OSLogMaxBytes:           512,
+		OSLogInterval:           time.Second,
+		OSLogJournaldEnabled:    true,
+		OSLogJournaldUnits:      []string{"nginx.service", "bad unit;rm -rf /"},
+		OSLogJournaldPriorities: []string{"warn", "invalid"},
+	}
+	prefs := func() config.CollectPrefs {
+		return config.CollectPrefs{OSLogFiles: true}
+	}
+	c := New(cfg, prefs)
+	collector, ok := c.(*collector)
+	if !ok {
+		t.Fatalf("expected POSIX collector")
+	}
+	var args []string
+	collector.journald.run = func(_ context.Context, got []string) ([]byte, error) {
+		args = append([]string{}, got...)
+		return []byte(strings.Join([]string{
+			`{"MESSAGE":"accepted password=secret","PRIORITY":"4","_SYSTEMD_UNIT":"nginx.service","SYSLOG_IDENTIFIER":"nginx","_PID":"123","_HOSTNAME":"host","_SOURCE_REALTIME_TIMESTAMP":"1780000000000000"}`,
+			`{"MESSAGE":"ignored debug","PRIORITY":"7","_SYSTEMD_UNIT":"nginx.service","_SOURCE_REALTIME_TIMESTAMP":"1780000000000001"}`,
+		}, "\n")), nil
+	}
+
+	data, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	if !containsAllArgs(args, "-u", "nginx.service") {
+		t.Fatalf("expected sanitized unit arg, got %#v", args)
+	}
+	if containsAny(strings.Join(args, " "), "bad unit", "rm -rf") {
+		t.Fatalf("unsafe journald unit reached args: %#v", args)
+	}
+	var payload struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("invalid payload: %v", err)
+	}
+	if len(payload.Events) != 1 {
+		t.Fatalf("expected one filtered journald event, got %d: %#v", len(payload.Events), payload.Events)
+	}
+	event := payload.Events[0]
+	if event["transport"] != "agent_journald" || event["source_tool"] != "journald" {
+		t.Fatalf("expected journald metadata, got %#v", event)
+	}
+	msg, _ := event["message"].(string)
+	if strings.Contains(msg, "secret") {
+		t.Fatalf("journald event leaked secret: %q", msg)
+	}
+	if event["service"] != "nginx.service" || event["level"] != "warning" {
+		t.Fatalf("expected service and level, got %#v", event)
+	}
+}
+
 func TestCollectorCollectReadsFile(t *testing.T) {
 	tmp := t.TempDir()
 	logFile := filepath.Join(tmp, "sys.log")
@@ -325,4 +386,20 @@ func containsAny(s string, needles ...string) bool {
 		}
 	}
 	return false
+}
+
+func containsAllArgs(args []string, values ...string) bool {
+	for _, value := range values {
+		found := false
+		for _, arg := range args {
+			if arg == value {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }

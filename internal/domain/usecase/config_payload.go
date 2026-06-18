@@ -123,6 +123,9 @@ type ConfigPayload struct {
 		MinSeverity  string   `json:"min_severity,omitempty"`
 		UDPAddr      string   `json:"udp_addr,omitempty"`
 		TCPAddr      string   `json:"tcp_addr,omitempty"`
+		Journald     *bool    `json:"journald_enabled,omitempty"`
+		JournalUnits []string `json:"journald_units,omitempty"`
+		JournalPrio  []string `json:"journald_priorities,omitempty"`
 	} `json:"logs"`
 	CustomMetrics struct {
 		Enabled   *bool  `json:"enabled,omitempty"`
@@ -238,6 +241,15 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	}
 	if payload.Logs.TCPAddr != "" {
 		collect.OSLogTCPAddr = payload.Logs.TCPAddr
+	}
+	if payload.Logs.Journald != nil {
+		collect.OSLogJournaldEnabled = *payload.Logs.Journald
+	}
+	if len(payload.Logs.JournalUnits) > 0 {
+		collect.OSLogJournaldUnits = payload.Logs.JournalUnits
+	}
+	if len(payload.Logs.JournalPrio) > 0 {
+		collect.OSLogJournaldPriorities = payload.Logs.JournalPrio
 	}
 	if payload.CustomMetrics.Enabled != nil {
 		collect.CustomMetricsEnabled = *payload.CustomMetrics.Enabled

@@ -74,6 +74,9 @@ type Config struct {
 	OSLogMinSeverity                   string
 	OSLogUDPAddr                       string
 	OSLogTCPAddr                       string
+	OSLogJournaldEnabled               bool
+	OSLogJournaldUnits                 []string
+	OSLogJournaldPriorities            []string
 	CustomMetricsEnabled               bool
 	CustomMetricsUDPAddr               string
 	CustomMetricsHTTPAddr              string
@@ -209,6 +212,9 @@ type CollectPrefs struct {
 	OSLogMinSeverity           string             `json:"oslog_min_severity,omitempty"`
 	OSLogUDPAddr               string             `json:"oslog_udp_addr,omitempty"`
 	OSLogTCPAddr               string             `json:"oslog_tcp_addr,omitempty"`
+	OSLogJournaldEnabled       bool               `json:"oslog_journald_enabled,omitempty"`
+	OSLogJournaldUnits         []string           `json:"oslog_journald_units,omitempty"`
+	OSLogJournaldPriorities    []string           `json:"oslog_journald_priorities,omitempty"`
 	CustomMetricsEnabled       bool               `json:"custom_metrics_enabled,omitempty"`
 	CustomMetricsUDPAddr       string             `json:"custom_metrics_udp_addr,omitempty"`
 	CustomMetricsHTTPAddr      string             `json:"custom_metrics_http_addr,omitempty"`
@@ -346,6 +352,9 @@ func Load(configPath string) (Config, error) {
 		OSLogMinSeverity:                   getenv("OSLOG_MIN_SEVERITY", ""),
 		OSLogUDPAddr:                       getenv("OSLOG_UDP_ADDR", ""),
 		OSLogTCPAddr:                       getenv("OSLOG_TCP_ADDR", ""),
+		OSLogJournaldEnabled:               strings.ToLower(getenv("OSLOG_JOURNALD_ENABLED", "")) == "true",
+		OSLogJournaldUnits:                 splitCsv(getenv("OSLOG_JOURNALD_UNITS", "")),
+		OSLogJournaldPriorities:            splitCsv(getenv("OSLOG_JOURNALD_PRIORITIES", "")),
 		CustomMetricsEnabled:               strings.ToLower(getenv("CUSTOM_METRICS_ENABLED", "")) == "true",
 		CustomMetricsUDPAddr:               getenv("CUSTOM_METRICS_UDP_ADDR", "127.0.0.1:8125"),
 		CustomMetricsHTTPAddr:              getenv("CUSTOM_METRICS_HTTP_ADDR", "127.0.0.1:8126"),

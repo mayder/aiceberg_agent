@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -190,6 +191,40 @@ func TestApplyConfigPayloadAppliesLogLocalTransportAddresses(t *testing.T) {
 	got := store.Get()
 	if got.OSLogUDPAddr != "127.0.0.1:1514" || got.OSLogTCPAddr != "127.0.0.1:1515" {
 		t.Fatalf("expected local log addresses persisted, got udp=%q tcp=%q", got.OSLogUDPAddr, got.OSLogTCPAddr)
+	}
+}
+
+func TestApplyConfigPayloadAppliesJournaldFilters(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	enabled := true
+	payload := ConfigPayload{
+		Version: "cfg-logs-journald",
+		Collect: config.CollectPrefs{
+			OSLogFiles: true,
+		},
+	}
+	payload.Logs.Journald = &enabled
+	payload.Logs.JournalUnits = []string{"nginx.service", "sshd.service"}
+	payload.Logs.JournalPrio = []string{"warning", "error"}
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if !got.OSLogJournaldEnabled {
+		t.Fatalf("expected journald enabled")
+	}
+	if strings.Join(got.OSLogJournaldUnits, ",") != "nginx.service,sshd.service" {
+		t.Fatalf("expected journald units persisted, got %#v", got.OSLogJournaldUnits)
+	}
+	if strings.Join(got.OSLogJournaldPriorities, ",") != "warning,error" {
+		t.Fatalf("expected journald priorities persisted, got %#v", got.OSLogJournaldPriorities)
 	}
 }
 

@@ -135,9 +135,13 @@ Configuracoes locais:
 - `OSLOG_EXCLUDE_REGEX`;
 - `OSLOG_MIN_SEVERITY`.
 - `OSLOG_UDP_ADDR` e `OSLOG_TCP_ADDR` para listeners locais opcionais em POSIX.
+- `OSLOG_JOURNALD_ENABLED=true`;
+- `OSLOG_JOURNALD_UNITS=nginx.service,sshd.service`;
+- `OSLOG_JOURNALD_PRIORITIES=warning,error,critical`.
 
 Config remota equivalente em `logs.include_regex`, `logs.exclude_regex` e `logs.min_severity`.
 Listeners locais tambem podem ser enviados como `logs.udp_addr` e `logs.tcp_addr`.
+Journald tambem pode ser enviado por `logs.journald_enabled`, `logs.journald_units` e `logs.journald_priorities`.
 
 Rollback: desligar logs por `OSLOG_ENABLED=false` ou remover flags remotas `OSLogFiles`/`OSLogWinChannels`. Se a regressao for no binario, publicar a versao anterior.
 
