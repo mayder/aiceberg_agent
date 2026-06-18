@@ -89,6 +89,13 @@ type ConfigPayload struct {
 		MaxSeries int    `json:"max_series,omitempty"`
 		MaxBytes  int    `json:"max_bytes,omitempty"`
 	} `json:"custom_metrics,omitempty"`
+	OTLP struct {
+		Enabled  *bool  `json:"enabled,omitempty"`
+		HTTPAddr string `json:"http_addr,omitempty"`
+		Interval int    `json:"interval,omitempty"`
+		MaxItems int    `json:"max_items,omitempty"`
+		MaxBytes int    `json:"max_bytes,omitempty"`
+	} `json:"otlp,omitempty"`
 	CollectNow *[]string          `json:"collect_now,omitempty"`
 	Update     *UpdatePayload     `json:"update,omitempty"`
 	AutoUpdate *AutoUpdatePayload `json:"auto_update,omitempty"`
@@ -143,6 +150,21 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- C
 	}
 	if payload.CustomMetrics.MaxBytes > 0 {
 		collect.CustomMetricsMaxBytes = payload.CustomMetrics.MaxBytes
+	}
+	if payload.OTLP.Enabled != nil {
+		collect.OTLPEnabled = *payload.OTLP.Enabled
+	}
+	if payload.OTLP.HTTPAddr != "" {
+		collect.OTLPHTTPAddr = payload.OTLP.HTTPAddr
+	}
+	if payload.OTLP.Interval > 0 {
+		collect.OTLPIntervalSec = payload.OTLP.Interval
+	}
+	if payload.OTLP.MaxItems > 0 {
+		collect.OTLPMaxItems = payload.OTLP.MaxItems
+	}
+	if payload.OTLP.MaxBytes > 0 {
+		collect.OTLPMaxBytes = payload.OTLP.MaxBytes
 	}
 	if payload.Agentless.Enabled != nil {
 		collect.AgentlessEnabled = *payload.Agentless.Enabled

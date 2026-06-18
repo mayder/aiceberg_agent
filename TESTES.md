@@ -199,6 +199,12 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Cobrir parser DogStatsD-like, HTTP local, tipos count/gauge/histogram/distribution/set/service_check, tags canonicas, limite de cardinalidade, `accepted_count` e `dropped_count`.
 - Validacao real de alto volume, UDS, container e app externa fica pendente para PKG-69.
 
+## PKG-62 - OTLP HTTP/JSON
+
+- Unitario focado: `go test ./internal/platform/collectors/otlp ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.
+- Cobrir HTTP local loopback, metrics/logs/traces JSON, resource attributes, `trace_id`/`span_id`, limite de itens e `dropped_count`.
+- Validacao real com exporter OpenTelemetry, gRPC/protobuf e consumo de CPU/memoria fica pendente para PKG-69.
+
 ## Validação por lote
 
 Objetivo: dar feedback rápido, sem gastar tempo com bateria completa a cada subentrega.

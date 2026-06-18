@@ -61,6 +61,11 @@ type Config struct {
 	CustomMetricsInterval    time.Duration
 	CustomMetricsMaxSeries   int
 	CustomMetricsMaxBytes    int
+	OTLPEnabled              bool
+	OTLPHTTPAddr             string
+	OTLPInterval             time.Duration
+	OTLPMaxItems             int
+	OTLPMaxBytes             int
 	AgentlessEnabled         bool
 	AgentlessPollInterval    time.Duration
 	AgentlessFlushInterval   time.Duration
@@ -127,6 +132,11 @@ type CollectPrefs struct {
 	CustomMetricsIntervalSec   int      `json:"custom_metrics_interval,omitempty"`
 	CustomMetricsMaxSeries     int      `json:"custom_metrics_max_series,omitempty"`
 	CustomMetricsMaxBytes      int      `json:"custom_metrics_max_bytes,omitempty"`
+	OTLPEnabled                bool     `json:"otlp_enabled,omitempty"`
+	OTLPHTTPAddr               string   `json:"otlp_http_addr,omitempty"`
+	OTLPIntervalSec            int      `json:"otlp_interval,omitempty"`
+	OTLPMaxItems               int      `json:"otlp_max_items,omitempty"`
+	OTLPMaxBytes               int      `json:"otlp_max_bytes,omitempty"`
 	AgentlessEnabled           bool     `json:"agentless_enabled,omitempty"`
 	AgentlessPollSec           int      `json:"agentless_poll_interval,omitempty"`
 	AgentlessFlushSec          int      `json:"agentless_flush_interval,omitempty"`
@@ -211,6 +221,11 @@ func Load(configPath string) (Config, error) {
 		CustomMetricsInterval:  time.Duration(intEnv("CUSTOM_METRICS_INTERVAL", 10)) * time.Second,
 		CustomMetricsMaxSeries: intEnv("CUSTOM_METRICS_MAX_SERIES", 1000),
 		CustomMetricsMaxBytes:  intEnv("CUSTOM_METRICS_MAX_BYTES", 65536),
+		OTLPEnabled:            strings.ToLower(getenv("OTLP_ENABLED", "")) == "true",
+		OTLPHTTPAddr:           getenv("OTLP_HTTP_ADDR", "127.0.0.1:4318"),
+		OTLPInterval:           time.Duration(intEnv("OTLP_INTERVAL", 10)) * time.Second,
+		OTLPMaxItems:           intEnv("OTLP_MAX_ITEMS", 1000),
+		OTLPMaxBytes:           intEnv("OTLP_MAX_BYTES", 1024*1024),
 		AgentlessEnabled:       strings.ToLower(getenv("AGENTLESS_ENABLED", "true")) == "true",
 		AgentlessOutboxPath:    getenv("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"),
 		AgentlessOutboxMaxMB:   intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),

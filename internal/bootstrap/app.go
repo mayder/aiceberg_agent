@@ -44,6 +44,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/platform/collectors/custommetrics"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/networkcapture"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/oslogs"
+	"github.com/you/aiceberg_agent/internal/platform/collectors/otlp"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/sysmetrics"
 	"github.com/you/aiceberg_agent/internal/platform/modechange"
 )
@@ -138,6 +139,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	bootstrapUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_bootstrap", bootstrapEndpoint, 24*time.Hour, bootstrapKeys()), outboxRepo, log, authHeader, identityHeader, bootstrapEndpoint)
 	networkCaptureUC := usecase.NewCollectAndBufferWithIdentity(networkcapture.New(prefStore.Get), outboxRepo, log, authHeader, identityHeader, networkCaptureEndpoint)
 	customMetricsUC := usecase.NewCollectAndBufferWithIdentity(custommetrics.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
+	otlpReceiver := otlp.NewReceiver(cfg, prefStore.Get)
+	otlpMetricsUC := usecase.NewCollectAndBufferWithIdentity(otlpReceiver.MetricsCollector(), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
+	otlpTracesUC := usecase.NewCollectAndBufferWithIdentity(otlpReceiver.TracesCollector(), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
 
 	commandChan := make(chan usecase.ControlCommand, 10)
 	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore, commandChan)
@@ -252,6 +256,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		})
 	}
 	var osLogCollectUC *usecase.CollectAndBuffer
+	var otlpLogsUC *usecase.CollectAndBuffer
 	var osLogFlushUC *usecase.FlushOutbox
 	var osLogRepo ports.OutboxRepo
 	var agentlessUC *usecase.AgentlessHub
@@ -265,6 +270,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	osLogRepo = osRepo
 	osCollector := oslogs.New(cfg, prefStore.Get)
 	osLogCollectUC = usecase.NewCollectAndBufferWithIdentity(osCollector, osRepo, log, authHeader, identityHeader, "/v1/logs/raw")
+	otlpLogsUC = usecase.NewCollectAndBufferWithIdentity(otlpReceiver.LogsCollector(), osRepo, log, authHeader, identityHeader, "/v1/logs/raw")
 	var osTx ports.Transport
 	if mode == "relay" {
 		osTx = transport.NewHubClient(cfg)
@@ -423,6 +429,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var tCfgSync *time.Ticker
 	var tOsCollect *time.Ticker
 	var tCustomMetrics *time.Ticker
+	var tOTLP *time.Ticker
 	var tAgentlessTick *time.Ticker
 	var tSelfHeal *time.Ticker
 	tPing = time.NewTicker(cfg.PingInterval)
@@ -431,6 +438,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		tOsCollect = time.NewTicker(cfg.OSLogInterval)
 	}
 	tCustomMetrics = time.NewTicker(cfg.CustomMetricsInterval)
+	tOTLP = time.NewTicker(cfg.OTLPInterval)
 	if agentlessUC != nil {
 		tAgentlessTick = time.NewTicker(5 * time.Second)
 	}
@@ -450,6 +458,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	}
 	if tCustomMetrics != nil {
 		defer tCustomMetrics.Stop()
+	}
+	if tOTLP != nil {
+		defer tOTLP.Stop()
 	}
 	if tAgentlessTick != nil {
 		defer tAgentlessTick.Stop()
@@ -700,6 +711,21 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				reportWorkerError(ctx, "collect_custom_metrics_failed", "warning", "open", err, map[string]any{
 					"route": metricsEndpoint,
 				})
+			}
+		case <-readTick(tOTLP):
+			if err := otlpMetricsUC.Execute(ctx); err != nil {
+				counters.collectErr.Add(1)
+				reportWorkerError(ctx, "collect_otlp_metrics_failed", "warning", "open", err, map[string]any{"route": metricsEndpoint})
+			}
+			if err := otlpTracesUC.Execute(ctx); err != nil {
+				counters.collectErr.Add(1)
+				reportWorkerError(ctx, "collect_otlp_traces_failed", "warning", "open", err, map[string]any{"route": metricsEndpoint})
+			}
+			if otlpLogsUC != nil {
+				if err := otlpLogsUC.Execute(ctx); err != nil {
+					counters.collectErr.Add(1)
+					reportWorkerError(ctx, "collect_otlp_logs_failed", "warning", "open", err, map[string]any{"route": "/v1/logs/raw"})
+				}
 			}
 		case <-tHealth.C:
 			if err := healthUC.Execute(ctx); err != nil {

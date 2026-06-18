@@ -156,6 +156,20 @@ Configuracoes locais:
 
 Rollback: definir `CUSTOM_METRICS_ENABLED=false` ou enviar config remota `custom_metrics.enabled=false`. Nao ha SQL do PKG-61.
 
+### PKG-62 - OTLP HTTP/JSON
+
+Contrato tecnico: `docs/pkg62_otlp_http_json.md`.
+
+Configuracoes locais:
+
+- `OTLP_ENABLED=true`;
+- `OTLP_HTTP_ADDR=127.0.0.1:4318`;
+- `OTLP_INTERVAL=10`;
+- `OTLP_MAX_ITEMS=1000`;
+- `OTLP_MAX_BYTES=1048576`.
+
+Rollback: definir `OTLP_ENABLED=false` ou enviar config remota `otlp.enabled=false`. Nao ha SQL do PKG-62.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.

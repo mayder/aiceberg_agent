@@ -69,6 +69,9 @@ func runtimeCollectorSpecs(cfg config.Config) []agentruntime.CollectorSpec {
 		{Name: "sysmetrics_inventory", Version: "legacy-compatible", Endpoint: "/v1/ingest/inventory", Interval: 8 * time.Hour, Priority: 40},
 		{Name: "sysmetrics_bootstrap", Version: "legacy-compatible", Endpoint: "/v1/ingest/bootstrap", Interval: 24 * time.Hour, Priority: 50},
 		{Name: "custommetrics", Version: "1-compatible", Endpoint: "/v1/ingest/metrics", Interval: cfg.CustomMetricsInterval, Priority: 15},
+		{Name: "otlp_metrics", Version: "1-http-json", Endpoint: "/v1/ingest/metrics", Interval: cfg.OTLPInterval, Priority: 16},
+		{Name: "otlp_logs", Version: "1-http-json", Endpoint: "/v1/logs/raw", Interval: cfg.OTLPInterval, Priority: 16},
+		{Name: "otlp_traces", Version: "1-http-json", Endpoint: "/v1/ingest/metrics", Interval: cfg.OTLPInterval, Priority: 16},
 		{Name: "networkcapture", Version: "legacy-compatible", Endpoint: "/v1/ingest/network_capture", Interval: 10 * time.Second, Priority: 20},
 		{Name: "oslogs", Version: "legacy-compatible", Endpoint: "/v1/logs/raw", Interval: cfg.OSLogInterval, Priority: 20},
 	}
@@ -87,6 +90,9 @@ func sanitizePrefsSnapshot(p config.CollectPrefs) map[string]any {
 		"custom_metrics_enabled":    p.CustomMetricsEnabled,
 		"custom_metrics_interval":   p.CustomMetricsIntervalSec,
 		"custom_metrics_max_series": p.CustomMetricsMaxSeries,
+		"otlp_enabled":              p.OTLPEnabled,
+		"otlp_interval":             p.OTLPIntervalSec,
+		"otlp_max_items":            p.OTLPMaxItems,
 		"network_passive_mode":      strings.TrimSpace(p.NetworkPassiveMode),
 		"collect_flags": map[string]bool{
 			"cpu":        p.CPU,
@@ -135,6 +141,13 @@ func buildAgentEnvSnapshot(cfg config.Config) map[string]any {
 			"interval_sec": int(cfg.CustomMetricsInterval.Seconds()),
 			"max_series":   cfg.CustomMetricsMaxSeries,
 			"max_bytes":    cfg.CustomMetricsMaxBytes,
+		},
+		"otlp": map[string]any{
+			"enabled":      cfg.OTLPEnabled,
+			"http_addr":    strings.TrimSpace(cfg.OTLPHTTPAddr),
+			"interval_sec": int(cfg.OTLPInterval.Seconds()),
+			"max_items":    cfg.OTLPMaxItems,
+			"max_bytes":    cfg.OTLPMaxBytes,
 		},
 	}
 }
@@ -375,6 +388,7 @@ func isEnvAllowlisted(key string) bool {
 		"PREFS_",
 		"OSLOG_",
 		"CUSTOM_METRICS_",
+		"OTLP_",
 		"LOG_",
 		"HEALTH_",
 		"TLS_",

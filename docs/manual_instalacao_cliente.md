@@ -61,5 +61,6 @@ Depois edite `/etc/aiceberg/agent.env` para definir `AGENT_TOKEN` e demais vari�
 - Logs (SOC): habilite com `OSLOG_ENABLED=true`. Linux: liste arquivos em `OSLOG_FILES`; Windows: coleta canais Security/System/Application/Sysmon via Event Log. Cursor em `OSLOG_CURSOR_PATH`.
 - Filtros locais de logs: use `OSLOG_INCLUDE_REGEX`, `OSLOG_EXCLUDE_REGEX` e `OSLOG_MIN_SEVERITY` quando precisar reduzir ruido antes do envio. Conteudo descartado nao e persistido; apenas a contagem agregada e enviada.
 - Metricas custom locais: habilite com `CUSTOM_METRICS_ENABLED=true`. UDP DogStatsD-like usa `CUSTOM_METRICS_UDP_ADDR`; HTTP local usa `CUSTOM_METRICS_HTTP_ADDR` e `POST /v1/custom-metrics`.
+- OTLP inicial: habilite com `OTLP_ENABLED=true`. O receiver HTTP/JSON local usa `OTLP_HTTP_ADDR` e aceita `/v1/metrics`, `/v1/logs` e `/v1/traces`.
 - O token fica salvo localmente para sobrevivência a reboot/upgrade.
 - Em caso de bloqueio de rede, permitir tráfego HTTPS de saída para `api.aiceberg.com.br`. Log local: veja o diretório de dados/logs citado acima.
