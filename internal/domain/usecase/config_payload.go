@@ -102,6 +102,17 @@ type ConfigPayload struct {
 		Interval     int    `json:"interval,omitempty"`
 		MaxItems     int    `json:"max_items,omitempty"`
 	} `json:"containers,omitempty"`
+	Kubernetes struct {
+		Enabled   *bool  `json:"enabled,omitempty"`
+		APIURL    string `json:"api_url,omitempty"`
+		TokenPath string `json:"token_path,omitempty"`
+		CAPath    string `json:"ca_path,omitempty"`
+		NodeName  string `json:"node_name,omitempty"`
+		Namespace string `json:"namespace,omitempty"`
+		Interval  int    `json:"interval,omitempty"`
+		MaxItems  int    `json:"max_items,omitempty"`
+		MaxEvents int    `json:"max_events,omitempty"`
+	} `json:"kubernetes,omitempty"`
 	CollectNow *[]string          `json:"collect_now,omitempty"`
 	Update     *UpdatePayload     `json:"update,omitempty"`
 	AutoUpdate *AutoUpdatePayload `json:"auto_update,omitempty"`
@@ -183,6 +194,33 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- C
 	}
 	if payload.Containers.MaxItems > 0 {
 		collect.ContainerMaxItems = payload.Containers.MaxItems
+	}
+	if payload.Kubernetes.Enabled != nil {
+		collect.KubernetesEnabled = *payload.Kubernetes.Enabled
+	}
+	if payload.Kubernetes.APIURL != "" {
+		collect.KubernetesAPIURL = payload.Kubernetes.APIURL
+	}
+	if payload.Kubernetes.TokenPath != "" {
+		collect.KubernetesTokenPath = payload.Kubernetes.TokenPath
+	}
+	if payload.Kubernetes.CAPath != "" {
+		collect.KubernetesCAPath = payload.Kubernetes.CAPath
+	}
+	if payload.Kubernetes.NodeName != "" {
+		collect.KubernetesNodeName = payload.Kubernetes.NodeName
+	}
+	if payload.Kubernetes.Namespace != "" {
+		collect.KubernetesNamespace = payload.Kubernetes.Namespace
+	}
+	if payload.Kubernetes.Interval > 0 {
+		collect.KubernetesIntervalSec = payload.Kubernetes.Interval
+	}
+	if payload.Kubernetes.MaxItems > 0 {
+		collect.KubernetesMaxItems = payload.Kubernetes.MaxItems
+	}
+	if payload.Kubernetes.MaxEvents > 0 {
+		collect.KubernetesMaxEvents = payload.Kubernetes.MaxEvents
 	}
 	if payload.Agentless.Enabled != nil {
 		collect.AgentlessEnabled = *payload.Agentless.Enabled

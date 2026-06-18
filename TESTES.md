@@ -408,6 +408,13 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 - Regra: adaptar comandos, camadas, testes, fixtures e limites conforme a realidade deste modulo Go.
 - Pacote/lote: lotes usam testes rasos e direcionados; fechamento de pacote exige `./check.sh` completo ou justificativa documentada.
 
+### PKG-65 - Kubernetes
+
+- Unitario focado: `go test ./internal/platform/collectors/kubernetes ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.
+- Cobertura local: normalizacao de pods/containers, sanitizacao de labels/annotations e autodiscovery por annotations.
+- Validacao documental: `deploy/kubernetes/aiceberg-agent.yaml`, Helm chart, RBAC minimo e rollback documentados.
+- Validacao real pendente para PKG-69: cluster controlado, DaemonSet rodando em nodes, eventos reais, upgrade/rollback Helm, logs de pod e uso real via Metrics API/kubelet.
+
 ## Politica minima de testes
 
 - Unitário: validar regra de negocio, casos de erro e limites sem depender de rede, banco real ou UI.

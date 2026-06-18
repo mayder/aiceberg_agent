@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "aiceberg-agent.name" . }}
+  labels:
+    {{- include "aiceberg-agent.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "aiceberg-agent.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "aiceberg-agent.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "aiceberg-agent.name" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: agent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: API_BASE_URL
+              value: {{ .Values.apiBaseUrl | quote }}
+            - name: AGENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.tokenSecret.name | quote }}
+                  key: {{ .Values.tokenSecret.key | quote }}
+            - name: KUBERNETES_ENABLED
+              value: {{ .Values.kubernetes.enabled | quote }}
+            - name: KUBERNETES_INTERVAL
+              value: {{ .Values.kubernetes.interval | quote }}
+            - name: KUBERNETES_MAX_ITEMS
+              value: {{ .Values.kubernetes.maxItems | quote }}
+            - name: KUBERNETES_MAX_EVENTS
+              value: {{ .Values.kubernetes.maxEvents | quote }}
+            - name: KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            {{- if .Values.kubernetes.namespace }}
+            - name: KUBERNETES_NAMESPACE
+              value: {{ .Values.kubernetes.namespace | quote }}
+            {{- end }}
+            - name: CONTAINER_ENABLED
+              value: {{ .Values.containers.enabled | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+      terminationGracePeriodSeconds: 20

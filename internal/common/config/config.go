@@ -70,6 +70,15 @@ type Config struct {
 	ContainerDockerSocket    string
 	ContainerInterval        time.Duration
 	ContainerMaxItems        int
+	KubernetesEnabled        bool
+	KubernetesAPIURL         string
+	KubernetesTokenPath      string
+	KubernetesCAPath         string
+	KubernetesNodeName       string
+	KubernetesNamespace      string
+	KubernetesInterval       time.Duration
+	KubernetesMaxItems       int
+	KubernetesMaxEvents      int
 	AgentlessEnabled         bool
 	AgentlessPollInterval    time.Duration
 	AgentlessFlushInterval   time.Duration
@@ -145,6 +154,15 @@ type CollectPrefs struct {
 	ContainerDockerSocket      string   `json:"container_docker_socket,omitempty"`
 	ContainerIntervalSec       int      `json:"container_interval,omitempty"`
 	ContainerMaxItems          int      `json:"container_max_items,omitempty"`
+	KubernetesEnabled          bool     `json:"kubernetes_enabled,omitempty"`
+	KubernetesAPIURL           string   `json:"kubernetes_api_url,omitempty"`
+	KubernetesTokenPath        string   `json:"kubernetes_token_path,omitempty"`
+	KubernetesCAPath           string   `json:"kubernetes_ca_path,omitempty"`
+	KubernetesNodeName         string   `json:"kubernetes_node_name,omitempty"`
+	KubernetesNamespace        string   `json:"kubernetes_namespace,omitempty"`
+	KubernetesIntervalSec      int      `json:"kubernetes_interval,omitempty"`
+	KubernetesMaxItems         int      `json:"kubernetes_max_items,omitempty"`
+	KubernetesMaxEvents        int      `json:"kubernetes_max_events,omitempty"`
 	AgentlessEnabled           bool     `json:"agentless_enabled,omitempty"`
 	AgentlessPollSec           int      `json:"agentless_poll_interval,omitempty"`
 	AgentlessFlushSec          int      `json:"agentless_flush_interval,omitempty"`
@@ -238,6 +256,15 @@ func Load(configPath string) (Config, error) {
 		ContainerDockerSocket:  getenv("CONTAINER_DOCKER_SOCKET", "/var/run/docker.sock"),
 		ContainerInterval:      time.Duration(intEnv("CONTAINER_INTERVAL", 30)) * time.Second,
 		ContainerMaxItems:      intEnv("CONTAINER_MAX_ITEMS", 200),
+		KubernetesEnabled:      strings.ToLower(getenv("KUBERNETES_ENABLED", "")) == "true",
+		KubernetesAPIURL:       getenv("KUBERNETES_API_URL", "https://kubernetes.default.svc"),
+		KubernetesTokenPath:    getenv("KUBERNETES_TOKEN_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/token"),
+		KubernetesCAPath:       getenv("KUBERNETES_CA_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"),
+		KubernetesNodeName:     getenv("KUBERNETES_NODE_NAME", ""),
+		KubernetesNamespace:    getenv("KUBERNETES_NAMESPACE", ""),
+		KubernetesInterval:     time.Duration(intEnv("KUBERNETES_INTERVAL", 30)) * time.Second,
+		KubernetesMaxItems:     intEnv("KUBERNETES_MAX_ITEMS", 500),
+		KubernetesMaxEvents:    intEnv("KUBERNETES_MAX_EVENTS", 100),
 		AgentlessEnabled:       strings.ToLower(getenv("AGENTLESS_ENABLED", "true")) == "true",
 		AgentlessOutboxPath:    getenv("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"),
 		AgentlessOutboxMaxMB:   intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),

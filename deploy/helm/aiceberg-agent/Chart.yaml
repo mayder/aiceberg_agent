@@ -1,0 +1,6 @@
+apiVersion: v2
+name: aiceberg-agent
+description: AIceberg Agent DaemonSet for Kubernetes node, pod and event telemetry.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

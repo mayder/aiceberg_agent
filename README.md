@@ -219,6 +219,8 @@ Para o passo a passo de instalação por SO e por modo (direct/hub/relay), veja 
 
 Para homologar coleta Agentless SNMP com perfis proprietarios ALE/OAW enviados pela web, veja `docs/pkg35_agentless_snmp_vendor_profiles.md`.
 
+Para Kubernetes, use o manifest `deploy/kubernetes/aiceberg-agent.yaml` ou o chart `deploy/helm/aiceberg-agent`. O coletor `kubernetes` usa ServiceAccount com RBAC somente leitura para nodes, pods e events; veja `docs/pkg65_kubernetes.md`.
+
 Notas:
 - API de produção é o padrão (`https://api.aiceberg.com.br`) e o agente junta `/v1/...` sozinho; use `API_BASE_URL` apenas para apontar para ambientes de teste.
 - Bootstrap (`POST /v1/agent/bootstrap`) já envia `versao_agente` com `internal/common/version.Version`, então a API acompanha qual versão do agente cada host executa.

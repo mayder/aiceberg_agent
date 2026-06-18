@@ -183,6 +183,29 @@ Configuracoes locais:
 
 Rollback: definir `CONTAINER_ENABLED=false` ou config remota `containers.enabled=false`. Nao ha SQL do PKG-64.
 
+### PKG-65 - Kubernetes DaemonSet e Helm inicial
+
+Contrato tecnico: `docs/pkg65_kubernetes.md`.
+
+Instalacao:
+
+- manifest direto: `deploy/kubernetes/aiceberg-agent.yaml`;
+- Helm chart: `deploy/helm/aiceberg-agent`;
+- secret obrigatorio: `aiceberg-agent/token`.
+
+Configuracoes principais:
+
+- `KUBERNETES_ENABLED=true`;
+- `KUBERNETES_NODE_NAME` via `spec.nodeName`;
+- `KUBERNETES_NAMESPACE` opcional;
+- `KUBERNETES_INTERVAL=30`;
+- `KUBERNETES_MAX_ITEMS=500`;
+- `KUBERNETES_MAX_EVENTS=100`.
+
+RBAC minimo: leitura de `nodes`, `pods` e `events`. Nao conceder `secrets`, `exec`, `pods/log`, `update`, `patch` ou `delete` sem nova decisao.
+
+Rollback: `helm uninstall aiceberg-agent -n aiceberg`, `kubectl delete -f deploy/kubernetes/aiceberg-agent.yaml` ou config remota `kubernetes.enabled=false`. Nao ha SQL do PKG-65.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.

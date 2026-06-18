@@ -108,6 +108,17 @@ Referências:
 - Impacto em rollback: desligar `CONTAINER_ENABLED` ou config remota `containers.enabled=false`.
 - Como reverter: remover coletor `containers` do scheduler.
 
+### DEC-20260618-07 - Kubernetes usa API do cluster com RBAC minimo
+
+- Status: aceita
+- Contexto: PKG-65 precisa instalar o agente como DaemonSet e coletar metadados Kubernetes sem exigir cluster agent nem permissao ampla por padrao.
+- Decisao: criar manifest direto e Helm chart com ServiceAccount, ClusterRole somente leitura para `nodes`, `pods` e `events`, alem de coletor opt-in via API Kubernetes usando o token da ServiceAccount.
+- Alternativas consideradas: usar SDK Kubernetes, coletar direto do kubelet ou introduzir Cluster Agent agora.
+- Consequencias: entrega discovery de node/pod/container, events e annotations com baixa dependencia externa; uso real de Metrics API/kubelet, logs de pod e execucao de checks ficam para evolucao controlada.
+- Impacto em testes: unitarios cobrem normalizacao, sanitizacao e autodiscovery por annotations; cluster real fica para homologacao PKG-69.
+- Impacto em rollback: remover DaemonSet/Helm ou desligar `KUBERNETES_ENABLED`.
+- Como reverter: remover coletor `kubernetes` do scheduler e apagar os manifests.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

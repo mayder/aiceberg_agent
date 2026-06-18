@@ -73,6 +73,7 @@ func runtimeCollectorSpecs(cfg config.Config) []agentruntime.CollectorSpec {
 		{Name: "otlp_logs", Version: "1-http-json", Endpoint: "/v1/logs/raw", Interval: cfg.OTLPInterval, Priority: 16},
 		{Name: "otlp_traces", Version: "1-http-json", Endpoint: "/v1/ingest/metrics", Interval: cfg.OTLPInterval, Priority: 16},
 		{Name: "containers", Version: "1-docker-socket", Endpoint: "/v1/ingest/metrics", Interval: cfg.ContainerInterval, Priority: 18},
+		{Name: "kubernetes", Version: "1-api", Endpoint: "/v1/ingest/metrics", Interval: cfg.KubernetesInterval, Priority: 19},
 		{Name: "networkcapture", Version: "legacy-compatible", Endpoint: "/v1/ingest/network_capture", Interval: 10 * time.Second, Priority: 20},
 		{Name: "oslogs", Version: "legacy-compatible", Endpoint: "/v1/logs/raw", Interval: cfg.OSLogInterval, Priority: 20},
 	}
@@ -97,6 +98,10 @@ func sanitizePrefsSnapshot(p config.CollectPrefs) map[string]any {
 		"container_enabled":         p.ContainerEnabled,
 		"container_interval":        p.ContainerIntervalSec,
 		"container_max_items":       p.ContainerMaxItems,
+		"kubernetes_enabled":        p.KubernetesEnabled,
+		"kubernetes_interval":       p.KubernetesIntervalSec,
+		"kubernetes_max_items":      p.KubernetesMaxItems,
+		"kubernetes_max_events":     p.KubernetesMaxEvents,
 		"network_passive_mode":      strings.TrimSpace(p.NetworkPassiveMode),
 		"collect_flags": map[string]bool{
 			"cpu":        p.CPU,
@@ -158,6 +163,17 @@ func buildAgentEnvSnapshot(cfg config.Config) map[string]any {
 			"docker_socket": strings.TrimSpace(cfg.ContainerDockerSocket),
 			"interval_sec":  int(cfg.ContainerInterval.Seconds()),
 			"max_items":     cfg.ContainerMaxItems,
+		},
+		"kubernetes": map[string]any{
+			"enabled":      cfg.KubernetesEnabled,
+			"api_url":      strings.TrimSpace(cfg.KubernetesAPIURL),
+			"token_path":   strings.TrimSpace(cfg.KubernetesTokenPath),
+			"ca_path":      strings.TrimSpace(cfg.KubernetesCAPath),
+			"node_name":    strings.TrimSpace(cfg.KubernetesNodeName),
+			"namespace":    strings.TrimSpace(cfg.KubernetesNamespace),
+			"interval_sec": int(cfg.KubernetesInterval.Seconds()),
+			"max_items":    cfg.KubernetesMaxItems,
+			"max_events":   cfg.KubernetesMaxEvents,
 		},
 	}
 }
@@ -400,6 +416,7 @@ func isEnvAllowlisted(key string) bool {
 		"CUSTOM_METRICS_",
 		"OTLP_",
 		"CONTAINER_",
+		"KUBERNETES_",
 		"LOG_",
 		"HEALTH_",
 		"TLS_",

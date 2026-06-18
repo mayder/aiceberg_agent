@@ -1,0 +1,38 @@
+image:
+  repository: ghcr.io/aiceberg/aiceberg-agent
+  tag: latest
+  pullPolicy: IfNotPresent
+
+apiBaseUrl: https://api.aiceberg.com.br
+
+tokenSecret:
+  name: aiceberg-agent
+  key: token
+
+kubernetes:
+  enabled: true
+  interval: 30
+  maxItems: 500
+  maxEvents: 100
+  namespace: ""
+
+containers:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 10001
