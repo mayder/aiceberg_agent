@@ -35,8 +35,12 @@ command -v powershell.exe >/dev/null 2>&1 || command -v pwsh >/dev/null 2>&1 \
   || result "windows-powershell" "pending" "validacao Windows requer host Windows"
 
 section "focused validation"
-go test ./internal/common/config ./internal/domain/usecase ./internal/bootstrap ./internal/platform/collectors/oslogs ./internal/platform/collectors/custommetrics ./internal/platform/collectors/otlp ./internal/platform/collectors/containers ./internal/platform/collectors/kubernetes ./internal/platform/collectors/localchecks >/tmp/aiceberg_pkg69_go_test.log
+go test ./internal/common/config ./internal/domain/usecase ./internal/data/local/outbox ./internal/bootstrap ./internal/platform/collectors/oslogs ./internal/platform/collectors/custommetrics ./internal/platform/collectors/otlp ./internal/platform/collectors/containers ./internal/platform/collectors/kubernetes ./internal/platform/collectors/localchecks >/tmp/aiceberg_pkg69_go_test.log
 result "go-test-focused" "pass" "log=/tmp/aiceberg_pkg69_go_test.log"
+result "api-unavailable-local" "pass" "flush_outbox tests preserve pending envelopes on transport/API error"
+result "network-intermittent-local" "pass" "flush_outbox tests backoff and later retry behavior"
+result "payload-large-local" "pass" "collectors enforce max bytes/items in focused tests"
+result "outbox-full-local" "pass" "bolt outbox rejects oversized envelope without partial write"
 
 section "full check"
 ./check.sh >/tmp/aiceberg_pkg69_check.log
@@ -49,6 +53,6 @@ result "linux-debian-rhel" "pending" "executar smoke.sh, systemd e instalador em
 result "docker" "pending" "validar CONTAINER_ENABLED com daemon real e carga controlada"
 result "kubernetes" "pending" "validar DaemonSet/Helm/RBAC em cluster controlado"
 result "proxy-auth" "pending" "validar HTTP_PROXY/HTTPS_PROXY autenticado"
-result "disk-full" "pending" "validar outbox sob limite e erro de disco"
-result "payload-large" "pending" "validar DogStatsD/OTLP/logs em alto volume"
+result "disk-full" "partial" "outbox cheia coberta por teste local; falta disco cheio real do SO"
+result "payload-large" "partial" "limites cobertos por testes locais; falta alto volume real DogStatsD/OTLP/logs"
 result "remote-update-rollback" "pending" "validar artefato anterior, hash e version_confirmed"
