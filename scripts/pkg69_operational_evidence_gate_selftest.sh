@@ -42,9 +42,12 @@ fill_template() {
      s/- requests_failed_expected: selftest/- requests_failed_expected: 1/g;
      s/- retry_count: selftest/- retry_count: 1/g;
      s/- offset_ms: selftest/- offset_ms: 5000/g;
+     s/- status_before: selftest/- status_before: critical/g;
+     s/- status_after: selftest/- status_after: ok/g;
      s/- queued_before: selftest/- queued_before: 1/g;
      s/- replayed_after: selftest/- replayed_after: 1/g;
      s/- duplicate_count: selftest/- duplicate_count: 0/g;
+     s/- free_bytes_before: selftest/- free_bytes_before: 1048576/g;
      s/- recovered: selftest/- recovered: yes/g;
      s/- accepted_count: selftest/- accepted_count: 100/g;
      s/- dropped_count: selftest/- dropped_count: 0/g;
@@ -52,7 +55,8 @@ fill_template() {
      s/- hub_ingested: selftest/- hub_ingested: yes/g;
      s/- relay_ingested_via_hub: selftest/- relay_ingested_via_hub: yes/g;
      s/- relay_direct_api_attempts: selftest/- relay_direct_api_attempts: 0/g;
-     s/- version_confirmed reportado: selftest/- version_confirmed reportado: yes/g' "$path"
+     s/- version_confirmed reportado: selftest/- version_confirmed reportado: yes/g;
+     s/- update_report_status: selftest/- update_report_status: success/g' "$path"
 }
 
 assert_contains() {
@@ -142,6 +146,14 @@ cp "$TMP_DIR/templates/kubernetes_rbac.md" "$TMP_DIR/kubernetes-secrets-allowed.
 fill_template "$TMP_DIR/kubernetes-secrets-allowed.md" "pass"
 perl -0pi -e 's/- secrets_allowed: no/- secrets_allowed: yes/' "$TMP_DIR/kubernetes-secrets-allowed.md"
 
+cp "$TMP_DIR/templates/clock_skew.md" "$TMP_DIR/clock-invalid-status.md"
+fill_template "$TMP_DIR/clock-invalid-status.md" "pass"
+perl -0pi -e 's/- status_after: ok/- status_after: unknown/' "$TMP_DIR/clock-invalid-status.md"
+
+cp "$TMP_DIR/templates/remote_update_rollback.md" "$TMP_DIR/update-invalid-status.md"
+fill_template "$TMP_DIR/update-invalid-status.md" "pass"
+perl -0pi -e 's/- update_report_status: success/- update_report_status: pending/' "$TMP_DIR/update-invalid-status.md"
+
 PKG69_EVIDENCE_FILE="$TMP_DIR/correct-slot.md" \
 PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/correct-slot.tsv" \
 PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-pass.md" \
@@ -228,6 +240,18 @@ PKG69_KUBERNETES_RBAC_EVIDENCE="$TMP_DIR/kubernetes-secrets-allowed.md" \
 scripts/pkg69_operational_evidence_gate.sh >/dev/null
 assert_contains "$TMP_DIR/kubernetes-secrets-allowed.md.out" "kubernetes-rbac: invalid-template"
 assert_contains "$TMP_DIR/kubernetes-secrets-allowed.md.out" "reason=field secrets_allowed must be no"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/clock-invalid-status.md.out" \
+PKG69_CLOCK_SKEW_EVIDENCE="$TMP_DIR/clock-invalid-status.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/clock-invalid-status.md.out" "clock-skew: invalid-template"
+assert_contains "$TMP_DIR/clock-invalid-status.md.out" "reason=field status_after must be one of: ok warning critical"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/update-invalid-status.md.out" \
+PKG69_REMOTE_UPDATE_ROLLBACK_EVIDENCE="$TMP_DIR/update-invalid-status.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/update-invalid-status.md.out" "remote-update-rollback: invalid-template"
+assert_contains "$TMP_DIR/update-invalid-status.md.out" "reason=field update_report_status must be one of: success rolled_back apply_failed"
 
 mkdir -p "$TMP_DIR/all"
 cp "$TMP_DIR/templates/"*.md "$TMP_DIR/all/"

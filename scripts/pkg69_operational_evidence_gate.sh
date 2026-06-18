@@ -200,6 +200,22 @@ require_number_max_field() {
   return 1
 }
 
+require_one_of_field() {
+  local path="$1"
+  local field="$2"
+  shift 2
+  local value
+  value="$(field_value "$path" "$field")"
+  local allowed
+  for allowed in "$@"; do
+    if [[ "$value" == "$allowed" ]]; then
+      return 1
+    fi
+  done
+  echo "field $field must be one of: $*"
+  return 0
+}
+
 scenario_incomplete_reason() {
   local path="$1"
   local expected_title="$2"
@@ -209,6 +225,7 @@ scenario_incomplete_reason() {
       if reason="$(require_bool_field "$path" "ingest_confirmed")"; then echo "$reason"; return 0; fi
       if reason="$(require_number_max_field "$path" "proc_cpu_percent" "5")"; then echo "$reason"; return 0; fi
       if reason="$(require_number_max_field "$path" "proc_rss_bytes" "262144000")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "queue_items")"; then echo "$reason"; return 0; fi
       ;;
     "PKG-69 - Windows Desktop")
       if reason="$(require_bool_field "$path" "ingest_confirmed")"; then echo "$reason"; return 0; fi
@@ -217,6 +234,7 @@ scenario_incomplete_reason() {
       ;;
     "PKG-69 - Docker Runtime")
       if reason="$(require_number_field "$path" "containers_seen")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "container_logs_seen")"; then echo "$reason"; return 0; fi
       if reason="$(require_number_max_field "$path" "proc_cpu_percent" "10")"; then echo "$reason"; return 0; fi
       if reason="$(require_number_max_field "$path" "proc_rss_bytes" "419430400")"; then echo "$reason"; return 0; fi
       ;;
@@ -232,9 +250,12 @@ scenario_incomplete_reason() {
     "PKG-69 - Proxy TLS")
       if reason="$(require_number_field "$path" "requests_ok")"; then echo "$reason"; return 0; fi
       if reason="$(require_number_field "$path" "requests_failed_expected")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "retry_count")"; then echo "$reason"; return 0; fi
       ;;
     "PKG-69 - Clock Skew Real")
       if reason="$(require_number_field "$path" "offset_ms")"; then echo "$reason"; return 0; fi
+      if reason="$(require_one_of_field "$path" "status_before" "ok" "warning" "critical")"; then echo "$reason"; return 0; fi
+      if reason="$(require_one_of_field "$path" "status_after" "ok" "warning" "critical")"; then echo "$reason"; return 0; fi
       ;;
     "PKG-69 - Permissao eBPF Restrita")
       if reason="$(require_bool_field "$path" "ingest_confirmed")"; then echo "$reason"; return 0; fi
@@ -242,9 +263,12 @@ scenario_incomplete_reason() {
       ;;
     "PKG-69 - Reboot Durante Coleta")
       if reason="$(require_number_field "$path" "queued_before")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "replayed_after")"; then echo "$reason"; return 0; fi
       if reason="$(require_number_field "$path" "duplicate_count")"; then echo "$reason"; return 0; fi
       ;;
     "PKG-69 - Disco Cheio Real")
+      if reason="$(require_number_field "$path" "free_bytes_before")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_field "$path" "queue_items")"; then echo "$reason"; return 0; fi
       if reason="$(require_bool_field "$path" "recovered")"; then echo "$reason"; return 0; fi
       ;;
     "PKG-69 - Alto Volume e Overhead")
@@ -261,6 +285,7 @@ scenario_incomplete_reason() {
       ;;
     "PKG-69 - Update Remoto e Rollback")
       if reason="$(require_bool_field "$path" "version_confirmed reportado")"; then echo "$reason"; return 0; fi
+      if reason="$(require_one_of_field "$path" "update_report_status" "success" "rolled_back" "apply_failed")"; then echo "$reason"; return 0; fi
       ;;
   esac
   return 1
