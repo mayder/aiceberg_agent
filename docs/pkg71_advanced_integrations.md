@@ -10,6 +10,17 @@ Evoluir `localchecks` para um ecossistema homologavel de integracoes locais sem 
 - `beta`: pode entrar em canario com permissao minima e credencial por referencia.
 - `experimental`: nao deve ser ativada amplamente sem homologacao real.
 
+Integrações `beta` e `experimental` não executam por padrão, mesmo se aparecerem em `local_checks`. Para execução produtiva mínima, o check precisa declarar:
+
+```json
+"config": {
+  "homologation_status": "approved",
+  "homologation_ref": "ticket-ou-evidencia"
+}
+```
+
+Sem esses campos, o agente não abre conexão com o alvo e reporta `service_check.status=blocked` com `reason=integration_not_homologated`.
+
 ## OpenMetrics
 
 `openmetrics` agora suporta:
@@ -58,6 +69,7 @@ Cobertura:
 - limite de cardinalidade de labels;
 - JMX via fixture Jolokia;
 - metadados de integracao oficial em Redis/TCP;
+- bloqueio de integracao beta/experimental sem homologacao minima;
 - bloqueio de tipo arbitrario e redaction herdados do PKG-66.
 
 ## Pendencias reais

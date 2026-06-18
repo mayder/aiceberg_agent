@@ -64,7 +64,7 @@ Depois edite `/etc/aiceberg/agent.env` para definir `AGENT_TOKEN` e demais vari�
 - OTLP inicial: habilite com `OTLP_ENABLED=true`. O receiver HTTP/JSON local usa `OTLP_HTTP_ADDR` e aceita `/v1/metrics`, `/v1/logs` e `/v1/traces`.
 - Containers Docker: habilite com `CONTAINER_ENABLED=true` e conceda acesso ao socket definido em `CONTAINER_DOCKER_SOCKET`. Labels sensiveis sao mascaradas; env vars e volumes nao sao coletados.
 - Kubernetes: use `deploy/kubernetes/aiceberg-agent.yaml` ou o chart `deploy/helm/aiceberg-agent`. Crie antes o secret `aiceberg-agent` com a chave `token`. O RBAC padrao e somente leitura para nodes, pods e events.
-- Checks locais: habilite com `LOCAL_CHECKS_ENABLED=true` e envie `LOCAL_CHECKS_JSON` ou config remota `local_checks`. Tipos permitidos nao executam shell arbitrario.
+- Checks locais: habilite com `LOCAL_CHECKS_ENABLED=true` e envie `LOCAL_CHECKS_JSON` ou config remota `local_checks`. Tipos permitidos nao executam shell arbitrario; integrações `beta`/`experimental` exigem `homologation_status=approved` e `homologation_ref` no `config` do check.
 - Frota/suporte: o diagnóstico remoto pode usar `inspect_runtime_config` e `collect_support_flare`; ambos retornam dados sanitizados e não executam shell genérico.
 - Segurança: para config remota sensivel, configure `REMOTE_CONFIG_SIGNATURE_SECRET` e depois `REMOTE_CONFIG_SIGNATURE_REQUIRED=true`. `TLS_INSECURE_SKIP_VERIFY` deve ficar desligado em produção.
 - O token fica salvo localmente para sobrevivência a reboot/upgrade.

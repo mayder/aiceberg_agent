@@ -63,6 +63,7 @@ O coletor envia `body.local_checks` para `/v1/ingest/metrics`:
 - `jmx`, `postgresql`, `mysql`, `redis`, `nginx`, `apache`, `iis_wmi`, `windows_service`: check basico por HTTP/TCP, sem credencial inline e sem shell.
 
 JMX, bancos, IIS/WMI e Windows Service entram como base segura. Coletores profundos por protocolo nativo devem ser evoluidos em integracoes oficiais com manifest e testes especificos.
+Integrações `beta` ou `experimental` só executam quando o check inclui `config.homologation_status=approved` e `config.homologation_ref` preenchido; caso contrario o agente retorna `service_check.status=blocked` sem abrir conexão.
 
 Catalogo inicial: `integrations/localchecks/catalog.json`.
 

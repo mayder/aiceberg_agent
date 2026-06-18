@@ -98,7 +98,11 @@ func TestRunJMXJolokiaParsesSafeMetrics(t *testing.T) {
 		Kind:    "jmx",
 		Target:  srv.URL,
 		Enabled: true,
-		Config:  map[string]string{"mode": "jolokia"},
+		Config: map[string]string{
+			"mode":                "jolokia",
+			"homologation_status": "approved",
+			"homologation_ref":    "pkg71-local-fixture",
+		},
 	}, 1024)
 	if err != nil {
 		t.Fatalf("expected jmx ok, got %v", err)
@@ -108,6 +112,32 @@ func TestRunJMXJolokiaParsesSafeMetrics(t *testing.T) {
 	}
 	if len(metrics) < 3 {
 		t.Fatalf("expected jvm metrics, got %#v", metrics)
+	}
+}
+
+func TestBetaIntegrationRequiresHomologation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("beta integration should be blocked before reaching the target")
+	}))
+	defer srv.Close()
+
+	metrics, _, serviceCheck, err := execute(context.Background(), config.LocalCheckConfig{
+		Kind:    "jmx",
+		Target:  srv.URL,
+		Enabled: true,
+		Config:  map[string]string{"mode": "jolokia"},
+	}, 1024)
+	if err == nil {
+		t.Fatal("expected homologation gate error")
+	}
+	if len(metrics) != 0 {
+		t.Fatalf("expected no metrics, got %#v", metrics)
+	}
+	if serviceCheck["status"] != "blocked" || serviceCheck["reason"] != "integration_not_homologated" {
+		t.Fatalf("unexpected service check %#v", serviceCheck)
+	}
+	if manifest, ok := serviceCheck["integration"].(map[string]any); !ok || manifest["status"] != "beta" {
+		t.Fatalf("expected beta integration metadata, got %#v", serviceCheck)
 	}
 }
 

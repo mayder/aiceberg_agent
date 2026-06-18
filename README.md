@@ -221,7 +221,7 @@ Para homologar coleta Agentless SNMP com perfis proprietarios ALE/OAW enviados p
 
 Para Kubernetes, use o manifest `deploy/kubernetes/aiceberg-agent.yaml` ou o chart `deploy/helm/aiceberg-agent`. O coletor `kubernetes` usa ServiceAccount com RBAC somente leitura para nodes, pods e events; veja `docs/pkg65_kubernetes.md`.
 
-Para checks locais extensíveis, habilite `LOCAL_CHECKS_ENABLED=true` e configure `local_checks` remoto ou `LOCAL_CHECKS_JSON`. O runtime usa allowlist e nao executa shell generico; veja `docs/pkg66_local_checks.md`.
+Para checks locais extensíveis, habilite `LOCAL_CHECKS_ENABLED=true` e configure `local_checks` remoto ou `LOCAL_CHECKS_JSON`. O runtime usa allowlist, nao executa shell generico e bloqueia integrações `beta`/`experimental` sem `homologation_status=approved` e `homologation_ref`; veja `docs/pkg66_local_checks.md`.
 
 Para operação de frota, `inspect_runtime_config` expõe `fleet_runtime` e o comando permitido `collect_support_flare` coleta evidência sanitizada para suporte; veja `docs/pkg67_fleet_rollout_flare.md`.
 

@@ -137,7 +137,11 @@ func (c *collector) runCheck(ctx context.Context, check config.LocalCheckConfig)
 }
 
 func execute(ctx context.Context, check config.LocalCheckConfig, maxBytes int64) ([]map[string]any, []string, map[string]any, error) {
-	switch normalizeKind(check.Kind) {
+	kind := normalizeKind(check.Kind)
+	if serviceCheck, err := activationGate(kind, check); err != nil {
+		return nil, nil, serviceCheck, err
+	}
+	switch kind {
 	case "http", "nginx", "apache":
 		return runHTTP(ctx, check, maxBytes)
 	case "openmetrics":

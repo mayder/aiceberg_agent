@@ -46,6 +46,32 @@ func integrationManifest(kind string) map[string]any {
 	}
 }
 
+func activationGate(kind string, check config.LocalCheckConfig) (map[string]any, error) {
+	info, ok := integrationCatalog[normalizeKind(kind)]
+	if !ok || info.Status == "official" {
+		return nil, nil
+	}
+	if integrationHomologated(check.Config) {
+		return nil, nil
+	}
+	serviceCheck := map[string]any{
+		"status":             "blocked",
+		"integration":        integrationManifest(kind),
+		"activation_blocked": true,
+		"reason":             "integration_not_homologated",
+	}
+	return serviceCheck, errors.New("integracao local nao homologada para ativacao produtiva")
+}
+
+func integrationHomologated(values map[string]string) bool {
+	if values == nil {
+		return false
+	}
+	status := strings.ToLower(strings.TrimSpace(values["homologation_status"]))
+	ref := strings.TrimSpace(values["homologation_ref"])
+	return (status == "approved" || status == "homologated" || status == "homologado") && ref != ""
+}
+
 func runJMX(ctx context.Context, check config.LocalCheckConfig, maxBytes int64) ([]map[string]any, []string, map[string]any, error) {
 	mode := strings.ToLower(strings.TrimSpace(check.Config["mode"]))
 	if mode == "" {
