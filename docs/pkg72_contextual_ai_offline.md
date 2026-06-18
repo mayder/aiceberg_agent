@@ -62,7 +62,7 @@ A estratégia documentada no snapshot cobre:
 - rede OK, serviço local falhando;
 - agente recente, SNMP atrasado.
 
-A correlação visual no web e validação real ficam pendentes.
+O web correlaciona as últimas `asset_observation` Agentless vinculadas ao agente/HUB para SNMP, ICMP, TCP, TLS, HTTP e HTTPS. A validação real de falha cruzada em ambiente controlado fica pendente.
 
 ## Validação local realizada
 
@@ -77,10 +77,11 @@ Cobertura:
 - perfil de privacidade sensível refletido;
 - claim de superioridade bloqueado sem benchmark.
 - offline-first expõe retenção, replay idempotente, compressão e export local assinado.
+- web correlaciona evidência Agentless recente com o painel contextual do agente.
 
 ## Pendências reais
 
-- incidente NOC/SOC real com evidência host + agentless;
+- incidente NOC/SOC real com evidência host + agentless em falha controlada;
 - replay 24h offline sem duplicação relevante;
 - assinatura remota com chave/PKI, se for exigida para suporte externo;
 - cliente regulado com coleta reduzida;
