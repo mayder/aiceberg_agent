@@ -41,7 +41,7 @@ Config remota equivalente:
 ## Mapeamento
 
 - Metrics: `resourceMetrics` vira `body.otlp.kind=metrics` em `/v1/ingest/metrics`.
-- Logs: `resourceLogs` vira `events[]` em `/v1/logs/raw`, com `trace_id`, `span_id`, `service`, `severity` e `transport=otlp_http_json`.
+- Logs: `resourceLogs` vira `events[]` em `/v1/logs/raw`, com `trace_id`, `span_id`, `service`, `severity` e `transport=otlp_http_json`; redaction, include/exclude e severidade minima reutilizam as preferencias do PKG-60.
 - Traces: `resourceSpans` vira `body.otlp.kind=traces` em `/v1/ingest/metrics` como contrato transitorio ate PKG-63.
 
 Resource attributes mapeados:
@@ -56,7 +56,7 @@ Resource attributes mapeados:
 - `OTLP_MAX_BYTES` limita o corpo HTTP.
 - `OTLP_MAX_ITEMS` limita cardinalidade/volume da janela.
 - `dropped_count` registra descartes sem persistir payload rejeitado.
-- Redaction completa de logs OTLP e persistencia APM dedicada ficam para PKG-63/PKG-69.
+- Persistencia APM dedicada fica para PKG-63/PKG-69.
 
 ## Rollback
 

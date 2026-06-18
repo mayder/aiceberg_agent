@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -25,6 +26,9 @@ type Receiver struct {
 	interval    time.Duration
 	maxItems    int
 	maxBytes    int
+	include     string
+	exclude     string
+	minSeverity string
 	startOnce   sync.Once
 	startErr    error
 	server      *http.Server
@@ -51,6 +55,9 @@ func NewReceiver(cfg config.Config, prefsProvider func() config.CollectPrefs) *R
 		interval:    interval,
 		maxItems:    maxItems,
 		maxBytes:    maxBytes,
+		include:     cfg.OSLogIncludeRegex,
+		exclude:     cfg.OSLogExcludeRegex,
+		minSeverity: cfg.OSLogMinSeverity,
 		store:       &store{maxItems: maxItems},
 	}
 }
@@ -172,26 +179,172 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	snap.FlushWindowSec = int(c.receiver.interval.Seconds())
 	if c.kind == "logs" {
 		events := make([]map[string]any, 0, len(snap.Items))
+		droppedCount := snap.DroppedCount
+		include, exclude, minSeverity := c.receiver.logFilters()
 		for _, item := range snap.Items {
-			events = append(events, map[string]any{
+			message, redactionStatus := redactLogMessage(stringValue(item["message"]))
+			event := map[string]any{
 				"schema_version":   schemaVersion,
 				"timestamp":        stringValue(item["timestamp_utc"]),
 				"timestamp_utc":    stringValue(item["timestamp_utc"]),
 				"source":           firstString(item, "host", "service", "source"),
-				"message":          stringValue(item["message"]),
+				"message":          message,
 				"severity":         stringValue(item["severity"]),
 				"service":          stringValue(item["service"]),
-				"attributes":       item["attributes"],
-				"redaction_status": "pending",
+				"attributes":       redactAttributes(item["attributes"]),
+				"redaction_status": redactionStatus,
 				"transport":        "otlp_http_json",
 				"source_tool":      "opentelemetry",
 				"trace_id":         stringValue(item["trace_id"]),
 				"span_id":          stringValue(item["span_id"]),
-			})
+			}
+			if shouldDropLog(event, include, exclude, minSeverity) {
+				droppedCount++
+				continue
+			}
+			events = append(events, event)
 		}
-		return json.Marshal(map[string]any{"events": events, "dropped_count": snap.DroppedCount})
+		return json.Marshal(map[string]any{"events": events, "dropped_count": droppedCount})
 	}
 	return json.Marshal(map[string]any{"otlp": snap})
+}
+
+func (r *Receiver) logFilters() (string, string, string) {
+	include, exclude, minSeverity := r.include, r.exclude, r.minSeverity
+	if r.prefs != nil {
+		p := r.prefs()
+		if p.OSLogIncludeRegex != "" {
+			include = p.OSLogIncludeRegex
+		}
+		if p.OSLogExcludeRegex != "" {
+			exclude = p.OSLogExcludeRegex
+		}
+		if p.OSLogMinSeverity != "" {
+			minSeverity = p.OSLogMinSeverity
+		}
+	}
+	return include, exclude, minSeverity
+}
+
+var otlpSensitivePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)(authorization\s*:\s*(?:bearer|basic)\s+)[^\s]+`),
+	regexp.MustCompile(`(?i)("(?:password|passwd|pwd|token|secret|api[_-]?key|cookie)"\s*:\s*)"[^"]*"`),
+	regexp.MustCompile(`(?i)\b(password|passwd|pwd|token|secret|api[_-]?key|cookie)\s*=\s*("[^"]+"|'[^']+'|[^\s&;]+)`),
+	regexp.MustCompile(`(?i)\b(password|passwd|pwd|token|secret|api[_-]?key|cookie)\s*:\s*("[^"]+"|'[^']+'|[^\s,}]+)`),
+}
+
+func redactLogMessage(message string) (string, string) {
+	redacted := message
+	for _, pattern := range otlpSensitivePatterns {
+		redacted = pattern.ReplaceAllStringFunc(redacted, func(match string) string {
+			if strings.HasPrefix(strings.TrimSpace(match), `"`) {
+				if idx := strings.Index(match, ":"); idx >= 0 {
+					return match[:idx+1] + `"[redacted]"`
+				}
+			}
+			if idx := strings.Index(match, "="); idx >= 0 {
+				return match[:idx+1] + "[redacted]"
+			}
+			if idx := strings.Index(match, ":"); idx >= 0 {
+				prefix := match[:idx+1]
+				if strings.Contains(strings.ToLower(prefix), "authorization") {
+					parts := strings.Fields(match)
+					if len(parts) >= 2 {
+						return parts[0] + " " + parts[1] + " [redacted]"
+					}
+				}
+				return prefix + "[redacted]"
+			}
+			return "[redacted]"
+		})
+	}
+	if redacted != message {
+		return redacted, "redacted"
+	}
+	return message, "none"
+}
+
+func redactAttributes(raw any) map[string]any {
+	attrs, ok := raw.(map[string]any)
+	if !ok || len(attrs) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(attrs))
+	for key, value := range attrs {
+		if isSensitiveLogKey(key) {
+			out[key] = "[redacted]"
+			continue
+		}
+		out[key] = value
+	}
+	return out
+}
+
+func shouldDropLog(event map[string]any, includeRegex, excludeRegex, minSeverity string) bool {
+	target := strings.Join([]string{
+		stringValue(event["message"]),
+		stringValue(event["source"]),
+		stringValue(event["service"]),
+		stringValue(event["severity"]),
+		stringValue(event["source_tool"]),
+	}, " ")
+	if minSeverity != "" && !severityAllowed(stringValue(event["severity"]), minSeverity) {
+		return true
+	}
+	if includeRegex != "" {
+		re, err := regexp.Compile(includeRegex)
+		if err == nil && !re.MatchString(target) {
+			return true
+		}
+	}
+	if excludeRegex != "" {
+		re, err := regexp.Compile(excludeRegex)
+		if err == nil && re.MatchString(target) {
+			return true
+		}
+	}
+	return false
+}
+
+func severityAllowed(level, minSeverity string) bool {
+	minRank, ok := severityRank(minSeverity)
+	if !ok {
+		return true
+	}
+	currentRank, ok := severityRank(level)
+	if !ok {
+		return true
+	}
+	return currentRank >= minRank
+}
+
+func severityRank(value string) (int, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "debug", "trace", "verbose":
+		return 1, true
+	case "info", "information", "notice":
+		return 2, true
+	case "warn", "warning":
+		return 3, true
+	case "err", "error":
+		return 4, true
+	case "crit", "critical", "fatal", "emerg", "emergency", "alert":
+		return 5, true
+	default:
+		return 0, false
+	}
+}
+
+func isSensitiveLogKey(key string) bool {
+	key = strings.ToLower(strings.TrimSpace(key))
+	return strings.Contains(key, "password") ||
+		strings.Contains(key, "passwd") ||
+		strings.Contains(key, "token") ||
+		strings.Contains(key, "secret") ||
+		strings.Contains(key, "authorization") ||
+		strings.Contains(key, "cookie") ||
+		strings.Contains(key, "api_key") ||
+		strings.Contains(key, "apikey")
 }
 
 type snapshot struct {
