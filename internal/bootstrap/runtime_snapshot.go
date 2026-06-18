@@ -178,6 +178,15 @@ func buildOfflineFirstEvidence(cfg config.Config, mode string, settings usecase.
 			"agentless_flush_batch":   settings.FlushBatch,
 			"idempotent_replay":       cfg.HTTPIdempotency,
 		},
+		"replay_safety": map[string]any{
+			"durable_until_ack":        true,
+			"ack_idempotent":           true,
+			"retry_scope":              "route_identity",
+			"requires_24h_validation":  true,
+			"relay_to_hub_only":        mode == "relay",
+			"direct_api_from_relay":    false,
+			"preserve_legacy_contract": true,
+		},
 		"local_export": map[string]any{
 			"format":              "support_flare_redacted_json",
 			"signed":              true,

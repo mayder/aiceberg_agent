@@ -209,6 +209,16 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 	if retention["local_outbox_max_mb"] != 200 || retention["agentless_outbox_max_mb"] != 55 || retention["flush_batch"] != 77 {
 		t.Fatalf("unexpected retention policy: %#v", retention)
 	}
+	replaySafety, ok := offline["replay_safety"].(map[string]any)
+	if !ok {
+		t.Fatalf("replay_safety missing: %#v", offline)
+	}
+	if replaySafety["durable_until_ack"] != true || replaySafety["ack_idempotent"] != true || replaySafety["requires_24h_validation"] != true {
+		t.Fatalf("replay safety must expose durable/idempotent local contract and real validation gate: %#v", replaySafety)
+	}
+	if replaySafety["relay_to_hub_only"] != false || replaySafety["direct_api_from_relay"] != false {
+		t.Fatalf("hub mode must not be marked as relay direct API: %#v", replaySafety)
+	}
 	localExport, ok := offline["local_export"].(map[string]any)
 	if !ok {
 		t.Fatalf("local_export missing: %#v", offline)
@@ -223,6 +233,26 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 	}
 	if benchmark["claim_allowed"] != false {
 		t.Fatalf("superiority claim must remain blocked without benchmark: %#v", benchmark)
+	}
+}
+
+func TestBuildOfflineFirstEvidenceRelayKeepsHubOnlyTopology(t *testing.T) {
+	t.Helper()
+
+	offline := buildOfflineFirstEvidence(config.Config{
+		HTTPIdempotency:      true,
+		OutboxFlushBatch:     10,
+		OutboxFlushInterval:  time.Second,
+		OutboxMaxMB:          100,
+		AgentlessOutboxMaxMB: 50,
+	}, "relay", usecase.AgentlessSettings{FlushBatch: 5})
+
+	replaySafety, ok := offline["replay_safety"].(map[string]any)
+	if !ok {
+		t.Fatalf("replay_safety missing: %#v", offline)
+	}
+	if replaySafety["relay_to_hub_only"] != true || replaySafety["direct_api_from_relay"] != false {
+		t.Fatalf("relay replay must preserve relay -> hub -> AIceberg topology: %#v", replaySafety)
 	}
 }
 

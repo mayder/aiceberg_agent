@@ -47,12 +47,15 @@ O agente já usa outbox local e idempotência HTTP. O bloco `offline_first` torn
 - idempotência HTTP para replay;
 - suporte a compressão quando `HTTP_GZIP=true`;
 - política local de retenção e flush;
+- contrato de replay até ACK, ACK idempotente e escopo de retry por rota/identidade;
 - modo HUB/relay;
 - proxy configurado;
 - export de suporte via flare sanitizado;
 - assinatura de integridade SHA256 sobre evidência offline sanitizada.
 
 A assinatura local é controle de integridade do snapshot sanitizado. Ela não substitui assinatura remota com chave/PKI nem libera claim de superioridade.
+
+Em modo `relay`, o snapshot marca `relay_to_hub_only=true` e `direct_api_from_relay=false`: o replay preserva a topologia relay -> HUB -> AIceberg e não abre envio direto do relay para a API.
 
 ## Agent + Agentless
 
@@ -79,6 +82,7 @@ Cobertura:
 - perfil de privacidade sensível refletido;
 - claim de superioridade bloqueado sem benchmark.
 - offline-first expõe retenção, replay idempotente, compressão e export local assinado.
+- BoltStore preserva o replay entre restart até ACK e aceita ACK repetido/ID desconhecido de forma idempotente.
 - web correlaciona evidência Agentless recente com o painel contextual do agente.
 
 ## Pendências reais
