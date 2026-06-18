@@ -106,6 +106,7 @@ OUTBOX_PATH="${WORKDIR}/outbox.db" \
 OUTBOX_MAX_MB=5 \
 AGENTLESS_OUTBOX_PATH="${WORKDIR}/agentless_outbox.db" \
 AGENTLESS_OUTBOX_MAX_MB=5 \
+AGENTLESS_TARGETS_PATH="${WORKDIR}/agentless_targets.json" \
 PREFS_PATH="${WORKDIR}/prefs.json" \
 AGENT_TOKEN_PATH="${WORKDIR}/agent.token" \
 AGENT_STATE_PATH="${WORKDIR}/bootstrap.ok" \

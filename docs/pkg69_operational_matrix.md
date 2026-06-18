@@ -21,6 +21,7 @@ O script de homologacao executa:
 - validacao local de restart/reabertura da outbox bbolt preservando itens antes/depois do restart e ACK parcial;
 - validacao local de burst de alta cardinalidade em `custom_metrics`, com limite de series e contagem de drops;
 - validacao local de topologia `direct -> AIceberg`, `hub -> AIceberg` e `relay -> hub -> AIceberg` para canal, ping legado, self-heal, update via proxy do Hub e encaminhamento Hub;
+- e2e local multi-processo com backend fake, agente Hub, agente Relay e agente Direct, validando ingest por token, ping legado, bootstrap e Agentless jobs/observations;
 - smoke POSIX local com evidencia de RSS, CPU e goroutines em coleta normal;
 - cenarios locais automatizados de API indisponivel, backoff, payload grande e outbox cheia;
 - `./check.sh`;
@@ -28,7 +29,7 @@ O script de homologacao executa:
 
 Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 
-- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, `HTTP_PROXY` autenticado local, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg em canal/ping/self-heal/update, smoke POSIX com RSS/CPU/goroutines locais, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
+- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, `HTTP_PROXY` autenticado local, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg em canal/ping/self-heal/update, e2e local multi-processo direct/hub/relay, smoke POSIX com RSS/CPU/goroutines locais, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
 - Docker daemon indisponivel no host local;
 - `kubectl` disponivel, mas sem validacao de cluster/DaemonSet/Helm;
 - Helm e PowerShell indisponiveis neste host;
@@ -95,7 +96,7 @@ Hashes 0.8.8:
 | Clock errado | health/time sync com diagnostico | parcial local para `time_sync.status`; NTP/clock real pendente |
 | Reboot durante coleta | servico retorna e outbox preserva dados | parcial local para reabertura bbolt; reboot real pendente |
 | Update quebrado | `update-report` com falha e rollback seguro | pendente; cadeia Ed25519 e timeout de download validados localmente antes do apply |
-| Relay/Hub/Direct | relay envia somente para Hub; Hub encaminha ao AIceberg | parcial local; smoke real com nos separados pendente |
+| Relay/Hub/Direct | relay envia somente para Hub; Hub encaminha ao AIceberg | parcial local com e2e multi-processo; smoke real em hosts separados pendente |
 | Permissao insuficiente | degradacao com status claro | parcial local para PCAP/tcpdump; host real pendente |
 | Kubernetes RBAC minimo | sem permissao a secrets/exec/delete | pendente |
 | Alto volume simultaneo | CPU/memoria dentro do limite definido | parcial local para cardinalidade custom metrics e overhead de coleta normal; carga real CPU/mem pendente |

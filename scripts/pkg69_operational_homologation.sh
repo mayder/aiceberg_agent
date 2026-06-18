@@ -65,6 +65,29 @@ result "network-intermittent-local" "pass" "flush_outbox tests backoff and later
 result "payload-large-local" "pass" "collectors enforce max bytes/items in focused tests"
 result "outbox-full-local" "pass" "bolt outbox rejects oversized envelope without partial write"
 
+E2E_EVIDENCE_FILE=/tmp/aiceberg_pkg69_e2e_evidence.json PYTHON="$PYTHON" scripts/e2e.sh >/tmp/aiceberg_pkg69_e2e.log
+"$PYTHON" - /tmp/aiceberg_pkg69_e2e_evidence.json <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    evidence = json.load(fh)
+checks = evidence.get("checks", {})
+required = [
+    "direct_ingested",
+    "hub_ingested",
+    "relay_ingested_via_hub",
+    "legacy_ping",
+    "bootstrap",
+    "agentless_jobs",
+    "agentless_observations",
+]
+failed = [name for name in required if checks.get(name) is not True]
+if failed:
+    raise SystemExit("failed e2e topology checks: " + ",".join(failed))
+PY
+result "direct-hub-relay-e2e-local" "pass" "processos separados direct/hub/relay ingerem via topologia esperada; evidence=/tmp/aiceberg_pkg69_e2e_evidence.json log=/tmp/aiceberg_pkg69_e2e.log"
+
 SMOKE_EVIDENCE_FILE=/tmp/aiceberg_pkg69_smoke_evidence.json PYTHON="$PYTHON" scripts/smoke.sh >/tmp/aiceberg_pkg69_smoke.log
 "$PYTHON" - /tmp/aiceberg_pkg69_smoke_evidence.json <<'PY'
 import json
@@ -102,5 +125,5 @@ result "disk-full" "partial" "outbox cheia coberta por teste local; falta disco 
 result "payload-large" "partial" "limites cobertos por testes locais; falta alto volume real DogStatsD/OTLP/logs"
 result "high-volume" "partial" "burst local de cardinalidade custom_metrics coberto; falta carga real DogStatsD/OTLP/logs com CPU/mem"
 result "cpu-mem-overhead" "partial" "smoke local registra overhead de coleta normal; falta idle/logs altos/OTLP alto/containers por ambiente"
-result "relay-hub-direct" "partial" "contratos locais cobrem relay->hub->AIceberg; falta smoke real com nos separados"
+result "relay-hub-direct" "partial" "contratos locais e e2e multi-processo cobrem relay->hub->AIceberg; falta smoke real em hosts separados"
 result "remote-update-rollback" "pending" "validar artefato anterior, hash e version_confirmed"

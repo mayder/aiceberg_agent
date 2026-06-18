@@ -7,6 +7,7 @@ cd "$ROOT"
 WORKDIR="${E2E_WORKDIR:-$(mktemp -d "${TMPDIR:-/tmp}/aiceberg-e2e.XXXXXX")}"
 KEEP="${E2E_KEEP:-}"
 PYTHON="${PYTHON:-python3}"
+EVIDENCE_FILE="${E2E_EVIDENCE_FILE:-}"
 
 log() {
   echo "[e2e] $*"
@@ -172,6 +173,7 @@ start_agent() {
   OUTBOX_MAX_MB=5 \
   AGENTLESS_OUTBOX_PATH="${dir}/agentless_outbox.db" \
   AGENTLESS_OUTBOX_MAX_MB=5 \
+  AGENTLESS_TARGETS_PATH="${dir}/agentless_targets.json" \
   AGENTLESS_ENABLED=true \
   AGENTLESS_POLL_INTERVAL=2 \
   AGENTLESS_FLUSH_INTERVAL=2 \
@@ -206,10 +208,49 @@ if ! wait_for_stats; then
   curl -sf "http://127.0.0.1:${BACKEND_PORT}/__stats" || true
   exit 1
 fi
+STATS_JSON="$(curl -sf "http://127.0.0.1:${BACKEND_PORT}/__stats")"
 
 log "check metrics endpoint"
 metrics="$(curl -sf "http://127.0.0.1:18081/metrics")"
 echo "${metrics}" | grep -q "agent_invalid_envelopes_total"
 echo "${metrics}" | grep -q "agent_agentless_jobs_total"
+
+if [[ -n "${EVIDENCE_FILE}" ]]; then
+  log "write e2e evidence"
+  "${PYTHON}" - "${EVIDENCE_FILE}" "${STATS_JSON}" <<'PY'
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+target, stats_raw = sys.argv[1:3]
+stats = json.loads(stats_raw)
+by_auth = stats.get("by_auth", {})
+agentless = stats.get("agentless", {})
+evidence = {
+    "schema": "aiceberg.agent.e2e.v1",
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "topology": {
+        "direct": "direct -> aiceberg",
+        "hub": "hub -> aiceberg",
+        "relay": "relay -> hub -> aiceberg",
+    },
+    "checks": {
+        "direct_ingested": by_auth.get("Token token-direct", 0) >= 1,
+        "hub_ingested": by_auth.get("Token token-hub", 0) >= 1,
+        "relay_ingested_via_hub": by_auth.get("Token token-relay", 0) >= 1,
+        "legacy_ping": stats.get("ping_get", 0) >= 1,
+        "bootstrap": stats.get("bootstraps", 0) >= 1,
+        "agentless_jobs": agentless.get("jobs", 0) >= 1,
+        "agentless_observations": agentless.get("obs", 0) >= 1,
+    },
+    "stats": stats,
+}
+os.makedirs(os.path.dirname(target), exist_ok=True)
+with open(target, "w", encoding="utf-8") as fh:
+    json.dump(evidence, fh, indent=2, sort_keys=True)
+    fh.write("\n")
+PY
+fi
 
 log "ok"
