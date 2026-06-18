@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -276,6 +277,47 @@ func TestBuildOfflineFirstEvidenceRelayKeepsHubOnlyTopology(t *testing.T) {
 	}
 }
 
+func TestBuildContextualEvidenceMinimalProfileAvoidsRawSecrets(t *testing.T) {
+	t.Setenv("PRIVACY_PROFILE", "minimal")
+	t.Setenv("SENSITIVE_MODE", "true")
+
+	evidence := buildContextualEvidenceSnapshot(config.Config{
+		APIKey:   "raw-api-secret",
+		HubToken: "raw-hub-secret",
+	}, "direct", config.CollectPrefs{
+		Logs:               false,
+		Processes:          false,
+		Services:           false,
+		Network:            false,
+		Inventory:          false,
+		OSLogDiag:          false,
+		NetworkPassiveMode: "socket",
+	}, usecase.AgentlessSettings{Enabled: false}, false)
+
+	privacy := evidence["privacy"].(map[string]any)
+	if privacy["profile"] != "minimal" || privacy["sensitive_mode"] != true || privacy["raw_secret_logging"] != false {
+		t.Fatalf("unexpected minimal privacy evidence: %#v", privacy)
+	}
+	minimized := fmt.Sprint(privacy["minimized_collectors"])
+	for _, collector := range []string{"logs", "processes", "services", "network", "inventory", "oslog_diag"} {
+		assertTextContains(t, minimized, collector)
+	}
+	hostEvidence := evidence["host_evidence"].(map[string]any)
+	policy := hostEvidence["noc_soc_attachment_policy"].(map[string]any)
+	if policy["send_raw_sensitive_payload"] != false || policy["attach_summary"] != true {
+		t.Fatalf("unexpected attachment policy: %#v", policy)
+	}
+	raw, err := json.Marshal(evidence)
+	if err != nil {
+		t.Fatalf("marshal contextual evidence: %v", err)
+	}
+	for _, secret := range []string{"raw-api-secret", "raw-hub-secret"} {
+		if strings.Contains(string(raw), secret) {
+			t.Fatalf("contextual evidence leaked raw secret %q: %s", secret, raw)
+		}
+	}
+}
+
 func assertMaskedToken(t *testing.T, values map[string]any, key, raw string) {
 	t.Helper()
 
@@ -292,6 +334,13 @@ func assertMaskedToken(t *testing.T, values map[string]any, key, raw string) {
 	}
 	if !strings.Contains(gotStr, "*") {
 		t.Fatalf("key %s should be masked, got %q", key, gotStr)
+	}
+}
+
+func assertTextContains(t *testing.T, value, expected string) {
+	t.Helper()
+	if !strings.Contains(value, expected) {
+		t.Fatalf("expected %q to contain %q", value, expected)
 	}
 }
 

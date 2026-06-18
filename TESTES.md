@@ -226,6 +226,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 ## PKG-72 - Diferenciais AIceberg
 
 - Unitario focado: `go test ./internal/bootstrap ./internal/data/local/outbox`.
+- Privacidade minima local: `TestBuildContextualEvidenceMinimalProfileAvoidsRawSecrets` valida `PRIVACY_PROFILE=minimal`, coletores minimizados, politica sem payload sensivel bruto e ausencia de segredo cru na evidencia contextual; nao substitui validacao real de cliente regulado.
 - Replay offline 24h local controlado: `TestBoltStoreSimulates24hOfflineReplayWithoutDuplicatesAfterAck` simula 24 envelopes horarios, replay repetido antes do ACK e ACK idempotente com IDs duplicados; nao substitui evidencia real 24h.
 - Homologacao reproduzivel: `scripts/pkg72_contextual_evidence_homologation.sh`.
 - Autoteste do gate de evidencias: `scripts/pkg72_contextual_evidence_gate_selftest.sh` roda no `./check.sh`.

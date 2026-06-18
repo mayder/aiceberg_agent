@@ -93,6 +93,7 @@ Cobertura:
 - redução de ruído é assistiva, preserva evidência original e exige benchmark;
 - veredito automático e execução remota ficam bloqueados;
 - perfil de privacidade sensível refletido;
+- `TestBuildContextualEvidenceMinimalProfileAvoidsRawSecrets` valida perfil `minimal`, coletores minimizados, política sem payload sensível bruto e ausência de segredo cru na evidência contextual; protege o contrato local, mas não substitui validação real em cliente regulado.
 - claim de superioridade bloqueado sem benchmark.
 - offline-first expõe retenção, replay idempotente, compressão e export local assinado.
 - BoltStore preserva o replay entre restart até ACK e aceita ACK repetido/ID desconhecido de forma idempotente.
