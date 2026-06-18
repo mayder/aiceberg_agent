@@ -86,6 +86,9 @@ type Config struct {
 	OTLPInterval                       time.Duration
 	OTLPMaxItems                       int
 	OTLPMaxBytes                       int
+	APMTraceSampleRate                 float64
+	APMTraceSlowThresholdMs            int
+	APMTracePreserveErrors             bool
 	ContainerEnabled                   bool
 	ContainerDockerSocket              string
 	ContainerInterval                  time.Duration
@@ -190,6 +193,9 @@ type CollectPrefs struct {
 	OTLPIntervalSec            int                `json:"otlp_interval,omitempty"`
 	OTLPMaxItems               int                `json:"otlp_max_items,omitempty"`
 	OTLPMaxBytes               int                `json:"otlp_max_bytes,omitempty"`
+	APMTraceSampleRate         float64            `json:"apm_trace_sample_rate,omitempty"`
+	APMTraceSlowThresholdMs    int                `json:"apm_trace_slow_threshold_ms,omitempty"`
+	APMTracePreserveErrors     bool               `json:"apm_trace_preserve_errors,omitempty"`
 	ContainerEnabled           bool               `json:"container_enabled,omitempty"`
 	ContainerDockerSocket      string             `json:"container_docker_socket,omitempty"`
 	ContainerIntervalSec       int                `json:"container_interval,omitempty"`
@@ -307,6 +313,9 @@ func Load(configPath string) (Config, error) {
 		OTLPInterval:                       time.Duration(intEnv("OTLP_INTERVAL", 10)) * time.Second,
 		OTLPMaxItems:                       intEnv("OTLP_MAX_ITEMS", 1000),
 		OTLPMaxBytes:                       intEnv("OTLP_MAX_BYTES", 1024*1024),
+		APMTraceSampleRate:                 floatEnv("APM_TRACE_SAMPLE_RATE", 1),
+		APMTraceSlowThresholdMs:            intEnv("APM_TRACE_SLOW_THRESHOLD_MS", 1000),
+		APMTracePreserveErrors:             strings.ToLower(getenv("APM_TRACE_PRESERVE_ERRORS", "true")) != "false",
 		ContainerEnabled:                   strings.ToLower(getenv("CONTAINER_ENABLED", "")) == "true",
 		ContainerDockerSocket:              getenv("CONTAINER_DOCKER_SOCKET", "/var/run/docker.sock"),
 		ContainerInterval:                  time.Duration(intEnv("CONTAINER_INTERVAL", 30)) * time.Second,
@@ -494,6 +503,15 @@ func splitCsv(s string) []string {
 func intEnv(key string, def int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
+}
+
+func floatEnv(key string, def float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil {
 			return n
 		}
 	}

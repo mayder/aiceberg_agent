@@ -173,6 +173,18 @@ Configuracoes locais:
 
 Rollback: definir `OTLP_ENABLED=false` ou enviar config remota `otlp.enabled=false`. Nao ha SQL do PKG-62.
 
+### PKG-63 - APM/traces sampling
+
+Contrato tecnico: `docs/pkg63_apm_sampling.md`.
+
+Configuracoes locais:
+
+- `APM_TRACE_SAMPLE_RATE=1`;
+- `APM_TRACE_SLOW_THRESHOLD_MS=1000`;
+- `APM_TRACE_PRESERVE_ERRORS=true`.
+
+Rollback: definir `APM_TRACE_SAMPLE_RATE=1` para enviar todos os spans ou desligar OTLP com `OTLP_ENABLED=false`.
+
 ### PKG-64 - Containers Docker inicial
 
 Contrato tecnico: `docs/pkg64_containers.md`.

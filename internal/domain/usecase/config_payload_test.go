@@ -220,6 +220,35 @@ func TestApplyConfigPayloadAppliesCustomMetricsUDSPath(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadAppliesAPMSamplingPolicy(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	rate := 0.25
+	preserveErrors := true
+	payload := ConfigPayload{
+		Version: "cfg-apm",
+		Collect: config.CollectPrefs{
+			OTLPEnabled: true,
+		},
+	}
+	payload.APM.TraceSampleRate = &rate
+	payload.APM.TraceSlowThresholdMs = 750
+	payload.APM.TracePreserveErrors = &preserveErrors
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if got.APMTraceSampleRate != 0.25 || got.APMTraceSlowThresholdMs != 750 || !got.APMTracePreserveErrors {
+		t.Fatalf("expected apm sampling policy persisted, got rate=%v slow=%d preserve=%v", got.APMTraceSampleRate, got.APMTraceSlowThresholdMs, got.APMTracePreserveErrors)
+	}
+}
+
 func TestApplyConfigPayloadWithSecurityRequiresSignatureForSensitivePayload(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}

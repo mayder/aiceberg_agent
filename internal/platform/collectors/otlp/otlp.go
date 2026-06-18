@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"hash/fnv"
 	"io"
 	"net"
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,19 +22,22 @@ import (
 const schemaVersion = 1
 
 type Receiver struct {
-	prefs       func() config.CollectPrefs
-	baseEnabled bool
-	addr        string
-	interval    time.Duration
-	maxItems    int
-	maxBytes    int
-	include     string
-	exclude     string
-	minSeverity string
-	startOnce   sync.Once
-	startErr    error
-	server      *http.Server
-	store       *store
+	prefs                func() config.CollectPrefs
+	baseEnabled          bool
+	addr                 string
+	interval             time.Duration
+	maxItems             int
+	maxBytes             int
+	traceSampleRate      float64
+	traceSlowThresholdMs int
+	tracePreserveErrors  bool
+	include              string
+	exclude              string
+	minSeverity          string
+	startOnce            sync.Once
+	startErr             error
+	server               *http.Server
+	store                *store
 }
 
 func NewReceiver(cfg config.Config, prefsProvider func() config.CollectPrefs) *Receiver {
@@ -48,17 +53,24 @@ func NewReceiver(cfg config.Config, prefsProvider func() config.CollectPrefs) *R
 	if maxBytes <= 0 {
 		maxBytes = 1024 * 1024
 	}
+	traceSampleRate := cfg.APMTraceSampleRate
+	if traceSampleRate == 0 && cfg.APMTraceSlowThresholdMs == 0 && !cfg.APMTracePreserveErrors {
+		traceSampleRate = 1
+	}
 	return &Receiver{
-		prefs:       prefsProvider,
-		baseEnabled: cfg.OTLPEnabled,
-		addr:        cfg.OTLPHTTPAddr,
-		interval:    interval,
-		maxItems:    maxItems,
-		maxBytes:    maxBytes,
-		include:     cfg.OSLogIncludeRegex,
-		exclude:     cfg.OSLogExcludeRegex,
-		minSeverity: cfg.OSLogMinSeverity,
-		store:       &store{maxItems: maxItems},
+		prefs:                prefsProvider,
+		baseEnabled:          cfg.OTLPEnabled,
+		addr:                 cfg.OTLPHTTPAddr,
+		interval:             interval,
+		maxItems:             maxItems,
+		maxBytes:             maxBytes,
+		traceSampleRate:      normalizeSampleRate(traceSampleRate),
+		traceSlowThresholdMs: cfg.APMTraceSlowThresholdMs,
+		tracePreserveErrors:  cfg.APMTracePreserveErrors,
+		include:              cfg.OSLogIncludeRegex,
+		exclude:              cfg.OSLogExcludeRegex,
+		minSeverity:          cfg.OSLogMinSeverity,
+		store:                &store{maxItems: maxItems},
 	}
 }
 
@@ -206,7 +218,91 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		}
 		return json.Marshal(map[string]any{"events": events, "dropped_count": droppedCount})
 	}
+	if c.kind == "traces" {
+		items, dropped := c.receiver.sampleTraceItems(snap.Items)
+		snap.Items = items
+		snap.AcceptedCount = len(items)
+		snap.DroppedCount += dropped
+	}
 	return json.Marshal(map[string]any{"otlp": snap})
+}
+
+func (r *Receiver) sampleTraceItems(items []map[string]any) ([]map[string]any, int) {
+	rate, slowMs, preserveErrors := r.traceSamplingSettings()
+	if rate >= 1 {
+		return items, 0
+	}
+	out := make([]map[string]any, 0, len(items))
+	dropped := 0
+	for _, item := range items {
+		if preserveErrors && isTraceError(item) {
+			item["sampling_reason"] = "error"
+			out = append(out, item)
+			continue
+		}
+		if slowMs > 0 && intValue(item["duration_ms"]) >= slowMs {
+			item["sampling_reason"] = "slow"
+			out = append(out, item)
+			continue
+		}
+		if deterministicSample(firstString(item, "trace_id", "span_id", "name"), rate) {
+			item["sampling_reason"] = "sampled"
+			out = append(out, item)
+			continue
+		}
+		dropped++
+	}
+	return out, dropped
+}
+
+func (r *Receiver) traceSamplingSettings() (float64, int, bool) {
+	rate := r.traceSampleRate
+	slowMs := r.traceSlowThresholdMs
+	preserveErrors := r.tracePreserveErrors
+	if r.prefs != nil {
+		p := r.prefs()
+		if p.APMTraceSampleRate > 0 {
+			rate = p.APMTraceSampleRate
+		}
+		if p.APMTraceSlowThresholdMs > 0 {
+			slowMs = p.APMTraceSlowThresholdMs
+		}
+		if p.APMTracePreserveErrors {
+			preserveErrors = true
+		}
+	}
+	return normalizeSampleRate(rate), slowMs, preserveErrors
+}
+
+func normalizeSampleRate(rate float64) float64 {
+	if rate <= 0 {
+		return 0
+	}
+	if rate > 1 {
+		return 1
+	}
+	return rate
+}
+
+func deterministicSample(key string, rate float64) bool {
+	rate = normalizeSampleRate(rate)
+	if rate >= 1 {
+		return true
+	}
+	if rate <= 0 || strings.TrimSpace(key) == "" {
+		return false
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	bucket := float64(h.Sum32()%10000) / 10000.0
+	return bucket < rate
+}
+
+func isTraceError(item map[string]any) bool {
+	if value, ok := item["error"].(bool); ok {
+		return value
+	}
+	return strings.EqualFold(stringValue(item["status"]), "error")
 }
 
 func (r *Receiver) logFilters() (string, string, string) {
@@ -478,12 +574,55 @@ func flattenTraces(root map[string]any, resource map[string]any) []map[string]an
 				item["parent_span_id"] = stringValue(s["parentSpanId"])
 				item["start_time_unix_nano"] = stringValue(s["startTimeUnixNano"])
 				item["end_time_unix_nano"] = stringValue(s["endTimeUnixNano"])
-				item["attributes"] = attributes(s["attributes"])
+				item["duration_ms"] = durationMs(item["start_time_unix_nano"], item["end_time_unix_nano"])
+				attrs := attributes(s["attributes"])
+				item["attributes"] = attrs
+				status := mapValue(s["status"])
+				item["status"] = statusText(status)
+				item["status_message"] = stringValue(status["message"])
+				item["error"] = traceError(status, attrs)
 				out = append(out, item)
 			}
 		}
 	}
 	return out
+}
+
+func durationMs(start, end any) int64 {
+	startNano, errStart := strconv.ParseInt(stringValue(start), 10, 64)
+	endNano, errEnd := strconv.ParseInt(stringValue(end), 10, 64)
+	if errStart != nil || errEnd != nil || endNano <= startNano {
+		return 0
+	}
+	return (endNano - startNano) / int64(time.Millisecond)
+}
+
+func statusText(status map[string]any) string {
+	code := strings.ToLower(stringValue(status["code"]))
+	switch code {
+	case "2", "error":
+		return "error"
+	case "1", "ok":
+		return "ok"
+	default:
+		return firstString(status, "code", "message")
+	}
+}
+
+func traceError(status map[string]any, attrs map[string]any) bool {
+	if statusText(status) == "error" {
+		return true
+	}
+	for key, value := range attrs {
+		lower := strings.ToLower(strings.TrimSpace(key))
+		if strings.HasPrefix(lower, "exception.") {
+			return true
+		}
+		if lower == "error" && strings.EqualFold(stringValue(value), "true") {
+			return true
+		}
+	}
+	return false
 }
 
 func resourceAttributes(v any) map[string]any {
@@ -598,6 +737,22 @@ func stringValue(v any) string {
 		return "false"
 	default:
 		return ""
+	}
+}
+
+func intValue(v any) int {
+	switch t := v.(type) {
+	case int:
+		return t
+	case int64:
+		return int(t)
+	case float64:
+		return int(t)
+	case string:
+		n, _ := strconv.Atoi(strings.TrimSpace(t))
+		return n
+	default:
+		return 0
 	}
 }
 

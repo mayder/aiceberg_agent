@@ -140,6 +140,11 @@ type ConfigPayload struct {
 		MaxItems int    `json:"max_items,omitempty"`
 		MaxBytes int    `json:"max_bytes,omitempty"`
 	} `json:"otlp,omitempty"`
+	APM struct {
+		TraceSampleRate      *float64 `json:"trace_sample_rate,omitempty"`
+		TraceSlowThresholdMs int      `json:"trace_slow_threshold_ms,omitempty"`
+		TracePreserveErrors  *bool    `json:"trace_preserve_errors,omitempty"`
+	} `json:"apm,omitempty"`
 	Containers struct {
 		Enabled      *bool  `json:"enabled,omitempty"`
 		DockerSocket string `json:"docker_socket,omitempty"`
@@ -253,6 +258,15 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	}
 	if payload.OTLP.MaxBytes > 0 {
 		collect.OTLPMaxBytes = payload.OTLP.MaxBytes
+	}
+	if payload.APM.TraceSampleRate != nil {
+		collect.APMTraceSampleRate = *payload.APM.TraceSampleRate
+	}
+	if payload.APM.TraceSlowThresholdMs > 0 {
+		collect.APMTraceSlowThresholdMs = payload.APM.TraceSlowThresholdMs
+	}
+	if payload.APM.TracePreserveErrors != nil {
+		collect.APMTracePreserveErrors = *payload.APM.TracePreserveErrors
 	}
 	if payload.Containers.Enabled != nil {
 		collect.ContainerEnabled = *payload.Containers.Enabled

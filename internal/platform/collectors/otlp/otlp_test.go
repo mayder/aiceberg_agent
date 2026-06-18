@@ -127,6 +127,54 @@ func TestReceiverRedactsAndFiltersOTLPLogs(t *testing.T) {
 	}
 }
 
+func TestReceiverSamplesTracesButKeepsErrorsAndSlowSpans(t *testing.T) {
+	addr := freeTCPAddr(t)
+	receiver := NewReceiver(config.Config{
+		OTLPEnabled:             true,
+		OTLPHTTPAddr:            addr,
+		OTLPInterval:            time.Second,
+		OTLPMaxItems:            10,
+		OTLPMaxBytes:            4096,
+		APMTraceSampleRate:      0,
+		APMTraceSlowThresholdMs: 100,
+		APMTracePreserveErrors:  true,
+	}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if _, err := receiver.TracesCollector().Collect(ctx); err != nil {
+		t.Fatalf("start receiver: %v", err)
+	}
+
+	postOTLP(t, addr, "/v1/traces", `{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"api"}}]},"scopeSpans":[{"spans":[{"traceId":"trace-fast","spanId":"span-fast","name":"fast","startTimeUnixNano":"0","endTimeUnixNano":"1000000"},{"traceId":"trace-slow","spanId":"span-slow","name":"slow","startTimeUnixNano":"0","endTimeUnixNano":"250000000"},{"traceId":"trace-error","spanId":"span-error","name":"error","startTimeUnixNano":"0","endTimeUnixNano":"1000000","status":{"code":2,"message":"boom"}}]}]}]}`)
+
+	tracesRaw, err := receiver.TracesCollector().Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect traces: %v", err)
+	}
+	var payload struct {
+		OTLP snapshot `json:"otlp"`
+	}
+	if err := json.Unmarshal(tracesRaw, &payload); err != nil {
+		t.Fatalf("invalid traces payload: %v", err)
+	}
+	if len(payload.OTLP.Items) != 2 {
+		t.Fatalf("expected slow and error spans only, got %#v", payload.OTLP.Items)
+	}
+	if payload.OTLP.DroppedCount != 1 {
+		t.Fatalf("expected dropped_count=1, got %d", payload.OTLP.DroppedCount)
+	}
+	reasons := map[string]bool{}
+	for _, item := range payload.OTLP.Items {
+		reasons[stringValue(item["sampling_reason"])] = true
+		if item["name"] == "slow" && intValue(item["duration_ms"]) != 250 {
+			t.Fatalf("expected slow duration 250ms, got %#v", item)
+		}
+	}
+	if !reasons["slow"] || !reasons["error"] {
+		t.Fatalf("expected slow and error sampling reasons, got %#v", reasons)
+	}
+}
+
 func postOTLP(t *testing.T, addr, path, body string) {
 	t.Helper()
 	resp, err := http.Post("http://"+addr+path, "application/json", bytes.NewBufferString(body))
