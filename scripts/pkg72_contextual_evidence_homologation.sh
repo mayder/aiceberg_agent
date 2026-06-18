@@ -37,6 +37,10 @@ template_incomplete_reason() {
     echo "template status placeholder not filled"
     return 0
   fi
+  if grep -Eq '^- Aprovacao fechamento: pending\|yes\|no$' "$path"; then
+    echo "template closure approval placeholder not filled"
+    return 0
+  fi
   if ! grep -Fxq "# $expected_title" "$path"; then
     echo "template title mismatch"
     return 0
@@ -44,6 +48,10 @@ template_incomplete_reason() {
   if grep -Eq '^# PKG-72 - ' "$path"; then
     if ! grep -Eq '^- Status: pass$' "$path"; then
       echo "template status is not pass"
+      return 0
+    fi
+    if ! grep -Eq '^- Aprovacao fechamento: yes$' "$path"; then
+      echo "template closure approval is not yes"
       return 0
     fi
   fi
@@ -107,6 +115,8 @@ $metrics
 - Evidencia bruta anexada:
 - Observacoes:
 - Rollback validado:
+- Revisor:
+- Aprovacao fechamento: pending|yes|no
 EOF
 }
 

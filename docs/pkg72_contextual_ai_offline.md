@@ -135,7 +135,7 @@ Para gerar modelos editáveis das evidências reais:
 PKG72_TEMPLATE_DIR=/tmp/aiceberg_pkg72_templates scripts/pkg72_contextual_evidence_homologation.sh
 ```
 
-Templates gerados e não preenchidos, com evidência/métrica específica vazia, preenchidos com `Status` diferente de `pass` ou anexados na variável errada são marcados como `invalid-template` e não contam para o gate de fechamento.
+Templates gerados e não preenchidos, com evidência/métrica específica vazia, preenchidos com `Status` diferente de `pass`, sem aprovação de fechamento `yes` ou anexados na variável errada são marcados como `invalid-template` e não contam para o gate de fechamento.
 
 Para testar regressão do gate sem depender de evidência real:
 

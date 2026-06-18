@@ -18,8 +18,10 @@ fill_template() {
      s/- Versao agente:/- Versao agente: selftest/;
      s/- Evidencia bruta anexada:/- Evidencia bruta anexada: raw.log/;
      s/- Observacoes:/- Observacoes: selftest/;
-     s/- Rollback validado:/- Rollback validado: sim/' "$path"
+     s/- Rollback validado:/- Rollback validado: sim/;
+     s/- Revisor:/- Revisor: gate-selftest/' "$path"
   perl -0pi -e "s/- Status: pending\\|pass\\|fail/- Status: $status/" "$path"
+  perl -0pi -e "s/- Aprovacao fechamento: pending\\|yes\\|no/- Aprovacao fechamento: yes/" "$path"
   perl -0pi -e 's/^- ([^:\n]+):[[:space:]]*$/- $1: selftest/mg' "$path"
 }
 
@@ -47,6 +49,10 @@ cp "$TMP_DIR/templates/noc_soc_incident_host_agentless.md" "$TMP_DIR/noc-empty-s
 fill_template "$TMP_DIR/noc-empty-specific-field.md" "pass"
 perl -0pi -e 's/- Evidencia host local: selftest/- Evidencia host local:/' "$TMP_DIR/noc-empty-specific-field.md"
 
+cp "$TMP_DIR/templates/noc_soc_incident_host_agentless.md" "$TMP_DIR/noc-no-approval.md"
+fill_template "$TMP_DIR/noc-no-approval.md" "pass"
+perl -0pi -e 's/- Aprovacao fechamento: yes/- Aprovacao fechamento: no/' "$TMP_DIR/noc-no-approval.md"
+
 PKG72_EVIDENCE_FILE="$TMP_DIR/correct-slot.md" \
 PKG72_INCIDENT_EVIDENCE="$TMP_DIR/noc-pass.md" \
 scripts/pkg72_contextual_evidence_homologation.sh >/dev/null
@@ -69,6 +75,12 @@ PKG72_INCIDENT_EVIDENCE="$TMP_DIR/noc-empty-specific-field.md" \
 scripts/pkg72_contextual_evidence_homologation.sh >/dev/null
 assert_contains "$TMP_DIR/empty-specific-field.md" "noc-soc-incident-host-agentless: invalid-template"
 assert_contains "$TMP_DIR/empty-specific-field.md" "reason=template required field blank"
+
+PKG72_EVIDENCE_FILE="$TMP_DIR/no-approval.md" \
+PKG72_INCIDENT_EVIDENCE="$TMP_DIR/noc-no-approval.md" \
+scripts/pkg72_contextual_evidence_homologation.sh >/dev/null
+assert_contains "$TMP_DIR/no-approval.md" "noc-soc-incident-host-agentless: invalid-template"
+assert_contains "$TMP_DIR/no-approval.md" "reason=template closure approval is not yes"
 
 set +e
 PKG72_EVIDENCE_FILE="$TMP_DIR/blocking.md" \
