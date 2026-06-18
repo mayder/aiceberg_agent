@@ -90,6 +90,7 @@ type Config struct {
 	OSLogJournaldUnits                 []string
 	OSLogJournaldPriorities            []string
 	OSLogProcessors                    []LogProcessorConfig
+	OSLogDualShipEndpoints             []string
 	CustomMetricsEnabled               bool
 	CustomMetricsUDPAddr               string
 	CustomMetricsHTTPAddr              string
@@ -231,6 +232,7 @@ type CollectPrefs struct {
 	OSLogJournaldUnits         []string             `json:"oslog_journald_units,omitempty"`
 	OSLogJournaldPriorities    []string             `json:"oslog_journald_priorities,omitempty"`
 	OSLogProcessors            []LogProcessorConfig `json:"oslog_processors,omitempty"`
+	OSLogDualShipEndpoints     []string             `json:"oslog_dual_ship_endpoints,omitempty"`
 	CustomMetricsEnabled       bool                 `json:"custom_metrics_enabled,omitempty"`
 	CustomMetricsUDPAddr       string               `json:"custom_metrics_udp_addr,omitempty"`
 	CustomMetricsHTTPAddr      string               `json:"custom_metrics_http_addr,omitempty"`
@@ -374,6 +376,7 @@ func Load(configPath string) (Config, error) {
 		OSLogJournaldUnits:                 splitCsv(getenv("OSLOG_JOURNALD_UNITS", "")),
 		OSLogJournaldPriorities:            splitCsv(getenv("OSLOG_JOURNALD_PRIORITIES", "")),
 		OSLogProcessors:                    parseLogProcessors(getenv("OSLOG_PROCESSORS_JSON", "")),
+		OSLogDualShipEndpoints:             splitCsv(getenv("OSLOG_DUAL_SHIP_ENDPOINTS", "")),
 		CustomMetricsEnabled:               strings.ToLower(getenv("CUSTOM_METRICS_ENABLED", "")) == "true",
 		CustomMetricsUDPAddr:               getenv("CUSTOM_METRICS_UDP_ADDR", "127.0.0.1:8125"),
 		CustomMetricsHTTPAddr:              getenv("CUSTOM_METRICS_HTTP_ADDR", "127.0.0.1:8126"),

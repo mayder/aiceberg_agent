@@ -141,10 +141,12 @@ Configuracoes locais:
 - `OSLOG_JOURNALD_UNITS=nginx.service,sshd.service`;
 - `OSLOG_JOURNALD_PRIORITIES=warning,error,critical`.
 - `OSLOG_PROCESSORS_JSON='[{"type":"drop","pattern":"health check"},{"type":"route","value":"security"}]'`.
+- `OSLOG_DUAL_SHIP_ENDPOINTS=/v1/logs/archive`.
 
-Config remota equivalente em `logs.win_channels`, `logs.win_providers`, `logs.win_event_ids`, `logs.include_regex`, `logs.exclude_regex`, `logs.min_severity` e `logs.processors`.
+Config remota equivalente em `logs.win_channels`, `logs.win_providers`, `logs.win_event_ids`, `logs.include_regex`, `logs.exclude_regex`, `logs.min_severity`, `logs.processors` e `logs.dual_ship_endpoints`.
 Listeners locais tambem podem ser enviados como `logs.udp_addr` e `logs.tcp_addr`.
 Journald tambem pode ser enviado por `logs.journald_enabled`, `logs.journald_units` e `logs.journald_priorities`.
+Dual-shipping aceita apenas endpoints internos `/v1/logs/*`; URL externa e endpoint fora de logs sao descartados pelo agente.
 
 Rollback: desligar logs por `OSLOG_ENABLED=false` ou remover flags remotas `OSLogFiles`/`OSLogWinChannels`. Se a regressao for no binario, publicar a versao anterior.
 

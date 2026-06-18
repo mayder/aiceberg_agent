@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
@@ -19,6 +20,7 @@ type CollectAndBuffer struct {
 	authHeader     string
 	identityHeader string
 	endpoint       string
+	extraEndpoints func() []string
 }
 
 type BufferedCollectResult struct {
@@ -36,6 +38,18 @@ func NewCollectAndBuffer(c ports.Collector, o ports.OutboxRepo, l logger.Logger,
 
 func NewCollectAndBufferWithIdentity(c ports.Collector, o ports.OutboxRepo, l logger.Logger, authHeader string, identityHeader string, endpoint string) *CollectAndBuffer {
 	return &CollectAndBuffer{collector: c, outbox: o, log: l, authHeader: authHeader, identityHeader: identityHeader, endpoint: endpoint}
+}
+
+func NewCollectAndBufferWithIdentityAndExtraEndpoints(c ports.Collector, o ports.OutboxRepo, l logger.Logger, authHeader string, identityHeader string, endpoint string, extraEndpoints []string) *CollectAndBuffer {
+	uc := NewCollectAndBufferWithIdentity(c, o, l, authHeader, identityHeader, endpoint)
+	uc.extraEndpoints = func() []string { return extraEndpoints }
+	return uc
+}
+
+func NewCollectAndBufferWithIdentityAndExtraEndpointsProvider(c ports.Collector, o ports.OutboxRepo, l logger.Logger, authHeader string, identityHeader string, endpoint string, extraEndpoints func() []string) *CollectAndBuffer {
+	uc := NewCollectAndBufferWithIdentity(c, o, l, authHeader, identityHeader, endpoint)
+	uc.extraEndpoints = extraEndpoints
+	return uc
 }
 
 func (uc *CollectAndBuffer) Execute(ctx context.Context) error {
@@ -96,6 +110,20 @@ func (uc *CollectAndBuffer) ExecuteDetailed(ctx context.Context) (*BufferedColle
 		))
 		return nil, err
 	}
+	for _, endpoint := range sanitizeExtraEndpoints(uc.endpoint, uc.currentExtraEndpoints()) {
+		extra := env
+		extra.ID = genID()
+		extra.Endpoint = endpoint
+		if err := uc.outbox.Append(extra); err != nil {
+			uc.log.Error(logger.KV("outbox append failed",
+				"event_id", extra.ID,
+				"agent_id", extra.AgentID,
+				"route", extra.Endpoint,
+				"err", err,
+			))
+			return nil, err
+		}
+	}
 	durationMs := time.Since(start).Milliseconds()
 	uc.log.Info(logger.KV("collect buffered",
 		"event_id", env.ID,
@@ -114,3 +142,30 @@ func (uc *CollectAndBuffer) ExecuteDetailed(ctx context.Context) (*BufferedColle
 }
 
 func genID() string { return time.Now().UTC().Format("20060102T150405.000000000") }
+
+func (uc *CollectAndBuffer) currentExtraEndpoints() []string {
+	if uc.extraEndpoints == nil {
+		return nil
+	}
+	return uc.extraEndpoints()
+}
+
+func sanitizeExtraEndpoints(primary string, endpoints []string) []string {
+	out := make([]string, 0, len(endpoints))
+	seen := map[string]bool{primary: true}
+	for _, endpoint := range endpoints {
+		clean := strings.TrimSpace(endpoint)
+		if !isSafeExtraEndpoint(clean) || seen[clean] {
+			continue
+		}
+		seen[clean] = true
+		out = append(out, clean)
+	}
+	return out
+}
+
+func isSafeExtraEndpoint(endpoint string) bool {
+	return strings.HasPrefix(endpoint, "/v1/logs/") &&
+		!strings.Contains(endpoint, "://") &&
+		!strings.ContainsAny(endpoint, " \t\r\n")
+}

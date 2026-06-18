@@ -135,6 +135,70 @@ func TestCollectAndBuffer_AppendsEnvelope(t *testing.T) {
 	}
 }
 
+func TestCollectAndBuffer_AppendsControlledExtraLogEndpoints(t *testing.T) {
+	outbox := &fakeOutbox{}
+	log := &fakeLogger{}
+	collector := &fakeCollector{
+		name: "oslogs",
+		data: []byte(`{"events":[{"message":"ok"}]}`),
+	}
+	uc := NewCollectAndBufferWithIdentityAndExtraEndpoints(
+		collector,
+		outbox,
+		log,
+		"Token test",
+		"identity-header",
+		"/v1/logs/raw",
+		[]string{"/v1/logs/archive", "https://unsafe.example/logs", "/v1/logs/raw", "/v1/ingest/metrics"},
+	)
+
+	if err := uc.Execute(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if len(outbox.batch) != 2 {
+		t.Fatalf("expected primary plus one safe extra envelope, got %d", len(outbox.batch))
+	}
+	if outbox.batch[0].Endpoint != "/v1/logs/raw" {
+		t.Fatalf("expected primary logs endpoint, got %q", outbox.batch[0].Endpoint)
+	}
+	if outbox.batch[1].Endpoint != "/v1/logs/archive" {
+		t.Fatalf("expected safe extra logs endpoint, got %q", outbox.batch[1].Endpoint)
+	}
+	if !bytes.Equal(outbox.batch[0].Body.(json.RawMessage), outbox.batch[1].Body.(json.RawMessage)) {
+		t.Fatalf("expected dual-shipped payload body to match primary body")
+	}
+}
+
+func TestCollectAndBuffer_ExtraEndpointsProviderIsDynamic(t *testing.T) {
+	outbox := &fakeOutbox{}
+	log := &fakeLogger{}
+	extras := []string{"/v1/logs/archive"}
+	collector := &fakeCollector{
+		name: "oslogs",
+		data: []byte(`{"events":[{"message":"ok"}]}`),
+	}
+	uc := NewCollectAndBufferWithIdentityAndExtraEndpointsProvider(
+		collector,
+		outbox,
+		log,
+		"Token test",
+		"identity-header",
+		"/v1/logs/raw",
+		func() []string { return extras },
+	)
+
+	if err := uc.Execute(context.Background()); err != nil {
+		t.Fatalf("first execute: %v", err)
+	}
+	extras = []string{"/v1/logs/secondary"}
+	if err := uc.Execute(context.Background()); err != nil {
+		t.Fatalf("second execute: %v", err)
+	}
+	if got := outbox.batch[len(outbox.batch)-1].Endpoint; got != "/v1/logs/secondary" {
+		t.Fatalf("expected dynamic extra endpoint, got %q", got)
+	}
+}
+
 func TestCollectAndBuffer_InvalidCollectorPayloadIsNotBuffered(t *testing.T) {
 	outbox := &fakeOutbox{}
 	log := &fakeLogger{}

@@ -28,6 +28,7 @@ O payload tambem pode enviar `dropped_count` para indicar quantos eventos foram 
 - Redaction: token, senha, secret, API key, cookie e `Authorization` sao mascarados antes de sair do host.
 - Filtros: `OSLOG_INCLUDE_REGEX`, `OSLOG_EXCLUDE_REGEX` e `OSLOG_MIN_SEVERITY` podem ser definidos por env ou config remota em `logs.include_regex`, `logs.exclude_regex` e `logs.min_severity`.
 - Processors opcionais: `parse`, `remap`, `drop`, `mask`, `route`, `sample` e `enrich` podem ser definidos por `OSLOG_PROCESSORS_JSON` ou `logs.processors`; quando vazios, o comportamento legado permanece.
+- Dual-shipping controlado: `OSLOG_DUAL_SHIP_ENDPOINTS` ou `logs.dual_ship_endpoints` duplica o envelope ja sanitizado apenas para endpoints internos seguros `/v1/logs/*`; URLs externas e rotas fora de logs sao ignoradas.
 
 ## Compatibilidade
 
@@ -39,11 +40,12 @@ O payload tambem pode enviar `dropped_count` para indicar quantos eventos foram 
 - `OSLOG_UDP_ADDR` e `OSLOG_TCP_ADDR` habilitam listeners locais opcionais; vazios por padrao.
 - `OSLOG_JOURNALD_ENABLED`, `OSLOG_JOURNALD_UNITS` e `OSLOG_JOURNALD_PRIORITIES` habilitam journald opcional em POSIX; desligado por padrao.
 - `OSLOG_PROCESSORS_JSON` recebe um array JSON de processors opcionais; vazio por padrao.
+- `OSLOG_DUAL_SHIP_ENDPOINTS` recebe lista CSV de endpoints internos `/v1/logs/*`; vazio por padrao.
 
 ## Limites
 
 - Listener TCP/UDP local esta disponivel em POSIX e desligado por padrao; Windows fica pendente de implementacao/validacao propria.
-- Dual-shipping e OTLP logs ficam para PKG-62/PKG-67.
+- OTLP logs ficam para PKG-62/PKG-67.
 - Logs Docker/containerd e Kubernetes ficam para PKG-64/PKG-65.
 - Journald real ainda depende de host Linux com systemd para homologacao operacional.
 - EventLog real ainda depende de host Windows com Security/System/Application/Sysmon para homologacao operacional.

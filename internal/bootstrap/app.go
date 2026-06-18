@@ -283,7 +283,13 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	osRepo := repositories.NewOutboxRepository(osStore)
 	osLogRepo = osRepo
 	osCollector := oslogs.New(cfg, prefStore.Get)
-	osLogCollectUC = usecase.NewCollectAndBufferWithIdentity(osCollector, osRepo, log, authHeader, identityHeader, "/v1/logs/raw")
+	osLogCollectUC = usecase.NewCollectAndBufferWithIdentityAndExtraEndpointsProvider(osCollector, osRepo, log, authHeader, identityHeader, "/v1/logs/raw", func() []string {
+		prefs := prefStore.Get()
+		if len(prefs.OSLogDualShipEndpoints) > 0 {
+			return prefs.OSLogDualShipEndpoints
+		}
+		return cfg.OSLogDualShipEndpoints
+	})
 	otlpLogsUC = usecase.NewCollectAndBufferWithIdentity(otlpReceiver.LogsCollector(), osRepo, log, authHeader, identityHeader, "/v1/logs/raw")
 	var osTx ports.Transport
 	if mode == "relay" {

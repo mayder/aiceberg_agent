@@ -292,6 +292,31 @@ func TestApplyConfigPayloadAppliesLogProcessors(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadAppliesLogDualShipping(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	payload := ConfigPayload{
+		Version: "cfg-logs-dual-ship",
+		Collect: config.CollectPrefs{
+			OSLogFiles: true,
+		},
+	}
+	payload.Logs.DualShip = []string{"/v1/logs/archive"}
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if strings.Join(got.OSLogDualShipEndpoints, ",") != "/v1/logs/archive" {
+		t.Fatalf("expected dual ship endpoint persisted, got %#v", got.OSLogDualShipEndpoints)
+	}
+}
+
 func TestApplyConfigPayloadAppliesCustomMetricsUDSPath(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}

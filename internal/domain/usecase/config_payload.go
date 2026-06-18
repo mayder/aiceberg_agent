@@ -129,6 +129,7 @@ type ConfigPayload struct {
 		JournalUnits []string                    `json:"journald_units,omitempty"`
 		JournalPrio  []string                    `json:"journald_priorities,omitempty"`
 		Processors   []config.LogProcessorConfig `json:"processors,omitempty"`
+		DualShip     []string                    `json:"dual_ship_endpoints,omitempty"`
 	} `json:"logs"`
 	CustomMetrics struct {
 		Enabled   *bool  `json:"enabled,omitempty"`
@@ -258,6 +259,9 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	}
 	if len(payload.Logs.Processors) > 0 {
 		collect.OSLogProcessors = payload.Logs.Processors
+	}
+	if len(payload.Logs.DualShip) > 0 {
+		collect.OSLogDualShipEndpoints = payload.Logs.DualShip
 	}
 	if payload.CustomMetrics.Enabled != nil {
 		collect.CustomMetricsEnabled = *payload.CustomMetrics.Enabled
