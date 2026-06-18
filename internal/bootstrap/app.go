@@ -41,6 +41,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
 	"github.com/you/aiceberg_agent/internal/interfaces/health"
 	"github.com/you/aiceberg_agent/internal/interfaces/hub"
+	"github.com/you/aiceberg_agent/internal/platform/collectors/containers"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/custommetrics"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/networkcapture"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/oslogs"
@@ -139,6 +140,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	bootstrapUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_bootstrap", bootstrapEndpoint, 24*time.Hour, bootstrapKeys()), outboxRepo, log, authHeader, identityHeader, bootstrapEndpoint)
 	networkCaptureUC := usecase.NewCollectAndBufferWithIdentity(networkcapture.New(prefStore.Get), outboxRepo, log, authHeader, identityHeader, networkCaptureEndpoint)
 	customMetricsUC := usecase.NewCollectAndBufferWithIdentity(custommetrics.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
+	containersUC := usecase.NewCollectAndBufferWithIdentity(containers.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
 	otlpReceiver := otlp.NewReceiver(cfg, prefStore.Get)
 	otlpMetricsUC := usecase.NewCollectAndBufferWithIdentity(otlpReceiver.MetricsCollector(), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
 	otlpTracesUC := usecase.NewCollectAndBufferWithIdentity(otlpReceiver.TracesCollector(), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
@@ -430,6 +432,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var tOsCollect *time.Ticker
 	var tCustomMetrics *time.Ticker
 	var tOTLP *time.Ticker
+	var tContainers *time.Ticker
 	var tAgentlessTick *time.Ticker
 	var tSelfHeal *time.Ticker
 	tPing = time.NewTicker(cfg.PingInterval)
@@ -439,6 +442,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	}
 	tCustomMetrics = time.NewTicker(cfg.CustomMetricsInterval)
 	tOTLP = time.NewTicker(cfg.OTLPInterval)
+	tContainers = time.NewTicker(cfg.ContainerInterval)
 	if agentlessUC != nil {
 		tAgentlessTick = time.NewTicker(5 * time.Second)
 	}
@@ -461,6 +465,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	}
 	if tOTLP != nil {
 		defer tOTLP.Stop()
+	}
+	if tContainers != nil {
+		defer tContainers.Stop()
 	}
 	if tAgentlessTick != nil {
 		defer tAgentlessTick.Stop()
@@ -726,6 +733,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 					counters.collectErr.Add(1)
 					reportWorkerError(ctx, "collect_otlp_logs_failed", "warning", "open", err, map[string]any{"route": "/v1/logs/raw"})
 				}
+			}
+		case <-readTick(tContainers):
+			if err := containersUC.Execute(ctx); err != nil {
+				counters.collectErr.Add(1)
+				reportWorkerError(ctx, "collect_containers_failed", "warning", "open", err, map[string]any{"route": metricsEndpoint})
 			}
 		case <-tHealth.C:
 			if err := healthUC.Execute(ctx); err != nil {

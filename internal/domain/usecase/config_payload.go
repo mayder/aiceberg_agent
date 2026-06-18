@@ -96,6 +96,12 @@ type ConfigPayload struct {
 		MaxItems int    `json:"max_items,omitempty"`
 		MaxBytes int    `json:"max_bytes,omitempty"`
 	} `json:"otlp,omitempty"`
+	Containers struct {
+		Enabled      *bool  `json:"enabled,omitempty"`
+		DockerSocket string `json:"docker_socket,omitempty"`
+		Interval     int    `json:"interval,omitempty"`
+		MaxItems     int    `json:"max_items,omitempty"`
+	} `json:"containers,omitempty"`
 	CollectNow *[]string          `json:"collect_now,omitempty"`
 	Update     *UpdatePayload     `json:"update,omitempty"`
 	AutoUpdate *AutoUpdatePayload `json:"auto_update,omitempty"`
@@ -165,6 +171,18 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- C
 	}
 	if payload.OTLP.MaxBytes > 0 {
 		collect.OTLPMaxBytes = payload.OTLP.MaxBytes
+	}
+	if payload.Containers.Enabled != nil {
+		collect.ContainerEnabled = *payload.Containers.Enabled
+	}
+	if payload.Containers.DockerSocket != "" {
+		collect.ContainerDockerSocket = payload.Containers.DockerSocket
+	}
+	if payload.Containers.Interval > 0 {
+		collect.ContainerIntervalSec = payload.Containers.Interval
+	}
+	if payload.Containers.MaxItems > 0 {
+		collect.ContainerMaxItems = payload.Containers.MaxItems
 	}
 	if payload.Agentless.Enabled != nil {
 		collect.AgentlessEnabled = *payload.Agentless.Enabled

@@ -170,6 +170,19 @@ Configuracoes locais:
 
 Rollback: definir `OTLP_ENABLED=false` ou enviar config remota `otlp.enabled=false`. Nao ha SQL do PKG-62.
 
+### PKG-64 - Containers Docker inicial
+
+Contrato tecnico: `docs/pkg64_containers.md`.
+
+Configuracoes locais:
+
+- `CONTAINER_ENABLED=true`;
+- `CONTAINER_DOCKER_SOCKET=/var/run/docker.sock`;
+- `CONTAINER_INTERVAL=30`;
+- `CONTAINER_MAX_ITEMS=200`.
+
+Rollback: definir `CONTAINER_ENABLED=false` ou config remota `containers.enabled=false`. Nao ha SQL do PKG-64.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.

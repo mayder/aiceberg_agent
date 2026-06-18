@@ -205,6 +205,12 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Cobrir HTTP local loopback, metrics/logs/traces JSON, resource attributes, `trace_id`/`span_id`, limite de itens e `dropped_count`.
 - Validacao real com exporter OpenTelemetry, gRPC/protobuf e consumo de CPU/memoria fica pendente para PKG-69.
 
+## PKG-64 - Containers Docker inicial
+
+- Unitario focado: `go test ./internal/platform/collectors/containers ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.
+- Cobrir normalizacao Docker, labels sensiveis mascaradas, compose service, CPU, memoria, rede e IO.
+- Validacao real Docker/containerd/logs/autodiscovery fica pendente para PKG-69.
+
 ## Validação por lote
 
 Objetivo: dar feedback rápido, sem gastar tempo com bateria completa a cada subentrega.

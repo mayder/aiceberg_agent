@@ -66,6 +66,10 @@ type Config struct {
 	OTLPInterval             time.Duration
 	OTLPMaxItems             int
 	OTLPMaxBytes             int
+	ContainerEnabled         bool
+	ContainerDockerSocket    string
+	ContainerInterval        time.Duration
+	ContainerMaxItems        int
 	AgentlessEnabled         bool
 	AgentlessPollInterval    time.Duration
 	AgentlessFlushInterval   time.Duration
@@ -137,6 +141,10 @@ type CollectPrefs struct {
 	OTLPIntervalSec            int      `json:"otlp_interval,omitempty"`
 	OTLPMaxItems               int      `json:"otlp_max_items,omitempty"`
 	OTLPMaxBytes               int      `json:"otlp_max_bytes,omitempty"`
+	ContainerEnabled           bool     `json:"container_enabled,omitempty"`
+	ContainerDockerSocket      string   `json:"container_docker_socket,omitempty"`
+	ContainerIntervalSec       int      `json:"container_interval,omitempty"`
+	ContainerMaxItems          int      `json:"container_max_items,omitempty"`
 	AgentlessEnabled           bool     `json:"agentless_enabled,omitempty"`
 	AgentlessPollSec           int      `json:"agentless_poll_interval,omitempty"`
 	AgentlessFlushSec          int      `json:"agentless_flush_interval,omitempty"`
@@ -226,6 +234,10 @@ func Load(configPath string) (Config, error) {
 		OTLPInterval:           time.Duration(intEnv("OTLP_INTERVAL", 10)) * time.Second,
 		OTLPMaxItems:           intEnv("OTLP_MAX_ITEMS", 1000),
 		OTLPMaxBytes:           intEnv("OTLP_MAX_BYTES", 1024*1024),
+		ContainerEnabled:       strings.ToLower(getenv("CONTAINER_ENABLED", "")) == "true",
+		ContainerDockerSocket:  getenv("CONTAINER_DOCKER_SOCKET", "/var/run/docker.sock"),
+		ContainerInterval:      time.Duration(intEnv("CONTAINER_INTERVAL", 30)) * time.Second,
+		ContainerMaxItems:      intEnv("CONTAINER_MAX_ITEMS", 200),
 		AgentlessEnabled:       strings.ToLower(getenv("AGENTLESS_ENABLED", "true")) == "true",
 		AgentlessOutboxPath:    getenv("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"),
 		AgentlessOutboxMaxMB:   intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),

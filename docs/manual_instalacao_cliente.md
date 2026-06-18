@@ -62,5 +62,6 @@ Depois edite `/etc/aiceberg/agent.env` para definir `AGENT_TOKEN` e demais vari�
 - Filtros locais de logs: use `OSLOG_INCLUDE_REGEX`, `OSLOG_EXCLUDE_REGEX` e `OSLOG_MIN_SEVERITY` quando precisar reduzir ruido antes do envio. Conteudo descartado nao e persistido; apenas a contagem agregada e enviada.
 - Metricas custom locais: habilite com `CUSTOM_METRICS_ENABLED=true`. UDP DogStatsD-like usa `CUSTOM_METRICS_UDP_ADDR`; HTTP local usa `CUSTOM_METRICS_HTTP_ADDR` e `POST /v1/custom-metrics`.
 - OTLP inicial: habilite com `OTLP_ENABLED=true`. O receiver HTTP/JSON local usa `OTLP_HTTP_ADDR` e aceita `/v1/metrics`, `/v1/logs` e `/v1/traces`.
+- Containers Docker: habilite com `CONTAINER_ENABLED=true` e conceda acesso ao socket definido em `CONTAINER_DOCKER_SOCKET`. Labels sensiveis sao mascaradas; env vars e volumes nao sao coletados.
 - O token fica salvo localmente para sobrevivência a reboot/upgrade.
 - Em caso de bloqueio de rede, permitir tráfego HTTPS de saída para `api.aiceberg.com.br`. Log local: veja o diretório de dados/logs citado acima.

@@ -72,6 +72,7 @@ func runtimeCollectorSpecs(cfg config.Config) []agentruntime.CollectorSpec {
 		{Name: "otlp_metrics", Version: "1-http-json", Endpoint: "/v1/ingest/metrics", Interval: cfg.OTLPInterval, Priority: 16},
 		{Name: "otlp_logs", Version: "1-http-json", Endpoint: "/v1/logs/raw", Interval: cfg.OTLPInterval, Priority: 16},
 		{Name: "otlp_traces", Version: "1-http-json", Endpoint: "/v1/ingest/metrics", Interval: cfg.OTLPInterval, Priority: 16},
+		{Name: "containers", Version: "1-docker-socket", Endpoint: "/v1/ingest/metrics", Interval: cfg.ContainerInterval, Priority: 18},
 		{Name: "networkcapture", Version: "legacy-compatible", Endpoint: "/v1/ingest/network_capture", Interval: 10 * time.Second, Priority: 20},
 		{Name: "oslogs", Version: "legacy-compatible", Endpoint: "/v1/logs/raw", Interval: cfg.OSLogInterval, Priority: 20},
 	}
@@ -93,6 +94,9 @@ func sanitizePrefsSnapshot(p config.CollectPrefs) map[string]any {
 		"otlp_enabled":              p.OTLPEnabled,
 		"otlp_interval":             p.OTLPIntervalSec,
 		"otlp_max_items":            p.OTLPMaxItems,
+		"container_enabled":         p.ContainerEnabled,
+		"container_interval":        p.ContainerIntervalSec,
+		"container_max_items":       p.ContainerMaxItems,
 		"network_passive_mode":      strings.TrimSpace(p.NetworkPassiveMode),
 		"collect_flags": map[string]bool{
 			"cpu":        p.CPU,
@@ -148,6 +152,12 @@ func buildAgentEnvSnapshot(cfg config.Config) map[string]any {
 			"interval_sec": int(cfg.OTLPInterval.Seconds()),
 			"max_items":    cfg.OTLPMaxItems,
 			"max_bytes":    cfg.OTLPMaxBytes,
+		},
+		"containers": map[string]any{
+			"enabled":       cfg.ContainerEnabled,
+			"docker_socket": strings.TrimSpace(cfg.ContainerDockerSocket),
+			"interval_sec":  int(cfg.ContainerInterval.Seconds()),
+			"max_items":     cfg.ContainerMaxItems,
 		},
 	}
 }
@@ -389,6 +399,7 @@ func isEnvAllowlisted(key string) bool {
 		"OSLOG_",
 		"CUSTOM_METRICS_",
 		"OTLP_",
+		"CONTAINER_",
 		"LOG_",
 		"HEALTH_",
 		"TLS_",
