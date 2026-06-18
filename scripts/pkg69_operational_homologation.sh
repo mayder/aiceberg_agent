@@ -48,6 +48,8 @@ go test ./internal/platform/collectors/sysmetrics -run 'Test(TimeSyncStatusClass
 result "clock-skew-local" "pass" "time_sync classifica offset ok/warning/critical e limita offset extremo; log=/tmp/aiceberg_pkg69_clock_skew_test.log"
 go test ./internal/platform/collectors/networkcapture -run TestClassifyPCAPUnavailableWarning >/tmp/aiceberg_pkg69_permission_test.log
 result "permission-local" "pass" "pcap classifica permissao insuficiente, interface invalida e captura vazia sem crash; log=/tmp/aiceberg_pkg69_permission_test.log"
+go test ./internal/data/local/outbox -run TestBoltStorePreservesQueueAcrossCollectorRestart >/tmp/aiceberg_pkg69_restart_replay_test.log
+result "restart-replay-local" "pass" "outbox preserva fila antes/depois de restart e ACK parcial; log=/tmp/aiceberg_pkg69_restart_replay_test.log"
 result "api-unavailable-local" "pass" "flush_outbox tests preserve pending envelopes on transport/API error"
 result "network-intermittent-local" "pass" "flush_outbox tests backoff and later retry behavior"
 result "payload-large-local" "pass" "collectors enforce max bytes/items in focused tests"
@@ -66,6 +68,7 @@ result "kubernetes" "pending" "validar DaemonSet/Helm/RBAC em cluster controlado
 result "proxy-auth" "partial" "HTTP_PROXY autenticado coberto em teste local; falta proxy real/TLS em host controlado"
 result "clock-skew" "partial" "classificacao local ok/warning/critical coberta; falta NTP/clock errado real em host controlado"
 result "permission-restricted" "partial" "pcap/tcpdump classifica permissao insuficiente localmente; falta host Linux/eBPF restrito real"
+result "reboot-during-collection" "partial" "outbox bbolt preserva replay em reabertura local; falta reboot real do SO"
 result "disk-full" "partial" "outbox cheia coberta por teste local; falta disco cheio real do SO"
 result "payload-large" "partial" "limites cobertos por testes locais; falta alto volume real DogStatsD/OTLP/logs"
 result "remote-update-rollback" "pending" "validar artefato anterior, hash e version_confirmed"

@@ -136,6 +136,57 @@ func TestBoltStoreSimulates24hOfflineReplayWithoutDuplicatesAfterAck(t *testing.
 	}
 }
 
+func TestBoltStorePreservesQueueAcrossCollectorRestart(t *testing.T) {
+	path := t.TempDir() + "/outbox.db"
+	store, err := NewBoltStore(path, 1)
+	if err != nil {
+		t.Fatalf("new bolt store: %v", err)
+	}
+
+	beforeRestart := []entities.Envelope{
+		restartEnvelope("restart-01-metrics", "/v1/ingest/metrics", 1),
+		restartEnvelope("restart-02-health", "/v1/ingest/health", 2),
+	}
+	for _, env := range beforeRestart {
+		if err := store.Push(env); err != nil {
+			t.Fatalf("push before restart %s: %v", env.ID, err)
+		}
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close before restart: %v", err)
+	}
+
+	reopened, err := NewBoltStore(path, 1)
+	if err != nil {
+		t.Fatalf("reopen after restart: %v", err)
+	}
+	defer reopened.Close()
+	afterRestart := restartEnvelope("restart-03-inventory", "/v1/ingest/inventory", 3)
+	if err := reopened.Push(afterRestart); err != nil {
+		t.Fatalf("push after restart: %v", err)
+	}
+
+	replayed, err := reopened.Peek(10)
+	if err != nil {
+		t.Fatalf("peek after restart: %v", err)
+	}
+	wantIDs := []string{"restart-01-metrics", "restart-02-health", "restart-03-inventory"}
+	if !reflect.DeepEqual(envelopeIDs(replayed), wantIDs) {
+		t.Fatalf("unexpected replay order after restart: got %#v want %#v", envelopeIDs(replayed), wantIDs)
+	}
+	if err := reopened.Delete([]string{"restart-01-metrics"}); err != nil {
+		t.Fatalf("ack first item: %v", err)
+	}
+	remaining, err := reopened.Peek(10)
+	if err != nil {
+		t.Fatalf("peek remaining: %v", err)
+	}
+	wantRemaining := []string{"restart-02-health", "restart-03-inventory"}
+	if !reflect.DeepEqual(envelopeIDs(remaining), wantRemaining) {
+		t.Fatalf("unexpected remaining queue after partial ack: got %#v want %#v", envelopeIDs(remaining), wantRemaining)
+	}
+}
+
 func push24hOfflineReplay(t *testing.T, store *BoltStore) []string {
 	t.Helper()
 	start := time.Date(2026, 6, 18, 0, 0, 0, 0, time.UTC)
@@ -156,6 +207,18 @@ func push24hOfflineReplay(t *testing.T, store *BoltStore) []string {
 		}
 	}
 	return wantIDs
+}
+
+func restartEnvelope(id, endpoint string, seq int) entities.Envelope {
+	return entities.Envelope{
+		ID:            id,
+		AgentID:       "agent-1",
+		Kind:          "metric",
+		SchemaVersion: 1,
+		TSUnixMs:      time.Date(2026, 6, 18, 12, seq, 0, 0, time.UTC).UnixMilli(),
+		Endpoint:      endpoint,
+		Body:          map[string]any{"seq": seq},
+	}
 }
 
 func envelopeIDs(list []entities.Envelope) []string {
