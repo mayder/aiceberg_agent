@@ -70,7 +70,7 @@ metadata:
     aiceberg.ai/check.openmetrics: "http://%%host%%:9100/metrics"
 ```
 
-O PKG-65 materializa os templates no payload. A execucao efetiva de checks plugaveis fica ligada ao runtime do PKG-66.
+O PKG-65 materializa os templates no payload e normaliza cada item como check local canonico (`kind`, `target`, `enabled`, `tags`) para execucao segura pelo runtime do PKG-66, sem shell remoto.
 
 ## Instalacao Kubernetes
 
@@ -101,7 +101,7 @@ RBAC minimo:
 
 - Coleta uso real CPU/memoria via Metrics API ou kubelet fica pendente.
 - Validacao real de logs de pod/container em cluster fica pendente.
-- Autodiscovery executavel fica pendente do runtime de checks/plugins do PKG-66.
+- Execucao real dos checks descobertos em cluster controlado fica pendente de homologacao Kubernetes.
 - Validacao real em cluster, upgrade/rollback do chart e remocao limpa ficam pendentes para PKG-69.
 
 ## Rollback

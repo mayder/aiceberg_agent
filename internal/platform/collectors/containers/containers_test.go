@@ -116,8 +116,14 @@ func TestAutodiscoveryChecksFromDockerLabels(t *testing.T) {
 	if checks[0]["service"] != "web" || checks[0]["image"] != "web:1" {
 		t.Fatalf("expected service and image on check, got %#v", checks[0])
 	}
+	if checks[0]["kind"] != "http" || checks[0]["target"] != "http://web:8080/health" || checks[0]["enabled"] != true {
+		t.Fatalf("expected canonical executable http check, got %#v", checks[0])
+	}
 	if checks[1]["key"] != "tcp" || checks[1]["value"] != "8080" {
 		t.Fatalf("expected simple label check, got %#v", checks[1])
+	}
+	if checks[1]["kind"] != "tcp" || checks[1]["target"] != "web:8080" || checks[1]["enabled"] != true {
+		t.Fatalf("expected canonical executable tcp check, got %#v", checks[1])
 	}
 }
 

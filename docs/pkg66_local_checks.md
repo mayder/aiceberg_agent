@@ -85,9 +85,11 @@ Integrações instaláveis sem rebuild usam manifests JSON em diretórios contro
 - Falha de um check nao trava o agente.
 - Diretórios de manifests vindos por config remota são tratados como configuração sensível e devem seguir assinatura.
 
-## Autodiscovery Kubernetes
+## Autodiscovery container/Kubernetes
 
-O PKG-65 materializa templates em `body.kubernetes.autodiscovery_checks`. O PKG-66 define o contrato local, mas a ponte automatica entre annotations e execucao fica pendente para evolucao segura com escopo/assinatura.
+PKG-64 e PKG-65 materializam templates em `body.containers.autodiscovery_checks` e `body.kubernetes.autodiscovery_checks`. Cada item e normalizado para o contrato de `local_checks` com `kind`, `target`, `enabled` e `tags`, mantendo os metadados originais de container/pod para auditoria.
+
+A ponte aceita apenas tipos do allowlist local (`http`, `openmetrics`, `tcp`, `redis`, `postgresql`, `mysql`, `nginx`, `apache`) e nao executa shell remoto.
 
 ## Rollback
 

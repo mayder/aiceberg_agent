@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -567,6 +568,7 @@ func autodiscoveryChecks(pods []pod) []map[string]any {
 				for _, check := range checks {
 					check["namespace"] = p.Metadata.Namespace
 					check["pod"] = p.Metadata.Name
+					normalizePodAutodiscoveryCheck(check, p)
 					out = append(out, check)
 				}
 			}
@@ -581,9 +583,71 @@ func autodiscoveryChecks(pods []pod) []map[string]any {
 				"key":       strings.TrimPrefix(key, "aiceberg.ai/check."),
 				"value":     value,
 			})
+			normalizePodAutodiscoveryCheck(out[len(out)-1], p)
 		}
 	}
 	return out
+}
+
+func normalizePodAutodiscoveryCheck(check map[string]any, p pod) {
+	if _, ok := check["enabled"]; !ok {
+		check["enabled"] = true
+	}
+	kind := normalizeAutodiscoveryKind(fmt.Sprint(firstNonEmpty(check["kind"], check["type"], check["key"])))
+	if kind != "" {
+		check["kind"] = kind
+	}
+	target := strings.TrimSpace(fmt.Sprint(firstNonEmpty(check["target"], check["url"], check["value"])))
+	if target == "" {
+		return
+	}
+	if kind == "tcp" && !strings.Contains(target, ":") {
+		target = "%%host%%:" + target
+	}
+	if strings.Contains(target, "%%host%%") {
+		target = strings.ReplaceAll(target, "%%host%%", firstPodHost(p))
+	}
+	check["target"] = target
+	if _, ok := check["tags"]; !ok {
+		tags := []string{}
+		if p.Metadata.Namespace != "" {
+			tags = append(tags, "namespace:"+p.Metadata.Namespace)
+		}
+		if p.Metadata.Name != "" {
+			tags = append(tags, "pod:"+p.Metadata.Name)
+		}
+		if len(tags) > 0 {
+			check["tags"] = tags
+		}
+	}
+}
+
+func normalizeAutodiscoveryKind(kind string) string {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "http", "openmetrics", "tcp", "redis", "postgresql", "mysql", "nginx", "apache":
+		return strings.ToLower(strings.TrimSpace(kind))
+	default:
+		return ""
+	}
+}
+
+func firstPodHost(p pod) string {
+	if p.Status.PodIP != "" {
+		return p.Status.PodIP
+	}
+	if p.Metadata.Name != "" {
+		return p.Metadata.Name
+	}
+	return "127.0.0.1"
+}
+
+func firstNonEmpty(values ...any) any {
+	for _, value := range values {
+		if strings.TrimSpace(fmt.Sprint(value)) != "" && fmt.Sprint(value) != "<nil>" {
+			return value
+		}
+	}
+	return ""
 }
 
 func matchesLogFilter(p pod, spec containerSpec, include, exclude *regexp.Regexp) bool {

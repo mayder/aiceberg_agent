@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -624,6 +625,7 @@ func autodiscoveryChecks(rows []dockerContainer) []map[string]any {
 			if json.Unmarshal([]byte(raw), &checks) == nil {
 				for _, check := range checks {
 					addContainerCheckIdentity(check, id, name, row)
+					normalizeContainerAutodiscoveryCheck(check, row)
 					out = append(out, check)
 				}
 			}
@@ -637,6 +639,7 @@ func autodiscoveryChecks(rows []dockerContainer) []map[string]any {
 				"value": value,
 			}
 			addContainerCheckIdentity(check, id, name, row)
+			normalizeContainerAutodiscoveryCheck(check, row)
 			out = append(out, check)
 		}
 	}
@@ -652,6 +655,67 @@ func addContainerCheckIdentity(check map[string]any, id, name string, row docker
 	if compose := composeService(row.Labels); compose != "" {
 		check["service"] = compose
 	}
+}
+
+func normalizeContainerAutodiscoveryCheck(check map[string]any, row dockerContainer) {
+	if _, ok := check["enabled"]; !ok {
+		check["enabled"] = true
+	}
+	kind := normalizeAutodiscoveryKind(fmt.Sprint(firstNonEmpty(check["kind"], check["type"], check["key"])))
+	if kind != "" {
+		check["kind"] = kind
+	}
+	target := strings.TrimSpace(fmt.Sprint(firstNonEmpty(check["target"], check["url"], check["value"])))
+	if target == "" {
+		return
+	}
+	if kind == "tcp" && !strings.Contains(target, ":") {
+		target = "%%host%%:" + target
+	}
+	if strings.Contains(target, "%%host%%") {
+		target = strings.ReplaceAll(target, "%%host%%", firstContainerHost(row))
+	}
+	check["target"] = target
+	if _, ok := check["tags"]; !ok {
+		tags := []string{}
+		if service := composeService(row.Labels); service != "" {
+			tags = append(tags, "service:"+service)
+		}
+		if namespace := containerNamespace(row.Labels); namespace != "" {
+			tags = append(tags, "namespace:"+namespace)
+		}
+		if len(tags) > 0 {
+			check["tags"] = tags
+		}
+	}
+}
+
+func normalizeAutodiscoveryKind(kind string) string {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "http", "openmetrics", "tcp", "redis", "postgresql", "mysql", "nginx", "apache":
+		return strings.ToLower(strings.TrimSpace(kind))
+	default:
+		return ""
+	}
+}
+
+func firstContainerHost(row dockerContainer) string {
+	for _, name := range row.Names {
+		name = strings.Trim(strings.TrimSpace(name), "/")
+		if name != "" {
+			return name
+		}
+	}
+	return shortID(row.ID)
+}
+
+func firstNonEmpty(values ...any) any {
+	for _, value := range values {
+		if strings.TrimSpace(fmt.Sprint(value)) != "" && fmt.Sprint(value) != "<nil>" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (c *collector) collectContainerLogs(rows []dockerContainer, inspectByID map[string]dockerInspect) map[string]any {

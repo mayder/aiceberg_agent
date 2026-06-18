@@ -78,7 +78,7 @@ Cobertura:
 - app Java real com Jolokia e credencial minima;
 - Windows Server para WMI/IIS/Windows Service;
 - PostgreSQL/MySQL/Redis reais com credenciais minimas;
-- autodiscovery container/Kubernetes ativando checks por annotation/label;
+- execucao real de checks descobertos por autodiscovery em Docker/Kubernetes controlados;
 - UI/marketplace interno no web.
 
 ## Rollback

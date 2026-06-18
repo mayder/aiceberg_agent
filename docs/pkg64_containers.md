@@ -83,7 +83,7 @@ labels:
   aiceberg.ai/check.openmetrics: "http://%%host%%:9100/metrics"
 ```
 
-Cada check recebe `container_id`, `container_name`, `image` e `service` quando existir label de compose/swarm. A execucao efetiva fica ligada ao runtime de checks/plugins.
+Cada check recebe `container_id`, `container_name`, `image` e `service` quando existir label de compose/swarm. O payload tambem sai normalizado como check local canonico (`kind`, `target`, `enabled`, `tags`) para execucao segura pelo runtime de checks/plugins, sem shell remoto.
 
 ## Segurança
 
