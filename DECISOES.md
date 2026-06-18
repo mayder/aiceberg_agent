@@ -147,7 +147,7 @@ Referências:
 - Contexto: PKG-68 precisa endurecer update, config remota e credenciais sem quebrar agentes legados.
 - Decisao: validar HMAC-SHA256 em payload sensivel quando `REMOTE_CONFIG_SIGNATURE_SECRET` estiver configurado, com modo obrigatorio por `REMOTE_CONFIG_SIGNATURE_REQUIRED`. Downgrade de update sem `force` e bloqueado, token rotation persiste novo token sem logar segredo, e `security_runtime` expõe estado sem valores sensiveis.
 - Alternativas consideradas: exigir assinatura obrigatoria imediatamente ou esperar backend completo de PKI.
-- Consequencias: rollout pode ativar assinatura por cliente/frota; assinatura assimetrica, revogacao backend e FIPS ficam para evolucao/homologacao.
+- Consequencias: rollout pode ativar assinatura por cliente/frota; cadeia Ed25519 e revogacao backend foram evoluidas no mesmo pacote; FIPS fica para homologacao real.
 - Impacto em testes: unitarios cobrem assinatura, payload sensivel sem assinatura, downgrade e rotacao.
 - Impacto em rollback: desativar `REMOTE_CONFIG_SIGNATURE_REQUIRED` ou permitir unsigned sensitive temporariamente.
 - Como reverter: remover validação de assinatura e token rotation do config payload.

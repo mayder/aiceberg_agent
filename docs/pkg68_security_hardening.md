@@ -90,9 +90,11 @@ Payload remoto:
 
 O token novo e persistido em `AGENT_TOKEN_PATH` ou `./data/agent.token`. O valor nunca e logado. A aplicacao no processo atual pode exigir restart controlado para todos os use cases passarem a usar o novo token em memoria.
 
+No web, a transicao segura usa `sql/2026_06_18_pkg68_agent_token_rotation.sql`: o token anterior autentica apenas ate `previous_expires_at` ou ate o novo token autenticar, quando a transicao e revogada. O SQL pertence ao repo `aiceberg_web`; o agente permanece sem migracao local.
+
 ## Limites atuais
 
-- Revogacao backend final do token anterior depende da API/web confirmar que o novo token ja esta autenticando ou que a janela expirou.
+- Rotacao com agente real ainda precisa ser homologada em ambiente controlado.
 - Modo FIPS e pinning TLS ficam documentados como `not_claimed` ate homologacao.
 - Validacao real de proxy autenticado/TLS invalido fica para PKG-69.
 

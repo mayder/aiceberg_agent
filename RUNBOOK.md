@@ -298,10 +298,11 @@ Regras:
 - downgrade de update sem `force=true` e bloqueado;
 - update com assinatura/cadeia de artefato invalida deve falhar antes do `apply`;
 - `token_rotation.new_token` nunca deve aparecer em log;
+- revogacao/transicao backend do token antigo e operada pelo web via `sql/2026_06_18_pkg68_agent_token_rotation.sql`;
 - `security_runtime` deve indicar politica sem expor segredo;
 - proxy corporativo segue `HTTP_PROXY`, `HTTPS_PROXY` e `NO_PROXY`.
 
-Rollback: desativar obrigatoriedade de assinatura ou permitir unsigned sensitive apenas durante janela controlada. Nao ha SQL do PKG-68.
+Rollback: desativar obrigatoriedade de assinatura ou permitir unsigned sensitive apenas durante janela controlada. Nao ha SQL no repo do agente; o SQL de transicao de token fica no `aiceberg_web`.
 
 ### PKG-69 - Matriz operacional real
 
