@@ -11,6 +11,7 @@ LOCAL_CHECKS_ENABLED=true
 LOCAL_CHECKS_INTERVAL=30
 LOCAL_CHECKS_MAX_CHECKS=100
 LOCAL_CHECKS_MAX_BYTES=1048576
+LOCAL_CHECKS_MANIFEST_DIRS=./integrations/localchecks/manifests,/etc/aiceberg/localchecks.d
 LOCAL_CHECKS_JSON='[{"id":"api","kind":"http","target":"https://app.local/health","timeout_ms":3000,"enabled":true}]'
 ```
 
@@ -23,6 +24,7 @@ Config remota:
     "interval": 30,
     "max_checks": 100,
     "max_bytes": 1048576,
+    "manifest_dirs": ["/etc/aiceberg/localchecks.d"],
     "checks": [
       {
         "id": "api-health",
@@ -49,6 +51,7 @@ O coletor envia `body.local_checks` para `/v1/ingest/metrics`:
 - `logs`: mensagens curtas e sanitizadas quando aplicavel;
 - `service_check`: status operacional padronizado;
 - `error`: erro sanitizado quando houver falha.
+- `integrations`: manifests locais carregados, com kind, version, status, permissions e rollback.
 
 `credentials_ref` nunca envia o valor bruto; o payload usa `[redacted-ref]`.
 
@@ -63,6 +66,15 @@ JMX, bancos, IIS/WMI e Windows Service entram como base segura. Coletores profun
 
 Catalogo inicial: `integrations/localchecks/catalog.json`.
 
+## Instalação e remoção de integrações
+
+Integrações instaláveis sem rebuild usam manifests JSON em diretórios controlados por `LOCAL_CHECKS_MANIFEST_DIRS`.
+
+- instalar: adicionar um arquivo `*.json` com `kind`, `version`, `status`, `permissions` e `rollback`;
+- remover: apagar o manifest e remover/desabilitar checks que usem o `kind`;
+- o agente não executa código do manifest;
+- manifests com kind fora da allowlist ou permissões contendo shell/exec/command são ignorados.
+
 ## Segurança
 
 - Shell, script, powershell, bash, cmd e comandos arbitrarios nao sao tipos permitidos.
@@ -70,6 +82,7 @@ Catalogo inicial: `integrations/localchecks/catalog.json`.
 - Target com query string e erros com `token=`, `secret=`, `password=`, `api_key=` ou similares sao mascarados.
 - Resultados usam limites de quantidade e bytes.
 - Falha de um check nao trava o agente.
+- Diretórios de manifests vindos por config remota são tratados como configuração sensível e devem seguir assinatura.
 
 ## Autodiscovery Kubernetes
 

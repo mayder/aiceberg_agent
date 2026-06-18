@@ -178,11 +178,12 @@ type ConfigPayload struct {
 		LogsExcludeRegex string `json:"logs_exclude_regex,omitempty"`
 	} `json:"kubernetes,omitempty"`
 	LocalChecks struct {
-		Enabled   *bool                     `json:"enabled,omitempty"`
-		Interval  int                       `json:"interval,omitempty"`
-		MaxChecks int                       `json:"max_checks,omitempty"`
-		MaxBytes  int                       `json:"max_bytes,omitempty"`
-		Checks    []config.LocalCheckConfig `json:"checks,omitempty"`
+		Enabled      *bool                     `json:"enabled,omitempty"`
+		Interval     int                       `json:"interval,omitempty"`
+		MaxChecks    int                       `json:"max_checks,omitempty"`
+		MaxBytes     int                       `json:"max_bytes,omitempty"`
+		ManifestDirs []string                  `json:"manifest_dirs,omitempty"`
+		Checks       []config.LocalCheckConfig `json:"checks,omitempty"`
 	} `json:"local_checks,omitempty"`
 	CollectNow    *[]string             `json:"collect_now,omitempty"`
 	Update        *UpdatePayload        `json:"update,omitempty"`
@@ -382,6 +383,9 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	if payload.LocalChecks.Checks != nil {
 		collect.LocalChecks = payload.LocalChecks.Checks
 	}
+	if payload.LocalChecks.ManifestDirs != nil {
+		collect.LocalCheckManifestDirs = payload.LocalChecks.ManifestDirs
+	}
 	if payload.Agentless.Enabled != nil {
 		collect.AgentlessEnabled = *payload.Agentless.Enabled
 	}
@@ -527,6 +531,7 @@ func payloadHasSensitiveConfig(payload ConfigPayload) bool {
 		payload.TokenRotation != nil ||
 		payload.CollectNow != nil ||
 		payload.LocalChecks.Checks != nil ||
+		payload.LocalChecks.ManifestDirs != nil ||
 		strings.TrimSpace(payload.Containers.Runtime) != "" ||
 		strings.TrimSpace(payload.Containers.DockerSocket) != "" ||
 		strings.TrimSpace(payload.Containers.ContainerdSocket) != "" ||

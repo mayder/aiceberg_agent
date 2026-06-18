@@ -371,6 +371,31 @@ func TestApplyConfigPayloadAppliesKubernetesLogSettings(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadAppliesLocalCheckManifestDirs(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	payload := ConfigPayload{
+		Version: "cfg-local-check-manifests",
+		Collect: config.CollectPrefs{
+			LocalChecksEnabled: true,
+		},
+	}
+	payload.LocalChecks.ManifestDirs = []string{"/etc/aiceberg/integrations.d", "/opt/aiceberg/localchecks"}
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if len(got.LocalCheckManifestDirs) != 2 || got.LocalCheckManifestDirs[0] != "/etc/aiceberg/integrations.d" {
+		t.Fatalf("expected manifest dirs persisted, got %#v", got.LocalCheckManifestDirs)
+	}
+}
+
 func TestApplyConfigPayloadWithSecurityRequiresSignatureForSensitivePayload(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}

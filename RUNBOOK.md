@@ -241,9 +241,12 @@ Configuracoes locais:
 - `LOCAL_CHECKS_INTERVAL=30`;
 - `LOCAL_CHECKS_MAX_CHECKS=100`;
 - `LOCAL_CHECKS_MAX_BYTES=1048576`;
+- `LOCAL_CHECKS_MANIFEST_DIRS=./integrations/localchecks/manifests,/etc/aiceberg/localchecks.d`;
 - `LOCAL_CHECKS_JSON=[...]`.
 
 Tipos permitidos: `http`, `tcp`, `openmetrics`, `jmx`, `postgresql`, `mysql`, `redis`, `nginx`, `apache`, `iis_wmi`, `windows_service`.
+
+Instalar/remover integracao sem rebuild: adicionar/remover manifest JSON em diretorio de `LOCAL_CHECKS_MANIFEST_DIRS`. O agente carrega apenas metadados validados e ignora manifests com permissao de shell/exec/comando.
 
 Rollback: definir `LOCAL_CHECKS_ENABLED=false` ou config remota `local_checks.enabled=false`. Nao ha SQL do PKG-66.
 

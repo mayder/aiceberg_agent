@@ -5,6 +5,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -154,6 +156,38 @@ func TestDisallowsArbitraryCheckKindAndRedactsResult(t *testing.T) {
 	body := string(raw)
 	if !contains(body, "[redacted]") || contains(body, "abc") || contains(body, "vault/path") {
 		t.Fatalf("expected redacted payload, got %s", body)
+	}
+}
+
+func TestInstalledIntegrationsLoadsSafeManifestsOnly(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "openmetrics.json"), []byte(`{
+		"schema_version":1,
+		"kind":"openmetrics",
+		"version":"2",
+		"status":"official",
+		"owner":"aiceberg_agent",
+		"permissions":["http_get"],
+		"rollback":"disable check"
+	}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "bad.json"), []byte(`{
+		"schema_version":1,
+		"kind":"redis",
+		"version":"1",
+		"status":"official",
+		"permissions":["shell_exec"]
+	}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	installed := installedIntegrations([]string{dir})
+	if len(installed) != 1 {
+		t.Fatalf("expected one safe manifest, got %#v", installed)
+	}
+	if installed[0]["kind"] != "openmetrics" || installed[0]["status"] != "official" {
+		t.Fatalf("unexpected manifest payload %#v", installed[0])
 	}
 }
 

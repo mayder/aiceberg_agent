@@ -123,6 +123,7 @@ type Config struct {
 	LocalChecksMaxChecks               int
 	LocalChecksMaxBytes                int
 	LocalChecks                        []LocalCheckConfig
+	LocalCheckManifestDirs             []string
 	AgentlessEnabled                   bool
 	AgentlessPollInterval              time.Duration
 	AgentlessFlushInterval             time.Duration
@@ -157,6 +158,17 @@ func parseLocalChecks(raw string) []LocalCheckConfig {
 		return checks
 	}
 	return nil
+}
+
+func parseCSV(raw string) []string {
+	out := []string{}
+	for _, part := range strings.Split(raw, ",") {
+		value := strings.TrimSpace(part)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 type CollectPrefs struct {
@@ -246,6 +258,7 @@ type CollectPrefs struct {
 	LocalChecksMaxChecks       int                `json:"local_checks_max_checks,omitempty"`
 	LocalChecksMaxBytes        int                `json:"local_checks_max_bytes,omitempty"`
 	LocalChecks                []LocalCheckConfig `json:"local_checks,omitempty"`
+	LocalCheckManifestDirs     []string           `json:"local_check_manifest_dirs,omitempty"`
 	AgentlessEnabled           bool               `json:"agentless_enabled,omitempty"`
 	AgentlessPollSec           int                `json:"agentless_poll_interval,omitempty"`
 	AgentlessFlushSec          int                `json:"agentless_flush_interval,omitempty"`
@@ -382,6 +395,7 @@ func Load(configPath string) (Config, error) {
 		LocalChecksMaxChecks:               intEnv("LOCAL_CHECKS_MAX_CHECKS", 100),
 		LocalChecksMaxBytes:                intEnv("LOCAL_CHECKS_MAX_BYTES", 1024*1024),
 		LocalChecks:                        parseLocalChecks(getenv("LOCAL_CHECKS_JSON", "")),
+		LocalCheckManifestDirs:             parseCSV(getenv("LOCAL_CHECKS_MANIFEST_DIRS", "./integrations/localchecks/manifests")),
 		AgentlessEnabled:                   strings.ToLower(getenv("AGENTLESS_ENABLED", "true")) == "true",
 		AgentlessOutboxPath:                getenv("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"),
 		AgentlessOutboxMaxMB:               intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),

@@ -19,12 +19,13 @@ import (
 const schemaVersion = 1
 
 type collector struct {
-	prefs       func() config.CollectPrefs
-	baseEnabled bool
-	baseChecks  []config.LocalCheckConfig
-	interval    time.Duration
-	maxChecks   int
-	maxBytes    int64
+	prefs        func() config.CollectPrefs
+	baseEnabled  bool
+	baseChecks   []config.LocalCheckConfig
+	interval     time.Duration
+	maxChecks    int
+	maxBytes     int64
+	manifestDirs []string
 }
 
 func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -41,12 +42,13 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 		maxBytes = 1024 * 1024
 	}
 	return &collector{
-		prefs:       prefsProvider,
-		baseEnabled: cfg.LocalChecksEnabled,
-		baseChecks:  cfg.LocalChecks,
-		interval:    interval,
-		maxChecks:   maxChecks,
-		maxBytes:    int64(maxBytes),
+		prefs:        prefsProvider,
+		baseEnabled:  cfg.LocalChecksEnabled,
+		baseChecks:   cfg.LocalChecks,
+		interval:     interval,
+		maxChecks:    maxChecks,
+		maxBytes:     int64(maxBytes),
+		manifestDirs: cfg.LocalCheckManifestDirs,
 	}
 }
 
@@ -73,10 +75,21 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		"local_checks": map[string]any{
 			"schema_version": schemaVersion,
 			"results":        results,
+			"integrations":   installedIntegrations(c.effectiveManifestDirs()),
 			"dropped_count":  maxInt(0, len(checks)-c.maxChecks),
 		},
 	}
 	return json.Marshal(payload)
+}
+
+func (c *collector) effectiveManifestDirs() []string {
+	if c.prefs != nil {
+		p := c.prefs()
+		if len(p.LocalCheckManifestDirs) > 0 {
+			return p.LocalCheckManifestDirs
+		}
+	}
+	return c.manifestDirs
 }
 
 func (c *collector) settings() (bool, []config.LocalCheckConfig) {

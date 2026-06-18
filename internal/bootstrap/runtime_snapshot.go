@@ -332,6 +332,7 @@ func sanitizePrefsSnapshot(p config.CollectPrefs) map[string]any {
 		"local_checks_enabled":      p.LocalChecksEnabled,
 		"local_checks_interval":     p.LocalChecksIntervalSec,
 		"local_checks_max_checks":   p.LocalChecksMaxChecks,
+		"local_check_manifest_dirs": len(p.LocalCheckManifestDirs),
 		"network_passive_mode":      strings.TrimSpace(p.NetworkPassiveMode),
 		"collect_flags": map[string]bool{
 			"cpu":        p.CPU,
@@ -416,11 +417,12 @@ func buildAgentEnvSnapshot(cfg config.Config) map[string]any {
 			"logs_max_bytes": cfg.KubernetesLogsMaxBytes,
 		},
 		"local_checks": map[string]any{
-			"enabled":    cfg.LocalChecksEnabled,
-			"interval":   int(cfg.LocalChecksInterval.Seconds()),
-			"max_checks": cfg.LocalChecksMaxChecks,
-			"max_bytes":  cfg.LocalChecksMaxBytes,
-			"checks":     sanitizeLocalCheckConfigs(cfg.LocalChecks),
+			"enabled":       cfg.LocalChecksEnabled,
+			"interval":      int(cfg.LocalChecksInterval.Seconds()),
+			"max_checks":    cfg.LocalChecksMaxChecks,
+			"max_bytes":     cfg.LocalChecksMaxBytes,
+			"manifest_dirs": len(cfg.LocalCheckManifestDirs),
+			"checks":        sanitizeLocalCheckConfigs(cfg.LocalChecks),
 		},
 	}
 }
