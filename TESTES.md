@@ -178,6 +178,14 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Fechamento do pacote coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`.
 - PKG-58 nao valida runtime novo nem paridade operacional; Windows, Linux, container e Kubernetes ficam pendentes ate PKG-69.
 
+## PKG-59 - Runtime Collector/Forwarder compativel
+
+- Unitario focado: `go test ./internal/domain/runtime ./internal/domain/usecase ./internal/interfaces/health ./internal/bootstrap`.
+- Contrato: validar que `CollectAndBuffer` preserva o corpo original e adiciona apenas `schema_version`, `agent_pipeline_version`, `collector_name` e `ingest_endpoint`.
+- Diagnostico: validar que `/health` e `inspect_runtime_config` expõem `agent_pipeline_version` sem segredo.
+- Fechamento: rodar `./check.sh`.
+- Validacao real pendente para PKG-69: Windows, Linux, container, perda de rede, API indisponivel, disco cheio, proxy e agente instalado anteriormente.
+
 ## Validação por lote
 
 Objetivo: dar feedback rápido, sem gastar tempo com bateria completa a cada subentrega.

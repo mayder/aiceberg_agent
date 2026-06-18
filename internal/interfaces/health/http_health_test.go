@@ -33,4 +33,7 @@ func TestHealthSnapshotIncludesChannelStatus(t *testing.T) {
 	if channel["mode"] != "direct" || channel["fallback_active"] != true {
 		t.Fatalf("unexpected channel status %#v", channel)
 	}
+	if got["agent_pipeline_version"] != "2-compatible" {
+		t.Fatalf("expected pipeline version, got %#v", got["agent_pipeline_version"])
+	}
 }

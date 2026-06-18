@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	agentruntime "github.com/you/aiceberg_agent/internal/domain/runtime"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
 )
 
@@ -86,6 +87,19 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 	}
 	if snap["agentless_effective_enabled"] != false {
 		t.Fatalf("unexpected agentless_effective_enabled: %#v", snap["agentless_effective_enabled"])
+	}
+	if snap["agent_pipeline_version"] != "2-compatible" {
+		t.Fatalf("unexpected agent_pipeline_version: %#v", snap["agent_pipeline_version"])
+	}
+	scheduler, ok := snap["scheduler_snapshot"].(agentruntime.SchedulerSnapshot)
+	if !ok {
+		t.Fatalf("scheduler_snapshot missing or invalid: %#v", snap["scheduler_snapshot"])
+	}
+	if scheduler.PipelineVersion != "2-compatible" {
+		t.Fatalf("unexpected scheduler pipeline version: %#v", scheduler)
+	}
+	if len(scheduler.Collectors) == 0 {
+		t.Fatalf("expected collector specs in scheduler snapshot: %#v", scheduler.Collectors)
 	}
 
 	agentEnv, ok := snap["agent_env"].(map[string]any)

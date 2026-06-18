@@ -37,6 +37,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/domain/channel"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
+	agentruntime "github.com/you/aiceberg_agent/internal/domain/runtime"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
 	"github.com/you/aiceberg_agent/internal/interfaces/health"
 	"github.com/you/aiceberg_agent/internal/interfaces/hub"
@@ -380,6 +381,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			}
 			return health.Snapshot{
 				Status:           "ok",
+				PipelineVersion:  agentruntime.PipelineVersion,
 				QueueItems:       items,
 				QueueBytes:       bytes,
 				FlushOK:          counters.flushOK.Load(),

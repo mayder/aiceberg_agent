@@ -9,6 +9,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
+	agentruntime "github.com/you/aiceberg_agent/internal/domain/runtime"
 )
 
 type CollectAndBuffer struct {
@@ -59,6 +60,15 @@ func (uc *CollectAndBuffer) ExecuteDetailed(ctx context.Context) (*BufferedColle
 			"collector", uc.collector.Name(),
 		))
 		return nil, nil
+	}
+	data, err = agentruntime.WithPayloadMetadata(data, uc.collector.Name(), uc.endpoint)
+	if err != nil {
+		uc.log.Error(logger.KV("collect payload metadata failed",
+			"collector", uc.collector.Name(),
+			"route", uc.endpoint,
+			"err", err,
+		))
+		return nil, err
 	}
 	env := entities.Envelope{
 		ID:             genID(),

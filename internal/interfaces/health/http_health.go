@@ -7,11 +7,13 @@ import (
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/common/version"
+	agentruntime "github.com/you/aiceberg_agent/internal/domain/runtime"
 )
 
 type Snapshot struct {
 	Status           string  `json:"status"`
 	Version          string  `json:"version"`
+	PipelineVersion  string  `json:"agent_pipeline_version,omitempty"`
 	QueueItems       int     `json:"queue_items,omitempty"`
 	QueueBytes       int64   `json:"queue_bytes,omitempty"`
 	FlushOK          int64   `json:"flush_ok,omitempty"`
@@ -85,6 +87,9 @@ func encodeHealthSnapshot(w http.ResponseWriter, snap Snapshot) {
 	}
 	if snap.Version == "" {
 		snap.Version = version.Version
+	}
+	if snap.PipelineVersion == "" {
+		snap.PipelineVersion = agentruntime.PipelineVersion
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(snap)

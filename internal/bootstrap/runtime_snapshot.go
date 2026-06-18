@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	agentruntime "github.com/you/aiceberg_agent/internal/domain/runtime"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
 	bolt "go.etcd.io/bbolt"
 )
@@ -26,6 +27,7 @@ func buildSelfHealRuntimeSnapshot(
 ) map[string]any {
 	out := map[string]any{
 		"agent_mode_runtime":          mode,
+		"agent_pipeline_version":      agentruntime.PipelineVersion,
 		"agentless_enabled_env":       cfg.AgentlessEnabled,
 		"agentless_enabled_prefs":     prefs.AgentlessEnabled,
 		"agentless_effective_enabled": settings.Enabled,
@@ -53,10 +55,22 @@ func buildSelfHealRuntimeSnapshot(
 		},
 	}
 	out["agent_env"] = buildAgentEnvSnapshot(cfg)
+	out["scheduler_snapshot"] = agentruntime.SchedulerSnapshotForCollectors(runtimeCollectorSpecs(cfg))
 	if selfUpdateUC != nil {
 		out["auto_update_runtime"] = selfUpdateUC.Snapshot()
 	}
 	return out
+}
+
+func runtimeCollectorSpecs(cfg config.Config) []agentruntime.CollectorSpec {
+	return []agentruntime.CollectorSpec{
+		{Name: "sysmetrics", Version: "legacy-compatible", Endpoint: "/v1/ingest/metrics", Interval: 10 * time.Second, Priority: 10},
+		{Name: "sysmetrics_health", Version: "legacy-compatible", Endpoint: "/v1/ingest/health", Interval: 10 * time.Minute, Priority: 30},
+		{Name: "sysmetrics_inventory", Version: "legacy-compatible", Endpoint: "/v1/ingest/inventory", Interval: 8 * time.Hour, Priority: 40},
+		{Name: "sysmetrics_bootstrap", Version: "legacy-compatible", Endpoint: "/v1/ingest/bootstrap", Interval: 24 * time.Hour, Priority: 50},
+		{Name: "networkcapture", Version: "legacy-compatible", Endpoint: "/v1/ingest/network_capture", Interval: 10 * time.Second, Priority: 20},
+		{Name: "oslogs", Version: "legacy-compatible", Endpoint: "/v1/logs/raw", Interval: cfg.OSLogInterval, Priority: 20},
+	}
 }
 
 func sanitizePrefsSnapshot(p config.CollectPrefs) map[string]any {

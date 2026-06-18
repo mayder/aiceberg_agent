@@ -117,8 +117,37 @@ func TestCollectAndBuffer_AppendsEnvelope(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected json.RawMessage body, got %T", env.Body)
 	}
-	if !bytes.Equal(raw, collector.data) {
-		t.Fatalf("unexpected body %s", string(raw))
+	if bytes.Equal(raw, collector.data) {
+		t.Fatalf("expected body to include runtime metadata")
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body["ok"] != true {
+		t.Fatalf("expected original body field, got %#v", body)
+	}
+	if body["agent_pipeline_version"] != "2-compatible" {
+		t.Fatalf("expected pipeline metadata, got %#v", body)
+	}
+	if body["collector_name"] != "sysmetrics" || body["ingest_endpoint"] != "/v1/ingest/metrics" {
+		t.Fatalf("unexpected metadata %#v", body)
+	}
+}
+
+func TestCollectAndBuffer_InvalidCollectorPayloadIsNotBuffered(t *testing.T) {
+	outbox := &fakeOutbox{}
+	log := &fakeLogger{}
+	collector := &fakeCollector{
+		name: "sysmetrics",
+		data: []byte(`not-json`),
+	}
+	uc := NewCollectAndBufferWithIdentity(collector, outbox, log, "Token test", "identity-header", "/v1/ingest/metrics")
+	if err := uc.Execute(context.Background()); err == nil {
+		t.Fatalf("expected invalid payload error")
+	}
+	if len(outbox.batch) != 0 {
+		t.Fatalf("expected no envelope appended")
 	}
 }
 

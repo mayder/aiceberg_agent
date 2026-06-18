@@ -53,6 +53,17 @@ Referências:
 - Impacto em rollback: nenhum runtime novo e ativado por esta decisao.
 - Como reverter: corrigir ou remover os documentos do PKG-58 antes de iniciar pacote dependente.
 
+### DEC-20260618-02 - Runtime v2 compativel por metadados aditivos
+
+- Status: aceita
+- Contexto: PKG-59 precisa criar base para Collector, Forwarder, Scheduler, Supervisor e ExtensionRuntime sem quebrar os coletores legados nem os snapshots do web.
+- Decisao: criar `internal/domain/runtime` com contratos internos e marcar o pipeline atual como `2-compatible`. `CollectAndBuffer` adiciona metadados opcionais ao corpo JSON (`schema_version`, `agent_pipeline_version`, `collector_name`, `ingest_endpoint`) preservando as secoes antigas. O health local e o snapshot remoto expõem a versao do pipeline e o scheduler snapshot.
+- Alternativas consideradas: refatorar todo `app.Run` de uma vez ou criar um runtime paralelo. Ambas aumentariam risco de regressao.
+- Consequencias: novos coletores podem migrar para o contrato v2 sem alterar endpoints atuais.
+- Impacto em testes: testes unitarios cobrem metadados, health e snapshot de runtime.
+- Impacto em rollback: publicar a versao anterior do agente; o backend ignora campos aditivos.
+- Como reverter: remover injecao de metadados e voltar `CollectAndBuffer` ao corpo original.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

@@ -96,6 +96,32 @@ Antes de implementar PKG-59 a PKG-72:
 
 Nao declarar superioridade sobre Datadog sem benchmark, evidencia funcional e comparacao objetiva registrada na matriz.
 
+### PKG-59 - Runtime Collector/Forwarder
+
+Contrato tecnico: `docs/pkg59_runtime_architecture.md`.
+
+Diagnostico local:
+
+```bash
+curl -s http://127.0.0.1:<HEALTH_PORT>/health
+```
+
+Campos esperados:
+
+- `agent_pipeline_version`;
+- `queue_items`;
+- `queue_bytes`;
+- `flush_detail`;
+- `channel`, quando o canal estiver ativo.
+
+Diagnostico remoto seguro:
+
+- usar comando permitido `inspect_runtime_config`;
+- conferir `scheduler_snapshot` e `agent_pipeline_version`;
+- nao executar shell remoto ou script arbitrario.
+
+Rollback: voltar o artefato do agente para a versao anterior e manter os campos aditivos ignorados pelo backend. O PKG-59 nao exige SQL.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.
