@@ -327,6 +327,40 @@ func TestSelfUpdate_RelayDownloadDoesNotFallbackToDirect(t *testing.T) {
 	}
 }
 
+func TestSelfUpdate_DownloadTimeoutDoesNotFinalizePartialFile(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		time.Sleep(300 * time.Millisecond)
+		_, _ = w.Write([]byte("late package bytes"))
+	}))
+	defer srv.Close()
+
+	cfg := config.Config{
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     t.TempDir(),
+		AutoUpdateTimeout: 50 * time.Millisecond,
+		AutoUpdateMaxMB:   5,
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	targetVersion := testUpdateVersion()
+	payload := &UpdatePayload{
+		Version: targetVersion,
+		URL:     srv.URL + "/pkg.bin",
+	}
+
+	err := uc.Execute(context.Background(), payload)
+	if err == nil || !strings.Contains(err.Error(), "download body") {
+		t.Fatalf("expected download timeout error, got %v", err)
+	}
+	finalPath := filepath.Join(cfg.AutoUpdateDir, targetVersion, "pkg.bin")
+	if _, statErr := os.Stat(finalPath); !os.IsNotExist(statErr) {
+		t.Fatalf("expected no finalized artifact at %s, got %v", finalPath, statErr)
+	}
+}
+
 func TestSelfUpdate_ApplyRemoteConfigResetsOverridesWhenPayloadIsEmpty(t *testing.T) {
 	cfg := config.Config{
 		AutoUpdateEnabled: true,

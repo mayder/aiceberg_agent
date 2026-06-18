@@ -15,17 +15,18 @@ O script de homologacao executa:
 - deteccao de Docker, kubectl, Helm e PowerShell;
 - testes focados dos coletores e contratos adicionados em PKG-59 a PKG-68;
 - validacao local da cadeia Ed25519 de artefato de update, aceitando assinatura valida e rejeitando assinatura invalida antes do `apply`;
+- validacao local de download via `HTTP_PROXY` autenticado e timeout sem finalizar artefato parcial;
 - cenarios locais automatizados de API indisponivel, backoff, payload grande e outbox cheia;
 - `./check.sh`;
 - listagem explicita de cenarios pendentes de ambiente real.
 
 Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 
-- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
+- `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, `HTTP_PROXY` autenticado local, timeout de download sem artefato finalizado, cenarios locais de API indisponivel/rede intermitente/payload grande/outbox cheia e `./check.sh`;
 - Docker daemon indisponivel no host local;
 - `kubectl` disponivel, mas sem validacao de cluster/DaemonSet/Helm;
 - Helm e PowerShell indisponiveis neste host;
-- Windows, Linux real, Docker, Kubernetes, proxy autenticado, disco cheio real, alto volume real e rollback de update seguem pendentes de ambiente controlado.
+- Windows, Linux real, Docker, Kubernetes, proxy real/TLS, disco cheio real, alto volume real e rollback de update seguem pendentes de ambiente controlado.
 
 Smokes por sistema operacional:
 
@@ -82,12 +83,12 @@ Hashes 0.8.8:
 | --- | --- | --- |
 | API indisponivel | backoff, outbox preservada, sem crash | parcial local |
 | Rede intermitente | retry/backoff e flush posterior | parcial local |
-| Proxy/TLS | proxy autenticado e TLS invalido controlado | pendente |
+| Proxy/TLS | proxy autenticado e TLS invalido controlado | parcial local para `HTTP_PROXY`; proxy real/TLS pendente |
 | Disco cheio/outbox cheia | erro claro, sem corrupcao | parcial local |
 | Payload grande | limite/queda controlada em DogStatsD, OTLP e logs | parcial local |
 | Clock errado | health/time sync com diagnostico | pendente |
 | Reboot durante coleta | servico retorna e outbox preserva dados | pendente |
-| Update quebrado | `update-report` com falha e rollback seguro | pendente; cadeia Ed25519 validada localmente antes do apply |
+| Update quebrado | `update-report` com falha e rollback seguro | pendente; cadeia Ed25519 e timeout de download validados localmente antes do apply |
 | Permissao insuficiente | degradacao com status claro | pendente |
 | Kubernetes RBAC minimo | sem permissao a secrets/exec/delete | pendente |
 | Alto volume simultaneo | CPU/memoria dentro do limite definido | pendente |
