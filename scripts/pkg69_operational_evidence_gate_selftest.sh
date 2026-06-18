@@ -18,6 +18,7 @@ fill_template() {
      s/- Host\/agente\/HUB\/relay:/- Host\/agente\/HUB\/relay: host-1/;
      s/- Versao agente:/- Versao agente: selftest/;
      s/- Artefato instalado:/- Artefato instalado: selftest.tar.gz/;
+     s/- Topologia: direct\|hub\|relay -> hub -> AIceberg/- Topologia: direct\/hub\/relay hosts separados/;
      s/- Evidencia bruta anexada:/- Evidencia bruta anexada: raw.log/;
      s/- Observacoes:/- Observacoes: selftest/;
      s/- Rollback validado:/- Rollback validado: sim/;
@@ -115,6 +116,10 @@ cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-rollback-not-v
 fill_template "$TMP_DIR/relay-rollback-not-validated.md" "pass"
 perl -0pi -e 's/- Rollback validado: sim/- Rollback validado: no/' "$TMP_DIR/relay-rollback-not-validated.md"
 
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-topology-placeholder.md"
+fill_template "$TMP_DIR/relay-topology-placeholder.md" "pass"
+perl -0pi -e 's/- Topologia: direct\/hub\/relay hosts separados/- Topologia: direct|hub|relay -> hub -> AIceberg/' "$TMP_DIR/relay-topology-placeholder.md"
+
 cp "$TMP_DIR/templates/high_volume_overhead.md" "$TMP_DIR/high-volume-over-limit.md"
 fill_template "$TMP_DIR/high-volume-over-limit.md" "pass"
 perl -0pi -e 's/- proc_cpu_percent: 1/- proc_cpu_percent: 16/' "$TMP_DIR/high-volume-over-limit.md"
@@ -172,6 +177,12 @@ PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-rollback-not-validated.md" \
 scripts/pkg69_operational_evidence_gate.sh >/dev/null
 assert_contains "$TMP_DIR/relay-rollback-not-validated.md.out" "relay-hub-direct-hosts: invalid-template"
 assert_contains "$TMP_DIR/relay-rollback-not-validated.md.out" "reason=field Rollback validado must be yes, true or sim"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/relay-topology-placeholder.md.out" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-topology-placeholder.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/relay-topology-placeholder.md.out" "relay-hub-direct-hosts: invalid-template"
+assert_contains "$TMP_DIR/relay-topology-placeholder.md.out" "reason=field Topologia placeholder not filled"
 
 PKG69_EVIDENCE_FILE="$TMP_DIR/high-volume-over-limit.md.out" \
 PKG69_HIGH_VOLUME_EVIDENCE="$TMP_DIR/high-volume-over-limit.md" \

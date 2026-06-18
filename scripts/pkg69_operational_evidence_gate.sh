@@ -102,6 +102,23 @@ require_existing_artifact_field() {
   return 1
 }
 
+require_topology_field() {
+  local path="$1"
+  local value
+  value="$(field_value "$path" "Topologia")"
+  if [[ "$value" == "direct|hub|relay -> hub -> AIceberg" ]]; then
+    echo "field Topologia placeholder not filled"
+    return 0
+  fi
+  case "$value" in
+    "direct -> AIceberg"|"hub -> AIceberg"|"relay -> hub -> AIceberg"|"direct/hub/relay hosts separados")
+      return 1
+      ;;
+  esac
+  echo "field Topologia must be direct -> AIceberg, hub -> AIceberg, relay -> hub -> AIceberg or direct/hub/relay hosts separados"
+  return 0
+}
+
 require_number_field() {
   local path="$1"
   local field="$2"
@@ -232,6 +249,11 @@ template_incomplete_reason() {
   local rollback_reason
   if rollback_reason="$(require_bool_field "$path" "Rollback validado")"; then
     echo "$rollback_reason"
+    return 0
+  fi
+  local topology_reason
+  if topology_reason="$(require_topology_field "$path")"; then
+    echo "$topology_reason"
     return 0
   fi
   local scenario_reason
