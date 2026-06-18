@@ -36,6 +36,12 @@ template_incomplete_reason() {
     echo "template status placeholder not filled"
     return 0
   fi
+  if grep -Eq '^# PKG-72 - ' "$path"; then
+    if ! grep -Eq '^- Status: pass$' "$path"; then
+      echo "template status is not pass"
+      return 0
+    fi
+  fi
   if grep -Eq '^- (Data UTC|Responsavel|Cliente/lab|Host/agente/HUB/relay|Versao agente|Evidencia bruta anexada|Observacoes|Rollback validado):[[:space:]]*$' "$path"; then
     echo "template required field blank"
     return 0
