@@ -171,6 +171,23 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 	if localAI["llm_required"] != false || localAI["destructive_action"] != false {
 		t.Fatalf("local_ai must be deterministic and non destructive: %#v", localAI)
 	}
+	noiseReduction, ok := localAI["noise_reduction"].(map[string]any)
+	if !ok {
+		t.Fatalf("noise_reduction missing: %#v", localAI)
+	}
+	if noiseReduction["enabled"] != true || noiseReduction["keeps_original_evidence"] != true || noiseReduction["drops_raw_events"] != false || noiseReduction["requires_benchmark"] != true {
+		t.Fatalf("noise reduction must be assistive and benchmark-gated: %#v", noiseReduction)
+	}
+	verdictPolicy, ok := localAI["verdict_policy"].(map[string]any)
+	if !ok {
+		t.Fatalf("verdict_policy missing: %#v", localAI)
+	}
+	if verdictPolicy["automatic_verdict"] != false || verdictPolicy["human_review_required"] != true || verdictPolicy["decision_scope"] != "triage_only" {
+		t.Fatalf("local_ai must not create automatic verdicts: %#v", verdictPolicy)
+	}
+	if !strings.Contains(fmt.Sprint(verdictPolicy["blocked_actions"]), "execute_command") {
+		t.Fatalf("verdict policy must block remote execution: %#v", verdictPolicy)
+	}
 	privacy, ok := evidence["privacy"].(map[string]any)
 	if !ok {
 		t.Fatalf("privacy missing: %#v", evidence)

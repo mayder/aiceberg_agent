@@ -11,7 +11,7 @@ Adicionar uma base local para diferenciais AIceberg sem declarar superioridade g
 Campos principais:
 
 - `host_evidence`: fontes resumidas, lacunas e política de anexo NOC/SOC;
-- `local_ai`: regras determinísticas locais, sem LLM obrigatório e sem ação destrutiva;
+- `local_ai`: regras determinísticas locais, política de redução de ruído, bloqueio de veredito automático, sem LLM obrigatório e sem ação destrutiva;
 - `offline_first`: outbox, idempotência, compressão, retenção local, HUB/relay/proxy e export local assinado por integridade;
 - `privacy`: perfil `standard|sensitive|minimal`, modo sensível e coletores minimizados;
 - `agent_agentless`: estratégia de correlação entre agente e agentless;
@@ -27,7 +27,7 @@ Não há modelo pago nem veredito automático neste pacote. A pré-classificaç�
 - detecção de lacunas;
 - divergência agente + agentless.
 
-`destructive_action=false` é parte do contrato.
+`noise_reduction` é assistivo: mantém evidência original, não derruba eventos brutos, não faz supressão automática e exige benchmark antes de qualquer claim. `verdict_policy.automatic_verdict=false`, `destructive_action=false` e bloqueio de `execute_command`, fechamento de incidente, mudança de threshold e declaração de superioridade são parte do contrato.
 
 ## Privacidade
 
@@ -74,6 +74,8 @@ Cobertura:
 - `contextual_evidence` presente no snapshot;
 - IA local não exige LLM;
 - decisão destrutiva bloqueada;
+- redução de ruído é assistiva, preserva evidência original e exige benchmark;
+- veredito automático e execução remota ficam bloqueados;
 - perfil de privacidade sensível refletido;
 - claim de superioridade bloqueado sem benchmark.
 - offline-first expõe retenção, replay idempotente, compressão e export local assinado.

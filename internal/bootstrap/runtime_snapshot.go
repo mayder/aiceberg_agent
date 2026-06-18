@@ -96,6 +96,26 @@ func buildContextualEvidenceSnapshot(
 				"gap_detection",
 				"agent_agentless_divergence",
 			},
+			"noise_reduction": buildLocalAINoiseReduction(prefs),
+			"verdict_policy": map[string]any{
+				"automatic_verdict":     false,
+				"human_review_required": true,
+				"decision_scope":        "triage_only",
+				"allowed_actions": []string{
+					"redact",
+					"dedupe",
+					"score_noise",
+					"flag_gaps",
+					"attach_evidence",
+				},
+				"blocked_actions": []string{
+					"close_incident",
+					"suppress_alert",
+					"change_threshold",
+					"execute_command",
+					"declare_superiority",
+				},
+			},
 		},
 		"offline_first": buildOfflineFirstEvidence(cfg, mode, settings),
 		"privacy": map[string]any{
@@ -123,6 +143,21 @@ func buildContextualEvidenceSnapshot(
 				"agent_plus_agentless",
 			},
 		},
+	}
+}
+
+func buildLocalAINoiseReduction(prefs config.CollectPrefs) map[string]any {
+	return map[string]any{
+		"enabled":                  true,
+		"strategy":                 "deterministic_preclassification",
+		"inputs":                   []string{"redacted_logs", "collector_gaps", "agent_agentless_divergence", "duplicate_fingerprints"},
+		"signals":                  []string{"duplicate_candidate", "low_context", "missing_agentless", "missing_logs", "network_local_divergence"},
+		"keeps_original_evidence":  true,
+		"drops_raw_events":         false,
+		"requires_benchmark":       true,
+		"disabled_collectors":      minimizedCollectors(prefs),
+		"automatic_suppression":    false,
+		"human_review_for_closure": true,
 	}
 }
 
