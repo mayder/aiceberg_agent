@@ -190,7 +190,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 
 - Unitario focado: `go test ./internal/platform/collectors/oslogs ./internal/common/config ./internal/domain/usecase`.
 - Build Windows do coletor: `GOOS=windows GOARCH=amd64 go test ./internal/platform/collectors/oslogs`.
-- Cobrir redaction de token/senha/Authorization, atributos JSON sanitizados, multiline, cursor por arquivo/canal/journald, filtros include/exclude/min severity/unit/prioridade e `dropped_count` sem conteudo descartado.
+- Cobrir redaction de token/senha/Authorization, atributos JSON sanitizados, multiline, cursor por arquivo/canal/journald, filtros include/exclude/min severity/unit/prioridade/provider/event_id e `dropped_count` sem conteudo descartado.
 - Validacao real Windows/Linux/container/proxy/disco cheio fica pendente para PKG-69.
 
 ## PKG-61 - Metricas custom locais

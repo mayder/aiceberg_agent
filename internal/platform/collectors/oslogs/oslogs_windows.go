@@ -23,6 +23,8 @@ import (
 type winCollector struct {
 	prefs       func() config.CollectPrefs
 	channels    []string
+	providers   []string
+	eventIDs    []uint64
 	cursorPath  string
 	cursor      map[string]uint64
 	batchLines  int
@@ -47,6 +49,7 @@ type logEvent struct {
 	Cursor          string         `json:"cursor,omitempty"`
 	EventID         uint64         `json:"event_id,omitempty"`
 	RecordID        uint64         `json:"record_id,omitempty"`
+	Provider        string         `json:"provider,omitempty"`
 	Level           string         `json:"level,omitempty"`
 	Computer        string         `json:"computer,omitempty"`
 	Message         string         `json:"message"`
@@ -72,6 +75,8 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 	return &winCollector{
 		prefs:       prefsProvider,
 		channels:    ch,
+		providers:   sanitizeWindowsProviders(cfg.OSLogWinProviders),
+		eventIDs:    sanitizeWindowsEventIDs(cfg.OSLogWinEventIDs),
 		cursorPath:  cfg.OSLogCursorPath,
 		cursor:      loadCursorWin(cfg.OSLogCursorPath),
 		batchLines:  cfg.OSLogBatchLines,
@@ -110,6 +115,12 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 	}
 	if len(p.OSLogWinChList) > 0 {
 		c.channels = p.OSLogWinChList
+	}
+	if len(p.OSLogWinProviders) > 0 {
+		c.providers = sanitizeWindowsProviders(p.OSLogWinProviders)
+	}
+	if len(p.OSLogWinEventIDs) > 0 {
+		c.eventIDs = sanitizeWindowsEventIDs(p.OSLogWinEventIDs)
 	}
 	if p.OSLogBatchLines > 0 {
 		c.batchLines = p.OSLogBatchLines
@@ -173,7 +184,7 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 
 func (c *winCollector) fetchChannel(ctx context.Context, channel string, lastRecord uint64, limit int, hostname string) []logEvent {
 	var events []logEvent
-	query := "*[System[EventRecordID>" + strconv.FormatUint(lastRecord, 10) + "]]"
+	query := windowsEventQuery(lastRecord, c.providers, c.eventIDs)
 	args := []string{"qe", channel, "/q:" + query, "/f:Text", "/c:" + strconv.Itoa(limit), "/rd:true"}
 	cmd := exec.CommandContext(ctx, "wevtutil", args...)
 	raw, err := cmd.Output()
@@ -187,6 +198,9 @@ func (c *winCollector) fetchChannel(ctx context.Context, channel string, lastRec
 	for _, blk := range blocks {
 		ev := parseEventBlock(blk, channel, hostname, c.maxBytes)
 		if ev.RecordID == 0 {
+			continue
+		}
+		if !windowsEventMatches(ev, c.providers, c.eventIDs) {
 			continue
 		}
 		events = append(events, ev)
@@ -240,6 +254,8 @@ func parseEventBlock(block, channel, hostname string, maxBytes int) logEvent {
 			if id, err := strconv.ParseUint(strings.TrimSpace(strings.TrimPrefix(ln, "Record ID:")), 10, 64); err == nil {
 				ev.RecordID = id
 			}
+		} else if strings.HasPrefix(ln, "Provider Name:") {
+			ev.Provider = strings.TrimSpace(strings.TrimPrefix(ln, "Provider Name:"))
 		} else if strings.HasPrefix(ln, "Level:") {
 			ev.Level = strings.TrimSpace(strings.TrimPrefix(ln, "Level:"))
 		} else if strings.HasPrefix(ln, "Computer:") {
@@ -255,8 +271,96 @@ func parseEventBlock(block, channel, hostname string, maxBytes int) logEvent {
 	ev.Message = msg
 	ev.RedactionStatus = redactionStatus
 	ev.Attributes = attributes
+	if ev.Provider != "" {
+		if ev.Attributes == nil {
+			ev.Attributes = map[string]any{}
+		}
+		ev.Attributes["provider"] = ev.Provider
+	}
 	ev.Cursor = strconv.FormatUint(ev.RecordID, 10)
 	return ev
+}
+
+func windowsEventQuery(lastRecord uint64, providers []string, eventIDs []uint64) string {
+	conditions := []string{"EventRecordID>" + strconv.FormatUint(lastRecord, 10)}
+	if len(eventIDs) > 0 {
+		parts := make([]string, 0, len(eventIDs))
+		for _, eventID := range eventIDs {
+			parts = append(parts, "EventID="+strconv.FormatUint(eventID, 10))
+		}
+		conditions = append(conditions, "("+strings.Join(parts, " or ")+")")
+	}
+	if len(providers) > 0 {
+		parts := make([]string, 0, len(providers))
+		for _, provider := range providers {
+			parts = append(parts, "Provider[@Name='"+provider+"']")
+		}
+		conditions = append(conditions, "("+strings.Join(parts, " or ")+")")
+	}
+	return "*[System[" + strings.Join(conditions, " and ") + "]]"
+}
+
+func windowsEventMatches(ev logEvent, providers []string, eventIDs []uint64) bool {
+	if len(eventIDs) > 0 && !uint64InList(ev.EventID, eventIDs) {
+		return false
+	}
+	if len(providers) > 0 && !stringInListFold(ev.Provider, providers) {
+		return false
+	}
+	return true
+}
+
+func sanitizeWindowsEventIDs(values []string) []uint64 {
+	out := make([]uint64, 0, len(values))
+	for _, value := range values {
+		id, err := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+		if err == nil && id > 0 {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func sanitizeWindowsProviders(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		clean := strings.TrimSpace(value)
+		if clean != "" && isSafeWindowsProvider(clean) {
+			out = append(out, clean)
+		}
+	}
+	return out
+}
+
+func isSafeWindowsProvider(value string) bool {
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			continue
+		}
+		if strings.ContainsRune(" ._@:/-{}", r) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func uint64InList(value uint64, values []uint64) bool {
+	for _, current := range values {
+		if value == current {
+			return true
+		}
+	}
+	return false
+}
+
+func stringInListFold(value string, values []string) bool {
+	for _, current := range values {
+		if strings.EqualFold(value, current) {
+			return true
+		}
+	}
+	return false
 }
 
 func windowsCategory(eventID uint64, msg string) string {

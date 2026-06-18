@@ -228,6 +228,39 @@ func TestApplyConfigPayloadAppliesJournaldFilters(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadAppliesWindowsEventLogFilters(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	payload := ConfigPayload{
+		Version: "cfg-logs-windows",
+		Collect: config.CollectPrefs{
+			OSLogWinChannels: true,
+		},
+	}
+	payload.Logs.WinChannels = []string{"Security", "System"}
+	payload.Logs.WinProviders = []string{"Microsoft-Windows-Security-Auditing"}
+	payload.Logs.WinEventIDs = []string{"4624", "4625"}
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if strings.Join(got.OSLogWinChList, ",") != "Security,System" {
+		t.Fatalf("expected channels persisted, got %#v", got.OSLogWinChList)
+	}
+	if strings.Join(got.OSLogWinProviders, ",") != "Microsoft-Windows-Security-Auditing" {
+		t.Fatalf("expected providers persisted, got %#v", got.OSLogWinProviders)
+	}
+	if strings.Join(got.OSLogWinEventIDs, ",") != "4624,4625" {
+		t.Fatalf("expected event IDs persisted, got %#v", got.OSLogWinEventIDs)
+	}
+}
+
 func TestApplyConfigPayloadAppliesCustomMetricsUDSPath(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}

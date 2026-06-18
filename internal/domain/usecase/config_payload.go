@@ -114,6 +114,8 @@ type ConfigPayload struct {
 	} `json:"vulns"`
 	Logs struct {
 		WinChannels  []string `json:"win_channels"`
+		WinProviders []string `json:"win_providers,omitempty"`
+		WinEventIDs  []string `json:"win_event_ids,omitempty"`
 		Files        []string `json:"files"`
 		BatchLines   int      `json:"batch_lines"`
 		MaxBytes     int      `json:"max_bytes"`
@@ -217,6 +219,8 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	collect.Version = payload.Version
 	collect.CVESignaturesURL = payload.Vulns.SignaturesURL
 	collect.OSLogWinChList = payload.Logs.WinChannels
+	collect.OSLogWinProviders = payload.Logs.WinProviders
+	collect.OSLogWinEventIDs = payload.Logs.WinEventIDs
 	collect.OSLogFilesList = payload.Logs.Files
 	if payload.Logs.BatchLines > 0 {
 		collect.OSLogBatchLines = payload.Logs.BatchLines

@@ -131,6 +131,8 @@ Configuracoes locais:
 - `OSLOG_ENABLED=true`;
 - `OSLOG_FILES=/var/log/auth.log,/var/log/syslog`;
 - `OSLOG_WIN_CHANNELS=Security,System,Application,Microsoft-Windows-Sysmon/Operational`;
+- `OSLOG_WIN_PROVIDERS=Microsoft-Windows-Security-Auditing`;
+- `OSLOG_WIN_EVENT_IDS=4624,4625,4688`;
 - `OSLOG_INCLUDE_REGEX`;
 - `OSLOG_EXCLUDE_REGEX`;
 - `OSLOG_MIN_SEVERITY`.
@@ -139,7 +141,7 @@ Configuracoes locais:
 - `OSLOG_JOURNALD_UNITS=nginx.service,sshd.service`;
 - `OSLOG_JOURNALD_PRIORITIES=warning,error,critical`.
 
-Config remota equivalente em `logs.include_regex`, `logs.exclude_regex` e `logs.min_severity`.
+Config remota equivalente em `logs.win_channels`, `logs.win_providers`, `logs.win_event_ids`, `logs.include_regex`, `logs.exclude_regex` e `logs.min_severity`.
 Listeners locais tambem podem ser enviados como `logs.udp_addr` e `logs.tcp_addr`.
 Journald tambem pode ser enviado por `logs.journald_enabled`, `logs.journald_units` e `logs.journald_priorities`.
 

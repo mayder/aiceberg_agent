@@ -21,7 +21,7 @@ O payload tambem pode enviar `dropped_count` para indicar quantos eventos foram 
 ## Processamento
 
 - Unix-like: leitura por arquivo com cursor persistente, reset seguro quando o arquivo e truncado, agrupamento multiline simples e parser syslog existente.
-- Windows: leitura por canais EventLog via `wevtutil`, cursor por `Record ID`, metadados de canal/provider/evento e redaction antes do envio.
+- Windows: leitura por canais EventLog via `wevtutil`, cursor por `Record ID`, metadados de canal/provider/evento, filtros opcionais por provider/event_id e redaction antes do envio.
 - Local POSIX: listeners opcionais TCP/UDP recebem linhas de aplicacoes locais, aplicam os mesmos limites, filtros e redaction, e entram no mesmo `/v1/logs/raw`.
 - Journald POSIX: `journalctl --output=json` opcional e desligado por padrao, com filtros por unit e prioridade, cursor por `_SOURCE_REALTIME_TIMESTAMP`, argumentos sanitizados e redaction antes do envio.
 - JSON: campos JSON de primeiro nivel sao copiados para `attributes`; chaves sensiveis sao mascaradas.
@@ -34,6 +34,7 @@ O payload tambem pode enviar `dropped_count` para indicar quantos eventos foram 
 - `events[]` continua existindo.
 - Campos novos sao aditivos.
 - `OSLOG_ENABLED`, `OSLOG_FILES`, `OSLOG_WIN_CHANNELS`, `OSLOG_CURSOR_PATH`, `OSLOG_BATCH_LINES` e `OSLOG_MAX_BYTES` seguem validos.
+- `OSLOG_WIN_PROVIDERS` e `OSLOG_WIN_EVENT_IDS` restringem EventLog Windows de forma aditiva; vazios por padrao.
 - `OSLOG_UDP_ADDR` e `OSLOG_TCP_ADDR` habilitam listeners locais opcionais; vazios por padrao.
 - `OSLOG_JOURNALD_ENABLED`, `OSLOG_JOURNALD_UNITS` e `OSLOG_JOURNALD_PRIORITIES` habilitam journald opcional em POSIX; desligado por padrao.
 
@@ -43,6 +44,7 @@ O payload tambem pode enviar `dropped_count` para indicar quantos eventos foram 
 - Dual-shipping e OTLP logs ficam para PKG-62/PKG-67.
 - Logs Docker/containerd e Kubernetes ficam para PKG-64/PKG-65.
 - Journald real ainda depende de host Linux com systemd para homologacao operacional.
+- EventLog real ainda depende de host Windows com Security/System/Application/Sysmon para homologacao operacional.
 - Validacao operacional real Windows/Linux/container/proxy/disco cheio fica para PKG-69.
 
 ## Rollback
