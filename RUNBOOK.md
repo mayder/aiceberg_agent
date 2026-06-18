@@ -366,7 +366,7 @@ Diagnostico:
 - `inspect_runtime_config` inclui `contextual_evidence`;
 - `collect_support_flare` inclui o mesmo snapshot sanitizado;
 - `superiority_benchmark.claim_allowed=false` ate benchmark real.
-- `scripts/pkg72_contextual_evidence_homologation.sh` gera evidencia local e lista explicitamente pendencias reais.
+- `scripts/pkg72_contextual_evidence_homologation.sh` gera evidencia local, lista explicitamente pendencias reais e registra SHA256/tamanho das evidencias anexadas.
 
 Configuracoes opcionais:
 

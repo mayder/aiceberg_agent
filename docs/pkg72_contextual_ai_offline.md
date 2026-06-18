@@ -98,7 +98,7 @@ Cobertura:
 - BoltStore preserva o replay entre restart até ACK e aceita ACK repetido/ID desconhecido de forma idempotente.
 - web correlaciona evidência Agentless recente com o painel contextual do agente.
 - benchmark expõe cenários, métricas e política que mantém superioridade bloqueada sem evidência comparável.
-- roteiro de homologação gera `/tmp/aiceberg_pkg72_contextual_evidence.md` com validações locais e pendências reais explícitas.
+- roteiro de homologação gera `/tmp/aiceberg_pkg72_contextual_evidence.md` com validações locais, pendências reais explícitas e manifesto SHA256/tamanho das evidências anexadas.
 
 ## Pendências reais
 
@@ -116,7 +116,7 @@ Cobertura:
 scripts/pkg72_contextual_evidence_homologation.sh
 ```
 
-O script passa localmente quando os contratos automatizados estão íntegros e marca como `pending` os itens que exigem ambiente controlado. Para anexar evidências reais, informe:
+O script passa localmente quando os contratos automatizados estão íntegros, marca como `pending` os itens que exigem ambiente controlado e registra `sha256`/bytes dos arquivos reais informados. Para anexar evidências reais, informe:
 
 - `PKG72_INCIDENT_EVIDENCE`;
 - `PKG72_REPLAY_24H_EVIDENCE`;

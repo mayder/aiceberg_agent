@@ -6,6 +6,8 @@ cd "$ROOT"
 
 EVIDENCE_FILE="${PKG72_EVIDENCE_FILE:-/tmp/aiceberg_pkg72_contextual_evidence.md}"
 GO_TEST_LOG="${PKG72_GO_TEST_LOG:-/tmp/aiceberg_pkg72_go_test.log}"
+REAL_EVIDENCE_PRESENT=0
+REAL_EVIDENCE_TOTAL=0
 
 section() {
   printf '\n## %s\n\n' "$1" | tee -a "$EVIDENCE_FILE" >/dev/null
@@ -18,12 +20,22 @@ result() {
   printf -- '- %s: %s — %s\n' "$name" "$status" "$detail" | tee -a "$EVIDENCE_FILE" >/dev/null
 }
 
+file_size_bytes() {
+  wc -c <"$1" | tr -d ' '
+}
+
+file_sha256() {
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
 require_file_or_pending() {
   local name="$1"
   local path="$2"
   local detail="$3"
+  REAL_EVIDENCE_TOTAL=$((REAL_EVIDENCE_TOTAL + 1))
   if [[ -n "$path" && -f "$path" ]]; then
-    result "$name" "evidence" "$path"
+    REAL_EVIDENCE_PRESENT=$((REAL_EVIDENCE_PRESENT + 1))
+    result "$name" "evidence" "path=$path sha256=$(file_sha256 "$path") bytes=$(file_size_bytes "$path")"
   else
     result "$name" "pending" "$detail"
   fi
@@ -58,5 +70,10 @@ result "agent_plus_agentless" "pending-real" "measure correlation_detected, fals
 result "noise_reduction" "pending-real" "measure noise_before, noise_after and manual_review_required"
 
 section "closure rule"
-result "pkg72-status" "not-closed" "do not mark PKG-72 100% until every required real evidence item above is present and reviewed"
+if [[ "$REAL_EVIDENCE_PRESENT" -eq "$REAL_EVIDENCE_TOTAL" ]]; then
+  result "real-evidence-manifest" "ready-for-review" "$REAL_EVIDENCE_PRESENT/$REAL_EVIDENCE_TOTAL files present with SHA256; manual review and benchmark acceptance still required"
+else
+  result "real-evidence-manifest" "incomplete" "$REAL_EVIDENCE_PRESENT/$REAL_EVIDENCE_TOTAL files present"
+fi
+result "pkg72-status" "not-closed" "do not mark PKG-72 100% until every required real evidence item above is present, reviewed and accepted"
 result "evidence-file" "written" "$EVIDENCE_FILE"
