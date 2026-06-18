@@ -67,7 +67,7 @@ Fora de Windows, essas integracoes retornam `service_check.status=skipped` com `
 
 ## Bancos, fila e web servers
 
-`redis` esta como oficial para reachability TCP e `integration.reachable`. PostgreSQL/MySQL seguem beta por enquanto, apenas reachability segura. Nginx/Apache usam HTTP check.
+`redis` esta como oficial para reachability TCP e `integration.reachable`. PostgreSQL/MySQL/SQL Server e RabbitMQ seguem beta por enquanto, apenas reachability segura por TCP e exigindo homologacao minima. Nginx/Apache usam HTTP check. IIS usa a base Windows experimental descrita acima.
 
 ## Manifestos oficiais
 

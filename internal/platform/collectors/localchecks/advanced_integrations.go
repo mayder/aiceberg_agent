@@ -29,6 +29,8 @@ var integrationCatalog = map[string]integrationInfo{
 	"redis":           {Kind: "redis", Version: "1", Status: "official", Permissions: []string{"tcp_connect"}, Rollback: "desativar check redis"},
 	"postgresql":      {Kind: "postgresql", Version: "1", Status: "beta", Permissions: []string{"tcp_connect", "credentials_ref"}, Rollback: "desativar check postgresql"},
 	"mysql":           {Kind: "mysql", Version: "1", Status: "beta", Permissions: []string{"tcp_connect", "credentials_ref"}, Rollback: "desativar check mysql"},
+	"sqlserver":       {Kind: "sqlserver", Version: "1", Status: "beta", Permissions: []string{"tcp_connect", "credentials_ref"}, Rollback: "desativar check sqlserver"},
+	"rabbitmq":        {Kind: "rabbitmq", Version: "1", Status: "beta", Permissions: []string{"tcp_connect", "credentials_ref"}, Rollback: "desativar check rabbitmq"},
 	"jmx":             {Kind: "jmx", Version: "1", Status: "beta", Permissions: []string{"jolokia_http_get", "credentials_ref"}, Rollback: "desativar check jmx"},
 	"nginx":           {Kind: "nginx", Version: "1", Status: "beta", Permissions: []string{"http_get"}, Rollback: "desativar check nginx"},
 	"apache":          {Kind: "apache", Version: "1", Status: "beta", Permissions: []string{"http_get"}, Rollback: "desativar check apache"},

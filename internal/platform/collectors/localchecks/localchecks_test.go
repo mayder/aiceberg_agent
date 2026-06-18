@@ -171,6 +171,56 @@ func TestRunTCPCheck(t *testing.T) {
 	}
 }
 
+func TestBetaDatabaseAndQueueRequireHomologation(t *testing.T) {
+	metrics, _, serviceCheck, err := execute(context.Background(), config.LocalCheckConfig{
+		Kind:    "sqlserver",
+		Target:  "127.0.0.1:1433",
+		Enabled: true,
+	}, 1024)
+	if err == nil {
+		t.Fatal("expected homologation gate error")
+	}
+	if len(metrics) != 0 {
+		t.Fatalf("expected no metrics, got %#v", metrics)
+	}
+	if serviceCheck["status"] != "blocked" || serviceCheck["reason"] != "integration_not_homologated" {
+		t.Fatalf("unexpected service check %#v", serviceCheck)
+	}
+	if manifest, ok := serviceCheck["integration"].(map[string]any); !ok || manifest["kind"] != "sqlserver" || manifest["status"] != "beta" {
+		t.Fatalf("expected beta sqlserver metadata, got %#v", serviceCheck)
+	}
+}
+
+func TestRabbitMQHomologatedReachability(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		conn, err := ln.Accept()
+		if err == nil {
+			_ = conn.Close()
+		}
+	}()
+
+	metrics, _, serviceCheck, err := execute(context.Background(), config.LocalCheckConfig{
+		Kind:    "rabbitmq",
+		Target:  ln.Addr().String(),
+		Enabled: true,
+		Config: map[string]string{
+			"homologation_status": "approved",
+			"homologation_ref":    "pkg71-rabbitmq-fixture",
+		},
+	}, 1024)
+	if err != nil {
+		t.Fatalf("expected rabbitmq tcp ok, got %v", err)
+	}
+	if serviceCheck["status"] != "ok" || len(metrics) != 1 || metrics[0]["integration"] != "rabbitmq" {
+		t.Fatalf("unexpected rabbitmq result %#v %#v", serviceCheck, metrics)
+	}
+}
+
 func TestWindowsIntegrationSkipsOutsideWindows(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("non-Windows guard test")

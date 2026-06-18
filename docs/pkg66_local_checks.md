@@ -60,7 +60,7 @@ O coletor envia `body.local_checks` para `/v1/ingest/metrics`:
 - `http`: GET com status HTTP e service check;
 - `tcp`: conexao TCP simples;
 - `openmetrics`: scrape HTTP e parser basico de exposition format;
-- `jmx`, `postgresql`, `mysql`, `redis`, `nginx`, `apache`, `iis_wmi`, `windows_service`: check basico por HTTP/TCP, sem credencial inline e sem shell.
+- `jmx`, `postgresql`, `mysql`, `sqlserver`, `redis`, `rabbitmq`, `nginx`, `apache`, `iis_wmi`, `windows_service`: check basico por HTTP/TCP, sem credencial inline e sem shell remoto.
 
 JMX, bancos, IIS/WMI e Windows Service entram como base segura. Coletores profundos por protocolo nativo devem ser evoluidos em integracoes oficiais com manifest e testes especificos.
 Integrações `beta` ou `experimental` só executam quando o check inclui `config.homologation_status=approved` e `config.homologation_ref` preenchido; caso contrario o agente retorna `service_check.status=blocked` sem abrir conexão.
@@ -89,7 +89,7 @@ Integrações instaláveis sem rebuild usam manifests JSON em diretórios contro
 
 PKG-64 e PKG-65 materializam templates em `body.containers.autodiscovery_checks` e `body.kubernetes.autodiscovery_checks`. Cada item e normalizado para o contrato de `local_checks` com `kind`, `target`, `enabled` e `tags`, mantendo os metadados originais de container/pod para auditoria.
 
-A ponte aceita apenas tipos do allowlist local (`http`, `openmetrics`, `tcp`, `redis`, `postgresql`, `mysql`, `nginx`, `apache`) e nao executa shell remoto.
+A ponte aceita apenas tipos do allowlist local (`http`, `openmetrics`, `tcp`, `redis`, `postgresql`, `mysql`, `sqlserver`, `rabbitmq`, `nginx`, `apache`) e nao executa shell remoto.
 
 ## Rollback
 

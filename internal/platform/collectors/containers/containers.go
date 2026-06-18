@@ -692,7 +692,7 @@ func normalizeContainerAutodiscoveryCheck(check map[string]any, row dockerContai
 
 func normalizeAutodiscoveryKind(kind string) string {
 	switch strings.ToLower(strings.TrimSpace(kind)) {
-	case "http", "openmetrics", "tcp", "redis", "postgresql", "mysql", "nginx", "apache":
+	case "http", "openmetrics", "tcp", "redis", "postgresql", "mysql", "sqlserver", "rabbitmq", "nginx", "apache":
 		return strings.ToLower(strings.TrimSpace(kind))
 	default:
 		return ""
