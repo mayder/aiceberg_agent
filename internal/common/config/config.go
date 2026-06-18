@@ -93,6 +93,8 @@ type Config struct {
 	ContainerDockerSocket              string
 	ContainerInterval                  time.Duration
 	ContainerMaxItems                  int
+	ContainerIncludeRegex              string
+	ContainerExcludeRegex              string
 	KubernetesEnabled                  bool
 	KubernetesAPIURL                   string
 	KubernetesTokenPath                string
@@ -200,6 +202,8 @@ type CollectPrefs struct {
 	ContainerDockerSocket      string             `json:"container_docker_socket,omitempty"`
 	ContainerIntervalSec       int                `json:"container_interval,omitempty"`
 	ContainerMaxItems          int                `json:"container_max_items,omitempty"`
+	ContainerIncludeRegex      string             `json:"container_include_regex,omitempty"`
+	ContainerExcludeRegex      string             `json:"container_exclude_regex,omitempty"`
 	KubernetesEnabled          bool               `json:"kubernetes_enabled,omitempty"`
 	KubernetesAPIURL           string             `json:"kubernetes_api_url,omitempty"`
 	KubernetesTokenPath        string             `json:"kubernetes_token_path,omitempty"`
@@ -320,6 +324,8 @@ func Load(configPath string) (Config, error) {
 		ContainerDockerSocket:              getenv("CONTAINER_DOCKER_SOCKET", "/var/run/docker.sock"),
 		ContainerInterval:                  time.Duration(intEnv("CONTAINER_INTERVAL", 30)) * time.Second,
 		ContainerMaxItems:                  intEnv("CONTAINER_MAX_ITEMS", 200),
+		ContainerIncludeRegex:              getenv("CONTAINER_INCLUDE_REGEX", ""),
+		ContainerExcludeRegex:              getenv("CONTAINER_EXCLUDE_REGEX", ""),
 		KubernetesEnabled:                  strings.ToLower(getenv("KUBERNETES_ENABLED", "")) == "true",
 		KubernetesAPIURL:                   getenv("KUBERNETES_API_URL", "https://kubernetes.default.svc"),
 		KubernetesTokenPath:                getenv("KUBERNETES_TOKEN_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/token"),

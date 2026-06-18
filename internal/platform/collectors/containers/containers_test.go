@@ -7,7 +7,7 @@ func TestNormalizeContainersRedactsSensitiveLabelsAndAddsStats(t *testing.T) {
 		ID:     "1234567890abcdef",
 		Names:  []string{"/api"},
 		Image:  "app:latest",
-		Labels: map[string]string{"com.docker.compose.service": "api", "token": "secret"},
+		Labels: map[string]string{"com.docker.compose.service": "api", "com.docker.compose.project": "prod", "token": "secret"},
 		State:  "running",
 		Status: "Up 1 minute",
 	}}
@@ -28,7 +28,9 @@ func TestNormalizeContainersRedactsSensitiveLabelsAndAddsStats(t *testing.T) {
 		Value uint64 `json:"value"`
 	}{{Op: "Read", Value: 30}, {Op: "Write", Value: 40}}
 
-	out := normalizeContainers(rows, map[string]dockerStats{"1234567890ab": stats})
+	inspect := dockerInspect{RestartCount: 3, LogPath: "/var/lib/docker/containers/123/123-json.log"}
+	inspect.Config.User = "1000"
+	out := normalizeContainers(rows, map[string]dockerStats{"1234567890ab": stats}, map[string]dockerInspect{"1234567890ab": inspect})
 	if len(out) != 1 {
 		t.Fatalf("expected one container, got %#v", out)
 	}
@@ -45,8 +47,43 @@ func TestNormalizeContainersRedactsSensitiveLabelsAndAddsStats(t *testing.T) {
 	if out[0]["memory_usage_bytes"] != uint64(1024) {
 		t.Fatalf("expected memory usage, got %#v", out[0])
 	}
+	if out[0]["restart_count"] != 3 || out[0]["user"] != "1000" || out[0]["namespace"] != "prod" {
+		t.Fatalf("expected inspect and namespace data, got %#v", out[0])
+	}
 	if out[0]["network_rx_bytes"] != uint64(10) || out[0]["block_write_bytes"] != uint64(40) {
 		t.Fatalf("expected network/io stats, got %#v", out[0])
+	}
+}
+
+func TestFilterContainersByImageLabelNamespaceAndUser(t *testing.T) {
+	rows := []dockerContainer{
+		{
+			ID:     "aaaaaaaaaaaa1111",
+			Names:  []string{"/api"},
+			Image:  "api:1",
+			Labels: map[string]string{"com.docker.compose.project": "prod", "tier": "backend"},
+		},
+		{
+			ID:     "bbbbbbbbbbbb2222",
+			Names:  []string{"/worker"},
+			Image:  "worker:1",
+			Labels: map[string]string{"com.docker.compose.project": "dev", "tier": "jobs"},
+		},
+	}
+	inspect := map[string]dockerInspect{
+		"aaaaaaaaaaaa": {},
+		"bbbbbbbbbbbb": {},
+	}
+	apiInspect := inspect["aaaaaaaaaaaa"]
+	apiInspect.Config.User = "app"
+	inspect["aaaaaaaaaaaa"] = apiInspect
+	workerInspect := inspect["bbbbbbbbbbbb"]
+	workerInspect.Config.User = "root"
+	inspect["bbbbbbbbbbbb"] = workerInspect
+
+	filtered := filterContainers(rows, inspect, "prod|user=app|api:1", "root|dev")
+	if len(filtered) != 1 || firstName(filtered[0].Names) != "api" {
+		t.Fatalf("expected only api container, got %#v", filtered)
 	}
 }
 

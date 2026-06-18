@@ -195,6 +195,7 @@ Configuracoes locais:
 - `CONTAINER_DOCKER_SOCKET=/var/run/docker.sock`;
 - `CONTAINER_INTERVAL=30`;
 - `CONTAINER_MAX_ITEMS=200`.
+- `CONTAINER_INCLUDE_REGEX` e `CONTAINER_EXCLUDE_REGEX` para restringir imagem, nome, labels, namespace, service e user.
 
 Rollback: definir `CONTAINER_ENABLED=false` ou config remota `containers.enabled=false`. Nao ha SQL do PKG-64.
 

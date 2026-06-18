@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,8 @@ type collector struct {
 	socket      string
 	interval    time.Duration
 	maxItems    int
+	include     string
+	exclude     string
 }
 
 func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -40,6 +43,8 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 		socket:      cfg.ContainerDockerSocket,
 		interval:    interval,
 		maxItems:    maxItems,
+		include:     cfg.ContainerIncludeRegex,
+		exclude:     cfg.ContainerExcludeRegex,
 	}
 }
 
@@ -59,6 +64,18 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	inspectByID := map[string]dockerInspect{}
+	for _, row := range containers {
+		id := shortID(row.ID)
+		if id == "" {
+			continue
+		}
+		if inspect, err := fetchDockerInspect(ctx, client, id); err == nil {
+			inspectByID[id] = inspect
+		}
+	}
+	include, exclude := c.effectiveFilters()
+	containers = filterContainers(containers, inspectByID, include, exclude)
 	statsByID := map[string]dockerStats{}
 	for _, row := range containers {
 		id := shortID(row.ID)
@@ -74,12 +91,26 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		"containers": map[string]any{
 			"schema_version":       schemaVersion,
 			"source":               "docker_socket",
-			"items":                normalizeContainers(containers, statsByID),
+			"items":                normalizeContainers(containers, statsByID, inspectByID),
 			"autodiscovery_checks": autodiscoveryChecks(containers),
 			"dropped_count":        maxInt(0, len(containers)-c.maxItems),
 		},
 	}
 	return json.Marshal(payload)
+}
+
+func (c *collector) effectiveFilters() (string, string) {
+	include, exclude := c.include, c.exclude
+	if c.prefs != nil {
+		p := c.prefs()
+		if strings.TrimSpace(p.ContainerIncludeRegex) != "" {
+			include = p.ContainerIncludeRegex
+		}
+		if strings.TrimSpace(p.ContainerExcludeRegex) != "" {
+			exclude = p.ContainerExcludeRegex
+		}
+	}
+	return include, exclude
 }
 
 func (c *collector) enabled() bool {
@@ -148,6 +179,23 @@ func fetchDockerStats(ctx context.Context, client *http.Client, id string) (dock
 	return stats, json.NewDecoder(resp.Body).Decode(&stats)
 }
 
+func fetchDockerInspect(ctx context.Context, client *http.Client, id string) (dockerInspect, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://docker/containers/"+url.PathEscape(id)+"/json", nil)
+	if err != nil {
+		return dockerInspect{}, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return dockerInspect{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return dockerInspect{}, errors.New("docker inspect status " + resp.Status)
+	}
+	var inspect dockerInspect
+	return inspect, json.NewDecoder(resp.Body).Decode(&inspect)
+}
+
 type dockerContainer struct {
 	ID         string            `json:"Id"`
 	Names      []string          `json:"Names"`
@@ -197,7 +245,15 @@ type dockerStats struct {
 	} `json:"blkio_stats"`
 }
 
-func normalizeContainers(rows []dockerContainer, statsByID map[string]dockerStats) []map[string]any {
+type dockerInspect struct {
+	RestartCount int    `json:"RestartCount"`
+	LogPath      string `json:"LogPath"`
+	Config       struct {
+		User string `json:"User"`
+	} `json:"Config"`
+}
+
+func normalizeContainers(rows []dockerContainer, statsByID map[string]dockerStats, inspectByID map[string]dockerInspect) []map[string]any {
 	out := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		id := shortID(row.ID)
@@ -217,6 +273,18 @@ func normalizeContainers(rows []dockerContainer, statsByID map[string]dockerStat
 		if compose := composeService(row.Labels); compose != "" {
 			item["compose_service"] = compose
 		}
+		if namespace := containerNamespace(row.Labels); namespace != "" {
+			item["namespace"] = namespace
+		}
+		if inspect, ok := inspectByID[id]; ok {
+			item["restart_count"] = inspect.RestartCount
+			if user := strings.TrimSpace(inspect.Config.User); user != "" {
+				item["user"] = user
+			}
+			if logPath := strings.TrimSpace(inspect.LogPath); logPath != "" {
+				item["log_path"] = logPath
+			}
+		}
 		if stats, ok := statsByID[id]; ok {
 			item["cpu_percent"] = cpuPercent(stats)
 			item["memory_usage_bytes"] = stats.MemoryStats.Usage
@@ -227,6 +295,57 @@ func normalizeContainers(rows []dockerContainer, statsByID map[string]dockerStat
 		out = append(out, item)
 	}
 	return out
+}
+
+func filterContainers(rows []dockerContainer, inspectByID map[string]dockerInspect, includeRegex, excludeRegex string) []dockerContainer {
+	include := compileRegex(includeRegex)
+	exclude := compileRegex(excludeRegex)
+	if include == nil && exclude == nil {
+		return rows
+	}
+	out := make([]dockerContainer, 0, len(rows))
+	for _, row := range rows {
+		id := shortID(row.ID)
+		target := containerFilterText(row, inspectByID[id])
+		if include != nil && !include.MatchString(target) {
+			continue
+		}
+		if exclude != nil && exclude.MatchString(target) {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+func compileRegex(value string) *regexp.Regexp {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	re, err := regexp.Compile(value)
+	if err != nil {
+		return nil
+	}
+	return re
+}
+
+func containerFilterText(row dockerContainer, inspect dockerInspect) string {
+	parts := []string{
+		shortID(row.ID),
+		firstName(row.Names),
+		row.Image,
+		row.State,
+		row.Status,
+		row.HostConfig.NetworkMode,
+		composeService(row.Labels),
+		containerNamespace(row.Labels),
+		"user=" + strings.TrimSpace(inspect.Config.User),
+	}
+	for key, value := range row.Labels {
+		parts = append(parts, key+"="+value)
+	}
+	return strings.Join(parts, " ")
 }
 
 func safeLabels(labels map[string]string) map[string]string {
@@ -247,6 +366,15 @@ func safeLabels(labels map[string]string) map[string]string {
 
 func composeService(labels map[string]string) string {
 	for _, key := range []string{"com.docker.compose.service", "com.docker.swarm.service.name"} {
+		if value := strings.TrimSpace(labels[key]); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func containerNamespace(labels map[string]string) string {
+	for _, key := range []string{"com.docker.compose.project", "io.kubernetes.pod.namespace", "aiceberg.ai/namespace"} {
 		if value := strings.TrimSpace(labels[key]); value != "" {
 			return value
 		}

@@ -10,6 +10,8 @@ Dados coletados:
 - labels sanitizadas;
 - rede, portas e network mode;
 - compose/swarm service quando houver label;
+- namespace local quando houver label de compose, Kubernetes ou `aiceberg.ai/namespace`;
+- user, restart_count e log_path quando `/containers/<id>/json` responder;
 - CPU, memoria, rede e IO quando `/stats?stream=false` responder.
 - checks de autodiscovery derivados de labels.
 
@@ -20,6 +22,8 @@ CONTAINER_ENABLED=true
 CONTAINER_DOCKER_SOCKET=/var/run/docker.sock
 CONTAINER_INTERVAL=30
 CONTAINER_MAX_ITEMS=200
+CONTAINER_INCLUDE_REGEX=prod|backend
+CONTAINER_EXCLUDE_REGEX=root|secret
 ```
 
 Config remota equivalente:
@@ -30,7 +34,9 @@ Config remota equivalente:
     "enabled": true,
     "docker_socket": "/var/run/docker.sock",
     "interval": 30,
-    "max_items": 200
+    "max_items": 200,
+    "include_regex": "prod|backend",
+    "exclude_regex": "root|secret"
   }
 }
 ```
@@ -64,10 +70,11 @@ Cada check recebe `container_id`, `container_name`, `image` e `service` quando e
 - Labels com `secret`, `token` ou `password` sao mascaradas.
 - Nao coleta env vars nem conteudo de volumes.
 - Acesso ao Docker socket deve ser concedido explicitamente pelo operador.
+- `include_regex` e `exclude_regex` atuam sobre id, nome, imagem, labels, namespace local, service e user.
 
 ## Limites
 
-- Containerd nativo, logs de container e validacao real de carga ficam pendentes.
+- Containerd nativo, coleta efetiva de logs de container com cursor e validacao real de carga ficam pendentes.
 - Sem leitura de secrets montados.
 
 ## Rollback

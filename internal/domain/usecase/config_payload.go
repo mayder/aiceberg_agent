@@ -150,6 +150,8 @@ type ConfigPayload struct {
 		DockerSocket string `json:"docker_socket,omitempty"`
 		Interval     int    `json:"interval,omitempty"`
 		MaxItems     int    `json:"max_items,omitempty"`
+		IncludeRegex string `json:"include_regex,omitempty"`
+		ExcludeRegex string `json:"exclude_regex,omitempty"`
 	} `json:"containers,omitempty"`
 	Kubernetes struct {
 		Enabled   *bool  `json:"enabled,omitempty"`
@@ -279,6 +281,12 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	}
 	if payload.Containers.MaxItems > 0 {
 		collect.ContainerMaxItems = payload.Containers.MaxItems
+	}
+	if payload.Containers.IncludeRegex != "" {
+		collect.ContainerIncludeRegex = payload.Containers.IncludeRegex
+	}
+	if payload.Containers.ExcludeRegex != "" {
+		collect.ContainerExcludeRegex = payload.Containers.ExcludeRegex
 	}
 	if payload.Kubernetes.Enabled != nil {
 		collect.KubernetesEnabled = *payload.Kubernetes.Enabled

@@ -249,6 +249,32 @@ func TestApplyConfigPayloadAppliesAPMSamplingPolicy(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadAppliesContainerFilters(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	payload := ConfigPayload{
+		Version: "cfg-containers",
+		Collect: config.CollectPrefs{
+			ContainerEnabled: true,
+		},
+	}
+	payload.Containers.IncludeRegex = "prod|backend"
+	payload.Containers.ExcludeRegex = "secret|root"
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if got.ContainerIncludeRegex != "prod|backend" || got.ContainerExcludeRegex != "secret|root" {
+		t.Fatalf("expected container filters persisted, got include=%q exclude=%q", got.ContainerIncludeRegex, got.ContainerExcludeRegex)
+	}
+}
+
 func TestApplyConfigPayloadWithSecurityRequiresSignatureForSensitivePayload(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}
