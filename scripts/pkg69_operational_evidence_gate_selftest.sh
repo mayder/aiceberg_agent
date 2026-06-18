@@ -64,6 +64,15 @@ fill_template() {
      s/- update_report_status: selftest/- update_report_status: success/g' "$path"
 }
 
+mark_real_template() {
+  local path="$1"
+  perl -0pi -e \
+    's/gate-selftest/pkg69-reviewer/g;
+     s/selftest\.tar\.gz/aiceberg-agent-linux-amd64.tar.gz/g;
+     s/selftest/controlled-lab/g;
+     s/- Cliente\/lab: local/- Cliente\/lab: controlled-lab-69/g' "$path"
+}
+
 assert_contains() {
   local path="$1"
   local pattern="$2"
@@ -282,6 +291,21 @@ mkdir -p "$TMP_DIR/all"
 cp "$TMP_DIR/templates/"*.md "$TMP_DIR/all/"
 for template in "$TMP_DIR/all/"*.md; do
   fill_template "$template" "pass"
+done
+
+set +e
+run_with_all_evidence "$TMP_DIR/real-mode-synthetic.md" env PKG69_REQUIRE_REAL_EVIDENCE=true
+real_mode_synthetic_exit=$?
+set -e
+
+if [[ "$real_mode_synthetic_exit" -ne 2 ]]; then
+  echo "expected real-evidence gate exit 2 with synthetic markers, got $real_mode_synthetic_exit" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/real-mode-synthetic.md" "must not contain self-test or synthetic markers when real evidence is required"
+
+for template in "$TMP_DIR/all/"*.md; do
+  mark_real_template "$template"
 done
 
 set +e

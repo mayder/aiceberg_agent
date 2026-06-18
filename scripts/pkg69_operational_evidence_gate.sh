@@ -84,7 +84,15 @@ artifact_sha256() {
 field_value() {
   local path="$1"
   local field="$2"
-  sed -n "s/^- ${field}:[[:space:]]*//p" "$path" | head -n 1
+  awk -v field="$field" '
+    BEGIN { prefix = "- " field ":" }
+    index($0, prefix) == 1 {
+      value = substr($0, length(prefix) + 1)
+      sub(/^[[:space:]]*/, "", value)
+      print value
+      exit
+    }
+  ' "$path"
 }
 
 require_exact_field() {
@@ -214,6 +222,20 @@ require_one_of_field() {
   done
   echo "field $field must be one of: $*"
   return 0
+}
+
+require_no_synthetic_marker() {
+  local path="$1"
+  local field
+  local value
+  for field in "Responsavel" "Cliente/lab" "Versao agente" "Artefato instalado" "Observacoes" "Revisor"; do
+    value="$(field_value "$path" "$field")"
+    if [[ "$value" =~ [Ss]elftest|[Ss]ynthetic|[Ss]intetico|[Ff]ake|[Mm]ock|[Pp]laceholder ]]; then
+      echo "field $field must not contain self-test or synthetic markers when real evidence is required"
+      return 0
+    fi
+  done
+  return 1
 }
 
 scenario_incomplete_reason() {
@@ -347,6 +369,13 @@ template_incomplete_reason() {
   if scenario_reason="$(scenario_incomplete_reason "$path" "$expected_title")"; then
     echo "$scenario_reason"
     return 0
+  fi
+  if [[ "$REQUIRE_REAL_EVIDENCE" == "true" || "$REQUIRE_CLOSURE_ACCEPTED" == "true" ]]; then
+    local synthetic_reason
+    if synthetic_reason="$(require_no_synthetic_marker "$path")"; then
+      echo "$synthetic_reason"
+      return 0
+    fi
   fi
   return 1
 }
