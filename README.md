@@ -221,6 +221,8 @@ Para homologar coleta Agentless SNMP com perfis proprietarios ALE/OAW enviados p
 
 Para Kubernetes, use o manifest `deploy/kubernetes/aiceberg-agent.yaml` ou o chart `deploy/helm/aiceberg-agent`. O coletor `kubernetes` usa ServiceAccount com RBAC somente leitura para nodes, pods e events; veja `docs/pkg65_kubernetes.md`.
 
+Para checks locais extensíveis, habilite `LOCAL_CHECKS_ENABLED=true` e configure `local_checks` remoto ou `LOCAL_CHECKS_JSON`. O runtime usa allowlist e nao executa shell generico; veja `docs/pkg66_local_checks.md`.
+
 Notas:
 - API de produção é o padrão (`https://api.aiceberg.com.br`) e o agente junta `/v1/...` sozinho; use `API_BASE_URL` apenas para apontar para ambientes de teste.
 - Bootstrap (`POST /v1/agent/bootstrap`) já envia `versao_agente` com `internal/common/version.Version`, então a API acompanha qual versão do agente cada host executa.

@@ -113,6 +113,13 @@ type ConfigPayload struct {
 		MaxItems  int    `json:"max_items,omitempty"`
 		MaxEvents int    `json:"max_events,omitempty"`
 	} `json:"kubernetes,omitempty"`
+	LocalChecks struct {
+		Enabled   *bool                     `json:"enabled,omitempty"`
+		Interval  int                       `json:"interval,omitempty"`
+		MaxChecks int                       `json:"max_checks,omitempty"`
+		MaxBytes  int                       `json:"max_bytes,omitempty"`
+		Checks    []config.LocalCheckConfig `json:"checks,omitempty"`
+	} `json:"local_checks,omitempty"`
 	CollectNow *[]string          `json:"collect_now,omitempty"`
 	Update     *UpdatePayload     `json:"update,omitempty"`
 	AutoUpdate *AutoUpdatePayload `json:"auto_update,omitempty"`
@@ -221,6 +228,21 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- C
 	}
 	if payload.Kubernetes.MaxEvents > 0 {
 		collect.KubernetesMaxEvents = payload.Kubernetes.MaxEvents
+	}
+	if payload.LocalChecks.Enabled != nil {
+		collect.LocalChecksEnabled = *payload.LocalChecks.Enabled
+	}
+	if payload.LocalChecks.Interval > 0 {
+		collect.LocalChecksIntervalSec = payload.LocalChecks.Interval
+	}
+	if payload.LocalChecks.MaxChecks > 0 {
+		collect.LocalChecksMaxChecks = payload.LocalChecks.MaxChecks
+	}
+	if payload.LocalChecks.MaxBytes > 0 {
+		collect.LocalChecksMaxBytes = payload.LocalChecks.MaxBytes
+	}
+	if payload.LocalChecks.Checks != nil {
+		collect.LocalChecks = payload.LocalChecks.Checks
 	}
 	if payload.Agentless.Enabled != nil {
 		collect.AgentlessEnabled = *payload.Agentless.Enabled

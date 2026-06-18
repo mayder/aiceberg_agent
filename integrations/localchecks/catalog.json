@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "official": "integracoes mantidas no core, com testes e sem shell arbitrario",
+    "experimental": "desligadas por padrao; exigem manifest, rollback e validacao focada antes de uso"
+  },
+  "checks": [
+    {
+      "kind": "http",
+      "version": "1",
+      "capabilities": ["service_check", "status_code"],
+      "config_schema": ["target", "timeout_ms", "tags"]
+    },
+    {
+      "kind": "tcp",
+      "version": "1",
+      "capabilities": ["service_check"],
+      "config_schema": ["target", "timeout_ms", "tags"]
+    },
+    {
+      "kind": "openmetrics",
+      "version": "1",
+      "capabilities": ["metrics", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags"]
+    },
+    {
+      "kind": "postgresql",
+      "version": "1",
+      "capabilities": ["tcp_reachability", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"]
+    },
+    {
+      "kind": "mysql",
+      "version": "1",
+      "capabilities": ["tcp_reachability", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"]
+    },
+    {
+      "kind": "redis",
+      "version": "1",
+      "capabilities": ["tcp_reachability", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"]
+    },
+    {
+      "kind": "jmx",
+      "version": "1",
+      "capabilities": ["tcp_reachability", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"]
+    },
+    {
+      "kind": "nginx",
+      "version": "1",
+      "capabilities": ["http", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags"]
+    },
+    {
+      "kind": "apache",
+      "version": "1",
+      "capabilities": ["http", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags"]
+    },
+    {
+      "kind": "iis_wmi",
+      "version": "1",
+      "capabilities": ["tcp_reachability", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags", "credentials_ref"]
+    },
+    {
+      "kind": "windows_service",
+      "version": "1",
+      "capabilities": ["tcp_reachability", "service_check"],
+      "config_schema": ["target", "timeout_ms", "tags"]
+    }
+  ]
+}

@@ -206,6 +206,22 @@ RBAC minimo: leitura de `nodes`, `pods` e `events`. Nao conceder `secrets`, `exe
 
 Rollback: `helm uninstall aiceberg-agent -n aiceberg`, `kubectl delete -f deploy/kubernetes/aiceberg-agent.yaml` ou config remota `kubernetes.enabled=false`. Nao ha SQL do PKG-65.
 
+### PKG-66 - Runtime de checks locais
+
+Contrato tecnico: `docs/pkg66_local_checks.md`.
+
+Configuracoes locais:
+
+- `LOCAL_CHECKS_ENABLED=true`;
+- `LOCAL_CHECKS_INTERVAL=30`;
+- `LOCAL_CHECKS_MAX_CHECKS=100`;
+- `LOCAL_CHECKS_MAX_BYTES=1048576`;
+- `LOCAL_CHECKS_JSON=[...]`.
+
+Tipos permitidos: `http`, `tcp`, `openmetrics`, `jmx`, `postgresql`, `mysql`, `redis`, `nginx`, `apache`, `iis_wmi`, `windows_service`.
+
+Rollback: definir `LOCAL_CHECKS_ENABLED=false` ou config remota `local_checks.enabled=false`. Nao ha SQL do PKG-66.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.

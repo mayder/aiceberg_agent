@@ -64,5 +64,6 @@ Depois edite `/etc/aiceberg/agent.env` para definir `AGENT_TOKEN` e demais vari�
 - OTLP inicial: habilite com `OTLP_ENABLED=true`. O receiver HTTP/JSON local usa `OTLP_HTTP_ADDR` e aceita `/v1/metrics`, `/v1/logs` e `/v1/traces`.
 - Containers Docker: habilite com `CONTAINER_ENABLED=true` e conceda acesso ao socket definido em `CONTAINER_DOCKER_SOCKET`. Labels sensiveis sao mascaradas; env vars e volumes nao sao coletados.
 - Kubernetes: use `deploy/kubernetes/aiceberg-agent.yaml` ou o chart `deploy/helm/aiceberg-agent`. Crie antes o secret `aiceberg-agent` com a chave `token`. O RBAC padrao e somente leitura para nodes, pods e events.
+- Checks locais: habilite com `LOCAL_CHECKS_ENABLED=true` e envie `LOCAL_CHECKS_JSON` ou config remota `local_checks`. Tipos permitidos nao executam shell arbitrario.
 - O token fica salvo localmente para sobrevivência a reboot/upgrade.
 - Em caso de bloqueio de rede, permitir tráfego HTTPS de saída para `api.aiceberg.com.br`. Log local: veja o diretório de dados/logs citado acima.

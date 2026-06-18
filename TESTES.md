@@ -415,6 +415,12 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 - Validacao documental: `deploy/kubernetes/aiceberg-agent.yaml`, Helm chart, RBAC minimo e rollback documentados.
 - Validacao real pendente para PKG-69: cluster controlado, DaemonSet rodando em nodes, eventos reais, upgrade/rollback Helm, logs de pod e uso real via Metrics API/kubelet.
 
+### PKG-66 - Checks locais
+
+- Unitario focado: `go test ./internal/platform/collectors/localchecks ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.
+- Cobertura local: HTTP, TCP, OpenMetrics, tipo nao permitido, timeout por contexto e redaction de credenciais.
+- Validacao real pendente para PKG-69/PKG-71: apps reais, bancos reais, JMX real, IIS/WMI real e ponte automatica com autodiscovery Kubernetes.
+
 ## Politica minima de testes
 
 - Unitário: validar regra de negocio, casos de erro e limites sem depender de rede, banco real ou UI.

@@ -18,6 +18,19 @@ type AgentCfg struct {
 	Token    string `json:"token"`
 }
 
+type LocalCheckConfig struct {
+	ID             string            `json:"id,omitempty"`
+	Kind           string            `json:"kind,omitempty"`
+	Version        string            `json:"version,omitempty"`
+	IntervalSec    int               `json:"interval,omitempty"`
+	TimeoutMs      int               `json:"timeout_ms,omitempty"`
+	Tags           []string          `json:"tags,omitempty"`
+	Target         string            `json:"target,omitempty"`
+	CredentialsRef string            `json:"credentials_ref,omitempty"`
+	Config         map[string]string `json:"config,omitempty"`
+	Enabled        bool              `json:"enabled,omitempty"`
+}
+
 type Config struct {
 	Agent                    AgentCfg
 	APIBaseURL               string
@@ -79,6 +92,11 @@ type Config struct {
 	KubernetesInterval       time.Duration
 	KubernetesMaxItems       int
 	KubernetesMaxEvents      int
+	LocalChecksEnabled       bool
+	LocalChecksInterval      time.Duration
+	LocalChecksMaxChecks     int
+	LocalChecksMaxBytes      int
+	LocalChecks              []LocalCheckConfig
 	AgentlessEnabled         bool
 	AgentlessPollInterval    time.Duration
 	AgentlessFlushInterval   time.Duration
@@ -103,85 +121,102 @@ type Config struct {
 	AgentIdentitySecret      string
 }
 
+func parseLocalChecks(raw string) []LocalCheckConfig {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var checks []LocalCheckConfig
+	if err := json.Unmarshal([]byte(raw), &checks); err == nil {
+		return checks
+	}
+	return nil
+}
+
 type CollectPrefs struct {
-	Version                    string   `json:"version,omitempty"`
-	Paused                     bool     `json:"paused,omitempty"`
-	CPU                        bool     `json:"cpu"`
-	Memory                     bool     `json:"memory"`
-	Disk                       bool     `json:"disk"`
-	Network                    bool     `json:"network"`
-	NetActive                  bool     `json:"net_active"`
-	Host                       bool     `json:"host"`
-	Sensors                    bool     `json:"sensors"`
-	Power                      bool     `json:"power"`
-	Sanity                     bool     `json:"sanity"`
-	GPU                        bool     `json:"gpu"`
-	Services                   bool     `json:"services"`
-	TimeSync                   bool     `json:"time_sync"`
-	Logs                       bool     `json:"logs"`
-	Updates                    bool     `json:"updates"`
-	Agent                      bool     `json:"agent"`
-	Processes                  bool     `json:"processes"`
-	Vulns                      bool     `json:"vulns"`
-	Inventory                  bool     `json:"inventory"`
-	OSLogEnrich                bool     `json:"oslog_enrich"`
-	OSLogDetections            bool     `json:"oslog_detections"`
-	OSLogDiag                  bool     `json:"oslog_diag"`
-	OSLogWinChannels           bool     `json:"oslog_win_channels"`
-	OSLogFiles                 bool     `json:"oslog_files"`
-	CollectNow                 []string `json:"collect_now,omitempty"`
-	CVESignaturesURL           string   `json:"cve_signatures_url,omitempty"`
-	OSLogWinChList             []string `json:"oslog_win_channels_list,omitempty"`
-	OSLogFilesList             []string `json:"oslog_files_list,omitempty"`
-	OSLogBatchLines            int      `json:"oslog_batch_lines,omitempty"`
-	OSLogMaxBytes              int      `json:"oslog_max_bytes,omitempty"`
-	OSLogIntervalSec           int      `json:"oslog_interval,omitempty"`
-	OSLogIncludeRegex          string   `json:"oslog_include_regex,omitempty"`
-	OSLogExcludeRegex          string   `json:"oslog_exclude_regex,omitempty"`
-	OSLogMinSeverity           string   `json:"oslog_min_severity,omitempty"`
-	CustomMetricsEnabled       bool     `json:"custom_metrics_enabled,omitempty"`
-	CustomMetricsUDPAddr       string   `json:"custom_metrics_udp_addr,omitempty"`
-	CustomMetricsHTTPAddr      string   `json:"custom_metrics_http_addr,omitempty"`
-	CustomMetricsIntervalSec   int      `json:"custom_metrics_interval,omitempty"`
-	CustomMetricsMaxSeries     int      `json:"custom_metrics_max_series,omitempty"`
-	CustomMetricsMaxBytes      int      `json:"custom_metrics_max_bytes,omitempty"`
-	OTLPEnabled                bool     `json:"otlp_enabled,omitempty"`
-	OTLPHTTPAddr               string   `json:"otlp_http_addr,omitempty"`
-	OTLPIntervalSec            int      `json:"otlp_interval,omitempty"`
-	OTLPMaxItems               int      `json:"otlp_max_items,omitempty"`
-	OTLPMaxBytes               int      `json:"otlp_max_bytes,omitempty"`
-	ContainerEnabled           bool     `json:"container_enabled,omitempty"`
-	ContainerDockerSocket      string   `json:"container_docker_socket,omitempty"`
-	ContainerIntervalSec       int      `json:"container_interval,omitempty"`
-	ContainerMaxItems          int      `json:"container_max_items,omitempty"`
-	KubernetesEnabled          bool     `json:"kubernetes_enabled,omitempty"`
-	KubernetesAPIURL           string   `json:"kubernetes_api_url,omitempty"`
-	KubernetesTokenPath        string   `json:"kubernetes_token_path,omitempty"`
-	KubernetesCAPath           string   `json:"kubernetes_ca_path,omitempty"`
-	KubernetesNodeName         string   `json:"kubernetes_node_name,omitempty"`
-	KubernetesNamespace        string   `json:"kubernetes_namespace,omitempty"`
-	KubernetesIntervalSec      int      `json:"kubernetes_interval,omitempty"`
-	KubernetesMaxItems         int      `json:"kubernetes_max_items,omitempty"`
-	KubernetesMaxEvents        int      `json:"kubernetes_max_events,omitempty"`
-	AgentlessEnabled           bool     `json:"agentless_enabled,omitempty"`
-	AgentlessPollSec           int      `json:"agentless_poll_interval,omitempty"`
-	AgentlessFlushSec          int      `json:"agentless_flush_interval,omitempty"`
-	AgentlessJobsLimit         int      `json:"agentless_jobs_limit,omitempty"`
-	AgentlessLockSec           int      `json:"agentless_lock_sec,omitempty"`
-	AgentlessFlushBatch        int      `json:"agentless_flush_batch,omitempty"`
-	NetworkPassiveMode         string   `json:"network_passive_mode,omitempty"`
-	NetworkCaptureWindowSec    int      `json:"network_capture_window_sec,omitempty"`
-	NetworkCaptureSampleSec    int      `json:"network_capture_sample_sec,omitempty"`
-	NetworkCaptureMaxFlows     int      `json:"network_capture_max_flows,omitempty"`
-	NetworkCaptureMaxPeers     int      `json:"network_capture_max_peers,omitempty"`
-	NetworkCaptureMaxListeners int      `json:"network_capture_max_listeners,omitempty"`
-	NetworkCaptureTimeoutMs    int      `json:"network_capture_timeout_ms,omitempty"`
-	NetworkPCAPEnabled         bool     `json:"network_pcap_enabled,omitempty"`
-	NetworkPCAPIface           string   `json:"network_pcap_iface,omitempty"`
-	NetworkPCAPDurationSec     int      `json:"network_pcap_duration_sec,omitempty"`
-	NetworkPCAPMaxPackets      int      `json:"network_pcap_max_packets,omitempty"`
-	NetworkExternalSources     []string `json:"network_external_sources,omitempty"`
-	NetworkExternalMaxRecords  int      `json:"network_external_max_records,omitempty"`
+	Version                    string             `json:"version,omitempty"`
+	Paused                     bool               `json:"paused,omitempty"`
+	CPU                        bool               `json:"cpu"`
+	Memory                     bool               `json:"memory"`
+	Disk                       bool               `json:"disk"`
+	Network                    bool               `json:"network"`
+	NetActive                  bool               `json:"net_active"`
+	Host                       bool               `json:"host"`
+	Sensors                    bool               `json:"sensors"`
+	Power                      bool               `json:"power"`
+	Sanity                     bool               `json:"sanity"`
+	GPU                        bool               `json:"gpu"`
+	Services                   bool               `json:"services"`
+	TimeSync                   bool               `json:"time_sync"`
+	Logs                       bool               `json:"logs"`
+	Updates                    bool               `json:"updates"`
+	Agent                      bool               `json:"agent"`
+	Processes                  bool               `json:"processes"`
+	Vulns                      bool               `json:"vulns"`
+	Inventory                  bool               `json:"inventory"`
+	OSLogEnrich                bool               `json:"oslog_enrich"`
+	OSLogDetections            bool               `json:"oslog_detections"`
+	OSLogDiag                  bool               `json:"oslog_diag"`
+	OSLogWinChannels           bool               `json:"oslog_win_channels"`
+	OSLogFiles                 bool               `json:"oslog_files"`
+	CollectNow                 []string           `json:"collect_now,omitempty"`
+	CVESignaturesURL           string             `json:"cve_signatures_url,omitempty"`
+	OSLogWinChList             []string           `json:"oslog_win_channels_list,omitempty"`
+	OSLogFilesList             []string           `json:"oslog_files_list,omitempty"`
+	OSLogBatchLines            int                `json:"oslog_batch_lines,omitempty"`
+	OSLogMaxBytes              int                `json:"oslog_max_bytes,omitempty"`
+	OSLogIntervalSec           int                `json:"oslog_interval,omitempty"`
+	OSLogIncludeRegex          string             `json:"oslog_include_regex,omitempty"`
+	OSLogExcludeRegex          string             `json:"oslog_exclude_regex,omitempty"`
+	OSLogMinSeverity           string             `json:"oslog_min_severity,omitempty"`
+	CustomMetricsEnabled       bool               `json:"custom_metrics_enabled,omitempty"`
+	CustomMetricsUDPAddr       string             `json:"custom_metrics_udp_addr,omitempty"`
+	CustomMetricsHTTPAddr      string             `json:"custom_metrics_http_addr,omitempty"`
+	CustomMetricsIntervalSec   int                `json:"custom_metrics_interval,omitempty"`
+	CustomMetricsMaxSeries     int                `json:"custom_metrics_max_series,omitempty"`
+	CustomMetricsMaxBytes      int                `json:"custom_metrics_max_bytes,omitempty"`
+	OTLPEnabled                bool               `json:"otlp_enabled,omitempty"`
+	OTLPHTTPAddr               string             `json:"otlp_http_addr,omitempty"`
+	OTLPIntervalSec            int                `json:"otlp_interval,omitempty"`
+	OTLPMaxItems               int                `json:"otlp_max_items,omitempty"`
+	OTLPMaxBytes               int                `json:"otlp_max_bytes,omitempty"`
+	ContainerEnabled           bool               `json:"container_enabled,omitempty"`
+	ContainerDockerSocket      string             `json:"container_docker_socket,omitempty"`
+	ContainerIntervalSec       int                `json:"container_interval,omitempty"`
+	ContainerMaxItems          int                `json:"container_max_items,omitempty"`
+	KubernetesEnabled          bool               `json:"kubernetes_enabled,omitempty"`
+	KubernetesAPIURL           string             `json:"kubernetes_api_url,omitempty"`
+	KubernetesTokenPath        string             `json:"kubernetes_token_path,omitempty"`
+	KubernetesCAPath           string             `json:"kubernetes_ca_path,omitempty"`
+	KubernetesNodeName         string             `json:"kubernetes_node_name,omitempty"`
+	KubernetesNamespace        string             `json:"kubernetes_namespace,omitempty"`
+	KubernetesIntervalSec      int                `json:"kubernetes_interval,omitempty"`
+	KubernetesMaxItems         int                `json:"kubernetes_max_items,omitempty"`
+	KubernetesMaxEvents        int                `json:"kubernetes_max_events,omitempty"`
+	LocalChecksEnabled         bool               `json:"local_checks_enabled,omitempty"`
+	LocalChecksIntervalSec     int                `json:"local_checks_interval,omitempty"`
+	LocalChecksMaxChecks       int                `json:"local_checks_max_checks,omitempty"`
+	LocalChecksMaxBytes        int                `json:"local_checks_max_bytes,omitempty"`
+	LocalChecks                []LocalCheckConfig `json:"local_checks,omitempty"`
+	AgentlessEnabled           bool               `json:"agentless_enabled,omitempty"`
+	AgentlessPollSec           int                `json:"agentless_poll_interval,omitempty"`
+	AgentlessFlushSec          int                `json:"agentless_flush_interval,omitempty"`
+	AgentlessJobsLimit         int                `json:"agentless_jobs_limit,omitempty"`
+	AgentlessLockSec           int                `json:"agentless_lock_sec,omitempty"`
+	AgentlessFlushBatch        int                `json:"agentless_flush_batch,omitempty"`
+	NetworkPassiveMode         string             `json:"network_passive_mode,omitempty"`
+	NetworkCaptureWindowSec    int                `json:"network_capture_window_sec,omitempty"`
+	NetworkCaptureSampleSec    int                `json:"network_capture_sample_sec,omitempty"`
+	NetworkCaptureMaxFlows     int                `json:"network_capture_max_flows,omitempty"`
+	NetworkCaptureMaxPeers     int                `json:"network_capture_max_peers,omitempty"`
+	NetworkCaptureMaxListeners int                `json:"network_capture_max_listeners,omitempty"`
+	NetworkCaptureTimeoutMs    int                `json:"network_capture_timeout_ms,omitempty"`
+	NetworkPCAPEnabled         bool               `json:"network_pcap_enabled,omitempty"`
+	NetworkPCAPIface           string             `json:"network_pcap_iface,omitempty"`
+	NetworkPCAPDurationSec     int                `json:"network_pcap_duration_sec,omitempty"`
+	NetworkPCAPMaxPackets      int                `json:"network_pcap_max_packets,omitempty"`
+	NetworkExternalSources     []string           `json:"network_external_sources,omitempty"`
+	NetworkExternalMaxRecords  int                `json:"network_external_max_records,omitempty"`
 }
 
 func Load(configPath string) (Config, error) {
@@ -265,6 +300,11 @@ func Load(configPath string) (Config, error) {
 		KubernetesInterval:     time.Duration(intEnv("KUBERNETES_INTERVAL", 30)) * time.Second,
 		KubernetesMaxItems:     intEnv("KUBERNETES_MAX_ITEMS", 500),
 		KubernetesMaxEvents:    intEnv("KUBERNETES_MAX_EVENTS", 100),
+		LocalChecksEnabled:     strings.ToLower(getenv("LOCAL_CHECKS_ENABLED", "")) == "true",
+		LocalChecksInterval:    time.Duration(intEnv("LOCAL_CHECKS_INTERVAL", 30)) * time.Second,
+		LocalChecksMaxChecks:   intEnv("LOCAL_CHECKS_MAX_CHECKS", 100),
+		LocalChecksMaxBytes:    intEnv("LOCAL_CHECKS_MAX_BYTES", 1024*1024),
+		LocalChecks:            parseLocalChecks(getenv("LOCAL_CHECKS_JSON", "")),
 		AgentlessEnabled:       strings.ToLower(getenv("AGENTLESS_ENABLED", "true")) == "true",
 		AgentlessOutboxPath:    getenv("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"),
 		AgentlessOutboxMaxMB:   intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),

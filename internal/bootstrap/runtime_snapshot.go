@@ -74,6 +74,7 @@ func runtimeCollectorSpecs(cfg config.Config) []agentruntime.CollectorSpec {
 		{Name: "otlp_traces", Version: "1-http-json", Endpoint: "/v1/ingest/metrics", Interval: cfg.OTLPInterval, Priority: 16},
 		{Name: "containers", Version: "1-docker-socket", Endpoint: "/v1/ingest/metrics", Interval: cfg.ContainerInterval, Priority: 18},
 		{Name: "kubernetes", Version: "1-api", Endpoint: "/v1/ingest/metrics", Interval: cfg.KubernetesInterval, Priority: 19},
+		{Name: "localchecks", Version: "1-safe-allowlist", Endpoint: "/v1/ingest/metrics", Interval: cfg.LocalChecksInterval, Priority: 19},
 		{Name: "networkcapture", Version: "legacy-compatible", Endpoint: "/v1/ingest/network_capture", Interval: 10 * time.Second, Priority: 20},
 		{Name: "oslogs", Version: "legacy-compatible", Endpoint: "/v1/logs/raw", Interval: cfg.OSLogInterval, Priority: 20},
 	}
@@ -102,6 +103,9 @@ func sanitizePrefsSnapshot(p config.CollectPrefs) map[string]any {
 		"kubernetes_interval":       p.KubernetesIntervalSec,
 		"kubernetes_max_items":      p.KubernetesMaxItems,
 		"kubernetes_max_events":     p.KubernetesMaxEvents,
+		"local_checks_enabled":      p.LocalChecksEnabled,
+		"local_checks_interval":     p.LocalChecksIntervalSec,
+		"local_checks_max_checks":   p.LocalChecksMaxChecks,
 		"network_passive_mode":      strings.TrimSpace(p.NetworkPassiveMode),
 		"collect_flags": map[string]bool{
 			"cpu":        p.CPU,
@@ -175,7 +179,40 @@ func buildAgentEnvSnapshot(cfg config.Config) map[string]any {
 			"max_items":    cfg.KubernetesMaxItems,
 			"max_events":   cfg.KubernetesMaxEvents,
 		},
+		"local_checks": map[string]any{
+			"enabled":    cfg.LocalChecksEnabled,
+			"interval":   int(cfg.LocalChecksInterval.Seconds()),
+			"max_checks": cfg.LocalChecksMaxChecks,
+			"max_bytes":  cfg.LocalChecksMaxBytes,
+			"checks":     sanitizeLocalCheckConfigs(cfg.LocalChecks),
+		},
 	}
+}
+
+func sanitizeLocalCheckConfigs(checks []config.LocalCheckConfig) []map[string]any {
+	out := make([]map[string]any, 0, len(checks))
+	for _, check := range checks {
+		out = append(out, map[string]any{
+			"id":          strings.TrimSpace(check.ID),
+			"kind":        strings.TrimSpace(check.Kind),
+			"version":     strings.TrimSpace(check.Version),
+			"interval":    check.IntervalSec,
+			"timeout_ms":  check.TimeoutMs,
+			"tags":        check.Tags,
+			"target":      sanitizeLocalCheckTarget(check.Target),
+			"credentials": strings.TrimSpace(check.CredentialsRef) != "",
+			"enabled":     check.Enabled,
+		})
+	}
+	return out
+}
+
+func sanitizeLocalCheckTarget(target string) string {
+	target = strings.TrimSpace(target)
+	if idx := strings.Index(target, "?"); idx >= 0 {
+		return target[:idx] + "?[redacted]"
+	}
+	return target
 }
 
 func resolveAgentEnvPath() string {
@@ -417,6 +454,7 @@ func isEnvAllowlisted(key string) bool {
 		"OTLP_",
 		"CONTAINER_",
 		"KUBERNETES_",
+		"LOCAL_CHECKS_",
 		"LOG_",
 		"HEALTH_",
 		"TLS_",
