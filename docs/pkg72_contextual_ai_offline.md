@@ -12,7 +12,7 @@ Campos principais:
 
 - `host_evidence`: fontes resumidas, lacunas e política de anexo NOC/SOC;
 - `local_ai`: regras determinísticas locais, sem LLM obrigatório e sem ação destrutiva;
-- `offline_first`: outbox, idempotência, HUB/relay/proxy e suporte flare;
+- `offline_first`: outbox, idempotência, compressão, retenção local, HUB/relay/proxy e export local assinado por integridade;
 - `privacy`: perfil `standard|sensitive|minimal`, modo sensível e coletores minimizados;
 - `agent_agentless`: estratégia de correlação entre agente e agentless;
 - `superiority_benchmark`: trava explícita para impedir claim sem evidência.
@@ -43,11 +43,16 @@ O snapshot expõe apenas estado e lacunas. Não inclui senha, token, payload com
 O agente já usa outbox local e idempotência HTTP. O bloco `offline_first` torna isso auditável no snapshot com:
 
 - path configurado da outbox;
-- limite local em MB;
-- idempotência HTTP;
+- limite local em MB da outbox do agente e do agentless;
+- idempotência HTTP para replay;
+- suporte a compressão quando `HTTP_GZIP=true`;
+- política local de retenção e flush;
 - modo HUB/relay;
 - proxy configurado;
-- export de suporte via flare sanitizado.
+- export de suporte via flare sanitizado;
+- assinatura de integridade SHA256 sobre evidência offline sanitizada.
+
+A assinatura local é controle de integridade do snapshot sanitizado. Ela não substitui assinatura remota com chave/PKI nem libera claim de superioridade.
 
 ## Agent + Agentless
 
@@ -71,11 +76,13 @@ Cobertura:
 - decisão destrutiva bloqueada;
 - perfil de privacidade sensível refletido;
 - claim de superioridade bloqueado sem benchmark.
+- offline-first expõe retenção, replay idempotente, compressão e export local assinado.
 
 ## Pendências reais
 
 - incidente NOC/SOC real com evidência host + agentless;
 - replay 24h offline sem duplicação relevante;
+- assinatura remota com chave/PKI, se for exigida para suporte externo;
 - cliente regulado com coleta reduzida;
 - comparação de ruído/custo antes e depois;
 - benchmark com Datadog por cenário;

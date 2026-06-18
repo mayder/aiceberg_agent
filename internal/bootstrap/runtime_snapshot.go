@@ -97,14 +97,7 @@ func buildContextualEvidenceSnapshot(
 				"agent_agentless_divergence",
 			},
 		},
-		"offline_first": map[string]any{
-			"outbox_path_configured": strings.TrimSpace(cfg.OutboxPath) != "",
-			"outbox_max_mb":          cfg.OutboxMaxMB,
-			"http_idempotency":       cfg.HTTPIdempotency,
-			"hub_or_relay_mode":      mode == "hub" || mode == "relay",
-			"proxy_configured":       proxyConfigured(),
-			"local_export_support":   "support_flare_redacted",
-		},
+		"offline_first": buildOfflineFirstEvidence(cfg, mode, settings),
 		"privacy": map[string]any{
 			"profile":              privacyProfile(),
 			"sensitive_mode":       sensitiveModeEnabled(),
@@ -131,6 +124,49 @@ func buildContextualEvidenceSnapshot(
 			},
 		},
 	}
+}
+
+func buildOfflineFirstEvidence(cfg config.Config, mode string, settings usecase.AgentlessSettings) map[string]any {
+	return map[string]any{
+		"outbox_path_configured":  strings.TrimSpace(cfg.OutboxPath) != "",
+		"outbox_max_mb":           cfg.OutboxMaxMB,
+		"agentless_outbox_max_mb": cfg.AgentlessOutboxMaxMB,
+		"http_idempotency":        cfg.HTTPIdempotency,
+		"compression_supported":   cfg.HTTPGzip,
+		"hub_or_relay_mode":       mode == "hub" || mode == "relay",
+		"proxy_configured":        proxyConfigured(),
+		"retention_policy": map[string]any{
+			"local_outbox_max_mb":     cfg.OutboxMaxMB,
+			"agentless_outbox_max_mb": cfg.AgentlessOutboxMaxMB,
+			"flush_batch":             cfg.OutboxFlushBatch,
+			"flush_interval_sec":      int64(cfg.OutboxFlushInterval.Seconds()),
+			"agentless_flush_batch":   settings.FlushBatch,
+			"idempotent_replay":       cfg.HTTPIdempotency,
+		},
+		"local_export": map[string]any{
+			"format":              "support_flare_redacted_json",
+			"signed":              true,
+			"signature_algorithm": "sha256",
+			"signature_scope":     "sanitized_runtime_offline_evidence",
+			"signature":           offlineFirstSignature(cfg, mode, settings),
+		},
+		"local_export_support": "support_flare_redacted",
+	}
+}
+
+func offlineFirstSignature(cfg config.Config, mode string, settings usecase.AgentlessSettings) string {
+	payload := map[string]any{
+		"agent_pipeline_version":  agentruntime.PipelineVersion,
+		"agentless_flush_batch":   settings.FlushBatch,
+		"agentless_outbox_max_mb": cfg.AgentlessOutboxMaxMB,
+		"compression_supported":   cfg.HTTPGzip,
+		"flush_batch":             cfg.OutboxFlushBatch,
+		"flush_interval_sec":      int64(cfg.OutboxFlushInterval.Seconds()),
+		"http_idempotency":        cfg.HTTPIdempotency,
+		"mode":                    mode,
+		"outbox_max_mb":           cfg.OutboxMaxMB,
+	}
+	return hashMap(payload)
 }
 
 func contextualEvidenceGaps(prefs config.CollectPrefs, settings usecase.AgentlessSettings, workerAvailable bool) []string {

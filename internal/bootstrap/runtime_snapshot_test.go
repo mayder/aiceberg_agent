@@ -57,10 +57,16 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 		HubListenAddr:        ":9090",
 		SkipBootstrap:        true,
 		SelfHealPollInterval: 30 * time.Second,
+		HTTPGzip:             true,
+		HTTPIdempotency:      true,
+		OutboxFlushBatch:     77,
+		OutboxFlushInterval:  12 * time.Second,
+		OutboxMaxMB:          200,
 		AgentlessEnabled:     true,
 		PrefsPath:            prefsPath,
 		OutboxPath:           outboxPath,
 		AgentlessOutboxPath:  agentlessOutboxPath,
+		AgentlessOutboxMaxMB: 55,
 	}
 	prefs := config.CollectPrefs{
 		Version:            "cfg-v42",
@@ -171,6 +177,28 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 	}
 	if privacy["profile"] != "sensitive" || privacy["sensitive_mode"] != true {
 		t.Fatalf("unexpected privacy evidence: %#v", privacy)
+	}
+	offline, ok := evidence["offline_first"].(map[string]any)
+	if !ok {
+		t.Fatalf("offline_first missing: %#v", evidence)
+	}
+	if offline["compression_supported"] != true || offline["http_idempotency"] != true {
+		t.Fatalf("offline evidence must expose compression and idempotent replay: %#v", offline)
+	}
+	retention, ok := offline["retention_policy"].(map[string]any)
+	if !ok {
+		t.Fatalf("retention_policy missing: %#v", offline)
+	}
+	if retention["local_outbox_max_mb"] != 200 || retention["agentless_outbox_max_mb"] != 55 || retention["flush_batch"] != 77 {
+		t.Fatalf("unexpected retention policy: %#v", retention)
+	}
+	localExport, ok := offline["local_export"].(map[string]any)
+	if !ok {
+		t.Fatalf("local_export missing: %#v", offline)
+	}
+	signature := fmt.Sprint(localExport["signature"])
+	if localExport["signed"] != true || localExport["signature_algorithm"] != "sha256" || len(signature) != 64 {
+		t.Fatalf("local export should include deterministic sha256 signature: %#v", localExport)
 	}
 	benchmark, ok := evidence["superiority_benchmark"].(map[string]any)
 	if !ok {
