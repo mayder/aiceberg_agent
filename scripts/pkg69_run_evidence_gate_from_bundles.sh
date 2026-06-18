@@ -96,6 +96,7 @@ verify_bundle_manifest() {
   local expected_evidence_bytes
   local expected_artifact_sha
   local expected_artifact_bytes
+  local expected_created_at_utc
   local actual_evidence_sha
   local actual_evidence_bytes
   local line_count
@@ -119,6 +120,12 @@ verify_bundle_manifest() {
   expected_evidence_bytes="$(manifest_field "$manifest" 4)"
   expected_artifact_sha="$(manifest_field "$manifest" 6)"
   expected_artifact_bytes="$(manifest_field "$manifest" 7)"
+  expected_created_at_utc="$(manifest_field "$manifest" 8)"
+
+  if [[ ! "$expected_created_at_utc" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
+    echo "bundle manifest created_at_utc must use YYYYMMDDTHHMMSSZ: $manifest" >&2
+    exit 78
+  fi
 
   actual_evidence_sha="$(file_sha256 "$evidence")"
   actual_evidence_bytes="$(file_size_bytes "$evidence")"

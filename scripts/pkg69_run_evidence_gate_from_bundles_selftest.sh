@@ -126,6 +126,21 @@ if [[ "$extra_row_exit" -eq 0 ]]; then
 fi
 assert_contains "$TMP_DIR/extra-row.err" "bundle manifest must contain exactly one evidence row"
 
+mkdir -p "$TMP_DIR/bundles-invalid-created"
+cp -R "$TMP_DIR/bundles/relay" "$TMP_DIR/bundles-invalid-created/relay"
+awk -F '\t' 'BEGIN { OFS="\t" } NR == 2 { $8 = "2026-06-18T00:00:00Z" } { print }' \
+  "$TMP_DIR/bundles-invalid-created/relay/MANIFEST.tsv" >"$TMP_DIR/bundles-invalid-created/relay/MANIFEST.tsv.tmp"
+mv "$TMP_DIR/bundles-invalid-created/relay/MANIFEST.tsv.tmp" "$TMP_DIR/bundles-invalid-created/relay/MANIFEST.tsv"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/bundles-invalid-created/relay" >/dev/null 2>"$TMP_DIR/invalid-created.err"
+invalid_created_exit=$?
+set -e
+if [[ "$invalid_created_exit" -eq 0 ]]; then
+  echo "expected invalid created_at_utc bundle to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/invalid-created.err" "bundle manifest created_at_utc must use YYYYMMDDTHHMMSSZ"
+
 set +e
 PKG69_EVIDENCE_FILE="$TMP_DIR/required.md" \
 PKG69_REQUIRE_REAL_EVIDENCE=true \
