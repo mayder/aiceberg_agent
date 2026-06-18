@@ -33,6 +33,9 @@ fill_template() {
      s/- container_logs_seen: selftest/- container_logs_seen: 1/g;
      s/- pods_seen: selftest/- pods_seen: 1/g;
      s/- events_seen: selftest/- events_seen: 1/g;
+     s/- secrets_allowed: selftest/- secrets_allowed: no/g;
+     s/- exec_allowed: selftest/- exec_allowed: no/g;
+     s/- delete_allowed: selftest/- delete_allowed: no/g;
      s/- requests_ok: selftest/- requests_ok: 1/g;
      s/- requests_failed_expected: selftest/- requests_failed_expected: 1/g;
      s/- retry_count: selftest/- retry_count: 1/g;
@@ -103,6 +106,14 @@ cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-no-approval.md
 fill_template "$TMP_DIR/relay-no-approval.md" "pass"
 perl -0pi -e 's/- Aprovacao fechamento: yes/- Aprovacao fechamento: no/' "$TMP_DIR/relay-no-approval.md"
 
+cp "$TMP_DIR/templates/high_volume_overhead.md" "$TMP_DIR/high-volume-over-limit.md"
+fill_template "$TMP_DIR/high-volume-over-limit.md" "pass"
+perl -0pi -e 's/- proc_cpu_percent: 1/- proc_cpu_percent: 16/' "$TMP_DIR/high-volume-over-limit.md"
+
+cp "$TMP_DIR/templates/kubernetes_rbac.md" "$TMP_DIR/kubernetes-secrets-allowed.md"
+fill_template "$TMP_DIR/kubernetes-secrets-allowed.md" "pass"
+perl -0pi -e 's/- secrets_allowed: no/- secrets_allowed: yes/' "$TMP_DIR/kubernetes-secrets-allowed.md"
+
 PKG69_EVIDENCE_FILE="$TMP_DIR/correct-slot.md" \
 PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/correct-slot.tsv" \
 PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-pass.md" \
@@ -140,6 +151,18 @@ PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-direct-attempts.md" \
 scripts/pkg69_operational_evidence_gate.sh >/dev/null
 assert_contains "$TMP_DIR/relay-direct-attempts.md.out" "relay-hub-direct-hosts: invalid-template"
 assert_contains "$TMP_DIR/relay-direct-attempts.md.out" "reason=field relay_direct_api_attempts must be 0"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/high-volume-over-limit.md.out" \
+PKG69_HIGH_VOLUME_EVIDENCE="$TMP_DIR/high-volume-over-limit.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/high-volume-over-limit.md.out" "high-volume-overhead: invalid-template"
+assert_contains "$TMP_DIR/high-volume-over-limit.md.out" "reason=field proc_cpu_percent must be <= 15"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/kubernetes-secrets-allowed.md.out" \
+PKG69_KUBERNETES_RBAC_EVIDENCE="$TMP_DIR/kubernetes-secrets-allowed.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/kubernetes-secrets-allowed.md.out" "kubernetes-rbac: invalid-template"
+assert_contains "$TMP_DIR/kubernetes-secrets-allowed.md.out" "reason=field secrets_allowed must be no"
 
 mkdir -p "$TMP_DIR/all"
 cp "$TMP_DIR/templates/"*.md "$TMP_DIR/all/"

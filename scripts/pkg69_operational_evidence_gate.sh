@@ -88,6 +88,23 @@ require_number_field() {
   return 1
 }
 
+require_number_max_field() {
+  local path="$1"
+  local field="$2"
+  local max="$3"
+  local value
+  value="$(field_value "$path" "$field")"
+  if ! [[ "$value" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    echo "field $field must be numeric"
+    return 0
+  fi
+  if ! awk -v value="$value" -v max="$max" 'BEGIN { exit(value <= max ? 0 : 1) }'; then
+    echo "field $field must be <= $max"
+    return 0
+  fi
+  return 1
+}
+
 scenario_incomplete_reason() {
   local path="$1"
   local expected_title="$2"
@@ -95,20 +112,27 @@ scenario_incomplete_reason() {
   case "$expected_title" in
     "PKG-69 - Windows Server"|"PKG-69 - Linux Debian Ubuntu"|"PKG-69 - Linux RHEL Alma Rocky")
       if reason="$(require_bool_field "$path" "ingest_confirmed")"; then echo "$reason"; return 0; fi
-      if reason="$(require_number_field "$path" "proc_cpu_percent")"; then echo "$reason"; return 0; fi
-      if reason="$(require_number_field "$path" "proc_rss_bytes")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_max_field "$path" "proc_cpu_percent" "5")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_max_field "$path" "proc_rss_bytes" "262144000")"; then echo "$reason"; return 0; fi
       ;;
     "PKG-69 - Windows Desktop")
       if reason="$(require_bool_field "$path" "ingest_confirmed")"; then echo "$reason"; return 0; fi
-      if reason="$(require_number_field "$path" "proc_cpu_percent")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_max_field "$path" "proc_cpu_percent" "5")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_max_field "$path" "proc_rss_bytes" "262144000")"; then echo "$reason"; return 0; fi
       ;;
     "PKG-69 - Docker Runtime")
       if reason="$(require_number_field "$path" "containers_seen")"; then echo "$reason"; return 0; fi
-      if reason="$(require_number_field "$path" "proc_cpu_percent")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_max_field "$path" "proc_cpu_percent" "10")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_max_field "$path" "proc_rss_bytes" "419430400")"; then echo "$reason"; return 0; fi
       ;;
     "PKG-69 - Kubernetes RBAC")
       if reason="$(require_number_field "$path" "pods_seen")"; then echo "$reason"; return 0; fi
       if reason="$(require_number_field "$path" "events_seen")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_max_field "$path" "proc_cpu_percent" "10")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_max_field "$path" "proc_rss_bytes" "419430400")"; then echo "$reason"; return 0; fi
+      if reason="$(require_exact_field "$path" "secrets_allowed" "no")"; then echo "$reason"; return 0; fi
+      if reason="$(require_exact_field "$path" "exec_allowed" "no")"; then echo "$reason"; return 0; fi
+      if reason="$(require_exact_field "$path" "delete_allowed" "no")"; then echo "$reason"; return 0; fi
       ;;
     "PKG-69 - Proxy TLS")
       if reason="$(require_number_field "$path" "requests_ok")"; then echo "$reason"; return 0; fi
@@ -119,6 +143,7 @@ scenario_incomplete_reason() {
       ;;
     "PKG-69 - Permissao eBPF Restrita")
       if reason="$(require_bool_field "$path" "ingest_confirmed")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_max_field "$path" "proc_cpu_percent" "5")"; then echo "$reason"; return 0; fi
       ;;
     "PKG-69 - Reboot Durante Coleta")
       if reason="$(require_number_field "$path" "queued_before")"; then echo "$reason"; return 0; fi
@@ -128,7 +153,8 @@ scenario_incomplete_reason() {
       if reason="$(require_bool_field "$path" "recovered")"; then echo "$reason"; return 0; fi
       ;;
     "PKG-69 - Alto Volume e Overhead")
-      if reason="$(require_number_field "$path" "proc_cpu_percent")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_max_field "$path" "proc_cpu_percent" "15")"; then echo "$reason"; return 0; fi
+      if reason="$(require_number_max_field "$path" "proc_rss_bytes" "524288000")"; then echo "$reason"; return 0; fi
       if reason="$(require_number_field "$path" "accepted_count")"; then echo "$reason"; return 0; fi
       if reason="$(require_number_field "$path" "dropped_count")"; then echo "$reason"; return 0; fi
       ;;
@@ -323,7 +349,10 @@ generate_templates() {
     "- pods_seen:
 - events_seen:
 - proc_cpu_percent:
-- proc_rss_bytes:"
+- proc_rss_bytes:
+- secrets_allowed:
+- exec_allowed:
+- delete_allowed:"
   write_template "$TEMPLATE_DIR/proxy_tls.md" \
     "PKG-69 - Proxy TLS" \
     "Proxy/TLS controlado" \
