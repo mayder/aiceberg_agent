@@ -261,6 +261,37 @@ func TestApplyConfigPayloadAppliesWindowsEventLogFilters(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadAppliesLogProcessors(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	payload := ConfigPayload{
+		Version: "cfg-logs-processors",
+		Collect: config.CollectPrefs{
+			OSLogFiles: true,
+		},
+	}
+	payload.Logs.Processors = []config.LogProcessorConfig{
+		{Type: "drop", Pattern: "health"},
+		{Type: "route", Value: "security"},
+	}
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if len(got.OSLogProcessors) != 2 {
+		t.Fatalf("expected processors persisted, got %#v", got.OSLogProcessors)
+	}
+	if got.OSLogProcessors[0].Type != "drop" || got.OSLogProcessors[1].Value != "security" {
+		t.Fatalf("unexpected processors: %#v", got.OSLogProcessors)
+	}
+}
+
 func TestApplyConfigPayloadAppliesCustomMetricsUDSPath(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}

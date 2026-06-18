@@ -36,6 +36,7 @@ type collector struct {
 	minSeverity string
 	local       *localReceiver
 	journald    journalReader
+	processors  []config.LogProcessorConfig
 }
 
 func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -58,6 +59,7 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 		exclude:     cfg.OSLogExcludeRegex,
 		minSeverity: cfg.OSLogMinSeverity,
 		local:       newLocalReceiver(cfg.OSLogUDPAddr, cfg.OSLogTCPAddr, cfg.OSLogBatchLines, cfg.OSLogMaxBytes),
+		processors:  sanitizeLogProcessors(cfg.OSLogProcessors),
 		journald: newJournalReader(
 			cfg.OSLogJournaldEnabled,
 			cfg.OSLogJournaldUnits,
@@ -126,6 +128,9 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		c.ensureLocalReceiver(p.OSLogUDPAddr, p.OSLogTCPAddr)
 	}
 	c.journald.applyPrefs(p)
+	if len(p.OSLogProcessors) > 0 {
+		c.processors = sanitizeLogProcessors(p.OSLogProcessors)
+	}
 	if len(p.OSLogFilesList) > 0 {
 		c.files = p.OSLogFilesList
 	}
@@ -147,11 +152,12 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		for _, path := range c.files {
 			evs := c.readFile(path, hostname)
 			for _, ev := range evs {
-				if shouldDropLogEvent(ev, c.include, c.exclude, c.minSeverity) {
+				processed, keep := processLogEvent(ev, c.processors)
+				if !keep || shouldDropLogEvent(processed, c.include, c.exclude, c.minSeverity) {
 					droppedCount++
 					continue
 				}
-				events = append(events, ev)
+				events = append(events, processed)
 				if len(events) >= c.batchLines {
 					break
 				}
@@ -162,21 +168,23 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		}
 	}
 	for _, ev := range c.journald.read(ctx, c.cursor, hostname, c.batchLines-len(events), c.maxBytes) {
-		if shouldDropLogEvent(ev, c.include, c.exclude, c.minSeverity) {
+		processed, keep := processLogEvent(ev, c.processors)
+		if !keep || shouldDropLogEvent(processed, c.include, c.exclude, c.minSeverity) {
 			droppedCount++
 			continue
 		}
-		events = append(events, ev)
+		events = append(events, processed)
 		if len(events) >= c.batchLines {
 			break
 		}
 	}
 	for _, ev := range c.readLocal(hostname) {
-		if shouldDropLogEvent(ev, c.include, c.exclude, c.minSeverity) {
+		processed, keep := processLogEvent(ev, c.processors)
+		if !keep || shouldDropLogEvent(processed, c.include, c.exclude, c.minSeverity) {
 			droppedCount++
 			continue
 		}
-		events = append(events, ev)
+		events = append(events, processed)
 		if len(events) >= c.batchLines {
 			break
 		}

@@ -2,8 +2,11 @@ package oslogs
 
 import (
 	"encoding/json"
+	"hash/fnv"
 	"regexp"
 	"strings"
+
+	"github.com/you/aiceberg_agent/internal/common/config"
 )
 
 const logSchemaVersion = 1
@@ -74,17 +77,7 @@ func jsonAttributes(message string) map[string]any {
 }
 
 func shouldDropLogEvent(ev logEvent, includeRegex, excludeRegex, minSeverity string) bool {
-	target := strings.Join([]string{
-		ev.Message,
-		ev.Path,
-		ev.Source,
-		ev.Host,
-		ev.Service,
-		ev.Level,
-		ev.Category,
-		ev.SourceTool,
-		ev.SourceCategory,
-	}, " ")
+	target := logEventTarget(ev)
 	if minSeverity != "" && !severityAllowed(ev.Level, minSeverity) {
 		return true
 	}
@@ -101,6 +94,203 @@ func shouldDropLogEvent(ev logEvent, includeRegex, excludeRegex, minSeverity str
 		}
 	}
 	return false
+}
+
+func processLogEvent(ev logEvent, processors []config.LogProcessorConfig) (logEvent, bool) {
+	for _, processor := range processors {
+		var keep bool
+		ev, keep = applyLogProcessor(ev, processor)
+		if !keep {
+			return ev, false
+		}
+	}
+	return ev, true
+}
+
+func applyLogProcessor(ev logEvent, processor config.LogProcessorConfig) (logEvent, bool) {
+	switch strings.ToLower(strings.TrimSpace(processor.Type)) {
+	case "parse":
+		return processParse(ev), true
+	case "remap":
+		return processRemap(ev, processor), true
+	case "drop":
+		return ev, !processorMatches(ev, processor.Pattern)
+	case "mask":
+		return processMask(ev, processor), true
+	case "route":
+		return processRoute(ev, processor), true
+	case "sample":
+		return ev, processorSampleKeeps(ev, processor)
+	case "enrich":
+		return processEnrich(ev, processor), true
+	default:
+		return ev, true
+	}
+}
+
+func sanitizeLogProcessors(processors []config.LogProcessorConfig) []config.LogProcessorConfig {
+	out := make([]config.LogProcessorConfig, 0, len(processors))
+	for _, processor := range processors {
+		kind := strings.ToLower(strings.TrimSpace(processor.Type))
+		if !isSupportedLogProcessor(kind) {
+			continue
+		}
+		processor.Type = kind
+		out = append(out, processor)
+	}
+	return out
+}
+
+func isSupportedLogProcessor(kind string) bool {
+	switch kind {
+	case "parse", "remap", "drop", "mask", "route", "sample", "enrich":
+		return true
+	default:
+		return false
+	}
+}
+
+func processParse(ev logEvent) logEvent {
+	if ev.Attributes == nil {
+		ev.Attributes = jsonAttributes(ev.Message)
+	}
+	return ev
+}
+
+func processRemap(ev logEvent, processor config.LogProcessorConfig) logEvent {
+	value := eventAttributeString(ev, processor.Key)
+	if value == "" {
+		value = processor.Value
+	}
+	return setEventField(ev, processor.Field, value)
+}
+
+func processMask(ev logEvent, processor config.LogProcessorConfig) logEvent {
+	pattern, err := regexp.Compile(processor.Pattern)
+	if err != nil || processor.Pattern == "" {
+		return ev
+	}
+	replacement := processor.Replacement
+	if replacement == "" {
+		replacement = "[redacted]"
+	}
+	ev.Message = pattern.ReplaceAllString(ev.Message, replacement)
+	ev.Attributes = maskStringAttributes(ev.Attributes, pattern, replacement)
+	ev.RedactionStatus = "redacted"
+	return ev
+}
+
+func processRoute(ev logEvent, processor config.LogProcessorConfig) logEvent {
+	target := strings.TrimSpace(processor.Value)
+	if target == "" {
+		target = strings.TrimSpace(processor.Field)
+	}
+	if target != "" {
+		ev.SourceCategory = target
+	}
+	return ev
+}
+
+func processEnrich(ev logEvent, processor config.LogProcessorConfig) logEvent {
+	key := strings.TrimSpace(processor.Key)
+	if key == "" {
+		return ev
+	}
+	if ev.Attributes == nil {
+		ev.Attributes = map[string]any{}
+	}
+	ev.Attributes[key] = processor.Value
+	return ev
+}
+
+func processorSampleKeeps(ev logEvent, processor config.LogProcessorConfig) bool {
+	if processor.Rate <= 0 {
+		return false
+	}
+	if processor.Rate >= 1 {
+		return true
+	}
+	key := eventAttributeString(ev, processor.Key)
+	if key == "" {
+		key = ev.Message
+	}
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(key))
+	return float64(hash.Sum32()%10000)/10000 < processor.Rate
+}
+
+func processorMatches(ev logEvent, pattern string) bool {
+	if pattern == "" {
+		return false
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return false
+	}
+	return re.MatchString(logEventTarget(ev))
+}
+
+func logEventTarget(ev logEvent) string {
+	return strings.Join([]string{
+		ev.Message,
+		ev.Path,
+		ev.Source,
+		ev.Host,
+		ev.Service,
+		ev.Level,
+		ev.Category,
+		ev.SourceTool,
+		ev.SourceCategory,
+	}, " ")
+}
+
+func eventAttributeString(ev logEvent, key string) string {
+	key = strings.TrimSpace(key)
+	if key == "" || ev.Attributes == nil {
+		return ""
+	}
+	value, ok := ev.Attributes[key]
+	if !ok {
+		return ""
+	}
+	if stringValue, ok := value.(string); ok {
+		return stringValue
+	}
+	return ""
+}
+
+func setEventField(ev logEvent, field string, value string) logEvent {
+	if value == "" {
+		return ev
+	}
+	switch strings.ToLower(strings.TrimSpace(field)) {
+	case "service":
+		ev.Service = value
+	case "level":
+		ev.Level = value
+	case "severity":
+		ev.Severity = value
+	case "category":
+		ev.Category = value
+	case "source_category":
+		ev.SourceCategory = value
+	}
+	return ev
+}
+
+func maskStringAttributes(attrs map[string]any, pattern *regexp.Regexp, replacement string) map[string]any {
+	if attrs == nil {
+		return nil
+	}
+	out := make(map[string]any, len(attrs))
+	for key, value := range attrs {
+		if stringValue, ok := value.(string); ok {
+			out[key] = pattern.ReplaceAllString(stringValue, replacement)
+			continue
+		}
+		out[key] = value
+	}
+	return out
 }
 
 func severityAllowed(level, minSeverity string) bool {

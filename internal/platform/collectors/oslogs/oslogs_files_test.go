@@ -189,6 +189,66 @@ func TestCollectorCollectsJournaldWithUnitAndPriorityFilters(t *testing.T) {
 	}
 }
 
+func TestCollectorAppliesConfiguredProcessors(t *testing.T) {
+	tmp := t.TempDir()
+	logFile := filepath.Join(tmp, "app.log")
+	content := strings.Join([]string{
+		`{"message":"charge card=4111111111111111","app":"billing","severity":"error","tenant":"gold"}`,
+		`{"message":"health check ok","app":"billing","severity":"info","tenant":"gold"}`,
+	}, "\n") + "\n"
+	if err := os.WriteFile(logFile, []byte(content), 0o644); err != nil {
+		t.Fatalf("write log file: %v", err)
+	}
+	cfg := config.Config{
+		OSLogFiles:      []string{logFile},
+		OSLogCursorPath: filepath.Join(tmp, "cursor.json"),
+		OSLogBatchLines: 10,
+		OSLogMaxBytes:   1024,
+		OSLogInterval:   time.Second,
+		OSLogProcessors: []config.LogProcessorConfig{
+			{Type: "parse"},
+			{Type: "remap", Field: "service", Key: "app"},
+			{Type: "remap", Field: "level", Key: "severity"},
+			{Type: "drop", Pattern: "health check"},
+			{Type: "mask", Pattern: `card=\d+`, Replacement: "card=[redacted]"},
+			{Type: "route", Value: "security"},
+			{Type: "sample", Rate: 1},
+			{Type: "enrich", Key: "pipeline", Value: "local"},
+		},
+	}
+	prefs := func() config.CollectPrefs {
+		return config.CollectPrefs{OSLogFiles: true}
+	}
+
+	c := New(cfg, prefs)
+	data, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	var payload struct {
+		Events       []map[string]any `json:"events"`
+		DroppedCount int              `json:"dropped_count"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("invalid payload: %v", err)
+	}
+	if len(payload.Events) != 1 || payload.DroppedCount != 1 {
+		t.Fatalf("expected one kept and one dropped event, got events=%d dropped=%d", len(payload.Events), payload.DroppedCount)
+	}
+	event := payload.Events[0]
+	if event["service"] != "billing" || event["level"] != "error" || event["source_category"] != "security" {
+		t.Fatalf("expected remap and route processors, got %#v", event)
+	}
+	msg, _ := event["message"].(string)
+	if strings.Contains(msg, "411111") || !strings.Contains(msg, "card=[redacted]") {
+		t.Fatalf("expected masked card in message, got %q", msg)
+	}
+	attrs, ok := event["attributes"].(map[string]any)
+	if !ok || attrs["pipeline"] != "local" {
+		t.Fatalf("expected enrichment attribute, got %#v", event["attributes"])
+	}
+}
+
 func TestCollectorCollectReadsFile(t *testing.T) {
 	tmp := t.TempDir()
 	logFile := filepath.Join(tmp, "sys.log")

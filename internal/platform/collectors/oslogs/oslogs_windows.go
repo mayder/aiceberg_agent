@@ -36,6 +36,7 @@ type winCollector struct {
 	include     string
 	exclude     string
 	minSeverity string
+	processors  []config.LogProcessorConfig
 }
 
 type logEvent struct {
@@ -51,6 +52,7 @@ type logEvent struct {
 	RecordID        uint64         `json:"record_id,omitempty"`
 	Provider        string         `json:"provider,omitempty"`
 	Level           string         `json:"level,omitempty"`
+	Severity        string         `json:"severity,omitempty"`
 	Computer        string         `json:"computer,omitempty"`
 	Message         string         `json:"message"`
 	Category        string         `json:"category,omitempty"`
@@ -87,6 +89,7 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 		include:     cfg.OSLogIncludeRegex,
 		exclude:     cfg.OSLogExcludeRegex,
 		minSeverity: cfg.OSLogMinSeverity,
+		processors:  sanitizeLogProcessors(cfg.OSLogProcessors),
 	}
 }
 
@@ -122,6 +125,9 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 	if len(p.OSLogWinEventIDs) > 0 {
 		c.eventIDs = sanitizeWindowsEventIDs(p.OSLogWinEventIDs)
 	}
+	if len(p.OSLogProcessors) > 0 {
+		c.processors = sanitizeLogProcessors(p.OSLogProcessors)
+	}
 	if p.OSLogBatchLines > 0 {
 		c.batchLines = p.OSLogBatchLines
 	}
@@ -150,11 +156,12 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 				}
 			}
 			for _, ev := range events {
-				if shouldDropLogEvent(ev, c.include, c.exclude, c.minSeverity) {
+				processed, keep := processLogEvent(ev, c.processors)
+				if !keep || shouldDropLogEvent(processed, c.include, c.exclude, c.minSeverity) {
 					droppedCount++
 					continue
 				}
-				out = append(out, ev)
+				out = append(out, processed)
 				if len(out) >= c.batchLines {
 					break
 				}

@@ -27,6 +27,7 @@ O payload tambem pode enviar `dropped_count` para indicar quantos eventos foram 
 - JSON: campos JSON de primeiro nivel sao copiados para `attributes`; chaves sensiveis sao mascaradas.
 - Redaction: token, senha, secret, API key, cookie e `Authorization` sao mascarados antes de sair do host.
 - Filtros: `OSLOG_INCLUDE_REGEX`, `OSLOG_EXCLUDE_REGEX` e `OSLOG_MIN_SEVERITY` podem ser definidos por env ou config remota em `logs.include_regex`, `logs.exclude_regex` e `logs.min_severity`.
+- Processors opcionais: `parse`, `remap`, `drop`, `mask`, `route`, `sample` e `enrich` podem ser definidos por `OSLOG_PROCESSORS_JSON` ou `logs.processors`; quando vazios, o comportamento legado permanece.
 
 ## Compatibilidade
 
@@ -37,6 +38,7 @@ O payload tambem pode enviar `dropped_count` para indicar quantos eventos foram 
 - `OSLOG_WIN_PROVIDERS` e `OSLOG_WIN_EVENT_IDS` restringem EventLog Windows de forma aditiva; vazios por padrao.
 - `OSLOG_UDP_ADDR` e `OSLOG_TCP_ADDR` habilitam listeners locais opcionais; vazios por padrao.
 - `OSLOG_JOURNALD_ENABLED`, `OSLOG_JOURNALD_UNITS` e `OSLOG_JOURNALD_PRIORITIES` habilitam journald opcional em POSIX; desligado por padrao.
+- `OSLOG_PROCESSORS_JSON` recebe um array JSON de processors opcionais; vazio por padrao.
 
 ## Limites
 

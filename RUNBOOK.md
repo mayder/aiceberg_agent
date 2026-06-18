@@ -140,8 +140,9 @@ Configuracoes locais:
 - `OSLOG_JOURNALD_ENABLED=true`;
 - `OSLOG_JOURNALD_UNITS=nginx.service,sshd.service`;
 - `OSLOG_JOURNALD_PRIORITIES=warning,error,critical`.
+- `OSLOG_PROCESSORS_JSON='[{"type":"drop","pattern":"health check"},{"type":"route","value":"security"}]'`.
 
-Config remota equivalente em `logs.win_channels`, `logs.win_providers`, `logs.win_event_ids`, `logs.include_regex`, `logs.exclude_regex` e `logs.min_severity`.
+Config remota equivalente em `logs.win_channels`, `logs.win_providers`, `logs.win_event_ids`, `logs.include_regex`, `logs.exclude_regex`, `logs.min_severity` e `logs.processors`.
 Listeners locais tambem podem ser enviados como `logs.udp_addr` e `logs.tcp_addr`.
 Journald tambem pode ser enviado por `logs.journald_enabled`, `logs.journald_units` e `logs.journald_priorities`.
 

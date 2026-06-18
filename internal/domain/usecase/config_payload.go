@@ -113,21 +113,22 @@ type ConfigPayload struct {
 		SignaturesURL string `json:"signatures_url"`
 	} `json:"vulns"`
 	Logs struct {
-		WinChannels  []string `json:"win_channels"`
-		WinProviders []string `json:"win_providers,omitempty"`
-		WinEventIDs  []string `json:"win_event_ids,omitempty"`
-		Files        []string `json:"files"`
-		BatchLines   int      `json:"batch_lines"`
-		MaxBytes     int      `json:"max_bytes"`
-		Interval     int      `json:"interval"`
-		IncludeRegex string   `json:"include_regex,omitempty"`
-		ExcludeRegex string   `json:"exclude_regex,omitempty"`
-		MinSeverity  string   `json:"min_severity,omitempty"`
-		UDPAddr      string   `json:"udp_addr,omitempty"`
-		TCPAddr      string   `json:"tcp_addr,omitempty"`
-		Journald     *bool    `json:"journald_enabled,omitempty"`
-		JournalUnits []string `json:"journald_units,omitempty"`
-		JournalPrio  []string `json:"journald_priorities,omitempty"`
+		WinChannels  []string                    `json:"win_channels"`
+		WinProviders []string                    `json:"win_providers,omitempty"`
+		WinEventIDs  []string                    `json:"win_event_ids,omitempty"`
+		Files        []string                    `json:"files"`
+		BatchLines   int                         `json:"batch_lines"`
+		MaxBytes     int                         `json:"max_bytes"`
+		Interval     int                         `json:"interval"`
+		IncludeRegex string                      `json:"include_regex,omitempty"`
+		ExcludeRegex string                      `json:"exclude_regex,omitempty"`
+		MinSeverity  string                      `json:"min_severity,omitempty"`
+		UDPAddr      string                      `json:"udp_addr,omitempty"`
+		TCPAddr      string                      `json:"tcp_addr,omitempty"`
+		Journald     *bool                       `json:"journald_enabled,omitempty"`
+		JournalUnits []string                    `json:"journald_units,omitempty"`
+		JournalPrio  []string                    `json:"journald_priorities,omitempty"`
+		Processors   []config.LogProcessorConfig `json:"processors,omitempty"`
 	} `json:"logs"`
 	CustomMetrics struct {
 		Enabled   *bool  `json:"enabled,omitempty"`
@@ -254,6 +255,9 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	}
 	if len(payload.Logs.JournalPrio) > 0 {
 		collect.OSLogJournaldPriorities = payload.Logs.JournalPrio
+	}
+	if len(payload.Logs.Processors) > 0 {
+		collect.OSLogProcessors = payload.Logs.Processors
 	}
 	if payload.CustomMetrics.Enabled != nil {
 		collect.CustomMetricsEnabled = *payload.CustomMetrics.Enabled
