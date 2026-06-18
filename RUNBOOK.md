@@ -122,6 +122,25 @@ Diagnostico remoto seguro:
 
 Rollback: voltar o artefato do agente para a versao anterior e manter os campos aditivos ignorados pelo backend. O PKG-59 nao exige SQL.
 
+### PKG-60 - Pipeline seguro de logs
+
+Contrato tecnico: `docs/pkg60_logs_pipeline.md`.
+
+Configuracoes locais:
+
+- `OSLOG_ENABLED=true`;
+- `OSLOG_FILES=/var/log/auth.log,/var/log/syslog`;
+- `OSLOG_WIN_CHANNELS=Security,System,Application,Microsoft-Windows-Sysmon/Operational`;
+- `OSLOG_INCLUDE_REGEX`;
+- `OSLOG_EXCLUDE_REGEX`;
+- `OSLOG_MIN_SEVERITY`.
+
+Config remota equivalente em `logs.include_regex`, `logs.exclude_regex` e `logs.min_severity`.
+
+Rollback: desligar logs por `OSLOG_ENABLED=false` ou remover flags remotas `OSLogFiles`/`OSLogWinChannels`. Se a regressao for no binario, publicar a versao anterior.
+
+Nao registrar conteudo descartado por filtro; usar apenas `dropped_count`.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.

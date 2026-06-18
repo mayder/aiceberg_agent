@@ -21,32 +21,47 @@ import (
 )
 
 type winCollector struct {
-	prefs      func() config.CollectPrefs
-	channels   []string
-	cursorPath string
-	cursor     map[string]uint64
-	batchLines int
-	maxBytes   int
-	interval   time.Duration
-	diag       bool
-	errors     []string
-	detect     bool
+	prefs       func() config.CollectPrefs
+	channels    []string
+	cursorPath  string
+	cursor      map[string]uint64
+	batchLines  int
+	maxBytes    int
+	interval    time.Duration
+	diag        bool
+	errors      []string
+	detect      bool
+	include     string
+	exclude     string
+	minSeverity string
 }
 
 type logEvent struct {
-	Timestamp string `json:"timestamp"`
-	Source    string `json:"source,omitempty"`
-	Channel   string `json:"channel,omitempty"`
-	EventID   uint64 `json:"event_id,omitempty"`
-	RecordID  uint64 `json:"record_id,omitempty"`
-	Level     string `json:"level,omitempty"`
-	Computer  string `json:"computer,omitempty"`
-	Message   string `json:"message"`
-	Category  string `json:"category,omitempty"`
+	SchemaVersion   int            `json:"schema_version"`
+	Timestamp       string         `json:"timestamp"`
+	TimestampUTC    string         `json:"timestamp_utc"`
+	Source          string         `json:"source,omitempty"`
+	Host            string         `json:"host,omitempty"`
+	Channel         string         `json:"channel,omitempty"`
+	Path            string         `json:"path,omitempty"`
+	Cursor          string         `json:"cursor,omitempty"`
+	EventID         uint64         `json:"event_id,omitempty"`
+	RecordID        uint64         `json:"record_id,omitempty"`
+	Level           string         `json:"level,omitempty"`
+	Computer        string         `json:"computer,omitempty"`
+	Message         string         `json:"message"`
+	Category        string         `json:"category,omitempty"`
+	Service         string         `json:"service,omitempty"`
+	Attributes      map[string]any `json:"attributes,omitempty"`
+	RedactionStatus string         `json:"redaction_status,omitempty"`
+	Transport       string         `json:"transport,omitempty"`
+	SourceTool      string         `json:"source_tool,omitempty"`
+	SourceCategory  string         `json:"source_category,omitempty"`
 }
 
 type payload struct {
-	Events []logEvent `json:"events"`
+	Events       []logEvent `json:"events"`
+	DroppedCount int        `json:"dropped_count,omitempty"`
 }
 
 func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -55,15 +70,18 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 		ch = []string{"Security", "System", "Application", "Microsoft-Windows-Sysmon/Operational"}
 	}
 	return &winCollector{
-		prefs:      prefsProvider,
-		channels:   ch,
-		cursorPath: cfg.OSLogCursorPath,
-		cursor:     loadCursorWin(cfg.OSLogCursorPath),
-		batchLines: cfg.OSLogBatchLines,
-		maxBytes:   cfg.OSLogMaxBytes,
-		interval:   cfg.OSLogInterval,
-		diag:       cfg.OSLogDiag,
-		detect:     cfg.OSLogDetections,
+		prefs:       prefsProvider,
+		channels:    ch,
+		cursorPath:  cfg.OSLogCursorPath,
+		cursor:      loadCursorWin(cfg.OSLogCursorPath),
+		batchLines:  cfg.OSLogBatchLines,
+		maxBytes:    cfg.OSLogMaxBytes,
+		interval:    cfg.OSLogInterval,
+		diag:        cfg.OSLogDiag,
+		detect:      cfg.OSLogDetections,
+		include:     cfg.OSLogIncludeRegex,
+		exclude:     cfg.OSLogExcludeRegex,
+		minSeverity: cfg.OSLogMinSeverity,
 	}
 }
 
@@ -81,6 +99,15 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 	}
 	c.diag = p.OSLogDiag
 	c.detect = p.OSLogDetections
+	if p.OSLogIncludeRegex != "" {
+		c.include = p.OSLogIncludeRegex
+	}
+	if p.OSLogExcludeRegex != "" {
+		c.exclude = p.OSLogExcludeRegex
+	}
+	if p.OSLogMinSeverity != "" {
+		c.minSeverity = p.OSLogMinSeverity
+	}
 	if len(p.OSLogWinChList) > 0 {
 		c.channels = p.OSLogWinChList
 	}
@@ -94,6 +121,7 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 	hostname, _ := os.Hostname()
 	c.errors = c.errors[:0]
 	var out []logEvent
+	droppedCount := 0
 
 	for _, ch := range c.channels {
 		if len(out) >= c.batchLines {
@@ -110,7 +138,16 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 					events[i].Category = windowsCategory(events[i].EventID, events[i].Message)
 				}
 			}
-			out = append(out, events...)
+			for _, ev := range events {
+				if shouldDropLogEvent(ev, c.include, c.exclude, c.minSeverity) {
+					droppedCount++
+					continue
+				}
+				out = append(out, ev)
+				if len(out) >= c.batchLines {
+					break
+				}
+			}
 			maxRec := last
 			for _, ev := range events {
 				if ev.RecordID > maxRec {
@@ -121,7 +158,7 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 		}
 	}
 
-	if len(out) == 0 {
+	if len(out) == 0 && droppedCount == 0 {
 		if c.diag && len(c.errors) > 0 {
 			return nil, formatDiagError(c.errors)
 		}
@@ -131,7 +168,7 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 		return nil, nil
 	}
 	_ = saveCursorWin(c.cursorPath, c.cursor)
-	return json.Marshal(payload{Events: out})
+	return json.Marshal(payload{Events: out, DroppedCount: droppedCount})
 }
 
 func (c *winCollector) fetchChannel(ctx context.Context, channel string, lastRecord uint64, limit int, hostname string) []logEvent {
@@ -179,7 +216,19 @@ func splitEvents(s string) []string {
 }
 
 func parseEventBlock(block, channel, hostname string, maxBytes int) logEvent {
-	ev := logEvent{Channel: channel, Source: hostname, Timestamp: time.Now().UTC().Format(time.RFC3339Nano)}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	ev := logEvent{
+		SchemaVersion:  logSchemaVersion,
+		Channel:        channel,
+		Path:           channel,
+		Source:         hostname,
+		Host:           hostname,
+		Timestamp:      now,
+		TimestampUTC:   now,
+		Transport:      "agent_windows_eventlog",
+		SourceTool:     "windows_eventlog",
+		SourceCategory: sourceCategoryForWindows(channel),
+	}
 	lines := strings.Split(block, "\n")
 	for _, ln := range lines {
 		ln = strings.TrimSpace(ln)
@@ -201,7 +250,12 @@ func parseEventBlock(block, channel, hostname string, maxBytes int) logEvent {
 	if len(msg) > maxBytes {
 		msg = msg[:maxBytes]
 	}
+	attributes := jsonAttributes(msg)
+	msg, redactionStatus := redactMessage(msg)
 	ev.Message = msg
+	ev.RedactionStatus = redactionStatus
+	ev.Attributes = attributes
+	ev.Cursor = strconv.FormatUint(ev.RecordID, 10)
 	return ev
 }
 

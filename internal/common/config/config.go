@@ -52,6 +52,9 @@ type Config struct {
 	OSLogEnrich              bool
 	OSLogDetections          bool
 	OSLogDiag                bool
+	OSLogIncludeRegex        string
+	OSLogExcludeRegex        string
+	OSLogMinSeverity         string
 	AgentlessEnabled         bool
 	AgentlessPollInterval    time.Duration
 	AgentlessFlushInterval   time.Duration
@@ -109,6 +112,9 @@ type CollectPrefs struct {
 	OSLogBatchLines            int      `json:"oslog_batch_lines,omitempty"`
 	OSLogMaxBytes              int      `json:"oslog_max_bytes,omitempty"`
 	OSLogIntervalSec           int      `json:"oslog_interval,omitempty"`
+	OSLogIncludeRegex          string   `json:"oslog_include_regex,omitempty"`
+	OSLogExcludeRegex          string   `json:"oslog_exclude_regex,omitempty"`
+	OSLogMinSeverity           string   `json:"oslog_min_severity,omitempty"`
 	AgentlessEnabled           bool     `json:"agentless_enabled,omitempty"`
 	AgentlessPollSec           int      `json:"agentless_poll_interval,omitempty"`
 	AgentlessFlushSec          int      `json:"agentless_flush_interval,omitempty"`
@@ -184,6 +190,9 @@ func Load(configPath string) (Config, error) {
 		OSLogEnrich:            strings.ToLower(getenv("OSLOG_ENRICH", "")) == "true",
 		OSLogDetections:        strings.ToLower(getenv("OSLOG_DETECTIONS", "")) == "true",
 		OSLogDiag:              strings.ToLower(getenv("OSLOG_DIAG", "")) == "true",
+		OSLogIncludeRegex:      getenv("OSLOG_INCLUDE_REGEX", ""),
+		OSLogExcludeRegex:      getenv("OSLOG_EXCLUDE_REGEX", ""),
+		OSLogMinSeverity:       getenv("OSLOG_MIN_SEVERITY", ""),
 		AgentlessEnabled:       strings.ToLower(getenv("AGENTLESS_ENABLED", "true")) == "true",
 		AgentlessOutboxPath:    getenv("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"),
 		AgentlessOutboxMaxMB:   intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),

@@ -72,11 +72,14 @@ type ConfigPayload struct {
 		SignaturesURL string `json:"signatures_url"`
 	} `json:"vulns"`
 	Logs struct {
-		WinChannels []string `json:"win_channels"`
-		Files       []string `json:"files"`
-		BatchLines  int      `json:"batch_lines"`
-		MaxBytes    int      `json:"max_bytes"`
-		Interval    int      `json:"interval"`
+		WinChannels  []string `json:"win_channels"`
+		Files        []string `json:"files"`
+		BatchLines   int      `json:"batch_lines"`
+		MaxBytes     int      `json:"max_bytes"`
+		Interval     int      `json:"interval"`
+		IncludeRegex string   `json:"include_regex,omitempty"`
+		ExcludeRegex string   `json:"exclude_regex,omitempty"`
+		MinSeverity  string   `json:"min_severity,omitempty"`
 	} `json:"logs"`
 	CollectNow *[]string          `json:"collect_now,omitempty"`
 	Update     *UpdatePayload     `json:"update,omitempty"`
@@ -105,6 +108,15 @@ func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- C
 	}
 	if payload.Logs.Interval > 0 {
 		collect.OSLogIntervalSec = payload.Logs.Interval
+	}
+	if payload.Logs.IncludeRegex != "" {
+		collect.OSLogIncludeRegex = payload.Logs.IncludeRegex
+	}
+	if payload.Logs.ExcludeRegex != "" {
+		collect.OSLogExcludeRegex = payload.Logs.ExcludeRegex
+	}
+	if payload.Logs.MinSeverity != "" {
+		collect.OSLogMinSeverity = payload.Logs.MinSeverity
 	}
 	if payload.Agentless.Enabled != nil {
 		collect.AgentlessEnabled = *payload.Agentless.Enabled

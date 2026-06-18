@@ -186,6 +186,13 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Fechamento: rodar `./check.sh`.
 - Validacao real pendente para PKG-69: Windows, Linux, container, perda de rede, API indisponivel, disco cheio, proxy e agente instalado anteriormente.
 
+## PKG-60 - Pipeline seguro de logs
+
+- Unitario focado: `go test ./internal/platform/collectors/oslogs ./internal/common/config ./internal/domain/usecase`.
+- Build Windows do coletor: `GOOS=windows GOARCH=amd64 go test ./internal/platform/collectors/oslogs`.
+- Cobrir redaction de token/senha/Authorization, atributos JSON sanitizados, multiline, cursor por arquivo/canal, filtros include/exclude/min severity e `dropped_count` sem conteudo descartado.
+- Validacao real Windows/Linux/container/proxy/disco cheio fica pendente para PKG-69.
+
 ## Validação por lote
 
 Objetivo: dar feedback rápido, sem gastar tempo com bateria completa a cada subentrega.

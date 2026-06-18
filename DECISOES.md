@@ -64,6 +64,17 @@ Referências:
 - Impacto em rollback: publicar a versao anterior do agente; o backend ignora campos aditivos.
 - Como reverter: remover injecao de metadados e voltar `CollectAndBuffer` ao corpo original.
 
+### DEC-20260618-03 - Logs v2 usam campos aditivos no contrato legado
+
+- Status: aceita
+- Contexto: PKG-60 precisa evoluir logs com parsing, redaction, cursor e filtros sem quebrar `/v1/logs/raw`, SOC/NOC e agentes ja instalados.
+- Decisao: manter o coletor `oslogs` e adicionar campos opcionais por evento, com `schema_version=1`, `redaction_status`, atributos JSON sanitizados, origem real e contagem agregada `dropped_count`. Filtros locais aceitos por env/config remota nao persistem conteudo descartado.
+- Alternativas consideradas: criar endpoint novo de logs ou persistencia nova no agente.
+- Consequencias: o backend continua aceitando eventos antigos e novos; recursos avancados como OTLP, dual-shipping e listeners locais ficam em pacotes proprios.
+- Impacto em testes: unitarios cobrem redaction, JSON attributes, multiline e filtros; build Windows do coletor e validado por `GOOS=windows`.
+- Impacto em rollback: desativar `OSLOG_ENABLED`/flags remotas de logs ou publicar versao anterior.
+- Como reverter: remover campos aditivos e filtros do coletor `oslogs`.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

@@ -20,17 +20,20 @@ import (
 )
 
 type collector struct {
-	prefs      func() config.CollectPrefs
-	files      []string
-	cursorPath string
-	batchLines int
-	maxBytes   int
-	cursor     map[string]int64
-	interval   time.Duration
-	diag       bool
-	errors     []string
-	enrich     bool
-	detect     bool
+	prefs       func() config.CollectPrefs
+	files       []string
+	cursorPath  string
+	batchLines  int
+	maxBytes    int
+	cursor      map[string]int64
+	interval    time.Duration
+	diag        bool
+	errors      []string
+	enrich      bool
+	detect      bool
+	include     string
+	exclude     string
+	minSeverity string
 }
 
 func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -39,16 +42,19 @@ func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Coll
 		files = defaultPaths()
 	}
 	return &collector{
-		prefs:      prefsProvider,
-		files:      files,
-		cursorPath: cfg.OSLogCursorPath,
-		batchLines: cfg.OSLogBatchLines,
-		maxBytes:   cfg.OSLogMaxBytes,
-		cursor:     loadCursor(cfg.OSLogCursorPath),
-		interval:   cfg.OSLogInterval,
-		diag:       cfg.OSLogDiag,
-		enrich:     cfg.OSLogEnrich,
-		detect:     cfg.OSLogDetections,
+		prefs:       prefsProvider,
+		files:       files,
+		cursorPath:  cfg.OSLogCursorPath,
+		batchLines:  cfg.OSLogBatchLines,
+		maxBytes:    cfg.OSLogMaxBytes,
+		cursor:      loadCursor(cfg.OSLogCursorPath),
+		interval:    cfg.OSLogInterval,
+		diag:        cfg.OSLogDiag,
+		enrich:      cfg.OSLogEnrich,
+		detect:      cfg.OSLogDetections,
+		include:     cfg.OSLogIncludeRegex,
+		exclude:     cfg.OSLogExcludeRegex,
+		minSeverity: cfg.OSLogMinSeverity,
 	}
 }
 
@@ -57,20 +63,32 @@ func (c *collector) Name() string { return "oslogs" }
 func (c *collector) Interval() time.Duration { return c.interval }
 
 type logEvent struct {
-	Timestamp string `json:"timestamp"`
-	Source    string `json:"source,omitempty"`
-	File      string `json:"file"`
-	Message   string `json:"message"`
-	App       string `json:"app,omitempty"`
-	PID       string `json:"pid,omitempty"`
-	Level     string `json:"level,omitempty"`
-	Facility  string `json:"facility,omitempty"`
-	Severity  string `json:"severity,omitempty"`
-	Category  string `json:"category,omitempty"`
+	SchemaVersion   int            `json:"schema_version"`
+	Timestamp       string         `json:"timestamp"`
+	TimestampUTC    string         `json:"timestamp_utc"`
+	Source          string         `json:"source,omitempty"`
+	Host            string         `json:"host,omitempty"`
+	File            string         `json:"file"`
+	Path            string         `json:"path,omitempty"`
+	Cursor          string         `json:"cursor,omitempty"`
+	Message         string         `json:"message"`
+	App             string         `json:"app,omitempty"`
+	Service         string         `json:"service,omitempty"`
+	PID             string         `json:"pid,omitempty"`
+	Level           string         `json:"level,omitempty"`
+	Facility        string         `json:"facility,omitempty"`
+	Severity        string         `json:"severity,omitempty"`
+	Category        string         `json:"category,omitempty"`
+	Attributes      map[string]any `json:"attributes,omitempty"`
+	RedactionStatus string         `json:"redaction_status,omitempty"`
+	Transport       string         `json:"transport,omitempty"`
+	SourceTool      string         `json:"source_tool,omitempty"`
+	SourceCategory  string         `json:"source_category,omitempty"`
 }
 
 type payload struct {
-	Events []logEvent `json:"events"`
+	Events       []logEvent `json:"events"`
+	DroppedCount int        `json:"dropped_count,omitempty"`
 }
 
 func (c *collector) Collect(ctx context.Context) ([]byte, error) {
@@ -86,6 +104,15 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	c.diag = p.OSLogDiag
 	c.enrich = p.OSLogEnrich
 	c.detect = p.OSLogDetections
+	if p.OSLogIncludeRegex != "" {
+		c.include = p.OSLogIncludeRegex
+	}
+	if p.OSLogExcludeRegex != "" {
+		c.exclude = p.OSLogExcludeRegex
+	}
+	if p.OSLogMinSeverity != "" {
+		c.minSeverity = p.OSLogMinSeverity
+	}
 	if len(p.OSLogFilesList) > 0 {
 		c.files = p.OSLogFilesList
 	}
@@ -102,14 +129,24 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	hostname, _ := os.Hostname()
 	c.errors = c.errors[:0]
 	var events []logEvent
+	droppedCount := 0
 	for _, path := range c.files {
 		evs := c.readFile(path, hostname)
-		events = append(events, evs...)
+		for _, ev := range evs {
+			if shouldDropLogEvent(ev, c.include, c.exclude, c.minSeverity) {
+				droppedCount++
+				continue
+			}
+			events = append(events, ev)
+			if len(events) >= c.batchLines {
+				break
+			}
+		}
 		if len(events) >= c.batchLines {
 			break
 		}
 	}
-	if len(events) == 0 {
+	if len(events) == 0 && droppedCount == 0 {
 		if c.diag && len(c.errors) > 0 {
 			return nil, formatDiagError(c.errors)
 		}
@@ -119,7 +156,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		return nil, nil
 	}
 	_ = saveCursor(c.cursorPath, c.cursor)
-	return json.Marshal(payload{Events: events})
+	return json.Marshal(payload{Events: events, DroppedCount: droppedCount})
 }
 
 func (c *collector) readFile(path, hostname string) []logEvent {
@@ -137,50 +174,87 @@ func (c *collector) readFile(path, hostname string) []logEvent {
 	}
 	defer f.Close()
 	offset := c.cursor[path]
+	if info, err := f.Stat(); err == nil && offset > info.Size() {
+		offset = 0
+	}
 	if offset > 0 {
 		_, _ = f.Seek(offset, 0)
 	}
 	r := bufio.NewReader(f)
+	pending := ""
 	for len(out) < c.batchLines {
 		line, err := r.ReadString('\n')
 		if line != "" {
 			line = strings.TrimRight(line, "\r\n")
-			app, pid, lvl, severity, facility, msg := "", "", "", "", "", line
-			if c.enrich {
-				a, p, l, sev, fac, m := parseSyslog(line, c.maxBytes)
-				if m != "" {
-					msg = m
+			if pending == "" || looksLikeNewLogEntry(line) {
+				if pending != "" {
+					out = append(out, c.buildEvent(path, hostname, pending))
+					if len(out) >= c.batchLines {
+						pending = ""
+						break
+					}
 				}
-				app, pid, lvl, severity, facility = a, p, l, sev, fac
+				pending = line
+			} else {
+				pending += "\n" + line
 			}
-			if len(msg) > c.maxBytes {
-				msg = msg[:c.maxBytes]
-			}
-			category := ""
-			if c.detect {
-				category = detectUnixCategory(msg)
-			}
-			out = append(out, logEvent{
-				Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
-				Source:    hostname,
-				File:      path,
-				Message:   msg,
-				App:       app,
-				PID:       pid,
-				Level:     lvl,
-				Severity:  severity,
-				Facility:  facility,
-				Category:  category,
-			})
 		}
 		if err != nil {
 			break
 		}
 	}
+	if pending != "" && len(out) < c.batchLines {
+		out = append(out, c.buildEvent(path, hostname, pending))
+	}
 	if pos, err := f.Seek(0, 1); err == nil {
 		c.cursor[path] = pos
 	}
 	return out
+}
+
+func (c *collector) buildEvent(path, hostname, line string) logEvent {
+	app, pid, lvl, severity, facility, msg := "", "", "", "", "", line
+	if c.enrich && !strings.HasPrefix(strings.TrimSpace(line), "{") {
+		a, p, l, sev, fac, m := parseSyslog(line, c.maxBytes)
+		if m != "" {
+			msg = m
+		}
+		app, pid, lvl, severity, facility = a, p, l, sev, fac
+	}
+	if len(msg) > c.maxBytes {
+		msg = msg[:c.maxBytes]
+	}
+	attributes := jsonAttributes(msg)
+	msg, redactionStatus := redactMessage(msg)
+	category := ""
+	if c.detect {
+		category = detectUnixCategory(msg)
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	cursor := strconv.FormatInt(c.cursor[path], 10)
+	return logEvent{
+		SchemaVersion:   logSchemaVersion,
+		Timestamp:       now,
+		TimestampUTC:    now,
+		Source:          hostname,
+		Host:            hostname,
+		File:            path,
+		Path:            path,
+		Cursor:          cursor,
+		Message:         msg,
+		App:             app,
+		Service:         app,
+		PID:             pid,
+		Level:           lvl,
+		Severity:        severity,
+		Facility:        facility,
+		Category:        category,
+		Attributes:      attributes,
+		RedactionStatus: redactionStatus,
+		Transport:       "agent_file",
+		SourceTool:      "linux_syslog",
+		SourceCategory:  sourceCategoryForUnix(path, facility),
+	}
 }
 
 func defaultPaths() []string {
