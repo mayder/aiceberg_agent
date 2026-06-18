@@ -130,6 +130,8 @@ Para gerar modelos editáveis das evidências reais:
 PKG72_TEMPLATE_DIR=/tmp/aiceberg_pkg72_templates scripts/pkg72_contextual_evidence_homologation.sh
 ```
 
+Templates gerados e não preenchidos são marcados como `invalid-template` e não contam para o gate de fechamento.
+
 Antes de tentar fechar o pacote, execute em modo bloqueante:
 
 ```bash

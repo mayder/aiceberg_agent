@@ -30,12 +30,30 @@ file_sha256() {
   shasum -a 256 "$1" | awk '{print $1}'
 }
 
+template_incomplete_reason() {
+  local path="$1"
+  if grep -Eq '^- Status: pending\|pass\|fail$' "$path"; then
+    echo "template status placeholder not filled"
+    return 0
+  fi
+  if grep -Eq '^- (Data UTC|Responsavel|Cliente/lab|Host/agente/HUB/relay|Versao agente|Evidencia bruta anexada|Observacoes|Rollback validado):[[:space:]]*$' "$path"; then
+    echo "template required field blank"
+    return 0
+  fi
+  return 1
+}
+
 require_file_or_pending() {
   local name="$1"
   local path="$2"
   local detail="$3"
   REAL_EVIDENCE_TOTAL=$((REAL_EVIDENCE_TOTAL + 1))
   if [[ -n "$path" && -f "$path" ]]; then
+    local incomplete_reason
+    if incomplete_reason="$(template_incomplete_reason "$path")"; then
+      result "$name" "invalid-template" "path=$path reason=$incomplete_reason"
+      return
+    fi
     REAL_EVIDENCE_PRESENT=$((REAL_EVIDENCE_PRESENT + 1))
     result "$name" "evidence" "path=$path sha256=$(file_sha256 "$path") bytes=$(file_size_bytes "$path")"
   else
