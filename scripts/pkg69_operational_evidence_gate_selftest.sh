@@ -51,6 +51,10 @@ fill_template() {
      s/- recovered: selftest/- recovered: yes/g;
      s/- accepted_count: selftest/- accepted_count: 100/g;
      s/- dropped_count: selftest/- dropped_count: 0/g;
+     s/- direct -> AIceberg confirmado: selftest/- direct -> AIceberg confirmado: yes/g;
+     s/- hub -> AIceberg confirmado: selftest/- hub -> AIceberg confirmado: yes/g;
+     s/- relay -> hub -> AIceberg confirmado: selftest/- relay -> hub -> AIceberg confirmado: yes/g;
+     s/- relay sem conexao direta com API AIceberg: selftest/- relay sem conexao direta com API AIceberg: yes/g;
      s/- direct_ingested: selftest/- direct_ingested: yes/g;
      s/- hub_ingested: selftest/- hub_ingested: yes/g;
      s/- relay_ingested_via_hub: selftest/- relay_ingested_via_hub: yes/g;
@@ -107,6 +111,10 @@ perl -0pi -e 's/- relay_direct_api_attempts: 0/- relay_direct_api_attempts:/' "$
 cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-direct-attempts.md"
 fill_template "$TMP_DIR/relay-direct-attempts.md" "pass"
 perl -0pi -e 's/- relay_direct_api_attempts: 0/- relay_direct_api_attempts: 1/' "$TMP_DIR/relay-direct-attempts.md"
+
+cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-direct-api-text.md"
+fill_template "$TMP_DIR/relay-direct-api-text.md" "pass"
+perl -0pi -e 's/- relay sem conexao direta com API AIceberg: yes/- relay sem conexao direta com API AIceberg: no/' "$TMP_DIR/relay-direct-api-text.md"
 
 cp "$TMP_DIR/templates/relay_hub_direct_hosts.md" "$TMP_DIR/relay-no-approval.md"
 fill_template "$TMP_DIR/relay-no-approval.md" "pass"
@@ -198,6 +206,12 @@ PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-direct-attempts.md" \
 scripts/pkg69_operational_evidence_gate.sh >/dev/null
 assert_contains "$TMP_DIR/relay-direct-attempts.md.out" "relay-hub-direct-hosts: invalid-template"
 assert_contains "$TMP_DIR/relay-direct-attempts.md.out" "reason=field relay_direct_api_attempts must be 0"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/relay-direct-api-text.md.out" \
+PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-direct-api-text.md" \
+scripts/pkg69_operational_evidence_gate.sh >/dev/null
+assert_contains "$TMP_DIR/relay-direct-api-text.md.out" "relay-hub-direct-hosts: invalid-template"
+assert_contains "$TMP_DIR/relay-direct-api-text.md.out" "reason=field relay sem conexao direta com API AIceberg must be yes, true or sim"
 
 PKG69_EVIDENCE_FILE="$TMP_DIR/relay-missing-artifact.md.out" \
 PKG69_RELAY_HUB_DIRECT_EVIDENCE="$TMP_DIR/relay-missing-artifact.md" \
