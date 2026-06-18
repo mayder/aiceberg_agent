@@ -2,6 +2,7 @@ param(
   [int]$SmokeBackendPort,
   [int]$SmokeHealthPort,
   [string]$SmokeWorkDir,
+  [string]$SmokeEvidenceFile,
   [switch]$SmokeKeep
 )
 
@@ -28,6 +29,9 @@ $agentBin = Join-Path $SmokeWorkDir "agent.exe"
 $backendBin = Join-Path $SmokeWorkDir "smoke-backend.exe"
 $logFile = Join-Path $SmokeWorkDir "agent.debug.log"
 $oslogFile = Join-Path $SmokeWorkDir "oslog.log"
+if (-not $SmokeEvidenceFile) {
+  $SmokeEvidenceFile = Join-Path $SmokeWorkDir "smoke-evidence.json"
+}
 
 Write-Host "[smoke] workdir=$SmokeWorkDir"
 Write-Host "[smoke] build agent"
@@ -87,7 +91,12 @@ if (-not (Wait-HttpOk "http://127.0.0.1:$SmokeHealthPort/health")) {
   exit 1
 }
 
-Invoke-WebRequest -Uri "http://127.0.0.1:$SmokeHealthPort/metrics" -UseBasicParsing | Out-Null
+$healthResponse = Invoke-WebRequest -Uri "http://127.0.0.1:$SmokeHealthPort/health" -UseBasicParsing
+$metricsResponse = Invoke-WebRequest -Uri "http://127.0.0.1:$SmokeHealthPort/metrics" -UseBasicParsing
+if (-not $metricsResponse.Content) {
+  Write-Host "[smoke] metrics endpoint returned empty body"
+  exit 1
+}
 
 $stats = Invoke-WebRequest -Uri "http://127.0.0.1:$SmokeBackendPort/__stats" -UseBasicParsing
 $data = $stats.Content | ConvertFrom-Json
@@ -100,6 +109,40 @@ if (-not (Test-Path $logFile)) {
   exit 1
 }
 
+$health = $healthResponse.Content | ConvertFrom-Json
+$logHash = (Get-FileHash -Algorithm SHA256 -Path $logFile).Hash.ToLowerInvariant()
+$fixtureHash = (Get-FileHash -Algorithm SHA256 -Path $oslogFile).Hash.ToLowerInvariant()
+$evidence = [ordered]@{
+  schema = "aiceberg.agent.smoke.v1"
+  generated_at = (Get-Date).ToUniversalTime().ToString("o")
+  platform = "windows"
+  checks = [ordered]@{
+    health_endpoint = $true
+    metrics_endpoint = $true
+    logs_ingested = ($data.ingested.'/v1/logs/raw' -ge 1)
+    debug_log_created = (Test-Path $logFile)
+  }
+  health = [ordered]@{
+    status = $health.status
+    agent_pipeline_version = $health.agent_pipeline_version
+    queue_items = $health.queue_items
+    queue_bytes = $health.queue_bytes
+    flush_detail = $health.flush_detail
+  }
+  backend = [ordered]@{
+    ingested = $data.ingested
+    ping_get = $data.ping_get
+    ping_post = $data.ping_post
+    bootstraps = $data.bootstraps
+    config_gets = $data.config_gets
+  }
+  artifacts = [ordered]@{
+    agent_log_sha256 = $logHash
+    oslog_fixture_sha256 = $fixtureHash
+  }
+}
+$evidence | ConvertTo-Json -Depth 8 | Out-File -FilePath $SmokeEvidenceFile -Encoding utf8
+Write-Host "[smoke] evidence=$SmokeEvidenceFile"
 Write-Host "[smoke] ok"
 
 if ($agent -and !$agent.HasExited) { Stop-Process -Id $agent.Id -Force }

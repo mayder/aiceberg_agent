@@ -62,6 +62,7 @@ AGENT_BIN="${WORKDIR}/agent"
 BACKEND_BIN="${WORKDIR}/smoke-backend"
 LOG_FILE="${WORKDIR}/agent.debug.log"
 OSLOG_FILE="${WORKDIR}/oslog.log"
+EVIDENCE_FILE="${SMOKE_EVIDENCE_FILE:-${WORKDIR}/smoke-evidence.json}"
 
 log "build agent binary"
 go build -o "${AGENT_BIN}" ./cmd/agent
@@ -134,7 +135,12 @@ if ! wait_for_agent; then
 fi
 
 log "check metrics"
-curl -sf "http://127.0.0.1:${HEALTH_PORT}/metrics" >/dev/null
+HEALTH_JSON="$(curl -sf "http://127.0.0.1:${HEALTH_PORT}/health")"
+METRICS_BODY="$(curl -sf "http://127.0.0.1:${HEALTH_PORT}/metrics")"
+if [[ -z "${METRICS_BODY}" ]]; then
+  log "metrics endpoint returned empty body"
+  exit 1
+fi
 
 log "check backend stats for oslogs"
 wait_for_oslogs() {
@@ -170,9 +176,66 @@ if ! wait_for_oslogs; then
   exit 1
 fi
 
+STATS_JSON="$(curl -sf "http://127.0.0.1:${BACKEND_PORT}/__stats")"
+
 if [[ ! -f "${LOG_FILE}" ]]; then
   log "log file not found"
   exit 1
 fi
 
+log "write smoke evidence"
+"${PYTHON}" - "${EVIDENCE_FILE}" "${HEALTH_JSON}" "${STATS_JSON}" "${LOG_FILE}" "${OSLOG_FILE}" <<'PY'
+import hashlib
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+target, health_raw, stats_raw, log_file, oslog_file = sys.argv[1:6]
+
+def digest(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+health = json.loads(health_raw)
+stats = json.loads(stats_raw)
+evidence = {
+    "schema": "aiceberg.agent.smoke.v1",
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "platform": "posix",
+    "checks": {
+        "health_endpoint": bool(health),
+        "metrics_endpoint": True,
+        "logs_ingested": stats.get("ingested", {}).get("/v1/logs/raw", 0) >= 1,
+        "debug_log_created": os.path.exists(log_file),
+    },
+    "health": {
+        "status": health.get("status"),
+        "agent_pipeline_version": health.get("agent_pipeline_version"),
+        "queue_items": health.get("queue_items"),
+        "queue_bytes": health.get("queue_bytes"),
+        "flush_detail": health.get("flush_detail"),
+    },
+    "backend": {
+        "ingested": stats.get("ingested", {}),
+        "ping_get": stats.get("ping_get"),
+        "ping_post": stats.get("ping_post"),
+        "bootstraps": stats.get("bootstraps"),
+        "config_gets": stats.get("config_gets"),
+    },
+    "artifacts": {
+        "agent_log_sha256": digest(log_file),
+        "oslog_fixture_sha256": digest(oslog_file),
+    },
+}
+os.makedirs(os.path.dirname(target), exist_ok=True)
+with open(target, "w", encoding="utf-8") as fh:
+    json.dump(evidence, fh, indent=2, sort_keys=True)
+    fh.write("\n")
+PY
+
+log "evidence=${EVIDENCE_FILE}"
 log "ok"

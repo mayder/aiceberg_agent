@@ -10,7 +10,7 @@ Fechar a homologacao operacional dos pacotes PKG-59 a PKG-68 com evidencia por a
 scripts/pkg69_operational_homologation.sh
 ```
 
-O script executa:
+O script de homologacao executa:
 
 - deteccao de Docker, kubectl, Helm e PowerShell;
 - testes focados dos coletores e contratos adicionados em PKG-59 a PKG-68;
@@ -18,14 +18,25 @@ O script executa:
 - `./check.sh`;
 - listagem explicita de cenarios pendentes de ambiente real.
 
+Smokes por sistema operacional:
+
+```bash
+scripts/smoke.sh
+powershell -ExecutionPolicy Bypass -File scripts/smoke.ps1
+```
+
+Os smokes geram `smoke-evidence.json` no diretório temporário ou no caminho definido por
+`SMOKE_EVIDENCE_FILE`/`-SmokeEvidenceFile`, com health, métricas, ingestão de logs e SHA256
+dos artefatos locais usados na validação.
+
 ## Ambientes obrigatorios
 
 | Ambiente | Evidencia exigida | Estado atual |
 | --- | --- | --- |
-| Windows Server | `smoke.ps1`, EventLog, servico Windows, update/rollback | pendente |
-| Windows desktop | `smoke.ps1`, EventLog, instalador, proxy | pendente |
-| Ubuntu/Debian | `smoke.sh`, systemd, logs, outbox, update | pendente |
-| RHEL/Alma/Rocky | `smoke.sh`, systemd, dnf/yum, update | pendente |
+| Windows Server | `smoke.ps1`, EventLog, servico Windows, update/rollback | pendente real |
+| Windows desktop | `smoke.ps1`, EventLog, instalador, proxy | pendente real |
+| Ubuntu/Debian | `smoke.sh`, systemd, logs, outbox, update | pendente real |
+| RHEL/Alma/Rocky | `smoke.sh`, systemd, dnf/yum, update | pendente real |
 | Docker | `CONTAINER_ENABLED=true`, Docker socket, labels, recursos | pendente |
 | Kubernetes | DaemonSet/Helm, RBAC minimo, pods/events, rollback chart | pendente |
 | macOS/dev local | testes focados e `./check.sh` | validavel por script |
