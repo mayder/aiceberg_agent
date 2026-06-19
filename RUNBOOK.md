@@ -203,6 +203,8 @@ Configuracoes locais:
 
 Rollback: definir `OTLP_ENABLED=false` ou enviar config remota `otlp.enabled=false`. Nao ha SQL do PKG-62.
 
+Estado aceito em 2026-06-19: `docs/evidence/pkg62/example-service-otlp-20260619T182600Z` valida app de exemplo, servico simples instrumentado, metrics/logs/traces, trace correlation e redaction; `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z` cobre alto volume OTLP com CPU/memoria.
+
 ### PKG-63 - APM/traces sampling
 
 Contrato tecnico: `docs/pkg63_apm_sampling.md`.

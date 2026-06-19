@@ -1,0 +1,7 @@
+key	value
+bundle_tool	go-test-opt-in-evidence
+scenario	pkg62-example-service-otlp
+created_at_utc	20260619T182600Z
+test_command	PKG62_EVIDENCE_DIR=/tmp/aiceberg_pkg62_example_service_20260619T182600Z go test ./internal/platform/collectors/otlp -run TestPKG62ExampleServiceOTLPEvidence -count=1 -v
+raw_archive	raw/pkg62-example-service-otlp-raw.tgz
+related_high_volume_evidence	docs/evidence/pkg69/high-volume-overhead-20260619T033436Z/evidence.md

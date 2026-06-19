@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -259,6 +262,98 @@ func TestReceiverRejectsOversizedPayload(t *testing.T) {
 	}
 }
 
+func TestPKG62ExampleServiceOTLPEvidence(t *testing.T) {
+	addr := freeTCPAddr(t)
+	receiver := NewReceiver(config.Config{
+		OTLPEnabled:  true,
+		OTLPHTTPAddr: addr,
+		OTLPInterval: time.Second,
+		OTLPMaxItems: 20,
+		OTLPMaxBytes: 32 * 1024,
+	}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if _, err := receiver.MetricsCollector().Collect(ctx); err != nil {
+		t.Fatalf("start receiver: %v", err)
+	}
+
+	const traceID = "0102030405060708090a0b0c0d0e0f10"
+	const spanID = "1112131415161718"
+	resourceAttrs := `{"key":"service.name","value":{"stringValue":"checkout-service"}},{"key":"deployment.environment","value":{"stringValue":"controlled"}},{"key":"service.version","value":{"stringValue":"1.0.0"}},{"key":"host.name","value":{"stringValue":"pkg62-local"}}`
+	postOTLP(t, addr, "/v1/metrics", `{"resourceMetrics":[{"resource":{"attributes":[`+resourceAttrs+`]},"scopeMetrics":[{"metrics":[{"name":"checkout.requests","unit":"1","sum":{"dataPoints":[{"asDouble":3}]}},{"name":"checkout.duration","unit":"ms","histogram":{"dataPoints":[{"count":1,"sum":42}]}}]}]}]}`)
+	postOTLP(t, addr, "/v1/logs", `{"resourceLogs":[{"resource":{"attributes":[`+resourceAttrs+`]},"scopeLogs":[{"logRecords":[{"timeUnixNano":"1000000000","severityText":"ERROR","body":{"stringValue":"checkout payment failed"},"traceId":"`+traceID+`","spanId":"`+spanID+`","attributes":[{"key":"http.route","value":{"stringValue":"/checkout"}},{"key":"payment.token","value":{"stringValue":"must-redact"}}]}]}]}]}`)
+	postOTLP(t, addr, "/v1/traces", `{"resourceSpans":[{"resource":{"attributes":[`+resourceAttrs+`]},"scopeSpans":[{"spans":[{"traceId":"`+traceID+`","spanId":"`+spanID+`","name":"POST /checkout","startTimeUnixNano":"1000000000","endTimeUnixNano":"1250000000","attributes":[{"key":"http.method","value":{"stringValue":"POST"}},{"key":"http.route","value":{"stringValue":"/checkout"}},{"key":"http.status_code","value":{"intValue":"500"}}],"status":{"code":2,"message":"payment failed"}}]}]}]}`)
+
+	metricsRaw, err := receiver.MetricsCollector().Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	logsRaw, err := receiver.LogsCollector().Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect logs: %v", err)
+	}
+	tracesRaw, err := receiver.TracesCollector().Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect traces: %v", err)
+	}
+
+	var metricsPayload struct {
+		OTLP snapshot `json:"otlp"`
+	}
+	if err := json.Unmarshal(metricsRaw, &metricsPayload); err != nil {
+		t.Fatalf("invalid metrics payload: %v", err)
+	}
+	var logsPayload struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.Unmarshal(logsRaw, &logsPayload); err != nil {
+		t.Fatalf("invalid logs payload: %v", err)
+	}
+	var tracesPayload struct {
+		OTLP snapshot `json:"otlp"`
+	}
+	if err := json.Unmarshal(tracesRaw, &tracesPayload); err != nil {
+		t.Fatalf("invalid traces payload: %v", err)
+	}
+	if metricsPayload.OTLP.Kind != "metrics" || len(metricsPayload.OTLP.Items) != 2 {
+		t.Fatalf("unexpected metrics payload %#v", metricsPayload.OTLP)
+	}
+	if len(logsPayload.Events) != 1 || logsPayload.Events[0]["trace_id"] != traceID || logsPayload.Events[0]["span_id"] != spanID {
+		t.Fatalf("unexpected logs payload %#v", logsPayload.Events)
+	}
+	if logsPayload.Events[0]["service"] != "checkout-service" || logsPayload.Events[0]["severity"] != "ERROR" {
+		t.Fatalf("expected service/severity in log event, got %#v", logsPayload.Events[0])
+	}
+	if attrs, ok := logsPayload.Events[0]["attributes"].(map[string]any); !ok || attrs["payment.token"] != "[redacted]" {
+		t.Fatalf("expected sensitive OTLP log attribute redacted, got %#v", logsPayload.Events[0]["attributes"])
+	}
+	if tracesPayload.OTLP.Kind != "traces" || len(tracesPayload.OTLP.Items) != 1 {
+		t.Fatalf("unexpected traces payload %#v", tracesPayload.OTLP)
+	}
+	trace := tracesPayload.OTLP.Items[0]
+	if trace["trace_id"] != traceID || trace["span_id"] != spanID || trace["service"] != "checkout-service" {
+		t.Fatalf("expected correlated trace, got %#v", trace)
+	}
+	if intValue(trace["duration_ms"]) != 250 || trace["error"] != true {
+		t.Fatalf("expected 250ms error span, got %#v", trace)
+	}
+
+	if evidenceDir := strings.TrimSpace(os.Getenv("PKG62_EVIDENCE_DIR")); evidenceDir != "" {
+		writePKG62Evidence(t, evidenceDir, metricsRaw, logsRaw, tracesRaw, map[string]string{
+			"metrics_items":      strconv.Itoa(len(metricsPayload.OTLP.Items)),
+			"logs_events":        strconv.Itoa(len(logsPayload.Events)),
+			"traces_items":       strconv.Itoa(len(tracesPayload.OTLP.Items)),
+			"service":            "checkout-service",
+			"env":                "controlled",
+			"trace_correlation":  "yes",
+			"redaction":          "yes",
+			"api_credential":     "not_used",
+			"transport":          "otlp_http_json",
+			"simple_service_span": "yes",
+		})
+	}
+}
+
 func postOTLP(t *testing.T, addr, path, body string) {
 	t.Helper()
 	resp, err := http.Post("http://"+addr+path, "application/json", bytes.NewBufferString(body))
@@ -268,6 +363,31 @@ func postOTLP(t *testing.T, addr, path, body string) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("post %s status %d", path, resp.StatusCode)
+	}
+}
+
+func writePKG62Evidence(t *testing.T, dir string, metricsRaw, logsRaw, tracesRaw []byte, summary map[string]string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir evidence dir: %v", err)
+	}
+	files := map[string][]byte{
+		"metrics_payload.json": metricsRaw,
+		"logs_payload.json":    logsRaw,
+		"traces_payload.json":  tracesRaw,
+	}
+	for name, data := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	keys := []string{"metrics_items", "logs_events", "traces_items", "service", "env", "trace_correlation", "redaction", "api_credential", "transport", "simple_service_span"}
+	var b strings.Builder
+	for _, key := range keys {
+		fmt.Fprintf(&b, "%s\t%s\n", key, summary[key])
+	}
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.tsv"), []byte(b.String()), 0o600); err != nil {
+		t.Fatalf("write summary: %v", err)
 	}
 }
 

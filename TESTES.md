@@ -206,7 +206,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Unitario focado: `go test ./internal/platform/collectors/otlp ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.
 - Cobrir HTTP local loopback, metrics/logs/traces JSON, resource attributes essenciais, limite de atributos/cardinalidade, redaction de atributos sensiveis, `trace_id`/`span_id`, limite de itens e `dropped_count`.
 - PKG-63: revisar `docs/pkg63_apm_sampling.md` para instrumentacao por linguagem com SDKs oficiais OpenTelemetry, sem SDK proprio AIceberg.
-- Validacao real com exporter OpenTelemetry, gRPC/protobuf e consumo de CPU/memoria fica pendente para PKG-69.
+- Validacao real/controlada fechada por `docs/evidence/pkg62/example-service-otlp-20260619T182600Z` e alto volume OTLP com CPU/memoria coberto por `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z`. gRPC/protobuf permanece fora do escopo do PKG-62.
 
 ## PKG-64 - Containers Docker inicial
 

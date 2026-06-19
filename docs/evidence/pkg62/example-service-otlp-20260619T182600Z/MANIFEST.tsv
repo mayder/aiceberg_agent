@@ -1,0 +1,2 @@
+scenario	evidence_file	evidence_sha256	evidence_size_bytes	raw_file	raw_sha256	raw_size_bytes	created_at_utc
+pkg62-example-service-otlp	docs/evidence/pkg62/example-service-otlp-20260619T182600Z/evidence.md	2ac14d1466bc7d9e25de67625566f3bc4c4f0ebad3df06ea57745b1649322f31	2256	docs/evidence/pkg62/example-service-otlp-20260619T182600Z/raw/pkg62-example-service-otlp-raw.tgz	eccc2da4db7f6e87453902f0435d00d4e90d9c52cdd7ca11de8d0a0181a5aa08	1562	20260619T182600Z

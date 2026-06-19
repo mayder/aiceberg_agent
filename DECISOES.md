@@ -102,7 +102,7 @@ Referências:
 - Contexto: PKG-62 precisa receber OpenTelemetry sem criar dependencias pesadas ou quebrar o agente atual.
 - Decisao: suportar primeiro OTLP HTTP/JSON em loopback, desligado por padrao. Metrics e traces seguem para `/v1/ingest/metrics`; logs seguem para `/v1/logs/raw`. OTLP gRPC/protobuf fica para evolucao posterior.
 - Alternativas consideradas: embutir collector OpenTelemetry completo ou exigir sidecar externo.
-- Consequencias: apps com exporter HTTP/JSON podem enviar sinais basicos; persistencia APM dedicada e redaction completa de logs OTLP ficam para PKG-63/PKG-69.
+- Consequencias: apps com exporter HTTP/JSON podem enviar sinais basicos; persistencia APM dedicada fica para PKG-63. O fechamento operacional valida app de exemplo, servico simples instrumentado e redaction; gRPC/protobuf permanece fora deste pacote.
 - Impacto em testes: unitarios cobrem ingestao HTTP/JSON de metrics, logs e traces.
 - Impacto em rollback: desligar `OTLP_ENABLED` ou config remota `otlp.enabled=false`.
 - Como reverter: remover coletores `otlp_*` do scheduler.

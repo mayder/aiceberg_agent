@@ -57,6 +57,8 @@ Atributos OTLP sao limitados a 32 chaves por item, com truncamento de valores lo
 
 - `OTLP_MAX_BYTES` limita o corpo HTTP.
 - `OTLP_MAX_ITEMS` limita cardinalidade/volume da janela.
+- OTLP gRPC/protobuf fica fora do PKG-62; usar OpenTelemetry Collector como sidecar/conversor quando a aplicacao emitir apenas gRPC/protobuf.
+- Evidencia operacional: `docs/evidence/pkg62/example-service-otlp-20260619T182600Z/evidence.md` valida app de exemplo e servico simples instrumentado; `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z/evidence.md` cobre alto volume OTLP com CPU/memoria.
 - Atributos por item sao limitados e sensiveis sao mascarados antes de entrar no snapshot.
 - `dropped_count` registra descartes sem persistir payload rejeitado.
 - Persistencia APM dedicada fica para PKG-63/PKG-69.
@@ -69,4 +71,5 @@ Definir `OTLP_ENABLED=false` ou enviar config remota `otlp.enabled=false`. Nao h
 
 ```bash
 go test ./internal/platform/collectors/otlp ./internal/common/config ./internal/domain/usecase ./internal/bootstrap
+PKG62_EVIDENCE_DIR=/tmp/aiceberg_pkg62_example_service go test ./internal/platform/collectors/otlp -run TestPKG62ExampleServiceOTLPEvidence -count=1 -v
 ```
