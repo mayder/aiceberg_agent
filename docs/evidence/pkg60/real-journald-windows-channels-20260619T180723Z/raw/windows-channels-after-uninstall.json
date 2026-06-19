@@ -1,0 +1,7 @@
+{
+    "service":  {
+                    "Sysmon64":  "absent",
+                    "Sysmon":  "absent"
+                }
+}
+

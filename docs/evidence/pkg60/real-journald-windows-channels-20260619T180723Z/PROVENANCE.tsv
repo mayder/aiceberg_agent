@@ -1,0 +1,10 @@
+key	value
+bundle_tool	manual-remote-isolated-agent-run-plus-winrm-temporary-sysmon
+scenario	pkg60-real-journald-windows-channels
+created_at_utc	20260619T180723Z
+linux_remote_host	VMAIPROD2
+linux_remote_work	/tmp/aiceberg_pkg60_real_journald_20260619T180723Z
+windows_host	GOVI
+windows_channels	Security,System,Application,Microsoft-Windows-Sysmon/Operational
+sysmon_lifecycle	temporary-install-and-uninstall-confirmed-absent
+raw_archive	raw/pkg60-real-journald-windows-channels-raw.tgz

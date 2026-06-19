@@ -169,6 +169,8 @@ PKG60_GAP_REPORT_REQUIRE_COMPLETE=true scripts/pkg60_logs_evidence_gap_report.sh
 
 O gate aceita a evidencia controlada apenas como suporte funcional. Para fechamento, devem existir bundles reais com `MANIFEST.tsv`, `PROVENANCE.tsv`, `evidence.md` e artefato bruto sanitizado para `pkg60-real-os-files`, `pkg60-real-source-formats` e `pkg60-real-journald-windows-channels`. O aceite final exige `PKG60_ACCEPT_CLOSURE=true` junto de `PKG60_GAP_REPORT_REQUIRE_ACCEPTED=true`.
 
+Estado aceito em 2026-06-19: 3/3 bundles reais presentes e gate retornando `closure_status=ACEITO_PARA_FECHAMENTO` com `PKG60_GAP_REPORT_REQUIRE_ACCEPTED=true PKG60_ACCEPT_CLOSURE=true scripts/pkg60_logs_evidence_gap_report.sh docs/evidence/pkg60`.
+
 ### PKG-61 - Metricas custom locais
 
 Contrato tecnico: `docs/pkg61_custom_metrics.md`.

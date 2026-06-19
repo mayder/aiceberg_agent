@@ -51,14 +51,15 @@ O payload tambem pode enviar `dropped_count` para indicar quantos eventos foram 
 - Bundle auditavel: `docs/evidence/pkg60/controlled-20260619T172555Z/evidence.md`, gerado por `scripts/pkg60_logs_controlled_evidence.sh` com manifest, proveniencia e artefato bruto leve.
 - Em 2026-06-19, o bundle `docs/evidence/pkg60/real-os-files-20260619T174357Z/evidence.md` validou `pkg60-real-os-files`: Windows EventLog real reaproveitado do PKG-69, Linux syslog real via `/var/log/messages` em VMAIPROD2 e arquivo comum temporario no mesmo coletor.
 - Em 2026-06-19, o bundle `docs/evidence/pkg60/real-source-formats-20260619T175420Z/evidence.md` validou `pkg60-real-source-formats`: Graylog/GELF, Linux auth em `/var/log/secure`, app JSON com redaction, log texto e Windows Security real via WinRM read-only.
-- Gate de lacunas: `scripts/pkg60_logs_evidence_gap_report.sh docs/evidence/pkg60`. O gate diferencia evidencia controlada de evidencia real e permanece `BLOQUEADO` enquanto faltar o bundle real `pkg60-real-journald-windows-channels`.
+- Em 2026-06-19, o bundle `docs/evidence/pkg60/real-journald-windows-channels-20260619T180723Z/evidence.md` validou `pkg60-real-journald-windows-channels`: journald real em VMAIPROD2 com `source_tool=journald`/`transport=agent_journald` e Windows Security/System/Application/Sysmon real em GOVI, com Sysmon temporario removido ao final.
+- Gate de lacunas: `scripts/pkg60_logs_evidence_gap_report.sh docs/evidence/pkg60`. O gate diferencia evidencia controlada de evidencia real e o fechamento aceito exige `PKG60_GAP_REPORT_REQUIRE_ACCEPTED=true PKG60_ACCEPT_CLOSURE=true`.
 
 ## Limites
 
 - Listener TCP/UDP local esta disponivel em POSIX e desligado por padrao; Windows fica pendente de implementacao/validacao propria.
 - OTLP logs ficam para PKG-62/PKG-67.
 - Logs Docker/containerd e Kubernetes ficam para PKG-64/PKG-65.
-- Journald e Sysmon ainda precisam de evidencia real dedicada antes de fechar PKG-60 como 100%.
+- PKG-60 foi fechado por evidencia operacional com 3/3 bundles reais aceitos; novas fontes de logs devem manter bundles equivalentes antes de declarar cobertura real.
 
 ## Rollback
 

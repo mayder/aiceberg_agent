@@ -1,0 +1,2 @@
+scenario	evidence_file	evidence_sha256	evidence_size_bytes	raw_file	raw_sha256	raw_size_bytes	created_at_utc
+pkg60-real-journald-windows-channels	docs/evidence/pkg60/real-journald-windows-channels-20260619T180723Z/evidence.md	a0eff1cf4939ad592c74c671228f77098b3fa64fe49ffc99beb42b609c216241	3115	docs/evidence/pkg60/real-journald-windows-channels-20260619T180723Z/raw/pkg60-real-journald-windows-channels-raw.tgz	fba626f944d5ccf082c1e55a164b312cdd63e67e636f32076dc7a9fda0cffda9	9876	20260619T180723Z

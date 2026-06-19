@@ -1,0 +1,212 @@
+{
+    "host":  "GOVI",
+    "base":  "C:\\ProgramData\\AIceberg\\pkg60-sysmon",
+    "installed_exe":  "C:\\ProgramData\\AIceberg\\pkg60-sysmon\\sysmon\\Sysmon64.exe",
+    "channels":  {
+                     "Security":  {
+                                      "events":  [
+                                                     {
+                                                         "TimeCreated":  "\/Date(1781892186647)\/",
+                                                         "Id":  4799,
+                                                         "ProviderName":  "Microsoft-Windows-Security-Auditing",
+                                                         "RecordId":  196228,
+                                                         "LevelDisplayName":  "Informa�oes",
+                                                         "LogName":  "Security",
+                                                         "MachineName":  "govi"
+                                                     },
+                                                     {
+                                                         "TimeCreated":  "\/Date(1781892186565)\/",
+                                                         "Id":  4624,
+                                                         "ProviderName":  "Microsoft-Windows-Security-Auditing",
+                                                         "RecordId":  196227,
+                                                         "LevelDisplayName":  "Informa�oes",
+                                                         "LogName":  "Security",
+                                                         "MachineName":  "govi"
+                                                     },
+                                                     {
+                                                         "TimeCreated":  "\/Date(1781892186565)\/",
+                                                         "Id":  4672,
+                                                         "ProviderName":  "Microsoft-Windows-Security-Auditing",
+                                                         "RecordId":  196226,
+                                                         "LevelDisplayName":  "Informa�oes",
+                                                         "LogName":  "Security",
+                                                         "MachineName":  "govi"
+                                                     },
+                                                     {
+                                                         "TimeCreated":  "\/Date(1781892155699)\/",
+                                                         "Id":  4799,
+                                                         "ProviderName":  "Microsoft-Windows-Security-Auditing",
+                                                         "RecordId":  196225,
+                                                         "LevelDisplayName":  "Informa�oes",
+                                                         "LogName":  "Security",
+                                                         "MachineName":  "govi"
+                                                     },
+                                                     {
+                                                         "TimeCreated":  "\/Date(1781892155648)\/",
+                                                         "Id":  4634,
+                                                         "ProviderName":  "Microsoft-Windows-Security-Auditing",
+                                                         "RecordId":  196224,
+                                                         "LevelDisplayName":  "Informa�oes",
+                                                         "LogName":  "Security",
+                                                         "MachineName":  "govi"
+                                                     }
+                                                 ],
+                                      "status":  "ok"
+                                  },
+                     "Microsoft-Windows-Sysmon/Operational":  {
+                                                                  "events":  [
+                                                                                 {
+                                                                                     "TimeCreated":  "\/Date(1781892200773)\/",
+                                                                                     "Id":  5,
+                                                                                     "ProviderName":  "Microsoft-Windows-Sysmon",
+                                                                                     "RecordId":  21,
+                                                                                     "LevelDisplayName":  "Informa�oes",
+                                                                                     "LogName":  "Microsoft-Windows-Sysmon/Operational",
+                                                                                     "MachineName":  "govi"
+                                                                                 },
+                                                                                 {
+                                                                                     "TimeCreated":  "\/Date(1781892200751)\/",
+                                                                                     "Id":  1,
+                                                                                     "ProviderName":  "Microsoft-Windows-Sysmon",
+                                                                                     "RecordId":  20,
+                                                                                     "LevelDisplayName":  "Informa�oes",
+                                                                                     "LogName":  "Microsoft-Windows-Sysmon/Operational",
+                                                                                     "MachineName":  "govi"
+                                                                                 },
+                                                                                 {
+                                                                                     "TimeCreated":  "\/Date(1781892199040)\/",
+                                                                                     "Id":  5,
+                                                                                     "ProviderName":  "Microsoft-Windows-Sysmon",
+                                                                                     "RecordId":  19,
+                                                                                     "LevelDisplayName":  "Informa�oes",
+                                                                                     "LogName":  "Microsoft-Windows-Sysmon/Operational",
+                                                                                     "MachineName":  "govi"
+                                                                                 },
+                                                                                 {
+                                                                                     "TimeCreated":  "\/Date(1781892199038)\/",
+                                                                                     "Id":  5,
+                                                                                     "ProviderName":  "Microsoft-Windows-Sysmon",
+                                                                                     "RecordId":  18,
+                                                                                     "LevelDisplayName":  "Informa�oes",
+                                                                                     "LogName":  "Microsoft-Windows-Sysmon/Operational",
+                                                                                     "MachineName":  "govi"
+                                                                                 },
+                                                                                 {
+                                                                                     "TimeCreated":  "\/Date(1781892198960)\/",
+                                                                                     "Id":  1,
+                                                                                     "ProviderName":  "Microsoft-Windows-Sysmon",
+                                                                                     "RecordId":  17,
+                                                                                     "LevelDisplayName":  "Informa�oes",
+                                                                                     "LogName":  "Microsoft-Windows-Sysmon/Operational",
+                                                                                     "MachineName":  "govi"
+                                                                                 }
+                                                                             ],
+                                                                  "status":  "ok"
+                                                              },
+                     "System":  {
+                                    "events":  [
+                                                   {
+                                                       "TimeCreated":  "\/Date(1781892196503)\/",
+                                                       "Id":  11,
+                                                       "ProviderName":  "Microsoft-Windows-FilterManager",
+                                                       "RecordId":  16009,
+                                                       "LevelDisplayName":  "Aviso",
+                                                       "LogName":  "System",
+                                                       "MachineName":  "govi"
+                                                   },
+                                                   {
+                                                       "TimeCreated":  "\/Date(1781892196503)\/",
+                                                       "Id":  11,
+                                                       "ProviderName":  "Microsoft-Windows-FilterManager",
+                                                       "RecordId":  16008,
+                                                       "LevelDisplayName":  "Aviso",
+                                                       "LogName":  "System",
+                                                       "MachineName":  "govi"
+                                                   },
+                                                   {
+                                                       "TimeCreated":  "\/Date(1781892196503)\/",
+                                                       "Id":  11,
+                                                       "ProviderName":  "Microsoft-Windows-FilterManager",
+                                                       "RecordId":  16007,
+                                                       "LevelDisplayName":  "Aviso",
+                                                       "LogName":  "System",
+                                                       "MachineName":  "govi"
+                                                   },
+                                                   {
+                                                       "TimeCreated":  "\/Date(1781892196503)\/",
+                                                       "Id":  11,
+                                                       "ProviderName":  "Microsoft-Windows-FilterManager",
+                                                       "RecordId":  16006,
+                                                       "LevelDisplayName":  "Aviso",
+                                                       "LogName":  "System",
+                                                       "MachineName":  "govi"
+                                                   },
+                                                   {
+                                                       "TimeCreated":  "\/Date(1781892196503)\/",
+                                                       "Id":  11,
+                                                       "ProviderName":  "Microsoft-Windows-FilterManager",
+                                                       "RecordId":  16005,
+                                                       "LevelDisplayName":  "Aviso",
+                                                       "LogName":  "System",
+                                                       "MachineName":  "govi"
+                                                   }
+                                               ],
+                                    "status":  "ok"
+                                },
+                     "Application":  {
+                                         "events":  [
+                                                        {
+                                                            "TimeCreated":  "\/Date(1781892199435)\/",
+                                                            "Id":  1,
+                                                            "ProviderName":  "AIcebergAgent",
+                                                            "RecordId":  11632,
+                                                            "LevelDisplayName":  "Informa�oes",
+                                                            "LogName":  "Application",
+                                                            "MachineName":  "govi"
+                                                        },
+                                                        {
+                                                            "TimeCreated":  "\/Date(1781892199435)\/",
+                                                            "Id":  1,
+                                                            "ProviderName":  "AIcebergAgent",
+                                                            "RecordId":  11631,
+                                                            "LevelDisplayName":  "Informa�oes",
+                                                            "LogName":  "Application",
+                                                            "MachineName":  "govi"
+                                                        },
+                                                        {
+                                                            "TimeCreated":  "\/Date(1781892199235)\/",
+                                                            "Id":  1,
+                                                            "ProviderName":  "AIcebergAgent",
+                                                            "RecordId":  11630,
+                                                            "LevelDisplayName":  "Informa�oes",
+                                                            "LogName":  "Application",
+                                                            "MachineName":  "govi"
+                                                        },
+                                                        {
+                                                            "TimeCreated":  "\/Date(1781892199040)\/",
+                                                            "Id":  1,
+                                                            "ProviderName":  "AIcebergAgent",
+                                                            "RecordId":  11629,
+                                                            "LevelDisplayName":  "Informa�oes",
+                                                            "LogName":  "Application",
+                                                            "MachineName":  "govi"
+                                                        },
+                                                        {
+                                                            "TimeCreated":  "\/Date(1781892198838)\/",
+                                                            "Id":  1,
+                                                            "ProviderName":  "AIcebergAgent",
+                                                            "RecordId":  11628,
+                                                            "LevelDisplayName":  "Informa�oes",
+                                                            "LogName":  "Application",
+                                                            "MachineName":  "govi"
+                                                        }
+                                                    ],
+                                         "status":  "ok"
+                                     }
+                 },
+    "service":  {
+                    "Sysmon64":  "Running",
+                    "Sysmon":  "absent"
+                }
+}
+

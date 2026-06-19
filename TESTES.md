@@ -193,7 +193,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Evidencia controlada auditavel: `scripts/pkg60_logs_controlled_evidence.sh`, gerando `docs/evidence/pkg60/controlled-*/evidence.md`, `MANIFEST.tsv`, `PROVENANCE.tsv` e artefato bruto sem reter binario Windows no repo.
 - Gate de lacunas: `scripts/pkg60_logs_evidence_gap_report.sh docs/evidence/pkg60`, com self-test em `scripts/pkg60_logs_evidence_gap_report_selftest.sh`. `PKG60_GAP_REPORT_REQUIRE_COMPLETE=true` deve falhar enquanto faltar evidencia real; `PKG60_GAP_REPORT_REQUIRE_ACCEPTED=true` exige tambem `PKG60_ACCEPT_CLOSURE=true`.
 - Cobrir redaction de token/senha/Authorization, atributos JSON sanitizados, Graylog/GELF, Linux auth (`auth.log` e `/var/log/secure`), app JSON, log texto, multiline, cursor por arquivo/canal/journald, filtros include/exclude/min severity/unit/prioridade/provider/event_id, processors parse/remap/drop/mask/route/sample/enrich, dual-shipping restrito a `/v1/logs/*` e `dropped_count` sem conteudo descartado.
-- Validacao real para fechamento do pacote exige bundles reais separados de teste controlado: `pkg60-real-os-files`, `pkg60-real-source-formats` e `pkg60-real-journald-windows-channels`.
+- Validacao real de fechamento exige bundles reais separados de teste controlado: `pkg60-real-os-files`, `pkg60-real-source-formats` e `pkg60-real-journald-windows-channels`. Estado aceito em 2026-06-19 com `PKG60_GAP_REPORT_REQUIRE_ACCEPTED=true PKG60_ACCEPT_CLOSURE=true scripts/pkg60_logs_evidence_gap_report.sh docs/evidence/pkg60`.
 
 ## PKG-61 - Metricas custom locais
 

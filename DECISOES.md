@@ -201,7 +201,7 @@ Referências:
 - Contexto: PKG-60 tem testes controlados cobrindo parsing, cursor, Graylog/GELF, Linux auth, app JSON, texto comum, Windows Security e Sysmon, mas esses testes nao provam comportamento em fonte real operacional.
 - Decisao: criar gate `scripts/pkg60_logs_evidence_gap_report.sh` para distinguir evidencia controlada de homologacao real. O pacote so pode ser aceito quando os cenarios `pkg60-real-os-files`, `pkg60-real-source-formats` e `pkg60-real-journald-windows-channels` tiverem bundles reais e `PKG60_ACCEPT_CLOSURE=true`.
 - Alternativas consideradas: fechar PKG-60 com evidencias controladas ou reaproveitar genericamente a matriz PKG-69.
-- Consequencias: o pacote permanece bloqueado de forma objetiva ate haver prova real de Windows EventLog, Linux syslog/auth, Graylog, app JSON/texto, journald, Security/System/Application e Sysmon.
+- Consequencias: o pacote permaneceu bloqueado de forma objetiva ate haver prova real de Windows EventLog, Linux syslog/auth, Graylog, app JSON/texto, journald, Security/System/Application e Sysmon; em 2026-06-19 o gate passou com 3/3 evidencias reais e aceite explicito.
 - Impacto em testes: `./check.sh` passa a rodar o self-test do gate; `PKG60_GAP_REPORT_REQUIRE_COMPLETE=true` falha enquanto faltar qualquer bundle real.
 - Impacto em rollback: nao altera runtime; remover o gate volta ao controle manual por checklist.
 - Como reverter: remover scripts do gate, self-test no `check.sh` e referencias em docs.
