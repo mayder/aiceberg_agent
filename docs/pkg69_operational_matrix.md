@@ -199,6 +199,7 @@ Atualizacao/instalacao real adicional em 2026-06-19:
 - Docker Runtime validado em 2026-06-19 com daemon Docker real local em Linux VM do Docker Desktop: `CONTAINER_ENABLED=true`, socket `/var/run/docker.sock`, `/var/lib/docker/containers` read-only, container controlado `aiceberg-pkg69-log-probe-clean`, filtro de include para evitar logs de outros workloads, `containers_seen=1`, `container_logs_seen=7`, cursor JSON, CPU `0.0%`, RSS `9261056`, cleanup do container validado e bundle versionado em `docs/evidence/pkg69/docker-runtime-20260619T031843Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `4/14` evidencias OK;
 - permissao eBPF/PCAP restrita validada em 2026-06-19 no Linux `187.45.180.181` com usuario `deploy`: `tcpdump -i any` retornou `Operation not permitted`, o coletor de rede reportou warning `pcap indisponivel: permissao insuficiente para tcpdump`, manteve `socket_snapshot+pcap` sem crash, o agente `70` seguiu `status=ok`, `flush_ok=566`, canal direct conectado, CPU `1.4%`; bundle versionado em `docs/evidence/pkg69/permission-ebpf-20260619T032753Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `5/14` evidencias OK;
 - alto volume e overhead validados em 2026-06-19 com receptores reais locais dos coletores: DogStatsD 1500 series com limite de 1000, OTLP metrics/logs/traces 180 itens por tipo com limite de 100, `accepted_count=1300`, `dropped_count=740`, CPU `0.0%`, RSS `14567688`; bundle versionado em `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `6/14` evidencias OK;
+- Proxy/TLS validado em 2026-06-19 com proxy HTTP autenticado local, TLS invalido rejeitado e TLS valido publico aceito pelo client HTTP do agente: `requests_ok=2`, `requests_failed_expected=1`, `retry_count=0`; bundle versionado em `docs/evidence/pkg69/proxy-tls-20260619T033945Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `7/14` evidencias OK;
 - `scripts/smoke.ps1` foi ajustado para aceitar binarios pre-compilados, limpar processos filhos em `finally`, silenciar progresso do PowerShell e tratar Windows EventLog como modo proprio, sem exigir o fixture POSIX de `/v1/logs/raw`.
 
 ## Ambientes obrigatorios
@@ -219,7 +220,7 @@ Atualizacao/instalacao real adicional em 2026-06-19:
 | --- | --- | --- |
 | API indisponivel | backoff, outbox preservada, sem crash | parcial real em `VMAIPROD2`: bootstrap degradado sem fatal, health OK, canal em fallback, retry de bootstrap e recuperacao de ping/config/ingest quando API volta; variacoes rede/proxy/disco ainda pendentes |
 | Rede intermitente | retry/backoff e flush posterior | parcial local |
-| Proxy/TLS | proxy autenticado e TLS invalido controlado | parcial local para `HTTP_PROXY` e rejeicao TLS invalido; proxy real/TLS pendente |
+| Proxy/TLS | proxy autenticado e TLS invalido controlado | OK no gate: bundle `docs/evidence/pkg69/proxy-tls-20260619T033945Z`, proxy autenticado, TLS invalido rejeitado e TLS valido aceito |
 | Disco cheio/outbox cheia | erro claro, sem corrupcao | parcial local |
 | Payload grande | limite/queda controlada em DogStatsD, OTLP e logs | parcial local |
 | Clock errado | health/time sync com diagnostico | parcial local para `time_sync.status`; NTP/clock real pendente |
