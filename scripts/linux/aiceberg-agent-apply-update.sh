@@ -18,6 +18,7 @@ AGENT_BIN="${AICEBERG_AGENT_BIN:-$BIN_DST}"
 AGENT_ENV_FILE="${AICEBERG_AGENT_ENV_FILE:-/etc/aiceberg/agent.env}"
 AGENT_PID_FILE="${AICEBERG_AGENT_PID_FILE:-/var/run/${SERVICE_NAME}.pid}"
 AGENT_STDOUT_LOG="${AICEBERG_AGENT_STDOUT_LOG:-/var/log/aiceberg-agent.log}"
+AGENT_HEALTH_URL="${AICEBERG_AGENT_HEALTH_URL:-}"
 RESTART_COMMAND="${AICEBERG_UPDATE_RESTART_COMMAND:-}"
 STATE_DIR="${AICEBERG_UPDATE_STATE_DIR:-/var/lib/aiceberg}"
 LOG_FILE="${AICEBERG_UPDATE_LOG_FILE:-/var/log/aiceberg-agent-update.log}"
@@ -53,6 +54,41 @@ if [[ -n "$UPDATE_SHA" ]]; then
   fi
 fi
 
+pid_alive() {
+  local pid="${1:-}"
+  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null
+}
+
+known_agent_running() {
+  if [[ -f "$AGENT_PID_FILE" ]]; then
+    local pid=""
+    pid="$(cat "$AGENT_PID_FILE" 2>/dev/null || true)"
+    if pid_alive "$pid"; then
+      return 0
+    fi
+  fi
+  if command -v pgrep >/dev/null 2>&1; then
+    pgrep -x "$(basename "$BIN_DST")" >/dev/null 2>&1 && return 0
+  fi
+  return 1
+}
+
+wait_agent_running() {
+  local timeout="${1:-30}"
+  local i
+  for i in $(seq 1 "$timeout"); do
+    if known_agent_running; then
+      if [[ -n "$AGENT_HEALTH_URL" ]] && command -v curl >/dev/null 2>&1; then
+        curl -fsS --max-time 2 "$AGENT_HEALTH_URL" >/dev/null 2>&1 && return 0
+      else
+        return 0
+      fi
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 restart_manual() {
   local target_bin="$AGENT_BIN"
   if [[ ! -x "$target_bin" && -x "$BIN_DST" ]]; then
@@ -68,15 +104,15 @@ restart_manual() {
   if [[ -f "$AGENT_PID_FILE" ]]; then
     local old_pid=""
     old_pid="$(cat "$AGENT_PID_FILE" 2>/dev/null || true)"
-    if [[ "$old_pid" =~ ^[0-9]+$ ]] && kill -0 "$old_pid" 2>/dev/null; then
+    if pid_alive "$old_pid"; then
       kill "$old_pid" 2>/dev/null || true
       for _ in $(seq 1 20); do
-        if ! kill -0 "$old_pid" 2>/dev/null; then
+        if ! pid_alive "$old_pid"; then
           break
         fi
         sleep 0.25
       done
-      if kill -0 "$old_pid" 2>/dev/null; then
+      if pid_alive "$old_pid"; then
         kill -9 "$old_pid" 2>/dev/null || true
       fi
     fi
@@ -91,8 +127,7 @@ restart_manual() {
   fi
   local new_pid="$!"
   echo "$new_pid" > "$AGENT_PID_FILE"
-  sleep 1
-  if ! kill -0 "$new_pid" 2>/dev/null; then
+  if ! wait_agent_running 20; then
     log "processo não permaneceu ativo após restart manual (pid=$new_pid)."
     return 1
   fi
@@ -105,16 +140,16 @@ restart_agent() {
 
   if [[ -n "$RESTART_COMMAND" ]]; then
     attempts+=("custom")
-    if /bin/sh -c "$RESTART_COMMAND"; then
+    if /bin/sh -c "$RESTART_COMMAND" && wait_agent_running 30; then
       log "restart via comando customizado concluído."
       return 0
     fi
-    log "falha no restart via comando customizado."
+    log "falha no restart via comando customizado ou confirmação de processo."
   fi
 
   if command -v systemctl >/dev/null 2>&1; then
     attempts+=("systemctl")
-    if systemctl restart "$SERVICE_NAME"; then
+    if systemctl restart "$SERVICE_NAME" && wait_agent_running 30; then
       log "restart via systemctl concluído."
       return 0
     fi
@@ -123,7 +158,7 @@ restart_agent() {
 
   if command -v service >/dev/null 2>&1; then
     attempts+=("service")
-    if service "$SERVICE_NAME" restart; then
+    if service "$SERVICE_NAME" restart && wait_agent_running 30; then
       log "restart via service concluído."
       return 0
     fi

@@ -242,6 +242,8 @@ Notas:
 - Troca remota de modo: `apply_agent_mode` persiste `direct|hub|relay` no override local `AGENT_MODE_OVERRIDE_PATH` (default ao lado de `PREFS_PATH`) e agenda restart controlado por saída do próprio processo; em serviços com `Restart=always`, o gerenciador sobe o agente já lendo o modo novo.
 - Auto-update remoto (opcional): se `AUTO_UPDATE_ENABLED=true`, o payload de `/v1/agent/config` pode incluir `update = { version, url, sha256, force }`. O agente baixa o artefato e executa `AUTO_UPDATE_COMMAND` com `AICEBERG_UPDATE_FILE` e variáveis relacionadas.
   - Linux recomendado: `AUTO_UPDATE_COMMAND=/usr/local/sbin/aiceberg-agent-update-launcher.sh` (script desacoplado que dispara `aiceberg-agent-apply-update.sh` via `systemd-run`, com lock e restart seguro do serviço).
+  - O agente arma uma guarda local antes do launcher em comandos de restart/update. Se o processo atual morrer e nenhum outro agente ficar ativo, a guarda tenta subir o binário instalado e grava o novo PID. Desabilite somente em ambiente controlado com `AUTO_UPDATE_RESTART_GUARD=false`.
+  - O launcher/apply só deve ser tratado como concluído na web após `version_confirmed`; `apply_dispatched` significa apenas que a troca foi iniciada.
 - A coleta envia um pacote único (`metric/sub=sysmetrics`) com CPU, memória, disco (I/O + SMART), rede, host, sensores/fans, bateria, GPU (NVIDIA), serviços, time sync (NTP), sanity (ping/DNS), backlog da fila, logs (.log em ./logs), updates (apt/softwareupdate), top processos.
 
 Quando formos criar instaladores, este fluxo servirá de base: validar token, gravar localmente e evitar reuso.

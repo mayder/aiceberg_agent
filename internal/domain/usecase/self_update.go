@@ -197,6 +197,12 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 			"err", err,
 		))
 	}
+	if err := uc.startRestartGuard(opts); err != nil {
+		uc.log.Error(logger.KV("self update restart guard failed",
+			"version", payload.Version,
+			"err", err,
+		))
+	}
 	uc.reportStatusBestEffort(
 		ctx,
 		payload,
@@ -515,6 +521,7 @@ func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, fi
 	cmd.Dir = workDir
 
 	exePath, _ := os.Executable()
+	pidFile := inferAgentPIDFile(opts.dir)
 	cmd.Env = append(os.Environ(),
 		"AICEBERG_UPDATE_VERSION="+payload.Version,
 		"AICEBERG_UPDATE_URL="+payload.URL,
@@ -523,6 +530,9 @@ func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, fi
 		"AICEBERG_UPDATE_DIR="+filepath.Dir(filePath),
 		"AICEBERG_AGENT_VERSION_CURRENT="+version.Version,
 		"AICEBERG_AGENT_BIN="+exePath,
+		"AICEBERG_AGENT_PID_FILE="+pidFile,
+		"AICEBERG_AGENT_STDOUT_LOG="+inferAgentRestartLogFile(pidFile),
+		"AICEBERG_AGENT_HEALTH_URL="+uc.localHealthURL(),
 	)
 
 	out, err := cmd.CombinedOutput()
@@ -546,6 +556,169 @@ func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, fi
 		return nil, errors.New(message)
 	}
 	return &exitCode, nil
+}
+
+func (uc *SelfUpdate) localHealthURL() string {
+	if strings.TrimSpace(os.Getenv("AICEBERG_AGENT_HEALTH_URL")) != "" {
+		return strings.TrimSpace(os.Getenv("AICEBERG_AGENT_HEALTH_URL"))
+	}
+	if uc.cfg.HealthPort <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d/health", uc.cfg.HealthPort)
+}
+
+func (uc *SelfUpdate) startRestartGuard(opts effectiveAutoUpdateOptions) error {
+	if runtime.GOOS == "windows" || strings.EqualFold(os.Getenv("AUTO_UPDATE_RESTART_GUARD"), "false") {
+		return nil
+	}
+	if !looksLikeRestartingUpdateCommand(opts.command) {
+		return nil
+	}
+	exePath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	updateDir := strings.TrimSpace(opts.dir)
+	if updateDir == "" {
+		updateDir = "./data/updates"
+	}
+	if err := os.MkdirAll(updateDir, 0o755); err != nil {
+		return err
+	}
+	pidFile := inferAgentPIDFile(updateDir)
+	logFile := inferAgentRestartLogFile(pidFile)
+	workDir := strings.TrimSpace(opts.workDir)
+	if workDir == "" {
+		workDir, err = os.Getwd()
+		if err != nil {
+			workDir = filepath.Dir(exePath)
+		}
+	}
+	scriptPath := filepath.Join(updateDir, fmt.Sprintf(".restart_guard_%d.sh", os.Getpid()))
+	if err := os.WriteFile(scriptPath, []byte(restartGuardScript()), 0o700); err != nil {
+		return err
+	}
+	nullFile, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	defer nullFile.Close()
+	cmd := exec.Command("nohup", "/bin/sh", scriptPath,
+		fmt.Sprintf("%d", os.Getpid()),
+		exePath,
+		workDir,
+		pidFile,
+		logFile,
+	)
+	cmd.Stdout = nullFile
+	cmd.Stderr = nullFile
+	cmd.Stdin = nullFile
+	return cmd.Start()
+}
+
+func looksLikeRestartingUpdateCommand(command string) bool {
+	value := strings.ToLower(strings.TrimSpace(command))
+	if value == "" {
+		return false
+	}
+	markers := []string{
+		"aiceberg-agent-update",
+		"aiceberg-agent-apply-update",
+		"systemctl restart",
+		"service aiceberg-agent restart",
+		"restart-service",
+		"sc.exe start",
+		" start.sh",
+		"/start.sh",
+		"kill ",
+		"kill$(",
+		"kill $(",
+	}
+	for _, marker := range markers {
+		if strings.Contains(value, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func inferAgentPIDFile(updateDir string) string {
+	if explicit := strings.TrimSpace(os.Getenv("AICEBERG_AGENT_PID_FILE")); explicit != "" {
+		return explicit
+	}
+	clean := filepath.Clean(updateDir)
+	if filepath.Base(clean) == "updates" {
+		return filepath.Join(filepath.Dir(clean), "agent.pid")
+	}
+	return filepath.Join(clean, "agent.pid")
+}
+
+func inferAgentRestartLogFile(pidFile string) string {
+	if explicit := strings.TrimSpace(os.Getenv("AICEBERG_AGENT_STDOUT_LOG")); explicit != "" {
+		return explicit
+	}
+	dataDir := filepath.Dir(pidFile)
+	baseDir := filepath.Dir(dataDir)
+	if filepath.Base(dataDir) == "data" && baseDir != "." && baseDir != string(filepath.Separator) {
+		return filepath.Join(baseDir, "logs", "agent.stderr.log")
+	}
+	return os.DevNull
+}
+
+func restartGuardScript() string {
+	return `#!/bin/sh
+set -eu
+current_pid="$1"
+agent_bin="$2"
+work_dir="$3"
+pid_file="$4"
+log_file="$5"
+
+is_pid_alive() {
+  case "${1:-}" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  kill -0 "$1" 2>/dev/null
+}
+
+has_agent_process() {
+  if [ -n "$pid_file" ] && [ -f "$pid_file" ] && is_pid_alive "$(cat "$pid_file" 2>/dev/null || true)"; then
+    return 0
+  fi
+  if command -v pgrep >/dev/null 2>&1; then
+    pgrep -x "$(basename "$agent_bin")" >/dev/null 2>&1 && return 0
+  fi
+  return 1
+}
+
+i=0
+while is_pid_alive "$current_pid" && [ "$i" -lt 150 ]; do
+  i=$((i + 1))
+  sleep 2
+done
+
+sleep 8
+i=0
+while [ "$i" -lt 20 ]; do
+  if has_agent_process; then
+    exit 0
+  fi
+  i=$((i + 1))
+  sleep 2
+done
+
+mkdir -p "$(dirname "$pid_file")" "$(dirname "$log_file")"
+cd "$work_dir" 2>/dev/null || cd "$(dirname "$agent_bin")"
+nohup "$agent_bin" >>"$log_file" 2>&1 < /dev/null &
+new_pid="$!"
+echo "$new_pid" > "$pid_file"
+sleep 2
+if ! is_pid_alive "$new_pid"; then
+  exit 1
+fi
+exit 0
+`
 }
 
 func (uc *SelfUpdate) ApplyRemoteConfig(payload *AutoUpdatePayload) {

@@ -200,6 +200,30 @@ func TestSelfUpdate_RunCommand(t *testing.T) {
 	}
 }
 
+func TestSelfUpdateRestartGuardHelpers(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX restart guard is not used on Windows")
+	}
+	updateDir := filepath.Join(t.TempDir(), "data", "updates")
+	pidFile := inferAgentPIDFile(updateDir)
+	if !strings.HasSuffix(pidFile, filepath.Join("data", "agent.pid")) {
+		t.Fatalf("expected pid file beside updates dir, got %s", pidFile)
+	}
+	logFile := inferAgentRestartLogFile(pidFile)
+	if !strings.HasSuffix(logFile, filepath.Join("logs", "agent.stderr.log")) {
+		t.Fatalf("expected default restart log in logs dir, got %s", logFile)
+	}
+	if !looksLikeRestartingUpdateCommand("sudo -n /usr/local/sbin/aiceberg-agent-update-launcher.sh") {
+		t.Fatalf("expected official launcher to enable restart guard")
+	}
+	if looksLikeRestartingUpdateCommand(`test -f "$AICEBERG_UPDATE_FILE"`) {
+		t.Fatalf("expected non-restarting command to skip restart guard")
+	}
+	if !strings.Contains(restartGuardScript(), "has_agent_process") {
+		t.Fatalf("expected restart guard script body")
+	}
+}
+
 func TestSelfUpdateFailureReasonCodePrefersSpecificFailureClass(t *testing.T) {
 	if got := updateFailureReasonCode("command_failed", "sudoers"); got != "sudoers" {
 		t.Fatalf("expected sudoers, got %s", got)
