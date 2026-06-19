@@ -1,0 +1,2 @@
+scenario	evidence_path	evidence_sha256	evidence_bytes	raw_archive	raw_sha256	raw_bytes	timestamp_utc
+kubernetes-payload-autodiscovery-metrics	docs/evidence/pkg65/kubernetes-payload-autodiscovery-metrics-20260619T185052Z/evidence.md	b2ac88de1babad83b172d33e0aef1b23ad9b959cdb89268147d5a266d6573304	1184	docs/evidence/pkg65/kubernetes-payload-autodiscovery-metrics-20260619T185052Z/raw/pkg65-kubernetes-payload-autodiscovery-metrics-raw.tgz	8fe7e370012e028154afd81b2a02b84f4a67151c4ee42ce6edbdd37edbe5917a	1528	20260619T185052Z

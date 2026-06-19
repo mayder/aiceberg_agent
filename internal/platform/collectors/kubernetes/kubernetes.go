@@ -103,6 +103,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	metrics := collectMetrics(ctx, client, c.apiURL, string(token), c.namespace)
 	payload := map[string]any{
 		"kubernetes": map[string]any{
 			"schema_version":       schemaVersion,
@@ -112,6 +113,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 			"pods":                 normalizePods(pods),
 			"nodes":                normalizeNodes(nodes),
 			"events":               normalizeEvents(events),
+			"metrics":              metrics,
 			"logs":                 c.collectPodLogs(ctx, client, c.apiURL, string(token), pods),
 			"autodiscovery_checks": autodiscoveryChecks(pods),
 		},
@@ -218,6 +220,28 @@ func listEvents(ctx context.Context, client *http.Client, apiURL, token, namespa
 		return nil, err
 	}
 	return out.Items, nil
+}
+
+func collectMetrics(ctx context.Context, client *http.Client, apiURL, token, namespace string) map[string]any {
+	nodeMetrics := nodeMetricsList{}
+	if err := getJSON(ctx, client, apiURL+"/apis/metrics.k8s.io/v1beta1/nodes", token, &nodeMetrics); err != nil {
+		nodeMetrics.Items = nil
+	}
+	podPath := "/apis/metrics.k8s.io/v1beta1/pods"
+	if strings.TrimSpace(namespace) != "" {
+		podPath = "/apis/metrics.k8s.io/v1beta1/namespaces/" + url.PathEscape(namespace) + "/pods"
+	}
+	podMetrics := podMetricsList{}
+	if err := getJSON(ctx, client, apiURL+podPath, token, &podMetrics); err != nil {
+		podMetrics.Items = nil
+	}
+	if len(nodeMetrics.Items) == 0 && len(podMetrics.Items) == 0 {
+		return nil
+	}
+	return map[string]any{
+		"nodes": normalizeNodeMetrics(nodeMetrics.Items),
+		"pods":  normalizePodMetrics(podMetrics.Items),
+	}
 }
 
 func getJSON(ctx context.Context, client *http.Client, rawURL, token string, target any) error {
@@ -434,6 +458,33 @@ type event struct {
 	LastTimestamp  string `json:"lastTimestamp"`
 }
 
+type nodeMetricsList struct {
+	Items []nodeMetric `json:"items"`
+}
+
+type nodeMetric struct {
+	Metadata  metadata          `json:"metadata"`
+	Timestamp string            `json:"timestamp"`
+	Window    string            `json:"window"`
+	Usage     map[string]string `json:"usage"`
+}
+
+type podMetricsList struct {
+	Items []podMetric `json:"items"`
+}
+
+type podMetric struct {
+	Metadata   metadata               `json:"metadata"`
+	Timestamp  string                 `json:"timestamp"`
+	Window     string                 `json:"window"`
+	Containers []containerMetricUsage `json:"containers"`
+}
+
+type containerMetricUsage struct {
+	Name  string            `json:"name"`
+	Usage map[string]string `json:"usage"`
+}
+
 type metadata struct {
 	Name            string            `json:"name"`
 	Namespace       string            `json:"namespace"`
@@ -528,6 +579,46 @@ func normalizeEvents(rows []event) []map[string]any {
 			"count":            row.Count,
 			"first_timestamp":  row.FirstTimestamp,
 			"last_timestamp":   row.LastTimestamp,
+		})
+	}
+	return out
+}
+
+func normalizeNodeMetrics(rows []nodeMetric) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, map[string]any{
+			"name":       row.Metadata.Name,
+			"timestamp":  row.Timestamp,
+			"window":     row.Window,
+			"cpu":        row.Usage["cpu"],
+			"memory":     row.Usage["memory"],
+			"usage":      row.Usage,
+			"metric_src": "metrics.k8s.io",
+		})
+	}
+	return out
+}
+
+func normalizePodMetrics(rows []podMetric) []map[string]any {
+	out := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		containers := make([]map[string]any, 0, len(row.Containers))
+		for _, c := range row.Containers {
+			containers = append(containers, map[string]any{
+				"name":   c.Name,
+				"cpu":    c.Usage["cpu"],
+				"memory": c.Usage["memory"],
+				"usage":  c.Usage,
+			})
+		}
+		out = append(out, map[string]any{
+			"namespace":  row.Metadata.Namespace,
+			"name":       row.Metadata.Name,
+			"timestamp":  row.Timestamp,
+			"window":     row.Window,
+			"containers": containers,
+			"metric_src": "metrics.k8s.io",
 		})
 	}
 	return out

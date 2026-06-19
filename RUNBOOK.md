@@ -267,6 +267,8 @@ RBAC minimo: leitura de `nodes`, `pods`, `events` e `get` em `pods/log` quando l
 
 Rollback: `helm uninstall aiceberg-agent -n aiceberg`, `kubectl delete -f deploy/kubernetes/aiceberg-agent.yaml` ou config remota `kubernetes.enabled=false`. Nao ha SQL do PKG-65.
 
+Estado aceito em 2026-06-19: `docs/evidence/pkg65/kubernetes-payload-autodiscovery-metrics-20260619T185052Z` valida node, pod, container, event, log com redaction, annotations de autodiscovery, Metrics API opcional e ausencia de volume sensivel no payload. DaemonSet/Helm/RBAC/rollback reais ficam cobertos por `docs/evidence/pkg69/kubernetes-rbac-20260619T041959Z`.
+
 ### PKG-66 - Runtime de checks locais
 
 Contrato tecnico: `docs/pkg66_local_checks.md`.

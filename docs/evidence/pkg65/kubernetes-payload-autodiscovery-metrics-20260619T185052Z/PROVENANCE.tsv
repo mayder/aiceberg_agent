@@ -1,0 +1,7 @@
+field	value
+scenario	kubernetes-payload-autodiscovery-metrics
+timestamp_utc	20260619T185052Z
+source_tool	go_test_kubernetes_collector
+runtime	kubernetes_contract_controlled
+raw_archive	raw/pkg65-kubernetes-payload-autodiscovery-metrics-raw.tgz
+kind_real_reference	docs/evidence/pkg69/kubernetes-rbac-20260619T041959Z/evidence.md

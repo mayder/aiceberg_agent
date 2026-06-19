@@ -457,9 +457,12 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 ### PKG-65 - Kubernetes
 
 - Unitario focado: `go test ./internal/platform/collectors/kubernetes ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.
-- Cobertura local: normalizacao de pods/containers, sanitizacao de labels/annotations e autodiscovery por annotations.
+- Cobertura local: normalizacao de pods/containers, sanitizacao de labels/annotations, autodiscovery por annotations, logs de pod e Metrics API opcional.
 - Validacao documental: `deploy/kubernetes/aiceberg-agent.yaml`, Helm chart, RBAC minimo e rollback documentados.
-- Validacao real PKG-69 executada em cluster kind controlado: DaemonSet rodando, events/logs coletados, Helm install/upgrade/rollback e RBAC minimo sem `secrets`, `pods/exec` ou `delete pods`; uso real via Metrics API/kubelet segue fora deste gate inicial.
+- Evidencia focada: `PKG65_EVIDENCE_DIR=/tmp/aiceberg_pkg65_kubernetes_payload_20260619T185052Z go test ./internal/platform/collectors/kubernetes -run TestPKG65KubernetesPayloadAutodiscoveryMetricsEvidence -count=1 -v`.
+- Bundle versionado: `docs/evidence/pkg65/kubernetes-payload-autodiscovery-metrics-20260619T185052Z`.
+- Cobertura da evidencia: node, pod, container, event, log com redaction, annotations de autodiscovery, Metrics API normalizada e ausencia de volume sensivel no payload.
+- Validacao real PKG-69 executada em cluster kind controlado: DaemonSet rodando, events/logs coletados, Helm install/upgrade/rollback e RBAC minimo sem `secrets`, `pods/exec` ou `delete pods`.
 
 ### PKG-66 - Checks locais
 

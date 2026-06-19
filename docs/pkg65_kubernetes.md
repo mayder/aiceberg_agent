@@ -53,6 +53,7 @@ O coletor envia `body.kubernetes` para `/v1/ingest/metrics`:
 - `pods`: namespace, nome, UID, node, fase, IPs, labels/annotations sanitizadas, owner e containers;
 - `containers`: imagem, requests, limits, ports, ready, restart_count, state, image_id e container_id curto;
 - `events`: eventos Kubernetes limitados por lote, com mensagem truncada;
+- `metrics`: uso de node e pod/container via Metrics API quando `metrics.k8s.io` estiver disponivel;
 - `logs.events[]`: logs de pod/container via API `pods/log`, com cursor por timestamp, filtros e redaction;
 - `autodiscovery_checks`: checks derivados de annotations.
 
@@ -96,13 +97,13 @@ RBAC minimo:
 - `pods`: `get`, `list`, `watch`;
 - `events`: `get`, `list`, `watch`.
 - `pods/log`: `get`, somente quando logs de pod forem habilitados.
+- `metrics.k8s.io/nodes` e `metrics.k8s.io/pods`: `get`, `list`, opcionais para Metrics API.
 
 ## Limites atuais
 
-- Coleta uso real CPU/memoria via Metrics API ou kubelet fica pendente.
-- Validacao real de logs de pod/container em cluster fica pendente.
-- Execucao real dos checks descobertos em cluster controlado fica pendente de homologacao Kubernetes.
-- Validacao real em cluster, upgrade/rollback do chart e remocao limpa ficam pendentes para PKG-69.
+- Metrics API e opcional: clusters sem Metrics Server continuam enviando pods/nodes/events/logs sem falhar a coleta.
+- Execucao real dos checks descobertos depende do runtime do PKG-66/PKG-71.
+- Kubelet direto permanece fora do gate inicial; o caminho suportado e API Kubernetes + Metrics API quando disponivel.
 
 ## Rollback
 
@@ -124,3 +125,16 @@ ou config remota `kubernetes.enabled=false`.
 ```bash
 go test ./internal/platform/collectors/kubernetes ./internal/common/config ./internal/domain/usecase ./internal/bootstrap
 ```
+
+## Evidencia de fechamento
+
+Bundle aceito: `docs/evidence/pkg65/kubernetes-payload-autodiscovery-metrics-20260619T185052Z`.
+
+Cobertura:
+
+- node, pod, container e event normalizados;
+- logs de pod com cursor/redaction;
+- annotations gerando checks canonicos;
+- Metrics API normalizada para node e pod/container;
+- volume sensivel presente no pod controlado nao aparece no payload;
+- DaemonSet, Helm, rollback e RBAC minimo reais referenciados pelo bundle PKG-69 `docs/evidence/pkg69/kubernetes-rbac-20260619T041959Z/evidence.md`.
