@@ -412,6 +412,8 @@ Operacao segura:
 - manter `jmx` em `mode=jolokia`;
 - tratar `iis_wmi` e `windows_service` como experimentais ate Windows Server real.
 
+Estado aceito em 2026-06-19: `docs/evidence/pkg71/advanced-integrations-20260619T200500Z` valida em ambiente controlado OpenMetrics `/metrics`, JMX/Jolokia, guard WMI/IIS fora de Windows, PostgreSQL/RabbitMQ reachability, MySQL com falha controlada, Nginx HTTP, bloqueio beta sem homologacao e ausencia de vazamento de `credentials_ref`/metrica negada. Windows Server real e credenciais produtivas continuam exigindo homologacao por cliente antes de ativacao ampla.
+
 Rollback: remover a entrada da integracao em `local_checks` ou definir `local_checks_enabled=false`. Nao ha SQL do PKG-71.
 
 ### PKG-72 - Evidencia contextual, IA local e offline

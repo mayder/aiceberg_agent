@@ -250,6 +250,17 @@ Referências:
 - Impacto em rollback: desativar a integracao especifica em `local_checks` ou `local_checks_enabled=false`.
 - Como reverter: remover manifests novos e voltar ao runtime de checks basicos do PKG-66.
 
+### DEC-20260619-19 - PKG-71 fecha com homologacao minima por evidencia controlada
+
+- Status: aceita
+- Contexto: as integracoes avancadas precisam de evidencia objetiva sem liberar beta/experimental em producao por acidente.
+- Decisao: fechar o PKG-71 com `docs/evidence/pkg71/advanced-integrations-20260619T200500Z`, cobrindo `/metrics`, Jolokia, WMI/IIS guard, reachability de banco/fila/web server, falha controlada e bloqueio beta sem homologacao.
+- Alternativas consideradas: exigir bancos reais e Windows Server real para fechar o pacote ou tratar unitarios antigos como suficientes.
+- Consequencias: o catalogo fica pronto para canario/homologacao por cliente; Windows Server real, bancos produtivos e marketplace amplo continuam exigindo `homologation_ref` e rollback por integracao antes de ativacao ampla.
+- Impacto em testes: teste dedicado gera bundle com status por integracao e checa ausencia de vazamento de `credentials_ref` e metricas negadas.
+- Impacto em rollback: remover a integracao especifica de `local_checks` ou desligar `local_checks_enabled=false`.
+- Como reverter: remover a evidencia/teste dedicado e voltar checkboxes de validacao do PKG-71 para pendente.
+
 ### DEC-20260618-14 - Diferenciais AIceberg começam por evidencia contextual deterministica
 
 - Status: aceita

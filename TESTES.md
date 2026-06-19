@@ -240,7 +240,9 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 
 - Unitario focado: `go test ./internal/platform/collectors/localchecks`.
 - Cobrir OpenMetrics com allowlist/cardinalidade, labels permitidas, JMX via Jolokia, metadados de manifest oficial e bloqueio de tipo arbitrario.
-- Validacao real de `/metrics`, app Java, Windows Server, bancos/fila/web servers e autodiscovery container/Kubernetes fica pendente ate ambiente controlado.
+- Evidencia focada: `PKG71_EVIDENCE_DIR=/Users/brenomayder/projects/desktop/aiceberg_agent/docs/evidence/pkg71/advanced-integrations-20260619T200500Z go test ./internal/platform/collectors/localchecks -run TestPKG71AdvancedIntegrationsEvidence -count=1 -v`.
+- Bundle versionado: `docs/evidence/pkg71/advanced-integrations-20260619T200500Z`.
+- Cobertura: `/metrics` controlado, JMX/Jolokia, WMI/IIS guard fora de Windows, PostgreSQL/RabbitMQ reachability, MySQL falha controlada, Nginx HTTP, beta sem homologacao bloqueado, sem vazamento de `credentials_ref` ou metrica negada. Windows Server real e credenciais produtivas continuam exigindo homologacao por cliente antes de ativacao ampla.
 
 ## PKG-72 - Diferenciais AIceberg
 

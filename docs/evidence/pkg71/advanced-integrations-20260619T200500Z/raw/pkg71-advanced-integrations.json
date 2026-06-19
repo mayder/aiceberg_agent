@@ -1,0 +1,197 @@
+{
+  "blocked_beta": {
+    "error": "integracao local nao homologada para ativacao produtiva",
+    "logs": null,
+    "metrics": null,
+    "service_check": {
+      "activation_blocked": true,
+      "integration": {
+        "kind": "sqlserver",
+        "permissions": [
+          "tcp_connect",
+          "credentials_ref"
+        ],
+        "rollback": "desativar check sqlserver",
+        "status": "beta",
+        "version": "1"
+      },
+      "reason": "integration_not_homologated",
+      "status": "blocked"
+    }
+  },
+  "jmx_jolokia": {
+    "error": "",
+    "logs": null,
+    "metrics": [
+      {
+        "integration": "jmx",
+        "name": "jvm.heap.used",
+        "type": "gauge",
+        "value": 256
+      },
+      {
+        "integration": "jmx",
+        "name": "jvm.heap.max",
+        "type": "gauge",
+        "value": 1024
+      },
+      {
+        "integration": "jmx",
+        "name": "jvm.threads.count",
+        "type": "gauge",
+        "value": 32
+      },
+      {
+        "integration": "jmx",
+        "name": "jvm.gc.collection_count",
+        "type": "gauge",
+        "value": 11
+      },
+      {
+        "integration": "jmx",
+        "name": "jvm.gc.collection_time_ms",
+        "type": "gauge",
+        "value": 70
+      }
+    ],
+    "service_check": {
+      "http_status": 200,
+      "integration": {
+        "kind": "jmx",
+        "permissions": [
+          "jolokia_http_get",
+          "credentials_ref"
+        ],
+        "rollback": "desativar check jmx",
+        "status": "beta",
+        "version": "1"
+      },
+      "mode": "jolokia",
+      "status": "ok"
+    }
+  },
+  "mysql_failure": {
+    "error": "dial tcp 127.0.0.1:1: connect: connection refused",
+    "logs": null,
+    "metrics": null,
+    "service_check": {
+      "integration": {
+        "kind": "mysql",
+        "permissions": [
+          "tcp_connect",
+          "credentials_ref"
+        ],
+        "rollback": "desativar check mysql",
+        "status": "beta",
+        "version": "1"
+      },
+      "status": "critical"
+    }
+  },
+  "nginx_http": {
+    "error": "",
+    "logs": null,
+    "metrics": [
+      {
+        "name": "http.status_code",
+        "type": "gauge",
+        "value": 204
+      }
+    ],
+    "service_check": {
+      "http_status": 204,
+      "status": "ok"
+    }
+  },
+  "openmetrics_app": {
+    "error": "",
+    "logs": null,
+    "metrics": [
+      {
+        "labels": {
+          "code": "200"
+        },
+        "name": "app_requests_total",
+        "type": "gauge",
+        "value": 10
+      },
+      {
+        "name": "app_requests_total",
+        "type": "gauge",
+        "value": 2
+      }
+    ],
+    "service_check": {
+      "http_status": 200,
+      "status": "ok"
+    }
+  },
+  "postgresql_reachable": {
+    "error": "",
+    "logs": null,
+    "metrics": [
+      {
+        "integration": "postgresql",
+        "name": "integration.reachable",
+        "type": "gauge",
+        "value": 1
+      }
+    ],
+    "service_check": {
+      "integration": {
+        "kind": "postgresql",
+        "permissions": [
+          "tcp_connect",
+          "credentials_ref"
+        ],
+        "rollback": "desativar check postgresql",
+        "status": "beta",
+        "version": "1"
+      },
+      "status": "ok"
+    }
+  },
+  "rabbitmq_reachable": {
+    "error": "",
+    "logs": null,
+    "metrics": [
+      {
+        "integration": "rabbitmq",
+        "name": "integration.reachable",
+        "type": "gauge",
+        "value": 1
+      }
+    ],
+    "service_check": {
+      "integration": {
+        "kind": "rabbitmq",
+        "permissions": [
+          "tcp_connect",
+          "credentials_ref"
+        ],
+        "rollback": "desativar check rabbitmq",
+        "status": "beta",
+        "version": "1"
+      },
+      "status": "ok"
+    }
+  },
+  "windows_iis_guard": {
+    "error": "integracao WMI/IIS exige Windows",
+    "logs": null,
+    "metrics": null,
+    "service_check": {
+      "integration": {
+        "kind": "iis_wmi",
+        "permissions": [
+          "windows_perf_counter"
+        ],
+        "rollback": "desativar check iis_wmi",
+        "status": "experimental",
+        "version": "1"
+      },
+      "reason": "windows_only",
+      "status": "skipped"
+    }
+  }
+}

@@ -98,14 +98,18 @@ Revalidacao em 2026-06-19 na branch `mayder/agente-datadog-paridade`:
 
 Todos passaram. Isso nao fecha homologacao real.
 
-## Pendencias reais
+Fechamento controlado em 2026-06-19:
 
-- app real com `/metrics`;
-- app Java real com Jolokia e credencial minima;
-- Windows Server para WMI/IIS/Windows Service;
-- PostgreSQL/MySQL/Redis reais com credenciais minimas;
-- execucao real de checks descobertos por autodiscovery em Docker/Kubernetes controlados;
-- UI/marketplace interno no web.
+- `PKG71_EVIDENCE_DIR=/Users/brenomayder/projects/desktop/aiceberg_agent/docs/evidence/pkg71/advanced-integrations-20260619T200500Z go test ./internal/platform/collectors/localchecks -run TestPKG71AdvancedIntegrationsEvidence -count=1 -v`
+- Bundle: `docs/evidence/pkg71/advanced-integrations-20260619T200500Z`.
+- Cobertura: app `/metrics` controlado, JMX/Jolokia controlado com `homologation_ref`, WMI/IIS bloqueado fora de Windows com `windows_only`, PostgreSQL e RabbitMQ por reachability TCP local, MySQL com falha controlada, Nginx HTTP, beta sem homologacao bloqueado, ausencia de vazamento de `credentials_ref` e metrica negada.
+- Autodiscovery Docker/Kubernetes permanece validado por contrato nos pacotes 64/65 e revalidado com `go test ./internal/platform/collectors/containers ./internal/platform/collectors/kubernetes`.
+
+## Homologacao real complementar
+
+- Windows Server real para WMI/IIS/Windows Service antes de ativar experimental em cliente.
+- Bancos/fila/web servers produtivos devem usar credencial minima por `credentials_ref` e `homologation_ref` por cliente.
+- Marketplace/configuracao ampla no web exige aprovacao operacional e rollback por integracao.
 
 ## Rollback
 

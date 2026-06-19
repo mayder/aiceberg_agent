@@ -1,0 +1,2 @@
+scenario	evidence_path	evidence_sha256	evidence_bytes	raw_path	raw_sha256	raw_bytes	created_at_utc
+pkg71-advanced-integrations	docs/evidence/pkg71/advanced-integrations-20260619T200500Z/evidence.md	017e63d786483ed2c0e018851ca2b3be6ced9e3a07d13ca56f06162057a5d840	834	docs/evidence/pkg71/advanced-integrations-20260619T200500Z/raw/pkg71-advanced-integrations-raw.tgz	998ca68c142c42ac222b2d603ab3dd3945d69c4fe5085eec0784b5a86b497fd3	844	20260619T200500Z
