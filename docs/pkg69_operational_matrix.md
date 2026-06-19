@@ -85,6 +85,7 @@ Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 - `kubectl` disponivel; Kubernetes RBAC validado posteriormente em cluster kind efemero com Helm temporario em `/tmp`;
 - PowerShell indisponivel neste host;
 - Windows desktop e reboot real seguem pendentes de ambiente controlado.
+- Diagnostico em 2026-06-19: WinRM nao esta exposto no Windows informado, apenas RDP; o host Windows validado ate aqui e Windows Server, nao evidencia `windows-desktop`. O Linux novo `187.45.180.181:1158` segue sem `sudo -n`, portanto nao cobre systemd/root nem reboot real. Reboot durante coleta exige janela/autorizacao explicita em host nao critico; nao foi executado para nao derrubar AIceberg ou Inspect.
 
 Smokes por sistema operacional:
 
@@ -212,7 +213,7 @@ Atualizacao/instalacao real adicional em 2026-06-19:
 | Ambiente | Evidencia exigida | Estado atual |
 | --- | --- | --- |
 | Windows Server | `smoke.ps1`, EventLog, servico Windows, update/rollback | OK no gate: bundle `docs/evidence/pkg69/windows-server-20260619T023855Z`, smoke/servico/health/EventLog/rollback controlado validados; update remoto assinado ainda fica no cenario `remote-update-rollback` |
-| Windows desktop | `smoke.ps1`, EventLog, instalador, proxy | pendente real |
+| Windows desktop | `smoke.ps1`, EventLog, instalador, proxy | pendente real: falta host Windows workstation acessivel; Windows informado validou `windows-server`, WinRM nao esta exposto e RDP nao fornece evidencia automatizada no repo |
 | Ubuntu/Debian | `smoke.sh`, systemd, logs, outbox, update | OK no gate para Debian: bundle `docs/evidence/pkg69/linux-debian-20260619T030202Z`, systemd/rollback/restore/journal/overhead validados no agente `19`; Ubuntu 24.04 id `70` ainda parcial por modo usuario/crontab; update remoto assinado fica no cenario `remote-update-rollback` |
 | RHEL/Alma/Rocky | `smoke.sh`, systemd, dnf/yum, update | OK no gate: bundle `docs/evidence/pkg69/linux-rhel-20260619T025113Z`, systemd/rollback/restore/journal/overhead validados no `VMAIPROD2`; update remoto assinado ainda fica no cenario `remote-update-rollback` |
 | Docker | `CONTAINER_ENABLED=true`, Docker socket, labels, recursos | OK no gate: bundle `docs/evidence/pkg69/docker-runtime-20260619T031843Z`, socket real, logs JSON com cursor, filtro de container controlado e cleanup validados |
@@ -229,7 +230,7 @@ Atualizacao/instalacao real adicional em 2026-06-19:
 | Disco cheio/outbox cheia | erro claro, sem corrupcao | OK no gate: bundle `docs/evidence/pkg69/disk-full-20260619T034504Z`, volume APFS temporario cheio, outbox preservada e recuperacao validada |
 | Payload grande | limite/queda controlada em DogStatsD, OTLP e logs | parcial local |
 | Clock errado | health/time sync com diagnostico | OK no gate: bundle `docs/evidence/pkg69/clock-skew-20260619T042607Z`, NTP controlado com `critical` e retorno `ok` sem alterar clock do host |
-| Reboot durante coleta | servico retorna e outbox preserva dados | parcial local para reabertura bbolt; reboot real pendente |
+| Reboot durante coleta | servico retorna e outbox preserva dados | parcial local para reabertura bbolt; reboot real pendente de autorizacao explicita e janela em host nao critico |
 | Update quebrado | `update-report` com falha e rollback seguro | OK no gate: bundle `docs/evidence/pkg69/remote-update-rollback-20260619T040722Z`, artefato assinado, update-report `apply_failed`/`version_confirmed` e rollback do apply script validado |
 | Relay/Hub/Direct | relay envia somente para Hub; Hub encaminha ao AIceberg | OK no gate: bundle `docs/evidence/pkg69/relay-hub-direct-hosts-20260619T035749Z`, containers separados, Relay visto pelo backend via IP do Hub e `relay_direct_api_attempts=0` |
 | Permissao insuficiente | degradacao com status claro | OK no gate: bundle `docs/evidence/pkg69/permission-ebpf-20260619T032753Z`, tcpdump sem permissao em Linux real, degradacao clara e ingest ativo validados |
