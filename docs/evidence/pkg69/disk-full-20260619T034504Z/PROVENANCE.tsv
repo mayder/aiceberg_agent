@@ -1,0 +1,9 @@
+key	value
+bundle_tool	scripts/pkg69_bundle_evidence.sh
+bundle_tool_version	1
+scenario	disk-full
+created_at_utc	20260619T034505Z
+raw_source_type	file
+raw_source_basename	aiceberg_pkg69_disk_full_raw_20260619T034432Z.tgz
+evidence_file	evidence.md
+artifact_file	raw/aiceberg_pkg69_disk_full_raw_20260619T034432Z.tgz
