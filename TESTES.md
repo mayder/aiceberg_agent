@@ -231,7 +231,10 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 
 - Unitario focado: `go test ./internal/platform/collectors/networkcapture`.
 - Cobrir servico inferido sem OpenTelemetry, `service/env/version` por metadado explicito ou cmdline, dependencia `service -> database`, fallback eBPF, NPM/top talkers, redaction de IP publico e sinais SOC sem acao destrutiva.
-- Validacao real de kernel eBPF, permissao sem eBPF, fluxo `web -> api -> db`, container, Kubernetes e overhead fica pendente ate ambiente controlado.
+- Evidencia focada: `PKG70_EVIDENCE_DIR=/Users/brenomayder/projects/desktop/aiceberg_agent/docs/evidence/pkg70/network-usm-workload-20260619T192000Z go test ./internal/platform/collectors/networkcapture -run TestPKG70NetworkUSMWorkloadEvidence -count=1 -v`.
+- Bundle versionado: `docs/evidence/pkg70/network-usm-workload-20260619T192000Z`.
+- Cobertura: fluxo controlado `web -> api -> postgres`, dependencia `service -> service` e `service -> database`, fallback sem eBPF, estado eBPF ativo somente quando `applied_mode` traz `ebpf_probe`, porta administrativa publica degradada, sinais SOC evidence-only, `source_score` e redaction de IP publico em NPM/workload.
+- Complemento real vem do PKG-69 para permissao eBPF restrita, Docker, Kubernetes e overhead. eBPF kernel ativo produtivo nao e reivindicado nesta versao.
 
 ## PKG-71 - Integracoes avancadas
 

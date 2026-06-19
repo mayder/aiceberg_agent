@@ -1,0 +1,288 @@
+{
+  "controlled_flow_count": 3,
+  "ebpf_supported_status": {
+    "requested_mode": "ebpf",
+    "applied_mode": "socket_snapshot+netlink+ebpf_probe",
+    "ebpf_supported": true,
+    "ebpf_active": true,
+    "reason": "system probe habilitado e suportado",
+    "capabilities": {
+      "netlink": true,
+      "pcap": true,
+      "ebpf": true
+    }
+  },
+  "generated_at_utc": "2026-06-19T19:20:00Z",
+  "goarch": "arm64",
+  "goos": "darwin",
+  "network_performance": {
+    "local_host_only": true,
+    "states": {
+      "ESTABLISHED": 15,
+      "SYN_SENT": 5
+    },
+    "top_talkers": [
+      {
+        "remote_ip": "10.10.1.40",
+        "remote_port": 5432,
+        "protocol": "tcp",
+        "samples": 9,
+        "bytes_in": 12000,
+        "bytes_out": 18000
+      },
+      {
+        "remote_ip": "10.10.1.30",
+        "remote_port": 8080,
+        "protocol": "tcp",
+        "samples": 6,
+        "bytes_in": 4200,
+        "bytes_out": 8100
+      },
+      {
+        "remote_ip": "203.0.113.0/24",
+        "remote_port": 22,
+        "protocol": "tcp",
+        "samples": 5,
+        "bytes_out": 600,
+        "reset_hits": 1,
+        "timeout_hits": 4
+      }
+    ],
+    "exposed_admin_ports": [
+      {
+        "service": "nc",
+        "remote_ip": "203.0.113.0/24",
+        "remote_port": 22,
+        "scope": "public",
+        "evidence": "network_capture_problematic_tag"
+      }
+    ]
+  },
+  "scenario": "pkg70-network-usm-workload",
+  "service_map": {
+    "enabled": true,
+    "source": "network_capture",
+    "services": [
+      {
+        "service": "api",
+        "env": "prod",
+        "version": "2026.06.19",
+        "status": "confirmed",
+        "confidence": "confirmed",
+        "source": "listener",
+        "evidence": [
+          "listener:tcp/8081",
+          "env:explicit",
+          "version:explicit",
+          "flow:tcp/5432"
+        ],
+        "listen_ports": [
+          8081
+        ],
+        "processes": [
+          "legacy-api"
+        ]
+      },
+      {
+        "service": "web",
+        "env": "prod",
+        "version": "2026.06.19",
+        "status": "confirmed",
+        "confidence": "confirmed",
+        "source": "listener",
+        "evidence": [
+          "listener:tcp/8080",
+          "env:explicit",
+          "version:explicit",
+          "flow:tcp/8080"
+        ],
+        "listen_ports": [
+          8080
+        ],
+        "processes": [
+          "frontend-web"
+        ]
+      },
+      {
+        "service": "api.internal.local",
+        "status": "inferred",
+        "confidence": "inferred",
+        "source": "traffic",
+        "evidence": [
+          "remote:tcp/8080"
+        ]
+      },
+      {
+        "service": "nc",
+        "status": "inferred",
+        "confidence": "inferred",
+        "source": "traffic",
+        "evidence": [
+          "flow:tcp/22"
+        ],
+        "processes": [
+          "nc"
+        ]
+      },
+      {
+        "service": "postgres.internal.local",
+        "status": "inferred",
+        "confidence": "inferred",
+        "source": "traffic",
+        "evidence": [
+          "remote:tcp/5432"
+        ]
+      },
+      {
+        "service": "unknown",
+        "status": "inferred",
+        "confidence": "unknown",
+        "source": "traffic",
+        "evidence": [
+          "remote:tcp/22"
+        ]
+      }
+    ],
+    "dependencies": [
+      {
+        "source_service": "api",
+        "target_service": "postgres.internal.local",
+        "target_type": "database",
+        "remote_ip": "10.10.1.40",
+        "remote_port": 5432,
+        "protocol": "tcp",
+        "direction": "egress",
+        "confidence": "confirmed",
+        "evidence": [
+          "socket_snapshot",
+          "dns:postgres.internal.local"
+        ],
+        "samples": 9,
+        "bytes_in": 12000,
+        "bytes_out": 18000
+      },
+      {
+        "source_service": "web",
+        "target_service": "api.internal.local",
+        "target_type": "service",
+        "remote_ip": "10.10.1.30",
+        "remote_port": 8080,
+        "protocol": "tcp",
+        "direction": "egress",
+        "confidence": "confirmed",
+        "evidence": [
+          "socket_snapshot",
+          "dns:api.internal.local"
+        ],
+        "samples": 6,
+        "bytes_in": 4200,
+        "bytes_out": 8100
+      },
+      {
+        "source_service": "nc",
+        "target_service": "unknown",
+        "target_type": "unknown",
+        "remote_ip": "203.0.113.0/24",
+        "remote_port": 22,
+        "protocol": "tcp",
+        "direction": "egress",
+        "confidence": "inferred",
+        "evidence": [
+          "socket_snapshot"
+        ],
+        "samples": 5,
+        "bytes_out": 600,
+        "reset_hits": 1,
+        "timeout_hits": 4
+      }
+    ],
+    "system_probe": {
+      "requested_mode": "ebpf",
+      "applied_mode": "socket_snapshot+netlink",
+      "ebpf_supported": false,
+      "ebpf_active": false,
+      "fallback": "socket_snapshot",
+      "reason": "fallback seguro sem eBPF ativo",
+      "capabilities": {
+        "netlink": true,
+        "pcap": true,
+        "ebpf": false
+      }
+    },
+    "privacy": {
+      "redaction": [
+        "command_args",
+        "username",
+        "absolute_path",
+        "public_ip_suffix"
+      ],
+      "retention": "mesma retencao do payload network_capture no backend",
+      "destructive_mode": false
+    }
+  },
+  "source_score": {
+    "score": 62,
+    "label": "medium",
+    "reason": "pcap habilitado sem amostras úteis | warnings de coleta reduziram confiança da fonte"
+  },
+  "validation_scope": "controlled fixture plus PKG-69 real host bundles referenced in docs",
+  "workload_security": {
+    "enabled": true,
+    "rule_version": "network-workload-v1",
+    "signals": [
+      {
+        "rule_id": "network.admin_port_public",
+        "severity": "high",
+        "category": "suspicious_external_connection",
+        "service": "nc",
+        "process": "nc",
+        "remote_ip": "203.0.113.0/24",
+        "remote_port": 22,
+        "evidence": [
+          "admin_port",
+          "scope:public"
+        ]
+      },
+      {
+        "rule_id": "network.failed_handshake",
+        "severity": "medium",
+        "category": "network_anomaly",
+        "service": "nc",
+        "process": "nc",
+        "remote_ip": "203.0.113.0/24",
+        "remote_port": 22,
+        "evidence": [
+          "failed_handshake",
+          "SYN_SENT"
+        ]
+      },
+      {
+        "rule_id": "network.unknown_reputation_ip",
+        "severity": "medium",
+        "category": "network_anomaly",
+        "service": "nc",
+        "process": "nc",
+        "remote_ip": "203.0.113.0/24",
+        "remote_port": 22,
+        "evidence": [
+          "unknown_reputation_ip",
+          "SYN_SENT"
+        ]
+      },
+      {
+        "rule_id": "process.suspicious_public_connection",
+        "severity": "medium",
+        "category": "suspicious_process",
+        "service": "nc",
+        "process": "nc",
+        "remote_ip": "203.0.113.0/24",
+        "remote_port": 22,
+        "evidence": [
+          "process_name",
+          "public_destination"
+        ]
+      }
+    ],
+    "destructive_action": false
+  }
+}

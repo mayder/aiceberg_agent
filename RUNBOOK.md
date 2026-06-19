@@ -389,6 +389,8 @@ Operacao segura:
 - tratar `workload_security.signals` como evidencia SOC/NOC, sem bloqueio automatico;
 - revisar overhead de CPU/memoria antes de ativacao ampla.
 
+Estado aceito em 2026-06-19: `docs/evidence/pkg70/network-usm-workload-20260619T192000Z` valida em ambiente controlado o fluxo `web -> api -> postgres`, dependencias, fallback sem eBPF, contrato de `ebpf_probe`, porta administrativa publica degradada, sinais SOC evidence-only, `source_score` e redaction dos blocos NPM/workload. Os bundles reais do PKG-69 complementam permissao eBPF restrita, Docker, Kubernetes e overhead operacional. Nao declarar eBPF kernel ativo produtivo como obrigatorio ou superior.
+
 Rollback: definir `network_advanced_enabled=false`, `usm_enabled=false`, `workload_security_enabled=false`, `network_pcap_enabled=false` e `network_passive_mode=socket`. Nao ha SQL do PKG-70.
 
 ### PKG-71 - Integracoes avancadas

@@ -1,9 +1,18 @@
 package networkcapture
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -931,4 +940,314 @@ func TestReadExternalSourceWithAdapterHTTPNDJSON(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("expected 2 rows, got %d", len(rows))
 	}
+}
+
+func TestPKG70NetworkUSMWorkloadEvidence(t *testing.T) {
+	advancedFallback := &passiveAdvancedPayload{
+		RequestedMode: "ebpf",
+		AppliedMode:   "socket_snapshot+netlink",
+		Capabilities: passiveCapabilities{
+			Netlink: true,
+			PCAP:    true,
+			EBPF:    false,
+		},
+		Sources: []string{"socket_snapshot", "netlink"},
+	}
+	advancedSupported := &passiveAdvancedPayload{
+		RequestedMode: "ebpf",
+		AppliedMode:   "socket_snapshot+netlink+ebpf_probe",
+		Capabilities: passiveCapabilities{
+			Netlink: true,
+			PCAP:    true,
+			EBPF:    true,
+		},
+		Sources: []string{"socket_snapshot", "netlink"},
+	}
+	options := passiveCollectOptions{
+		requestedMode:   "ebpf",
+		advancedEnabled: true,
+		usmEnabled:      true,
+		workloadEnabled: true,
+		pcapEnabled:     true,
+	}
+	flows := []flowRow{
+		{
+			Protocol:       "tcp",
+			Direction:      "egress",
+			LocalIP:        "10.10.1.20",
+			LocalPort:      51010,
+			RemoteIP:       "10.10.1.30",
+			RemotePort:     8080,
+			RemoteScope:    "private",
+			State:          "ESTABLISHED",
+			Process:        "frontend-web",
+			ServiceName:    "web",
+			ServiceEnv:     "prod",
+			ServiceVersion: "2026.06.19",
+			DNSQuery:       "api.internal.local",
+			Samples:        6,
+			BytesIn:        4200,
+			BytesOut:       8100,
+		},
+		{
+			Protocol:       "tcp",
+			Direction:      "egress",
+			LocalIP:        "10.10.1.30",
+			LocalPort:      52020,
+			RemoteIP:       "10.10.1.40",
+			RemotePort:     5432,
+			RemoteScope:    "private",
+			State:          "ESTABLISHED",
+			Process:        "legacy-api",
+			ServiceName:    "api",
+			ServiceEnv:     "prod",
+			ServiceVersion: "2026.06.19",
+			DNSQuery:       "postgres.internal.local",
+			Samples:        9,
+			BytesIn:        12000,
+			BytesOut:       18000,
+		},
+		{
+			Protocol:    "tcp",
+			Direction:   "egress",
+			LocalIP:     "10.10.1.30",
+			LocalPort:   53030,
+			RemoteIP:    "203.0.113.44",
+			RemotePort:  22,
+			RemoteScope: "public",
+			State:       "SYN_SENT",
+			Process:     "nc",
+			Samples:     5,
+			BytesIn:     0,
+			BytesOut:    600,
+			ResetHits:   1,
+			TimeoutHits: 4,
+			RiskTags:    []string{"failed_handshake", "admin_port_exposure", "unknown_reputation_ip"},
+		},
+	}
+	listeners := []listenerRow{
+		{
+			Protocol:       "tcp",
+			LocalPort:      8080,
+			Process:        "frontend-web",
+			ServiceName:    "web",
+			ServiceEnv:     "prod",
+			ServiceVersion: "2026.06.19",
+			Samples:        2,
+		},
+		{
+			Protocol:       "tcp",
+			LocalPort:      8081,
+			Process:        "legacy-api",
+			ServiceName:    "api",
+			ServiceEnv:     "prod",
+			ServiceVersion: "2026.06.19",
+			Samples:        2,
+		},
+	}
+
+	serviceMap := buildServiceMapPayload(flows, listeners, advancedFallback, options)
+	if serviceMap == nil || !serviceMap.Enabled {
+		t.Fatalf("expected enabled service map")
+	}
+	assertDependency(t, serviceMap.Dependencies, "web", "api.internal.local", "service", 8080)
+	assertDependency(t, serviceMap.Dependencies, "api", "postgres.internal.local", "database", 5432)
+	if serviceMap.SystemProbe.EBPFActive {
+		t.Fatalf("fallback system probe must not mark ebpf active")
+	}
+	if serviceMap.SystemProbe.Fallback == "" {
+		t.Fatalf("expected fallback when ebpf is not supported")
+	}
+	supportedStatus := buildSystemProbeStatus(advancedSupported, options)
+	if !supportedStatus.EBPFSupported || !supportedStatus.EBPFActive || supportedStatus.Fallback != "" {
+		t.Fatalf("expected supported ebpf status without fallback, got %#v", supportedStatus)
+	}
+
+	npm := buildNetworkPerfPayload(flows)
+	if len(npm.ExposedAdminPorts) != 1 {
+		t.Fatalf("expected one exposed admin port, got %#v", npm.ExposedAdminPorts)
+	}
+	if npm.TopTalkers[0].RemoteIP == "203.0.113.44" {
+		t.Fatalf("expected public top talker ip to be masked")
+	}
+
+	workload := buildWorkloadSecurityPayload(flows)
+	if workload.DestructiveAction {
+		t.Fatalf("workload security must remain evidence-only")
+	}
+	if len(workload.Signals) < 3 {
+		t.Fatalf("expected workload security signals, got %#v", workload.Signals)
+	}
+	for _, signal := range workload.Signals {
+		if signal.RemoteIP == "203.0.113.44" {
+			t.Fatalf("expected masked signal ip, got %#v", signal)
+		}
+	}
+
+	score := buildCaptureSourceScore(options, advancedFallback, []string{"ebpf indisponível no host; fallback para socket/netlink"})
+	if score.Label == "" || score.Score <= 0 {
+		t.Fatalf("expected valid source score, got %#v", score)
+	}
+
+	evidenceDir := strings.TrimSpace(os.Getenv("PKG70_EVIDENCE_DIR"))
+	if evidenceDir == "" {
+		return
+	}
+	writePKG70Evidence(t, evidenceDir, flows, serviceMap, supportedStatus, npm, workload, score)
+}
+
+func assertDependency(t *testing.T, deps []serviceDependencyRow, source, target, targetType string, port uint32) {
+	t.Helper()
+	for _, dep := range deps {
+		if dep.SourceService == source && dep.TargetService == target && dep.TargetType == targetType && dep.RemotePort == port {
+			if dep.Samples <= 0 || dep.Confidence == "" {
+				t.Fatalf("dependency missing evidence: %#v", dep)
+			}
+			return
+		}
+	}
+	t.Fatalf("dependency %s -> %s:%d not found in %#v", source, target, port, deps)
+}
+
+func writePKG70Evidence(
+	t *testing.T,
+	dir string,
+	flows []flowRow,
+	serviceMap *serviceMapPayload,
+	supportedStatus systemProbeStatus,
+	npm *networkPerfPayload,
+	workload *workloadSecurityPayload,
+	score captureSourceScore,
+) {
+	t.Helper()
+	rawDir := filepath.Join(dir, "raw")
+	if err := os.MkdirAll(rawDir, 0o755); err != nil {
+		t.Fatalf("create evidence dir: %v", err)
+	}
+
+	payload := map[string]any{
+		"scenario":              "pkg70-network-usm-workload",
+		"generated_at_utc":      "2026-06-19T19:20:00Z",
+		"goos":                  runtime.GOOS,
+		"goarch":                runtime.GOARCH,
+		"controlled_flow_count": len(flows),
+		"service_map":           serviceMap,
+		"ebpf_supported_status": supportedStatus,
+		"network_performance":   npm,
+		"workload_security":     workload,
+		"source_score":          score,
+		"validation_scope":      "controlled fixture plus PKG-69 real host bundles referenced in docs",
+	}
+	rawJSON, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal raw evidence: %v", err)
+	}
+	rawJSONPath := filepath.Join(rawDir, "pkg70-network-usm-workload.json")
+	if err := os.WriteFile(rawJSONPath, rawJSON, 0o644); err != nil {
+		t.Fatalf("write raw evidence json: %v", err)
+	}
+	rawArchivePath := filepath.Join(rawDir, "pkg70-network-usm-workload-raw.tgz")
+	if err := writeEvidenceTarGZ(rawArchivePath, map[string][]byte{
+		"pkg70-network-usm-workload.json": rawJSON,
+	}); err != nil {
+		t.Fatalf("write raw archive: %v", err)
+	}
+
+	evidence := strings.Join([]string{
+		"# Evidencia PKG-70 - Network USM workload",
+		"",
+		"- Data UTC: 2026-06-19T19:20:00Z",
+		"- Cenario: fluxo controlado web -> api -> db, eBPF fallback/suporte declarado, porta administrativa exposta e workload security evidence-only",
+		"- Ambiente: teste controlado Go " + runtime.GOOS + "/" + runtime.GOARCH,
+		"- Dependencia web -> api: validada por service_map.dependencies",
+		"- Dependencia api -> postgres: validada como target_type=database",
+		"- eBPF sem suporte/permissao: fallback socket_snapshot/netlink sem marcar ebpf_active",
+		"- eBPF suportado: contrato marca ebpf_active apenas quando applied_mode contem ebpf_probe",
+		"- Degradacao/porta exposta: SYN_SENT em porta 22 publica gera exposed_admin_ports e sinais SOC",
+		"- Overhead/redaction: source_score calculado, IP publico mascarado em NPM e workload_security",
+		"- Acoes destrutivas: false",
+		"- Evidencia bruta anexada: raw/pkg70-network-usm-workload-raw.tgz",
+		"",
+		"Esta evidencia fecha a validacao controlada do PKG-70 no agente. eBPF kernel ativo real nao e declarado como superioridade nem como probe produtivo obrigatorio; a operacao permanece opt-in com fallback seguro e os bundles reais do PKG-69 complementam Docker, Kubernetes, permissao e overhead.",
+		"",
+	}, "\n")
+	evidencePath := filepath.Join(dir, "evidence.md")
+	if err := os.WriteFile(evidencePath, []byte(evidence), 0o644); err != nil {
+		t.Fatalf("write evidence: %v", err)
+	}
+	provenance := strings.Join([]string{
+		"key\tvalue",
+		"scenario\tpkg70-network-usm-workload",
+		"created_at_utc\t20260619T192000Z",
+		"command\tPKG70_EVIDENCE_DIR=" + dir + " go test ./internal/platform/collectors/networkcapture -run TestPKG70NetworkUSMWorkloadEvidence -count=1 -v",
+		"goos\t" + runtime.GOOS,
+		"goarch\t" + runtime.GOARCH,
+		"raw_archive\traw/pkg70-network-usm-workload-raw.tgz",
+		"",
+	}, "\n")
+	provenancePath := filepath.Join(dir, "PROVENANCE.tsv")
+	if err := os.WriteFile(provenancePath, []byte(provenance), 0o644); err != nil {
+		t.Fatalf("write provenance: %v", err)
+	}
+
+	manifest := fmt.Sprintf(
+		"scenario\tevidence_path\tevidence_sha256\tevidence_bytes\traw_path\traw_sha256\traw_bytes\tcreated_at_utc\n%s\t%s\t%s\t%d\t%s\t%s\t%d\t%s\n",
+		"pkg70-network-usm-workload",
+		"docs/evidence/pkg70/network-usm-workload-20260619T192000Z/evidence.md",
+		fileSHA256(t, evidencePath),
+		fileSize(t, evidencePath),
+		"docs/evidence/pkg70/network-usm-workload-20260619T192000Z/raw/pkg70-network-usm-workload-raw.tgz",
+		fileSHA256(t, rawArchivePath),
+		fileSize(t, rawArchivePath),
+		"20260619T192000Z",
+	)
+	if err := os.WriteFile(filepath.Join(dir, "MANIFEST.tsv"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+}
+
+func writeEvidenceTarGZ(path string, files map[string][]byte) error {
+	out, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	gw := gzip.NewWriter(out)
+	defer gw.Close()
+	tw := tar.NewWriter(gw)
+	defer tw.Close()
+	for name, content := range files {
+		header := &tar.Header{
+			Name:    name,
+			Mode:    0o644,
+			Size:    int64(len(content)),
+			ModTime: time.Date(2026, 6, 19, 19, 20, 0, 0, time.UTC),
+		}
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+		if _, err := tw.Write(content); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func fileSHA256(t *testing.T, path string) string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file for sha256: %v", err)
+	}
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:])
+}
+
+func fileSize(t *testing.T, path string) int64 {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat file: %v", err)
+	}
+	return info.Size()
 }

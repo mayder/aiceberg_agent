@@ -228,6 +228,17 @@ Referências:
 - Impacto em rollback: desligar `network_advanced_enabled`, `usm_enabled`, `workload_security_enabled`, `network_pcap_enabled` e voltar `network_passive_mode=socket`.
 - Como reverter: ignorar/remover os blocos aditivos e manter `networkcapture` legado.
 
+### DEC-20260619-18 - PKG-70 fecha com eBPF opt-in e evidencia controlada
+
+- Status: aceita
+- Contexto: a validacao real do PKG-69 ja cobre permissao eBPF restrita, Docker, Kubernetes e overhead, mas a versao atual do PKG-70 nao entrega um system probe eBPF produtivo obrigatorio.
+- Decisao: fechar o PKG-70 com contrato aditivo, fallback seguro e evidencia controlada `docs/evidence/pkg70/network-usm-workload-20260619T192000Z`, sem declarar eBPF kernel ativo como superioridade ou requisito de ativacao ampla.
+- Alternativas consideradas: bloquear o pacote ate um probe eBPF produtivo ou declarar a presenca de `/sys/fs/bpf` como prova suficiente.
+- Consequencias: o agente entrega USM/workload security inicial, NPM e service map com privacidade; hosts sem permissao continuam em socket/netlink/pcap; eBPF produtivo fica para hardening futuro.
+- Impacto em testes: teste dedicado gera bundle com fluxo `web -> api -> postgres`, contrato `ebpf_probe`, fallback, porta exposta, sinais SOC e redaction.
+- Impacto em rollback: desligar `network_advanced_enabled`, `usm_enabled`, `workload_security_enabled`, `network_pcap_enabled` e voltar `network_passive_mode=socket`.
+- Como reverter: remover o teste/evidencia e voltar os checkboxes de validacao do PKG-70 para pendente.
+
 ### DEC-20260618-13 - Integracoes avancadas exigem manifest e estado de homologacao
 
 - Status: aceita

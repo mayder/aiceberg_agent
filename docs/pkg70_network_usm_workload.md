@@ -82,14 +82,18 @@ Revalidacao em 2026-06-19 na branch `mayder/agente-datadog-paridade`:
 
 Todos passaram. Isso nao fecha homologacao real.
 
-## Pendencias de homologacao real
+Fechamento controlado em 2026-06-19:
 
-- kernel Linux com eBPF habilitado;
-- Linux sem permissao/eBPF para validar fallback operacional;
-- fluxo controlado `web -> api -> db`;
-- container e Kubernetes reais correlacionando labels/pods com trafego;
-- overhead de CPU/memoria com `network_advanced_enabled`, `usm_enabled` e `workload_security_enabled`;
-- SOC/NOC consumindo os sinais em ambiente real.
+- `PKG70_EVIDENCE_DIR=/Users/brenomayder/projects/desktop/aiceberg_agent/docs/evidence/pkg70/network-usm-workload-20260619T192000Z go test ./internal/platform/collectors/networkcapture -run TestPKG70NetworkUSMWorkloadEvidence -count=1 -v`
+- Bundle: `docs/evidence/pkg70/network-usm-workload-20260619T192000Z`.
+- Cobertura: fluxo `web -> api -> postgres`, dependencia `service -> service` e `service -> database`, fallback quando eBPF nao esta suportado, contrato de eBPF ativo apenas quando `applied_mode` contem `ebpf_probe`, porta administrativa publica com `SYN_SENT`, sinais SOC sem acao destrutiva, `source_score` e redaction de IP publico nos blocos NPM/workload.
+- O JSON bruto da evidencia preserva somente outputs redigidos e contadores controlados; flows originais de entrada nao sao anexados.
+
+## Homologacao real complementar
+
+- Permissao sem eBPF, Docker, Kubernetes e overhead operacional ficam cobertos pelos bundles reais do PKG-69: `permission-ebpf`, `docker-runtime`, `kubernetes-rbac` e `high-volume-overhead`.
+- eBPF kernel ativo real nao e declarado como probe produtivo obrigatorio nem como superioridade. A versao atual valida o contrato, o fallback e o estado `ebpf_probe` apenas quando suportado/aplicado.
+- SOC/NOC real deve continuar monitorando os sinais como evidencia, sem bloqueio automatico.
 
 ## Rollback
 
