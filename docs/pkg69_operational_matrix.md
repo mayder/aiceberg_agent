@@ -84,7 +84,7 @@ Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 - Docker daemon indisponivel no host local;
 - `kubectl` disponivel; Kubernetes RBAC validado posteriormente em cluster kind efemero com Helm temporario em `/tmp`;
 - PowerShell indisponivel neste host;
-- Windows desktop, clock real e reboot real seguem pendentes de ambiente controlado.
+- Windows desktop e reboot real seguem pendentes de ambiente controlado.
 
 Smokes por sistema operacional:
 
@@ -204,6 +204,7 @@ Atualizacao/instalacao real adicional em 2026-06-19:
 - Relay/Hub/Direct validado em 2026-06-19 com rede Docker dedicada e containers separados para backend AIceberg, Hub, Relay e Direct: `direct_host_id=docker:3238ff45487c@172.24.0.5`, `hub_host_id=docker:d711556feee6@172.24.0.3`, `relay_host_id=docker:b13360616801@172.24.0.4`, `relay_upstream_host_id=hub_host_id`, `direct_ingested=yes`, `hub_ingested=yes`, `relay_ingested_via_hub=yes`, `relay_direct_api_attempts=0`, `agentless_jobs=1`, `agentless_observations=1`; o backend registrou o trafego do Relay vindo do IP do Hub, nao do IP do Relay; bundle versionado em `docs/evidence/pkg69/relay-hub-direct-hosts-20260619T035749Z`;
 - Update remoto e rollback validado em 2026-06-19 com servidor remoto httptest, artefato assinado Ed25519, SHA256 validado, update-report com `download_ok`, `version_confirmed` e `apply_failed`, e apply script em container Debian root isolado restaurando binario anterior apos falha induzida; bundle versionado em `docs/evidence/pkg69/remote-update-rollback-20260619T040722Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `10/14` evidencias OK;
 - Kubernetes RBAC validado em 2026-06-19 com cluster kind efemero, imagem local do agente carregada no node, DaemonSet com 1/1 pod Running, Helm install/upgrade/rollback, coleta de pods/events/logs redigidos e `kubectl auth can-i` confirmando `pods/list`, `events/watch` e `pods/log` permitidos, mas `secrets`, `pods/exec` e `delete pods` negados; bundle versionado em `docs/evidence/pkg69/kubernetes-rbac-20260619T041959Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `11/14` evidencias OK;
+- Clock/NTP controlado validado em 2026-06-19 com container isolado, `time.google.com` apontado por DNS local para servidor NTP controlado no proprio container, offset `180000 ms` reportando `time_sync.status=critical`, retorno com offset zero reportando `status=ok`, backend local capturando ingest de metrics e sem alterar o relogio do host; bundle versionado em `docs/evidence/pkg69/clock-skew-20260619T042607Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `12/14` evidencias OK;
 - `scripts/smoke.ps1` foi ajustado para aceitar binarios pre-compilados, limpar processos filhos em `finally`, silenciar progresso do PowerShell e tratar Windows EventLog como modo proprio, sem exigir o fixture POSIX de `/v1/logs/raw`.
 
 ## Ambientes obrigatorios
@@ -227,7 +228,7 @@ Atualizacao/instalacao real adicional em 2026-06-19:
 | Proxy/TLS | proxy autenticado e TLS invalido controlado | OK no gate: bundle `docs/evidence/pkg69/proxy-tls-20260619T033945Z`, proxy autenticado, TLS invalido rejeitado e TLS valido aceito |
 | Disco cheio/outbox cheia | erro claro, sem corrupcao | OK no gate: bundle `docs/evidence/pkg69/disk-full-20260619T034504Z`, volume APFS temporario cheio, outbox preservada e recuperacao validada |
 | Payload grande | limite/queda controlada em DogStatsD, OTLP e logs | parcial local |
-| Clock errado | health/time sync com diagnostico | parcial local para `time_sync.status`; NTP/clock real pendente |
+| Clock errado | health/time sync com diagnostico | OK no gate: bundle `docs/evidence/pkg69/clock-skew-20260619T042607Z`, NTP controlado com `critical` e retorno `ok` sem alterar clock do host |
 | Reboot durante coleta | servico retorna e outbox preserva dados | parcial local para reabertura bbolt; reboot real pendente |
 | Update quebrado | `update-report` com falha e rollback seguro | OK no gate: bundle `docs/evidence/pkg69/remote-update-rollback-20260619T040722Z`, artefato assinado, update-report `apply_failed`/`version_confirmed` e rollback do apply script validado |
 | Relay/Hub/Direct | relay envia somente para Hub; Hub encaminha ao AIceberg | OK no gate: bundle `docs/evidence/pkg69/relay-hub-direct-hosts-20260619T035749Z`, containers separados, Relay visto pelo backend via IP do Hub e `relay_direct_api_attempts=0` |
