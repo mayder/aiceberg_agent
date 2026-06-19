@@ -57,6 +57,7 @@ BACKEND_PORT="${SMOKE_BACKEND_PORT:-$(pick_port)}"
 HEALTH_PORT="${SMOKE_HEALTH_PORT:-$(pick_port)}"
 
 log "workdir=${WORKDIR}"
+mkdir -p "${WORKDIR}"
 
 AGENT_BIN="${WORKDIR}/agent"
 BACKEND_BIN="${WORKDIR}/smoke-backend"
@@ -64,11 +65,23 @@ LOG_FILE="${WORKDIR}/agent.debug.log"
 OSLOG_FILE="${WORKDIR}/oslog.log"
 EVIDENCE_FILE="${SMOKE_EVIDENCE_FILE:-${WORKDIR}/smoke-evidence.json}"
 
-log "build agent binary"
-go build -o "${AGENT_BIN}" ./cmd/agent
+if [[ -n "${SMOKE_AGENT_BIN:-}" ]]; then
+  log "use prebuilt agent binary"
+  cp "${SMOKE_AGENT_BIN}" "${AGENT_BIN}"
+  chmod +x "${AGENT_BIN}"
+else
+  log "build agent binary"
+  go build -o "${AGENT_BIN}" ./cmd/agent
+fi
 
-log "build backend binary"
-go build -o "${BACKEND_BIN}" ./scripts/e2e_backend.go
+if [[ -n "${SMOKE_BACKEND_BIN:-}" ]]; then
+  log "use prebuilt backend binary"
+  cp "${SMOKE_BACKEND_BIN}" "${BACKEND_BIN}"
+  chmod +x "${BACKEND_BIN}"
+else
+  log "build backend binary"
+  go build -o "${BACKEND_BIN}" ./scripts/e2e_backend.go
+fi
 
 log "prepare oslog file"
 printf "Jan  1 00:00:01 host app[123]: hello world\n" > "${OSLOG_FILE}"

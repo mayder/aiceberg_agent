@@ -96,6 +96,9 @@ powershell -ExecutionPolicy Bypass -File scripts/smoke.ps1
 Os smokes geram `smoke-evidence.json` no diretório temporário ou no caminho definido por
 `SMOKE_EVIDENCE_FILE`/`-SmokeEvidenceFile`, com health, métricas, ingestão de logs e SHA256
 dos artefatos locais usados na validação.
+Em hosts reais sem toolchain Go, `scripts/smoke.sh` aceita `SMOKE_AGENT_BIN` e
+`SMOKE_BACKEND_BIN` apontando para binários pré-compilados; sem essas variáveis, mantém o
+comportamento padrão de compilar localmente.
 
 Smoke POSIX local executado em 2026-06-18 com `SMOKE_EVIDENCE_FILE=/tmp/aiceberg_pkg69_smoke_evidence.json`:
 
@@ -135,7 +138,17 @@ Execucao real controlada em 2026-06-19, `VMAIPROD2`, Oracle Linux/RHEL-like 6.12
 - banco remoto: `agente_snapshot` recebeu registros recentes para `agente_id=4`, incluindo `bootstrap` em `2026-06-19 00:50:46` e `metrics` em `2026-06-19 00:51:45`;
 - tela `cliente.aiceberg.com.br/agente/view?id=4`: `Ping: 71.0 ms`, `Online real`, `Canal ativo`, `Versão / OS 0.8.8 · linux / amd64`, `Topologia agent -> AIceberg`, IP remoto `127.0.0.1`.
 
-Esta evidencia real ainda nao fecha o cenario `linux-rhel` no gate porque `smoke.sh` remoto e rollback real nao foram executados. Ela valida instalacao Linux/RHEL-like, bootstrap, canal, ingestao e flush no servidor real do AIceberg sem derrubar a aplicacao.
+Smoke remoto oficial em 2026-06-19 no mesmo host, isolado em `/tmp/aiceberg_pkg69_official_smoke_20260619T010125Z`, com backend fake local e binários Linux amd64 pré-compilados:
+
+- `scripts/smoke.sh` executado com `SMOKE_AGENT_BIN`, `SMOKE_BACKEND_BIN`, `SMOKE_WORKDIR` e `SMOKE_KEEP=1`;
+- `smoke-evidence.json` SHA-256 `5fb11b6728dac1328e31ba2829090c0c95e55313f214fdc01ec9cf9a347e0a10`;
+- binário agente SHA-256 `fd32a7d00e18eaeb4f26b55a39676783d5a9959c8e20c67d1a6b6c5234787341`;
+- backend fake SHA-256 `74e0b1df02d88ee1c50eb8e02d56e0db0e0866cef60ef82ea928e0738a3eaef7`;
+- `health.status=ok`, `agent_pipeline_version=2-compatible`, `proc_rss_bytes=13516800`, `proc_cpu_percent=3.6125293173687845`, `goroutines=8`;
+- ingestao confirmada em `/v1/ingest/bootstrap`, `/v1/ingest/health`, `/v1/ingest/metrics` e `/v1/logs/raw`;
+- apos o smoke, o servico real `aiceberg-agent.service` permaneceu `active`, `MainPID=2529804`, `NRestarts=0`, com coletas recentes no journal.
+
+Esta evidencia real ainda nao fecha o cenario `linux-rhel` no gate porque rollback real, update remoto assinado e os demais cenarios obrigatorios nao foram executados. Ela valida instalacao Linux/RHEL-like, smoke POSIX oficial, bootstrap, canal, ingestao e flush no servidor real do AIceberg sem derrubar a aplicacao.
 
 ## Ambientes obrigatorios
 
@@ -144,7 +157,7 @@ Esta evidencia real ainda nao fecha o cenario `linux-rhel` no gate porque `smoke
 | Windows Server | `smoke.ps1`, EventLog, servico Windows, update/rollback | pendente real |
 | Windows desktop | `smoke.ps1`, EventLog, instalador, proxy | pendente real |
 | Ubuntu/Debian | `smoke.sh`, systemd, logs, outbox, update | pendente real |
-| RHEL/Alma/Rocky | `smoke.sh`, systemd, dnf/yum, update | parcial real em `VMAIPROD2`: instalacao 0.8.8, systemd ativo, bootstrap/canal/flush/snapshot OK; smoke remoto e rollback real pendentes |
+| RHEL/Alma/Rocky | `smoke.sh`, systemd, dnf/yum, update | parcial real em `VMAIPROD2`: instalacao 0.8.8, systemd ativo, bootstrap/canal/flush/snapshot OK e `scripts/smoke.sh` remoto OK; rollback/update real pendentes |
 | Docker | `CONTAINER_ENABLED=true`, Docker socket, labels, recursos | pendente |
 | Kubernetes | DaemonSet/Helm, RBAC minimo, pods/events, rollback chart | pendente |
 | macOS/dev local | testes focados, `./check.sh` e smoke POSIX | validado local em 2026-06-18 |
