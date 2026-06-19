@@ -1,0 +1,9 @@
+key	value
+bundle_tool	scripts/pkg69_bundle_evidence.sh
+bundle_tool_version	1
+scenario	windows-server
+created_at_utc	20260619T023922Z
+raw_source_type	directory
+raw_source_basename	aiceberg_pkg69_windows_server_rollback_retry_20260619T023541Z
+evidence_file	evidence.md
+artifact_file	raw/aiceberg_pkg69_windows_server_rollback_retry_20260619T023541Z.tgz
