@@ -1,0 +1,9 @@
+key	value
+bundle_tool	scripts/pkg69_bundle_evidence.sh
+bundle_tool_version	1
+scenario	docker-runtime
+created_at_utc	20260619T031949Z
+raw_source_type	directory
+raw_source_basename	aiceberg_pkg69_docker_runtime_clean_raw_20260619T031835Z
+evidence_file	evidence.md
+artifact_file	raw/aiceberg_pkg69_docker_runtime_clean_raw_20260619T031835Z.tgz
