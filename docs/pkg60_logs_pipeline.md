@@ -50,14 +50,15 @@ O payload tambem pode enviar `dropped_count` para indicar quantos eventos foram 
 - Em 2026-06-19, teste controlado cobriu Graylog/GELF, Linux auth, app JSON, log texto comum, classificacao por basename e parsing/classificacao de Windows Security e Sysmon no build Windows.
 - Bundle auditavel: `docs/evidence/pkg60/controlled-20260619T172555Z/evidence.md`, gerado por `scripts/pkg60_logs_controlled_evidence.sh` com manifest, proveniencia e artefato bruto leve.
 - Em 2026-06-19, o bundle `docs/evidence/pkg60/real-os-files-20260619T174357Z/evidence.md` validou `pkg60-real-os-files`: Windows EventLog real reaproveitado do PKG-69, Linux syslog real via `/var/log/messages` em VMAIPROD2 e arquivo comum temporario no mesmo coletor.
-- Gate de lacunas: `scripts/pkg60_logs_evidence_gap_report.sh docs/evidence/pkg60`. O gate diferencia evidencia controlada de evidencia real e permanece `BLOQUEADO` enquanto faltarem bundles reais `pkg60-real-source-formats` e `pkg60-real-journald-windows-channels`.
+- Em 2026-06-19, o bundle `docs/evidence/pkg60/real-source-formats-20260619T175420Z/evidence.md` validou `pkg60-real-source-formats`: Graylog/GELF, Linux auth em `/var/log/secure`, app JSON com redaction, log texto e Windows Security real via WinRM read-only.
+- Gate de lacunas: `scripts/pkg60_logs_evidence_gap_report.sh docs/evidence/pkg60`. O gate diferencia evidencia controlada de evidencia real e permanece `BLOQUEADO` enquanto faltar o bundle real `pkg60-real-journald-windows-channels`.
 
 ## Limites
 
 - Listener TCP/UDP local esta disponivel em POSIX e desligado por padrao; Windows fica pendente de implementacao/validacao propria.
 - OTLP logs ficam para PKG-62/PKG-67.
 - Logs Docker/containerd e Kubernetes ficam para PKG-64/PKG-65.
-- Graylog como transporte, Windows Security completo, Linux auth e Sysmon ainda precisam de evidencia real dedicada antes de fechar PKG-60 como 100%.
+- Journald e Sysmon ainda precisam de evidencia real dedicada antes de fechar PKG-60 como 100%.
 
 ## Rollback
 

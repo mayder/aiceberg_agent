@@ -386,7 +386,7 @@ func sourceCategoryForUnix(path, facility string) string {
 	p := strings.ToLower(filepath.Base(path))
 	f := strings.ToLower(facility)
 	switch {
-	case strings.Contains(p, "auth") || f == "auth" || f == "authpriv":
+	case isLinuxAuthPath(p) || f == "auth" || f == "authpriv":
 		return "security"
 	case strings.Contains(p, "syslog") || strings.Contains(p, "messages"):
 		return "observability"
@@ -401,13 +401,17 @@ func sourceToolForUnix(path string, attrs map[string]any) string {
 	}
 	p := strings.ToLower(filepath.Base(path))
 	switch {
-	case strings.Contains(p, "auth"):
+	case isLinuxAuthPath(p):
 		return "linux_auth"
 	case strings.Contains(p, "syslog") || strings.Contains(p, "messages"):
 		return "linux_syslog"
 	default:
 		return "file"
 	}
+}
+
+func isLinuxAuthPath(base string) bool {
+	return strings.Contains(base, "auth") || base == "secure"
 }
 
 func isGraylogGELF(attrs map[string]any) bool {

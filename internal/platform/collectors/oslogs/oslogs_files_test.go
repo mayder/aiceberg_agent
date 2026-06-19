@@ -104,6 +104,7 @@ func TestCollectorClassifiesGraylogGELFAndLinuxAuthAndAppFormats(t *testing.T) {
 	tmp := t.TempDir()
 	graylogFile := filepath.Join(tmp, "graylog.log")
 	authFile := filepath.Join(tmp, "auth.log")
+	secureFile := filepath.Join(tmp, "secure")
 	appFile := filepath.Join(tmp, "app.log")
 	textFile := filepath.Join(tmp, "plain.log")
 	if err := os.WriteFile(graylogFile, []byte(`{"version":"1.1","host":"winhost","short_message":"failed logon","level":3,"_gl2_source_input":"gelf-tcp","_app":"ad"}`+"\n"), 0o644); err != nil {
@@ -112,6 +113,9 @@ func TestCollectorClassifiesGraylogGELFAndLinuxAuthAndAppFormats(t *testing.T) {
 	if err := os.WriteFile(authFile, []byte("Jan  1 00:00:01 host sshd[123]: Failed password for invalid user root from 10.0.0.5\n"), 0o644); err != nil {
 		t.Fatalf("write auth file: %v", err)
 	}
+	if err := os.WriteFile(secureFile, []byte("Jan  1 00:00:02 host sshd[124]: Failed password for invalid user admin from 10.0.0.6\n"), 0o644); err != nil {
+		t.Fatalf("write secure file: %v", err)
+	}
 	if err := os.WriteFile(appFile, []byte(`{"severity":"error","message":"payment failed","service":"checkout","token":"secret"}`+"\n"), 0o644); err != nil {
 		t.Fatalf("write app file: %v", err)
 	}
@@ -119,7 +123,7 @@ func TestCollectorClassifiesGraylogGELFAndLinuxAuthAndAppFormats(t *testing.T) {
 		t.Fatalf("write text file: %v", err)
 	}
 	cfg := config.Config{
-		OSLogFiles:      []string{graylogFile, authFile, appFile, textFile},
+		OSLogFiles:      []string{graylogFile, authFile, secureFile, appFile, textFile},
 		OSLogCursorPath: filepath.Join(tmp, "cursor.json"),
 		OSLogBatchLines: 10,
 		OSLogMaxBytes:   1024,
@@ -132,8 +136,8 @@ func TestCollectorClassifiesGraylogGELFAndLinuxAuthAndAppFormats(t *testing.T) {
 	}
 
 	payload := collectLogPayload(t, New(cfg, prefs))
-	if len(payload.Events) != 4 {
-		t.Fatalf("expected four events, got %#v", payload.Events)
+	if len(payload.Events) != 5 {
+		t.Fatalf("expected five events, got %#v", payload.Events)
 	}
 	byFile := map[string]logEvent{}
 	for _, event := range payload.Events {
@@ -144,6 +148,9 @@ func TestCollectorClassifiesGraylogGELFAndLinuxAuthAndAppFormats(t *testing.T) {
 	}
 	if got := byFile[authFile]; got.SourceTool != "linux_auth" || got.SourceCategory != "security" || got.Category != "auth_fail" {
 		t.Fatalf("unexpected linux auth event: %#v", got)
+	}
+	if got := byFile[secureFile]; got.SourceTool != "linux_auth" || got.SourceCategory != "security" || got.Category != "auth_fail" {
+		t.Fatalf("unexpected linux secure event: %#v", got)
 	}
 	if got := byFile[appFile]; got.Service != "checkout" || got.Level != "error" || strings.Contains(got.Message, "secret") {
 		t.Fatalf("unexpected app json event: %#v", got)

@@ -1,0 +1,52 @@
+{
+  "channel": "Security",
+  "events": [
+    {
+      "Id": 4799,
+      "LevelDisplayName": "Informa\ufffdoes",
+      "LogName": "Security",
+      "MachineName": "govi",
+      "ProviderName": "Microsoft-Windows-Security-Auditing",
+      "RecordId": 196186,
+      "TimeCreated": "/Date(1781891684667)/"
+    },
+    {
+      "Id": 4634,
+      "LevelDisplayName": "Informa\ufffdoes",
+      "LogName": "Security",
+      "MachineName": "govi",
+      "ProviderName": "Microsoft-Windows-Security-Auditing",
+      "RecordId": 196185,
+      "TimeCreated": "/Date(1781891684615)/"
+    },
+    {
+      "Id": 4624,
+      "LevelDisplayName": "Informa\ufffdoes",
+      "LogName": "Security",
+      "MachineName": "govi",
+      "ProviderName": "Microsoft-Windows-Security-Auditing",
+      "RecordId": 196184,
+      "TimeCreated": "/Date(1781891684612)/"
+    },
+    {
+      "Id": 4672,
+      "LevelDisplayName": "Informa\ufffdoes",
+      "LogName": "Security",
+      "MachineName": "govi",
+      "ProviderName": "Microsoft-Windows-Security-Auditing",
+      "RecordId": 196183,
+      "TimeCreated": "/Date(1781891684611)/"
+    },
+    {
+      "Id": 4672,
+      "LevelDisplayName": "Informa\ufffdoes",
+      "LogName": "Security",
+      "MachineName": "govi",
+      "ProviderName": "Microsoft-Windows-Security-Auditing",
+      "RecordId": 196182,
+      "TimeCreated": "/Date(1781891600956)/"
+    }
+  ],
+  "host": "GOVI",
+  "ip": "192.168.15.24"
+}

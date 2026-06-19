@@ -1,0 +1,2 @@
+scenario	evidence_file	evidence_sha256	evidence_size_bytes	raw_file	raw_sha256	raw_size_bytes	created_at_utc
+pkg60-real-source-formats	docs/evidence/pkg60/real-source-formats-20260619T175420Z/evidence.md	804e52a99dca08a1128872195cecdfe7a63d6f68efe19072fcbcb24d6ddbda5b	2794	docs/evidence/pkg60/real-source-formats-20260619T175420Z/raw/pkg60-real-source-formats-raw.tgz	ca7147d0ac0ac0d9fa3c45f55998d1b02749755382472f393b42d6d24982c950	8317	20260619T175420Z
