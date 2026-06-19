@@ -105,6 +105,15 @@ Cobertura:
 - benchmark expõe cenários, métricas e política que mantém superioridade bloqueada sem evidência comparável.
 - roteiro de homologação gera `/tmp/aiceberg_pkg72_contextual_evidence.md` com validações locais, pendências reais explícitas e manifesto SHA256/tamanho das evidências anexadas.
 
+Revalidacao em 2026-06-19 na branch `mayder/agente-datadog-paridade`:
+
+- `go test ./internal/bootstrap ./internal/data/local/outbox`
+- `scripts/pkg72_contextual_evidence_homologation.sh`
+- `scripts/pkg72_contextual_evidence_gate_selftest.sh`
+- `vendor/bin/codecept run -c common unit services/agent/AgentContextualEvidenceServiceTest.php`
+
+Todos passaram. O gate bloqueante `PKG72_REQUIRE_REAL_EVIDENCE=true scripts/pkg72_contextual_evidence_homologation.sh` retornou `exit_code=2`, como esperado, mantendo o pacote nao fechado sem evidencias reais.
+
 ## Pendências reais
 
 - incidente NOC/SOC real com evidência host + agentless em falha controlada;

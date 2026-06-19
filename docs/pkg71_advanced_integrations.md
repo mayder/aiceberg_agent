@@ -90,6 +90,14 @@ Cobertura:
 - manifest de integracao criada pelo guia aceito quando usa kind e permissoes seguras;
 - bloqueio de tipo arbitrario e redaction herdados do PKG-66.
 
+Revalidacao em 2026-06-19 na branch `mayder/agente-datadog-paridade`:
+
+- `go test ./internal/platform/collectors/localchecks`
+- `go test ./internal/platform/collectors/containers ./internal/platform/collectors/kubernetes`
+- `vendor/bin/codecept run -c common unit services/agent/AgentLocalCheckStatusServiceTest.php`
+
+Todos passaram. Isso nao fecha homologacao real.
+
 ## Pendencias reais
 
 - app real com `/metrics`;

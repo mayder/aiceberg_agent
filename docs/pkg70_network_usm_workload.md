@@ -73,6 +73,15 @@ Validacao web focada:
 vendor/bin/codecept run -c api api ContractCest:ingestNetworkCaptureServiceMapEWorkloadSecurityPersistemRelacoes
 ```
 
+Revalidacao em 2026-06-19 na branch `mayder/agente-datadog-paridade`:
+
+- `go test ./internal/platform/collectors/networkcapture`
+- `vendor/bin/codecept run -c api api ContractCest:ingestNetworkCaptureServiceMapEWorkloadSecurityPersistemRelacoes`
+- `vendor/bin/codecept run -c common unit services/agent/AgentNetworkCaptureThresholdSignalServiceTest.php`
+- `vendor/bin/codecept run -c common unit services/agent/AgentNetworkCaptureThresholdQueueServiceTest.php`
+
+Todos passaram. Isso nao fecha homologacao real.
+
 ## Pendencias de homologacao real
 
 - kernel Linux com eBPF habilitado;
