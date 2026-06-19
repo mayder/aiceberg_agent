@@ -123,6 +123,20 @@ Hashes 0.8.8:
 | `aiceberg-agent-linux-arm64.tar.gz` | `c9846007c6a7ff5a62ae77b831e17ff4ed8598ffde948c2869d22e143956dabf` |
 | `aiceberg-agent-windows-amd64.zip` | `482ede3f6a7d8758dd4c00b341d2cad92f4be23014a9a6209827dd3f644cceb5` |
 
+Execucao real controlada em 2026-06-19, `VMAIPROD2`, Oracle Linux/RHEL-like 6.12.0, cliente `S&S Soluções em TI LTDA` (`nome_fantasia=InspectApp`), agente id `4`:
+
+- instalacao cirurgica do binario Linux amd64 `0.8.8` em `/usr/local/bin/aiceberg_agent`, preservando a unit legada e sem reiniciar nginx/php-fpm/filas do AIceberg;
+- SHA-256 instalado: `7ec788d694956850f8d8e9a1d864d46b764cef0b3473bd5020586cdf4858a9d8`;
+- backup remoto criado em `/var/www/aiceberg/runtime/deploy_backups/20260619T004918Z_pkg69_agent_088_loopback`;
+- correcao operacional do agente para `API_BASE_URL=http://api.aiceberg.com.br` com resolucao local `api.aiceberg.com.br -> 127.0.0.1`, evitando timeout hairpin do dominio publico a partir da propria VM;
+- `AGENT_CLIENT_ID=1`, `AGENT_ID=4`, `AGENT_MODE=direct` e `AGENTLESS_ENABLED=false`, com backup adicional em `/var/www/aiceberg/runtime/deploy_backups/20260619T005028Z_pkg69_disable_agentless_direct`;
+- `systemctl is-active aiceberg-agent.service`: `active`; `NRestarts=0`;
+- logs do agente: `bootstrap ok`, `channel opened mode=direct`, coletas `bootstrap`, `inventory`, `health` e `metrics`, `flushed ... acked ... retained=0`, `config sync ok version=1`;
+- banco remoto: `agente_snapshot` recebeu registros recentes para `agente_id=4`, incluindo `bootstrap` em `2026-06-19 00:50:46` e `metrics` em `2026-06-19 00:51:45`;
+- tela `cliente.aiceberg.com.br/agente/view?id=4`: `Ping: 71.0 ms`, `Online real`, `Canal ativo`, `Versão / OS 0.8.8 · linux / amd64`, `Topologia agent -> AIceberg`, IP remoto `127.0.0.1`.
+
+Esta evidencia real ainda nao fecha o cenario `linux-rhel` no gate porque `smoke.sh` remoto e rollback real nao foram executados. Ela valida instalacao Linux/RHEL-like, bootstrap, canal, ingestao e flush no servidor real do AIceberg sem derrubar a aplicacao.
+
 ## Ambientes obrigatorios
 
 | Ambiente | Evidencia exigida | Estado atual |
@@ -130,7 +144,7 @@ Hashes 0.8.8:
 | Windows Server | `smoke.ps1`, EventLog, servico Windows, update/rollback | pendente real |
 | Windows desktop | `smoke.ps1`, EventLog, instalador, proxy | pendente real |
 | Ubuntu/Debian | `smoke.sh`, systemd, logs, outbox, update | pendente real |
-| RHEL/Alma/Rocky | `smoke.sh`, systemd, dnf/yum, update | pendente real |
+| RHEL/Alma/Rocky | `smoke.sh`, systemd, dnf/yum, update | parcial real em `VMAIPROD2`: instalacao 0.8.8, systemd ativo, bootstrap/canal/flush/snapshot OK; smoke remoto e rollback real pendentes |
 | Docker | `CONTAINER_ENABLED=true`, Docker socket, labels, recursos | pendente |
 | Kubernetes | DaemonSet/Helm, RBAC minimo, pods/events, rollback chart | pendente |
 | macOS/dev local | testes focados, `./check.sh` e smoke POSIX | validado local em 2026-06-18 |
