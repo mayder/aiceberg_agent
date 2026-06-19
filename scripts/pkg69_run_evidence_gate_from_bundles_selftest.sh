@@ -98,6 +98,9 @@ mkdir -p "$host_raw"
 {
   printf 'key\tvalue\n'
   printf 'scenario\tproxy-tls\n'
+  printf 'command_count\t1\n'
+  printf 'command_pass\t1\n'
+  printf 'command_fail\t0\n'
   printf 'redacted_env_file\tproxy_env_redacted.txt\n'
 } >"$host_raw/COLLECTION_SUMMARY.tsv"
 printf 'scenario\tproxy-tls\n' >"$host_raw/README.tsv"
@@ -165,6 +168,30 @@ if [[ "$host_summary_mismatch_exit" -eq 0 ]]; then
   exit 1
 fi
 assert_contains "$TMP_DIR/host-summary-mismatch.err" "host evidence summary scenario mismatch"
+
+mkdir -p "$TMP_DIR/host-bundles-counter-invalid"
+cp -R "$TMP_DIR/host-bundles/proxy" "$TMP_DIR/host-bundles-counter-invalid/proxy"
+rm -rf "$TMP_DIR/repack"
+mkdir -p "$TMP_DIR/repack"
+tar -xzf "$TMP_DIR/host-bundles-counter-invalid/proxy/raw/raw-host.tgz" -C "$TMP_DIR/repack"
+awk -F '\t' 'BEGIN { OFS="\t" } $1 == "command_count" { $2 = "not-a-number" } { print }' \
+  "$TMP_DIR/repack/raw-host/COLLECTION_SUMMARY.tsv" >"$TMP_DIR/repack/raw-host/COLLECTION_SUMMARY.tsv.tmp"
+mv "$TMP_DIR/repack/raw-host/COLLECTION_SUMMARY.tsv.tmp" "$TMP_DIR/repack/raw-host/COLLECTION_SUMMARY.tsv"
+tar -C "$TMP_DIR/repack" -czf "$TMP_DIR/host-bundles-counter-invalid/proxy/raw/raw-host.tgz" raw-host
+new_artifact_sha="$(shasum -a 256 "$TMP_DIR/host-bundles-counter-invalid/proxy/raw/raw-host.tgz" | awk '{ print $1 }')"
+new_artifact_bytes="$(wc -c <"$TMP_DIR/host-bundles-counter-invalid/proxy/raw/raw-host.tgz" | tr -d ' ')"
+awk -F '\t' -v sha="$new_artifact_sha" -v bytes="$new_artifact_bytes" 'BEGIN { OFS="\t" } NR == 2 { $6 = sha; $7 = bytes } { print }' \
+  "$TMP_DIR/host-bundles-counter-invalid/proxy/MANIFEST.tsv" >"$TMP_DIR/host-bundles-counter-invalid/proxy/MANIFEST.tsv.tmp"
+mv "$TMP_DIR/host-bundles-counter-invalid/proxy/MANIFEST.tsv.tmp" "$TMP_DIR/host-bundles-counter-invalid/proxy/MANIFEST.tsv"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/host-bundles-counter-invalid" >/dev/null 2>"$TMP_DIR/host-counter-invalid.err"
+host_counter_invalid_exit=$?
+set -e
+if [[ "$host_counter_invalid_exit" -eq 0 ]]; then
+  echo "expected host bundle invalid counter to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/host-counter-invalid.err" "host evidence summary command counters must be numeric"
 
 mkdir -p "$TMP_DIR/bundles-tampered"
 cp -R "$TMP_DIR/bundles/relay" "$TMP_DIR/bundles-tampered/relay"

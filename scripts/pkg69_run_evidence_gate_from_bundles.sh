@@ -103,6 +103,17 @@ summary_field() {
     awk -F '\t' -v key="$key" 'NR > 1 && $1 == key { print $2; exit }'
 }
 
+summary_number_field() {
+  local archive="$1"
+  local key="$2"
+  local value
+  value="$(summary_field "$archive" "$key")"
+  if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+    return 1
+  fi
+  return 0
+}
+
 resolve_relative_path() {
   local base_dir="$1"
   local value="$2"
@@ -250,6 +261,12 @@ verify_bundle_manifest() {
     if [[ "$(summary_field "$artifact_path" redacted_env_file)" != "proxy_env_redacted.txt" ]]; then
       echo "host evidence summary missing redacted env reference: $bundle_dir" >&2
       exit 91
+    fi
+    if ! summary_number_field "$artifact_path" command_count ||
+      ! summary_number_field "$artifact_path" command_pass ||
+      ! summary_number_field "$artifact_path" command_fail; then
+      echo "host evidence summary command counters must be numeric: $bundle_dir" >&2
+      exit 92
     fi
   fi
 
