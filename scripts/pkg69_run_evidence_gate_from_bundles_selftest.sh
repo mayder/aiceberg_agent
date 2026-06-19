@@ -171,6 +171,49 @@ if [[ "$template_mismatch_exit" -eq 0 ]]; then
 fi
 assert_contains "$TMP_DIR/template-mismatch.err" "bundle manifest template does not match evidence file"
 
+mkdir -p "$TMP_DIR/bundles-missing-provenance"
+cp -R "$TMP_DIR/bundles/relay" "$TMP_DIR/bundles-missing-provenance/relay"
+rm "$TMP_DIR/bundles-missing-provenance/relay/PROVENANCE.tsv"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/bundles-missing-provenance/relay" >/dev/null 2>"$TMP_DIR/missing-provenance.err"
+missing_provenance_exit=$?
+set -e
+if [[ "$missing_provenance_exit" -eq 0 ]]; then
+  echo "expected missing provenance bundle to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/missing-provenance.err" "bundle provenance missing"
+
+mkdir -p "$TMP_DIR/bundles-provenance-scenario-mismatch"
+cp -R "$TMP_DIR/bundles/relay" "$TMP_DIR/bundles-provenance-scenario-mismatch/relay"
+awk -F '\t' 'BEGIN { OFS="\t" } $1 == "scenario" { $2 = "proxy-tls" } { print }' \
+  "$TMP_DIR/bundles-provenance-scenario-mismatch/relay/PROVENANCE.tsv" >"$TMP_DIR/bundles-provenance-scenario-mismatch/relay/PROVENANCE.tsv.tmp"
+mv "$TMP_DIR/bundles-provenance-scenario-mismatch/relay/PROVENANCE.tsv.tmp" "$TMP_DIR/bundles-provenance-scenario-mismatch/relay/PROVENANCE.tsv"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/bundles-provenance-scenario-mismatch/relay" >/dev/null 2>"$TMP_DIR/provenance-scenario-mismatch.err"
+provenance_scenario_mismatch_exit=$?
+set -e
+if [[ "$provenance_scenario_mismatch_exit" -eq 0 ]]; then
+  echo "expected provenance scenario mismatch bundle to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/provenance-scenario-mismatch.err" "bundle provenance scenario mismatch"
+
+mkdir -p "$TMP_DIR/bundles-provenance-artifact-mismatch"
+cp -R "$TMP_DIR/bundles/relay" "$TMP_DIR/bundles-provenance-artifact-mismatch/relay"
+awk -F '\t' 'BEGIN { OFS="\t" } $1 == "artifact_file" { $2 = "raw/other.log" } { print }' \
+  "$TMP_DIR/bundles-provenance-artifact-mismatch/relay/PROVENANCE.tsv" >"$TMP_DIR/bundles-provenance-artifact-mismatch/relay/PROVENANCE.tsv.tmp"
+mv "$TMP_DIR/bundles-provenance-artifact-mismatch/relay/PROVENANCE.tsv.tmp" "$TMP_DIR/bundles-provenance-artifact-mismatch/relay/PROVENANCE.tsv"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/bundles-provenance-artifact-mismatch/relay" >/dev/null 2>"$TMP_DIR/provenance-artifact-mismatch.err"
+provenance_artifact_mismatch_exit=$?
+set -e
+if [[ "$provenance_artifact_mismatch_exit" -eq 0 ]]; then
+  echo "expected provenance artifact mismatch bundle to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/provenance-artifact-mismatch.err" "bundle provenance artifact file mismatch"
+
 set +e
 PKG69_EVIDENCE_FILE="$TMP_DIR/required.md" \
 PKG69_REQUIRE_REAL_EVIDENCE=true \
@@ -189,6 +232,17 @@ cp "$TMP_DIR/bundles/relay/evidence.md" "$unknown_manifest_dir/evidence.md"
   printf 'scenario\ttemplate\tsha256\tbytes\tartifact\tartifact_sha256\tartifact_bytes\tcreated_at_utc\n'
   printf 'unknown-scenario\t%s\t-\t-\t-\t-\t-\t20260618T000000Z\n' "$unknown_manifest_dir/evidence.md"
 } >"$unknown_manifest_dir/MANIFEST.tsv"
+{
+  printf 'key\tvalue\n'
+  printf 'bundle_tool\tscripts/pkg69_bundle_evidence.sh\n'
+  printf 'bundle_tool_version\t1\n'
+  printf 'scenario\tunknown-scenario\n'
+  printf 'created_at_utc\t20260618T000000Z\n'
+  printf 'raw_source_type\tfile\n'
+  printf 'raw_source_basename\traw.log\n'
+  printf 'evidence_file\tevidence.md\n'
+  printf 'artifact_file\traw/raw.log\n'
+} >"$unknown_manifest_dir/PROVENANCE.tsv"
 
 set +e
 scripts/pkg69_run_evidence_gate_from_bundles.sh "$unknown_manifest_dir" >/dev/null 2>&1

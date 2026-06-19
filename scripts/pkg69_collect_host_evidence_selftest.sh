@@ -60,8 +60,12 @@ EOF
 output="$(HTTP_PROXY="http://user:secret@example.test:8080" scripts/pkg69_collect_host_evidence.sh relay-hub-direct-hosts "$template" "$TMP_DIR/out")"
 assert_contains "$TMP_DIR/out/bundle/evidence.md" "- Evidencia bruta anexada: raw/raw-host.tgz"
 assert_contains "$TMP_DIR/out/bundle/MANIFEST.tsv" "artifact_sha256"
+assert_contains "$TMP_DIR/out/bundle/PROVENANCE.tsv" $'scenario\trelay-hub-direct-hosts'
+assert_contains "$TMP_DIR/out/bundle/PROVENANCE.tsv" $'raw_source_type\tdirectory'
+assert_contains "$TMP_DIR/out/bundle/PROVENANCE.tsv" $'artifact_file\traw/raw-host.tgz'
 test -s "$TMP_DIR/out/bundle/raw/raw-host.tgz"
 printf '%s\n' "$output" | grep -Fq "manifest=$TMP_DIR/out/bundle/MANIFEST.tsv"
+printf '%s\n' "$output" | grep -Fq "provenance=$TMP_DIR/out/bundle/PROVENANCE.tsv"
 
 PKG69_EVIDENCE_FILE="$TMP_DIR/gate.md" \
 PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/gate.tsv" \

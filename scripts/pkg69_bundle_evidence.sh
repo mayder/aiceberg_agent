@@ -10,7 +10,8 @@ Creates a reviewable PKG-69 evidence bundle:
 - copies the filled template to evidence.md;
 - copies a raw file or archives a raw directory under raw/;
 - updates "Evidencia bruta anexada" in evidence.md to the bundled artifact;
-- writes MANIFEST.tsv with SHA256 and byte sizes.
+- writes MANIFEST.tsv with SHA256 and byte sizes;
+- writes PROVENANCE.tsv with bundle tool, scenario and raw source metadata.
 
 The output evidence.md can be passed to scripts/pkg69_operational_evidence_gate.sh
 through the matching PKG69_*_EVIDENCE environment variable.
@@ -88,9 +89,11 @@ fi
 cp "$TEMPLATE" "$OUT_DIR/evidence.md"
 
 if [[ -d "$RAW_ARTIFACT" ]]; then
+  raw_source_type="directory"
   raw_name="$(basename "$RAW_ARTIFACT").tgz"
   tar -C "$(dirname "$RAW_ARTIFACT")" -czf "$OUT_DIR/raw/$raw_name" "$(basename "$RAW_ARTIFACT")"
 else
+  raw_source_type="file"
   raw_name="$(basename "$RAW_ARTIFACT")"
   cp "$RAW_ARTIFACT" "$OUT_DIR/raw/$raw_name"
 fi
@@ -120,7 +123,20 @@ artifact_bytes="$(file_size_bytes "$OUT_DIR/raw/$raw_name")"
     "$timestamp"
 } >"$OUT_DIR/MANIFEST.tsv"
 
+{
+  printf 'key\tvalue\n'
+  printf 'bundle_tool\t%s\n' "scripts/pkg69_bundle_evidence.sh"
+  printf 'bundle_tool_version\t%s\n' "1"
+  printf 'scenario\t%s\n' "$SCENARIO"
+  printf 'created_at_utc\t%s\n' "$timestamp"
+  printf 'raw_source_type\t%s\n' "$raw_source_type"
+  printf 'raw_source_basename\t%s\n' "$(basename "$RAW_ARTIFACT")"
+  printf 'evidence_file\t%s\n' "evidence.md"
+  printf 'artifact_file\t%s\n' "raw/$raw_name"
+} >"$OUT_DIR/PROVENANCE.tsv"
+
 printf 'bundle=%s\n' "$OUT_DIR"
 printf 'evidence=%s\n' "$OUT_DIR/evidence.md"
 printf 'artifact=%s\n' "$OUT_DIR/raw/$raw_name"
 printf 'manifest=%s\n' "$OUT_DIR/MANIFEST.tsv"
+printf 'provenance=%s\n' "$OUT_DIR/PROVENANCE.tsv"

@@ -64,7 +64,13 @@ assert_contains "$TMP_DIR/out/evidence.md" "- Evidencia bruta anexada: raw/raw.l
 assert_contains "$TMP_DIR/out/MANIFEST.tsv" "artifact_sha256"
 assert_contains "$TMP_DIR/out/MANIFEST.tsv" "relay-hub-direct-hosts"
 assert_contains "$TMP_DIR/out/MANIFEST.tsv" "$TMP_DIR/out/raw/raw.log"
+assert_contains "$TMP_DIR/out/PROVENANCE.tsv" $'bundle_tool\tscripts/pkg69_bundle_evidence.sh'
+assert_contains "$TMP_DIR/out/PROVENANCE.tsv" $'bundle_tool_version\t1'
+assert_contains "$TMP_DIR/out/PROVENANCE.tsv" $'scenario\trelay-hub-direct-hosts'
+assert_contains "$TMP_DIR/out/PROVENANCE.tsv" $'raw_source_type\tfile'
+assert_contains "$TMP_DIR/out/PROVENANCE.tsv" $'artifact_file\traw/raw.log'
 printf '%s\n' "$output" | grep -Fq "evidence=$TMP_DIR/out/evidence.md"
+printf '%s\n' "$output" | grep -Fq "provenance=$TMP_DIR/out/PROVENANCE.tsv"
 
 PKG69_EVIDENCE_FILE="$TMP_DIR/gate.md" \
 PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/gate.tsv" \
@@ -101,5 +107,7 @@ printf 'dir evidence\n' >"$raw_dir/log.txt"
 scripts/pkg69_bundle_evidence.sh relay-hub-direct-hosts "$template" "$raw_dir" "$TMP_DIR/dir-out" >/dev/null
 test -s "$TMP_DIR/dir-out/raw/rawdir.tgz"
 assert_contains "$TMP_DIR/dir-out/evidence.md" "- Evidencia bruta anexada: raw/rawdir.tgz"
+assert_contains "$TMP_DIR/dir-out/PROVENANCE.tsv" $'raw_source_type\tdirectory'
+assert_contains "$TMP_DIR/dir-out/PROVENANCE.tsv" $'artifact_file\traw/rawdir.tgz'
 
 echo "PKG-69 evidence bundle self-test OK"
