@@ -7,7 +7,9 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
 )
@@ -75,6 +77,46 @@ func TestInitialBootstrapFailureDegradesWithoutFatal(t *testing.T) {
 	}
 	if !strings.Contains(log.errorMessage, "bootstrap degraded") {
 		t.Fatalf("expected degraded bootstrap log, got %q", log.errorMessage)
+	}
+}
+
+func TestInitialBootstrapRetriesUntilAPIRecovers(t *testing.T) {
+	t.Setenv("AGENT_STATE_PATH", filepath.Join(t.TempDir(), "bootstrap.ok"))
+	t.Setenv("AGENT_TOKEN_PATH", filepath.Join(t.TempDir(), "agent.token"))
+
+	var attempts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/agent/bootstrap" {
+			t.Fatalf("unexpected route %s", r.URL.Path)
+		}
+		if attempts.Add(1) == 1 {
+			http.Error(w, "temporary outage", http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	log := &recordBootstrapLogger{}
+
+	if runInitialBootstrap(ctx, config.Config{
+		Agent:      config.AgentCfg{Token: "bootstrap-token"},
+		APIBaseURL: srv.URL,
+	}, log) {
+		t.Fatalf("first bootstrap attempt should degrade")
+	}
+	retryInitialBootstrap(ctx, config.Config{
+		Agent:      config.AgentCfg{Token: "bootstrap-token"},
+		APIBaseURL: srv.URL,
+	}, log, 10*time.Millisecond)
+
+	if attempts.Load() < 2 {
+		t.Fatalf("expected retry after temporary outage, got %d attempts", attempts.Load())
+	}
+	if log.fatalCalled {
+		t.Fatalf("bootstrap retry must not terminate the agent")
 	}
 }
 

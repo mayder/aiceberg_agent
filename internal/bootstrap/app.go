@@ -96,7 +96,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	}
 	pruneStore(store, "main")
 
-	runInitialBootstrap(ctx, cfg, log)
+	if !runInitialBootstrap(ctx, cfg, log) {
+		go retryInitialBootstrap(ctx, cfg, log, bootstrapRetryInterval(cfg))
+	}
 
 	// Use cases
 	authHeader := ""
@@ -1127,16 +1129,51 @@ func bootstrap(ctx context.Context, cfg config.Config, log logger.Logger) error 
 	return nil
 }
 
-func runInitialBootstrap(ctx context.Context, cfg config.Config, log logger.Logger) {
+func runInitialBootstrap(ctx context.Context, cfg config.Config, log logger.Logger) bool {
 	if cfg.SkipBootstrap {
-		return
+		return true
 	}
 	if err := bootstrap(ctx, cfg, log); err != nil {
 		log.Error(logger.KV("bootstrap degraded",
 			"op", "bootstrap",
 			"err", err,
 		))
+		return false
 	}
+	return true
+}
+
+func retryInitialBootstrap(ctx context.Context, cfg config.Config, log logger.Logger, interval time.Duration) {
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			if runInitialBootstrap(ctx, cfg, log) {
+				return
+			}
+			timer.Reset(interval)
+		}
+	}
+}
+
+func bootstrapRetryInterval(cfg config.Config) time.Duration {
+	interval := cfg.ConfigSyncInterval
+	if interval <= 0 {
+		return 30 * time.Second
+	}
+	if interval < 5*time.Second {
+		return 5 * time.Second
+	}
+	if interval > time.Minute {
+		return time.Minute
+	}
+	return interval
 }
 
 func firstIP() string {
