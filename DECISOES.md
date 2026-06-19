@@ -272,6 +272,17 @@ Referências:
 - Impacto em rollback: ignorar `contextual_evidence` no backend ou remover o bloco do snapshot.
 - Como reverter: remover `buildContextualEvidenceSnapshot` sem afetar coletores existentes.
 
+### DEC-20260619-20 - PKG-72 fecha com diferenciais funcionais e superioridade bloqueada
+
+- Status: aceita
+- Contexto: PKG-72 exige evidencias de NOC/SOC contextual, IA local, offline-first, privacidade, Agent+Agentless e benchmark sem permitir claim fraco contra Datadog.
+- Decisao: fechar o pacote com `docs/evidence/pkg72/contextual-ai-offline-20260619T193000Z`, que anexa cinco evidencias auditaveis ao gate final e mantem `superiority_benchmark.claim_allowed=false`. A evidencia de benchmark valida a trava de governanca, nao uma declaracao comercial de superioridade.
+- Alternativas consideradas: declarar superioridade por implementacao dos diferenciais ou bloquear o pacote ate um lab Datadog produtivo. A primeira violaria a governanca; a segunda impediria fechar os diferenciais funcionais ja validados.
+- Consequencias: o agente entrega diferenciais operacionais prontos para homologacao por cliente; qualquer claim de superioridade segue dependente de benchmark Datadog comparavel, raw evidence e revisao operacional.
+- Impacto em testes: gate final roda `go test ./internal/bootstrap ./internal/data/local/outbox`, valida as cinco evidencias anexadas e exige `PKG72_ACCEPT_CLOSURE=true`.
+- Impacto em rollback: ignorar `contextual_evidence` no backend ou desligar o diferencial por configuracao sem alterar ingestao, scheduler, outbox ou Agentless.
+- Como reverter: remover o bundle de evidencia e voltar o PKG-72 para pendente de validacao.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

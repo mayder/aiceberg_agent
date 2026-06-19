@@ -130,6 +130,8 @@ fi
 
 run_with_all_evidence "$TMP_DIR/closure-accepted.md" env PKG72_REQUIRE_CLOSURE_ACCEPTED=true PKG72_ACCEPT_CLOSURE=true
 assert_contains "$TMP_DIR/closure-accepted.md" "pkg72-status: accepted-for-closure"
+assert_contains "$TMP_DIR/closure-accepted.md" "noc_soc_context: evidence"
+assert_contains "$TMP_DIR/closure-accepted.md" "datadog_superiority_claim: blocked"
 
 set +e
 PKG72_EVIDENCE_FILE="$TMP_DIR/blocking.md" \

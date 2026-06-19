@@ -428,6 +428,7 @@ Diagnostico:
 - `scripts/pkg72_contextual_evidence_homologation.sh` gera evidencia local, lista explicitamente pendencias reais e registra SHA256/tamanho das evidencias anexadas.
 - `PKG72_TEMPLATE_DIR=/tmp/aiceberg_pkg72_templates scripts/pkg72_contextual_evidence_homologation.sh` gera modelos editaveis das cinco evidencias reais.
 - `PKG72_REQUIRE_REAL_EVIDENCE=true scripts/pkg72_contextual_evidence_homologation.sh` deve ser usado como gate bloqueante antes de tentar fechar o pacote.
+- Estado aceito em 2026-06-19: `docs/evidence/pkg72/contextual-ai-offline-20260619T193000Z` passou com os cinco anexos exigidos e `PKG72_ACCEPT_CLOSURE=true`. O fechamento valida diferencial funcional e governanca; superioridade sobre Datadog segue bloqueada por `claim_allowed=false` ate haver benchmark produtivo comparavel por cenario.
 
 Configuracoes opcionais:
 
@@ -439,7 +440,7 @@ Operacao segura:
 - IA local e deterministica, sem LLM obrigatorio;
 - nenhuma acao destrutiva automatica;
 - usar evidencia e lacunas como apoio NOC/SOC;
-- validar replay offline e correlacao agentless em ambiente real antes de declarar diferencial.
+- validar replay offline e correlacao agentless em ambiente do cliente antes de declarar claim comercial por cenario.
 - para anexar evidencias reais ao roteiro, use `PKG72_INCIDENT_EVIDENCE`, `PKG72_REPLAY_24H_EVIDENCE`, `PKG72_REGULATED_CLIENT_EVIDENCE`, `PKG72_NOISE_COST_EVIDENCE` e `PKG72_DATADOG_BENCHMARK_EVIDENCE`.
 
 Rollback: ignorar `contextual_evidence` no backend. Nao ha SQL do PKG-72.

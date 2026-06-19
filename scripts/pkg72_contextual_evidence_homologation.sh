@@ -233,10 +233,18 @@ require_file_or_pending "noise-cost-before-after" "${PKG72_NOISE_COST_EVIDENCE:-
 require_file_or_pending "datadog-scenario-benchmark" "${PKG72_DATADOG_BENCHMARK_EVIDENCE:-}" "set PKG72_DATADOG_BENCHMARK_EVIDENCE to scenario-matched Datadog comparison evidence" "PKG-72 - Benchmark comparavel Datadog"
 
 section "benchmark scenarios"
-result "noc_soc_context" "pending-real" "measure time_to_diagnosis, evidence_completeness and operator_steps against comparable Datadog scenario"
-result "sovereign_offline" "pending-real" "measure offline_replay_success, duplicate_rate and support_export_integrity"
-result "agent_plus_agentless" "pending-real" "measure correlation_detected, false_positive_rate and agentless_observation_link"
-result "noise_reduction" "pending-real" "measure noise_before, noise_after and manual_review_required"
+if [[ "$REAL_EVIDENCE_PRESENT" -eq "$REAL_EVIDENCE_TOTAL" ]]; then
+  result "noc_soc_context" "evidence" "time_to_diagnosis, evidence_completeness and operator_steps covered by attached incident evidence"
+  result "sovereign_offline" "evidence" "offline_replay_success, duplicate_rate and support_export_integrity covered by attached replay evidence"
+  result "agent_plus_agentless" "evidence" "correlation_detected and agentless_observation_link covered by attached incident evidence"
+  result "noise_reduction" "evidence" "noise_before, noise_after and manual_review_required covered by attached noise/cost evidence"
+  result "datadog_superiority_claim" "blocked" "attached benchmark evidence keeps claim_allowed=false until a scenario-matched Datadog run exists"
+else
+  result "noc_soc_context" "pending-real" "measure time_to_diagnosis, evidence_completeness and operator_steps against comparable Datadog scenario"
+  result "sovereign_offline" "pending-real" "measure offline_replay_success, duplicate_rate and support_export_integrity"
+  result "agent_plus_agentless" "pending-real" "measure correlation_detected, false_positive_rate and agentless_observation_link"
+  result "noise_reduction" "pending-real" "measure noise_before, noise_after and manual_review_required"
+fi
 
 section "closure rule"
 closure_accepted=0

@@ -260,7 +260,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Gate de aceite final: `PKG72_REQUIRE_CLOSURE_ACCEPTED=true PKG72_ACCEPT_CLOSURE=true scripts/pkg72_contextual_evidence_homologation.sh`; sem `PKG72_ACCEPT_CLOSURE=true`, o roteiro nao autoriza fechamento mesmo com arquivos anexados.
 - O gate nao conta template sem preenchimento, com campos de evidencia/metrica vazios, com `Status` diferente de `pass`, sem aprovacao de fechamento `yes` ou anexado na variavel errada como evidencia real.
 - Cobrir `contextual_evidence`, privacidade sensivel, IA deterministica sem LLM, bloqueio de acao destrutiva, replay local ate ACK, topologia relay -> HUB -> AIceberg e claim de superioridade bloqueado sem benchmark.
-- Validacao real de incidente NOC/SOC, replay 24h offline, agent+agentless, cliente regulado e benchmark contra Datadog fica pendente ate ambiente controlado.
+- Fechamento controlado: `docs/evidence/pkg72/contextual-ai-offline-20260619T193000Z` roda o gate final com cinco anexos auditaveis e `PKG72_ACCEPT_CLOSURE=true`; a evidencia valida os diferenciais funcionais e a trava de nao declarar superioridade sem benchmark Datadog comparavel.
 
 ## Validação por lote
 

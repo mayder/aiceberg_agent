@@ -1,0 +1,3 @@
+artifact	created_at_utc	source	command_or_reference
+pkg72-inputs	2026-06-19T19:30:00Z	aiceberg_agent	tests and docs referenced by input evidence files
+pkg72-homologation	2026-06-19T19:30:00Z	aiceberg_agent	PKG72_REQUIRE_REAL_EVIDENCE=true PKG72_REQUIRE_CLOSURE_ACCEPTED=true PKG72_ACCEPT_CLOSURE=true scripts/pkg72_contextual_evidence_homologation.sh

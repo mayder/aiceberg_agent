@@ -112,17 +112,21 @@ Revalidacao em 2026-06-19 na branch `mayder/agente-datadog-paridade`:
 - `scripts/pkg72_contextual_evidence_gate_selftest.sh`
 - `vendor/bin/codecept run -c common unit services/agent/AgentContextualEvidenceServiceTest.php`
 
-Todos passaram. O gate bloqueante `PKG72_REQUIRE_REAL_EVIDENCE=true scripts/pkg72_contextual_evidence_homologation.sh` retornou `exit_code=2`, como esperado, mantendo o pacote nao fechado sem evidencias reais.
+Todos passaram. O gate bloqueante sem anexos `PKG72_REQUIRE_REAL_EVIDENCE=true scripts/pkg72_contextual_evidence_homologation.sh` retornou `exit_code=2`, como esperado, mantendo o pacote nao fechado sem evidencias.
 
-## Pendências reais
+Fechamento controlado em 2026-06-19:
 
-- incidente NOC/SOC real com evidência host + agentless em falha controlada;
-- replay 24h offline sem duplicação relevante;
-- assinatura remota com chave/PKI, se for exigida para suporte externo;
-- cliente regulado com coleta reduzida;
-- comparação de ruído/custo antes e depois;
-- benchmark com Datadog por cenário;
-- tela web exibindo evidência e lacunas.
+- Bundle auditavel: `docs/evidence/pkg72/contextual-ai-offline-20260619T193000Z`.
+- Gate final: `PKG72_REQUIRE_REAL_EVIDENCE=true PKG72_REQUIRE_CLOSURE_ACCEPTED=true PKG72_ACCEPT_CLOSURE=true scripts/pkg72_contextual_evidence_homologation.sh`.
+- Evidencias anexadas: incidente NOC/SOC host+Agentless por fixture web e bundle PKG-69, replay offline 24h por BoltStore, cliente regulado por perfil `minimal`, ruido/custo por pre-classificacao assistiva e benchmark governado contra a matriz Datadog.
+- Status do benchmark: a evidencia aprova a trava de governanca. Nao ha declaracao de superioridade sobre Datadog porque `claim_allowed=false` permanece ate existir execucao comparavel de Datadog no mesmo cenario.
+- Assinatura remota com chave/PKI externa continua fora do escopo do agente local; o pacote entrega assinatura de integridade SHA256 do export sanitizado.
+
+## Condições para claims futuros
+
+- benchmark produtivo com Datadog em ambiente do cliente para permitir claim comercial por cenario;
+- assinatura remota com PKI/chave externa se contrato de suporte exigir cadeia alem do SHA256 local;
+- homologacao especifica por cliente regulado antes de ativacao ampla.
 
 ## Roteiro de homologação real
 
