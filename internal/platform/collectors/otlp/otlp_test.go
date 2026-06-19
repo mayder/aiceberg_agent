@@ -229,6 +229,99 @@ func TestReceiverSamplesTracesButKeepsErrorsAndSlowSpans(t *testing.T) {
 	}
 }
 
+func TestPKG63APMHighVolumeErrorJourneyEvidence(t *testing.T) {
+	addr := freeTCPAddr(t)
+	receiver := NewReceiver(config.Config{
+		OTLPEnabled:             true,
+		OTLPHTTPAddr:            addr,
+		OTLPInterval:            time.Second,
+		OTLPMaxItems:            120,
+		OTLPMaxBytes:            256 * 1024,
+		APMTraceSampleRate:      0,
+		APMTraceSlowThresholdMs: 100,
+		APMTracePreserveErrors:  true,
+	}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if _, err := receiver.TracesCollector().Collect(ctx); err != nil {
+		t.Fatalf("start receiver: %v", err)
+	}
+
+	const traceID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	const spanID = "bbbbbbbbbbbbbbbb"
+	const hostName = "pkg63-host"
+	const serviceName = "checkout-api"
+	resourceAttrs := `{"key":"service.name","value":{"stringValue":"` + serviceName + `"}},{"key":"deployment.environment","value":{"stringValue":"controlled"}},{"key":"service.version","value":{"stringValue":"1.2.3"}},{"key":"host.name","value":{"stringValue":"` + hostName + `"}}`
+	postOTLP(t, addr, "/v1/logs", `{"resourceLogs":[{"resource":{"attributes":[`+resourceAttrs+`]},"scopeLogs":[{"logRecords":[{"timeUnixNano":"1000000000","severityText":"ERROR","body":{"stringValue":"checkout failed trace_id=`+traceID+` span_id=`+spanID+`"},"traceId":"`+traceID+`","spanId":"`+spanID+`","attributes":[{"key":"http.route","value":{"stringValue":"/checkout"}}]}]}]}]}`)
+	postOTLP(t, addr, "/v1/traces", pkg63TraceBurstPayload(resourceAttrs, traceID, spanID))
+
+	logsRaw, err := receiver.LogsCollector().Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect logs: %v", err)
+	}
+	tracesRaw, err := receiver.TracesCollector().Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect traces: %v", err)
+	}
+
+	var logsPayload struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.Unmarshal(logsRaw, &logsPayload); err != nil {
+		t.Fatalf("invalid logs payload: %v", err)
+	}
+	var tracesPayload struct {
+		OTLP snapshot `json:"otlp"`
+	}
+	if err := json.Unmarshal(tracesRaw, &tracesPayload); err != nil {
+		t.Fatalf("invalid traces payload: %v", err)
+	}
+	if len(logsPayload.Events) != 1 {
+		t.Fatalf("expected one correlated error log, got %#v", logsPayload.Events)
+	}
+	if logsPayload.Events[0]["trace_id"] != traceID || logsPayload.Events[0]["span_id"] != spanID || logsPayload.Events[0]["service"] != serviceName {
+		t.Fatalf("expected correlated log with service, got %#v", logsPayload.Events[0])
+	}
+	if tracesPayload.OTLP.AcceptedCount != 2 || tracesPayload.OTLP.DroppedCount != 78 {
+		t.Fatalf("expected high volume sampling 2 accepted and 78 dropped, got accepted=%d dropped=%d", tracesPayload.OTLP.AcceptedCount, tracesPayload.OTLP.DroppedCount)
+	}
+	reasons := map[string]bool{}
+	for _, trace := range tracesPayload.OTLP.Items {
+		reasons[stringValue(trace["sampling_reason"])] = true
+		if trace["trace_id"] == traceID && trace["span_id"] == spanID {
+			if trace["span_id"] != spanID || trace["service"] != serviceName || trace["host"] != hostName {
+				t.Fatalf("expected log -> trace -> service -> host journey, got %#v", trace)
+			}
+			if trace["error"] != true || !strings.EqualFold(stringValue(trace["status"]), "error") {
+				t.Fatalf("expected application error span, got %#v", trace)
+			}
+		}
+	}
+	if !reasons["error"] || !reasons["slow"] {
+		t.Fatalf("expected error and slow spans preserved, got reasons %#v", reasons)
+	}
+
+	if evidenceDir := strings.TrimSpace(os.Getenv("PKG63_EVIDENCE_DIR")); evidenceDir != "" {
+		writePKG63Evidence(t, evidenceDir, logsRaw, tracesRaw, map[string]string{
+			"input_spans":           "80",
+			"accepted_count":       strconv.Itoa(tracesPayload.OTLP.AcceptedCount),
+			"dropped_count":        strconv.Itoa(tracesPayload.OTLP.DroppedCount),
+			"trace_items":          strconv.Itoa(len(tracesPayload.OTLP.Items)),
+			"logs_events":          strconv.Itoa(len(logsPayload.Events)),
+			"application_error":    "yes",
+			"sampling_error":       boolString(reasons["error"]),
+			"sampling_slow":        boolString(reasons["slow"]),
+			"journey_log_trace":    "yes",
+			"service":              serviceName,
+			"host":                 hostName,
+			"api_credential":       "not_used",
+			"transport":            "otlp_http_json",
+			"profiler_scope":       "out_of_scope_by_decision",
+			"overhead_reference":   "docs/evidence/pkg69/high-volume-overhead-20260619T033436Z/evidence.md",
+		})
+	}
+}
+
 func TestReceiverRejectsOversizedPayload(t *testing.T) {
 	addr := freeTCPAddr(t)
 	receiver := NewReceiver(config.Config{
@@ -389,6 +482,56 @@ func writePKG62Evidence(t *testing.T, dir string, metricsRaw, logsRaw, tracesRaw
 	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.tsv"), []byte(b.String()), 0o600); err != nil {
 		t.Fatalf("write summary: %v", err)
 	}
+}
+
+func writePKG63Evidence(t *testing.T, dir string, logsRaw, tracesRaw []byte, summary map[string]string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir evidence dir: %v", err)
+	}
+	files := map[string][]byte{
+		"logs_payload.json":   logsRaw,
+		"traces_payload.json": tracesRaw,
+	}
+	for name, data := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	keys := []string{"input_spans", "accepted_count", "dropped_count", "trace_items", "logs_events", "application_error", "sampling_error", "sampling_slow", "journey_log_trace", "service", "host", "api_credential", "transport", "profiler_scope", "overhead_reference"}
+	var b strings.Builder
+	for _, key := range keys {
+		fmt.Fprintf(&b, "%s\t%s\n", key, summary[key])
+	}
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.tsv"), []byte(b.String()), 0o600); err != nil {
+		t.Fatalf("write summary: %v", err)
+	}
+}
+
+func pkg63TraceBurstPayload(resourceAttrs, traceID, spanID string) string {
+	spans := make([]string, 0, 80)
+	for i := 0; i < 80; i++ {
+		id := fmt.Sprintf("%016x", i+1)
+		duration := int64(1_000_000)
+		status := ""
+		if i == 7 {
+			id = spanID
+			duration = 150_000_000
+			status = `,"status":{"code":2,"message":"checkout failed"}`
+		}
+		if i == 42 {
+			duration = 250_000_000
+		}
+		spans = append(spans, `{"traceId":"`+traceID+`","spanId":"`+id+`","name":"POST /checkout","startTimeUnixNano":"1000000000","endTimeUnixNano":"`+strconv.FormatInt(1000000000+duration, 10)+`","attributes":[{"key":"http.route","value":{"stringValue":"/checkout"}}]`+status+`}`)
+	}
+	return `{"resourceSpans":[{"resource":{"attributes":[` + resourceAttrs + `]},"scopeSpans":[{"spans":[` + strings.Join(spans, ",") + `]}]}]}`
+}
+
+func boolString(value bool) string {
+	if value {
+		return "yes"
+	}
+	return "no"
 }
 
 func otlpMetricWithManyResourceAttributes() string {

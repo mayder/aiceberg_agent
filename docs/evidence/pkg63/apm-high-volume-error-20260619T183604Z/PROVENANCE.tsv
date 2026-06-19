@@ -1,0 +1,8 @@
+field	value
+scenario	apm-high-volume-error
+timestamp_utc	20260619T183604Z
+source_tool	go_test_otlp_receiver
+transport	otlp_http_json_loopback
+raw_archive	raw/pkg63-apm-high-volume-error-raw.tgz
+profiler_scope	out_of_scope_by_decision
+overhead_reference	docs/evidence/pkg69/high-volume-overhead-20260619T033436Z/evidence.md

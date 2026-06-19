@@ -70,3 +70,21 @@ Se o SDK ou collector emitir apenas gRPC/protobuf, usar OpenTelemetry Collector 
 ## Persistencia no web
 
 Traces enviados como `body.otlp.kind=traces` sao materializados pelo `aiceberg_web` em `agent_apm_span` quando o SQL `sql/2026_06_18_pkg63_agent_apm_span.sql` ja foi aplicado. Se a tabela ainda nao existir, a ingestao ignora a materializacao APM e preserva compatibilidade com snapshots e agentes existentes.
+
+## Evidencia de fechamento
+
+Bundle aceito: `docs/evidence/pkg63/apm-high-volume-error-20260619T183604Z`.
+
+Cobertura:
+
+- 80 spans OTLP HTTP/JSON em loopback;
+- erro de aplicacao preservado com `APM_TRACE_SAMPLE_RATE=0`;
+- span lento preservado por `APM_TRACE_SLOW_THRESHOLD_MS=100`;
+- `dropped_count` emitido para spans descartados;
+- log ERROR correlato com `trace_id`/`span_id`;
+- jornada log -> trace -> service -> host validada;
+- credencial de API nao usada no teste.
+
+Overhead antes de ativacao ampla: usar a evidencia PKG-69 `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z/evidence.md`.
+
+Profiler permanece fora do escopo inicial por decisao. Nao declarar cobertura ou paridade de profiler ate haver decisao, implementacao dedicada, retencao e medicao de overhead.

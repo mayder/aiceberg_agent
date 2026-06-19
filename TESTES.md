@@ -208,6 +208,15 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - PKG-63: revisar `docs/pkg63_apm_sampling.md` para instrumentacao por linguagem com SDKs oficiais OpenTelemetry, sem SDK proprio AIceberg.
 - Validacao real/controlada fechada por `docs/evidence/pkg62/example-service-otlp-20260619T182600Z` e alto volume OTLP com CPU/memoria coberto por `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z`. gRPC/protobuf permanece fora do escopo do PKG-62.
 
+## PKG-63 - APM/traces sampling
+
+- Unitario focado: `go test ./internal/platform/collectors/otlp ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.
+- Evidencia focada: `PKG63_EVIDENCE_DIR=/tmp/aiceberg_pkg63_apm_high_volume_error_20260619T183604Z go test ./internal/platform/collectors/otlp -run TestPKG63APMHighVolumeErrorJourneyEvidence -count=1 -v`.
+- Bundle versionado: `docs/evidence/pkg63/apm-high-volume-error-20260619T183604Z`.
+- Cobertura: alto volume controlado com 80 spans, sampling configurado, erro de aplicacao preservado, span lento preservado, log ERROR com `trace_id`/`span_id` e jornada log -> trace -> service -> host.
+- Overhead antes de ativacao ampla: referenciado pelo bundle PKG-69 `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z`, com OTLP traces em alto volume e CPU/memoria registrados.
+- Profiler: fora do escopo inicial por decisao; nao ha teste de profiler nem declaracao de cobertura.
+
 ## PKG-64 - Containers Docker inicial
 
 - Unitario focado: `go test ./internal/platform/collectors/containers ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.

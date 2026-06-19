@@ -206,6 +206,17 @@ Referências:
 - Impacto em rollback: nao altera runtime; remover o gate volta ao controle manual por checklist.
 - Como reverter: remover scripts do gate, self-test no `check.sh` e referencias em docs.
 
+### DEC-20260619-03 - APM inicial fecha por traces, correlacao e overhead de OTLP, sem profiler
+
+- Status: aceita
+- Contexto: PKG-63 precisa validar alto volume, erro de aplicacao, jornada log -> trace -> servico -> host e overhead antes de habilitar APM para cliente, mas profiler continuo foi explicitamente colocado fora do escopo inicial.
+- Decisao: aceitar o APM inicial quando o receiver OTLP HTTP/JSON provar sampling com erro/span lento preservados, log correlato e host/service preservados, usando `docs/evidence/pkg63/apm-high-volume-error-20260619T183604Z`; overhead de ativacao ampla fica coberto pela evidencia PKG-69 `high-volume-overhead`.
+- Alternativas consideradas: bloquear todo o APM ate implementar profiler ou declarar profiler coberto por traces.
+- Consequencias: APM/traces inicial pode ser fechado sem falsa paridade de profiler; a matriz continua marcando profiler como fora do escopo inicial ate pacote/decisao futura.
+- Impacto em testes: `TestPKG63APMHighVolumeErrorJourneyEvidence` cobre 80 spans, `dropped_count`, erro, span lento e jornada correlata.
+- Impacto em rollback: desligar OTLP/APM com `OTLP_ENABLED=false` ou ajustar `APM_TRACE_SAMPLE_RATE=1` para remover descarte por sampling.
+- Como reverter: remover a evidencia/teste dedicado e voltar o PKG-63 para pendente de validacao.
+
 ### DEC-20260618-12 - USM e workload security evoluem sobre networkcapture
 
 - Status: aceita

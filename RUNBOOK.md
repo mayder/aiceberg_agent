@@ -217,6 +217,8 @@ Configuracoes locais:
 
 Rollback: definir `APM_TRACE_SAMPLE_RATE=1` para enviar todos os spans ou desligar OTLP com `OTLP_ENABLED=false`.
 
+Estado aceito em 2026-06-19: `docs/evidence/pkg63/apm-high-volume-error-20260619T183604Z` valida alto volume controlado, erro de aplicacao, preservacao de span lento/erro por sampling e jornada log -> trace -> service -> host. Overhead antes de ativacao ampla fica coberto pelo bundle PKG-69 `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z`. Profiler permanece fora do escopo inicial por decisao registrada.
+
 ### PKG-64 - Containers Docker inicial
 
 Contrato tecnico: `docs/pkg64_containers.md`.
