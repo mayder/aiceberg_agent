@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -240,11 +241,23 @@ func (c *collector) readFile(path, hostname string) []logEvent {
 	}
 	defer f.Close()
 	offset := c.cursor[path]
-	if info, err := f.Stat(); err == nil && offset > info.Size() {
-		offset = 0
+	if info, err := f.Stat(); err == nil {
+		currentFileID := fileIdentity(info)
+		storedFileID := c.cursor[fileIdentityCursorKey(path)]
+		if offset > info.Size() || (offset > 0 && storedFileID != 0 && currentFileID != 0 && storedFileID != currentFileID) {
+			offset = 0
+		}
+		if offset > 0 && !cursorAtLineBoundary(f, offset) {
+			offset = 0
+		}
+		if currentFileID != 0 {
+			c.cursor[fileIdentityCursorKey(path)] = currentFileID
+		}
 	}
 	if offset > 0 {
 		_, _ = f.Seek(offset, 0)
+	} else {
+		_, _ = f.Seek(0, 0)
 	}
 	r := bufio.NewReader(f)
 	pending := ""
@@ -276,6 +289,32 @@ func (c *collector) readFile(path, hostname string) []logEvent {
 		c.cursor[path] = pos
 	}
 	return out
+}
+
+func fileIdentityCursorKey(path string) string {
+	return path + "#file_id"
+}
+
+func fileIdentity(info os.FileInfo) int64 {
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || stat == nil {
+		return 0
+	}
+	return int64(stat.Dev)<<32 ^ int64(stat.Ino)
+}
+
+func cursorAtLineBoundary(f *os.File, offset int64) bool {
+	if offset <= 0 {
+		return true
+	}
+	if _, err := f.Seek(offset-1, 0); err != nil {
+		return false
+	}
+	buf := make([]byte, 1)
+	if _, err := f.Read(buf); err != nil {
+		return false
+	}
+	return buf[0] == '\n'
 }
 
 func (c *collector) buildEvent(path, hostname, line string) logEvent {

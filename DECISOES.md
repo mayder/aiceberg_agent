@@ -75,6 +75,16 @@ Referências:
 - Impacto em rollback: desativar `OSLOG_ENABLED`/flags remotas de logs ou publicar versao anterior.
 - Como reverter: remover campos aditivos e filtros do coletor `oslogs`.
 
+### DEC-20260619-01 - Cursor de arquivo considera identidade e fronteira de linha
+
+- Status: aceita
+- Contexto: PKG-60 ja resetava cursor quando o arquivo ficava menor, mas podia reutilizar offset antigo se um log fosse truncado/recriado com tamanho maior que o offset anterior ou rotacionado por troca de inode.
+- Decisao: persistir chave auxiliar de identidade do arquivo no cursor POSIX e validar que o offset salvo continua em fronteira de linha antes de reutiliza-lo.
+- Consequencias: reduz perda parcial de linhas e duplicacao indevida em restart, truncamento e rotacao comum sem alterar o contrato `/v1/logs/raw`.
+- Impacto em testes: `TestCollectorPersistsCursorAcrossRestartAndHandlesRotation` cobre restart sem duplicacao, truncamento e rotacao.
+- Impacto em rollback: publicar binario anterior ou remover a chave auxiliar; cursores antigos continuam compativeis porque a chave adicional e opcional.
+- Como reverter: remover `fileIdentityCursorKey`, `fileIdentity` e `cursorAtLineBoundary` do coletor POSIX.
+
 ### DEC-20260618-04 - Metricas custom usam receptor local desligado por padrao
 
 - Status: aceita

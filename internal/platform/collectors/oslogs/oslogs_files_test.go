@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
 
 func TestCollectorCollectDisabled(t *testing.T) {
@@ -447,6 +448,64 @@ func TestCollectorCombinesMultilineStackTrace(t *testing.T) {
 	}
 }
 
+func TestCollectorPersistsCursorAcrossRestartAndHandlesRotation(t *testing.T) {
+	tmp := t.TempDir()
+	logFile := filepath.Join(tmp, "app.log")
+	cursorPath := filepath.Join(tmp, "cursor.json")
+	cfg := config.Config{
+		OSLogFiles:      []string{logFile},
+		OSLogCursorPath: cursorPath,
+		OSLogBatchLines: 10,
+		OSLogMaxBytes:   1024,
+		OSLogInterval:   time.Second,
+		OSLogEnrich:     true,
+	}
+	prefs := func() config.CollectPrefs {
+		return config.CollectPrefs{OSLogFiles: true, OSLogEnrich: true}
+	}
+
+	if err := os.WriteFile(logFile, []byte("Jan  1 00:00:01 host app[123]: first error\n"), 0o644); err != nil {
+		t.Fatalf("write initial log: %v", err)
+	}
+	firstCollector := New(cfg, prefs)
+	firstPayload := collectLogPayload(t, firstCollector)
+	if got := eventMessages(firstPayload.Events); len(got) != 1 || !strings.Contains(got[0], "first error") {
+		t.Fatalf("expected first event, got %#v", got)
+	}
+
+	restartedCollector := New(cfg, prefs)
+	if data, err := restartedCollector.Collect(context.Background()); err != nil || len(data) != 0 {
+		t.Fatalf("expected restart without duplicate, data=%s err=%v", string(data), err)
+	}
+
+	if err := os.Truncate(logFile, 0); err != nil {
+		t.Fatalf("truncate log: %v", err)
+	}
+	if err := os.WriteFile(logFile, []byte("Jan  1 00:00:02 host app[123]: after truncate error\n"), 0o644); err != nil {
+		t.Fatalf("write truncated log: %v", err)
+	}
+	truncatedCollector := New(cfg, prefs)
+	truncatedPayload := collectLogPayload(t, truncatedCollector)
+	if got := eventMessages(truncatedPayload.Events); len(got) != 1 || !strings.Contains(got[0], "after truncate error") {
+		t.Fatalf("expected truncated event, got %#v", got)
+	}
+
+	rotatedPath := filepath.Join(tmp, "app.log.1")
+	if err := os.Rename(logFile, rotatedPath); err != nil {
+		t.Fatalf("rotate log: %v", err)
+	}
+	rotatedContent := strings.Repeat("x", 256)
+	rotatedContent += "\nJan  1 00:00:03 host app[123]: after rotation error\n"
+	if err := os.WriteFile(logFile, []byte(rotatedContent), 0o644); err != nil {
+		t.Fatalf("write rotated log: %v", err)
+	}
+	rotatedCollector := New(cfg, prefs)
+	rotatedPayload := collectLogPayload(t, rotatedCollector)
+	if got := eventMessages(rotatedPayload.Events); len(got) == 0 || !strings.Contains(strings.Join(got, "\n"), "after rotation error") {
+		t.Fatalf("expected rotated event, got %#v", got)
+	}
+}
+
 func TestCollectorAppliesFiltersWithoutPersistingDroppedContent(t *testing.T) {
 	tmp := t.TempDir()
 	logFile := filepath.Join(tmp, "app.log")
@@ -492,6 +551,30 @@ func TestCollectorAppliesFiltersWithoutPersistingDroppedContent(t *testing.T) {
 	if strings.Contains(msg, "secret") || strings.Contains(msg, "health check") {
 		t.Fatalf("unexpected leaked or dropped content: %q", msg)
 	}
+}
+
+func collectLogPayload(t *testing.T, c ports.Collector) payload {
+	t.Helper()
+	data, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatalf("expected payload")
+	}
+	var got payload
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("invalid payload: %v", err)
+	}
+	return got
+}
+
+func eventMessages(events []logEvent) []string {
+	messages := make([]string, 0, len(events))
+	for _, event := range events {
+		messages = append(messages, event.Message)
+	}
+	return messages
 }
 
 func containsAny(s string, needles ...string) bool {
