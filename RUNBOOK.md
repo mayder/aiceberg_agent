@@ -187,6 +187,8 @@ Configuracoes locais:
 
 Rollback: definir `CUSTOM_METRICS_ENABLED=false` ou enviar config remota `custom_metrics.enabled=false`. Nao ha SQL do PKG-61.
 
+Estado aceito em 2026-06-19: `docs/evidence/pkg61/local-app-high-volume-20260619T181900Z` valida app local controlada, HTTP, UDP, UDS `0600`, alta cardinalidade e `dropped_count`; o bundle PKG-69 `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z` valida alto volume com CPU/memoria.
+
 ### PKG-62 - OTLP HTTP/JSON
 
 Contrato tecnico: `docs/pkg62_otlp_http_json.md`.

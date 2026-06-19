@@ -199,7 +199,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 
 - Unitario focado: `go test ./internal/platform/collectors/custommetrics ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.
 - Cobrir parser DogStatsD-like, HTTP local, tipos count/gauge/histogram/distribution/set/service_check, tags canonicas, limite de cardinalidade, `accepted_count` e `dropped_count`.
-- Validacao real de alto volume, UDS, container e app externa fica pendente para PKG-69.
+- Validacao real fechada por `docs/evidence/pkg61/local-app-high-volume-20260619T181900Z` e pelo bundle PKG-69 `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z`.
 
 ## PKG-62 - OTLP HTTP/JSON
 

@@ -1,0 +1,7 @@
+key	value
+bundle_tool	go-test-opt-in-evidence
+scenario	pkg61-local-app-high-volume
+created_at_utc	20260619T181900Z
+test_command	PKG61_EVIDENCE_DIR=/tmp/aiceberg_pkg61_local_app_high_volume_20260619T181900Z go test ./internal/platform/collectors/custommetrics -run TestPKG61LocalAppHighVolumeEvidence -count=1 -v
+raw_archive	raw/pkg61-local-app-high-volume-raw.tgz
+related_high_volume_evidence	docs/evidence/pkg69/high-volume-overhead-20260619T033436Z/evidence.md
