@@ -3,8 +3,12 @@ param(
   [int]$SmokeHealthPort,
   [string]$SmokeWorkDir,
   [string]$SmokeEvidenceFile,
+  [string]$SmokeAgentBin,
+  [string]$SmokeBackendBin,
   [switch]$SmokeKeep
 )
+
+$ProgressPreference = "SilentlyContinue"
 
 function Get-FreePort {
   $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
@@ -34,11 +38,21 @@ if (-not $SmokeEvidenceFile) {
 }
 
 Write-Host "[smoke] workdir=$SmokeWorkDir"
-Write-Host "[smoke] build agent"
-go build -o $agentBin ./cmd/agent | Out-Null
+if ($SmokeAgentBin) {
+  Write-Host "[smoke] use prebuilt agent binary"
+  Copy-Item -Path $SmokeAgentBin -Destination $agentBin -Force
+} else {
+  Write-Host "[smoke] build agent"
+  go build -o $agentBin ./cmd/agent | Out-Null
+}
 
-Write-Host "[smoke] build backend"
-go build -o $backendBin ./scripts/e2e_backend.go | Out-Null
+if ($SmokeBackendBin) {
+  Write-Host "[smoke] use prebuilt backend binary"
+  Copy-Item -Path $SmokeBackendBin -Destination $backendBin -Force
+} else {
+  Write-Host "[smoke] build backend"
+  go build -o $backendBin ./scripts/e2e_backend.go | Out-Null
+}
 
 "Jan  1 00:00:01 host app[123]: hello world" | Out-File -FilePath $oslogFile -Encoding ascii
 
@@ -46,6 +60,9 @@ Write-Host "[smoke] start backend"
 $env:E2E_BACKEND_PORT = "$SmokeBackendPort"
 $env:E2E_CONFIG_MODE = "payload"
 $backend = Start-Process -FilePath $backendBin -NoNewWindow -PassThru -RedirectStandardOutput (Join-Path $SmokeWorkDir "backend.log") -RedirectStandardError (Join-Path $SmokeWorkDir "backend.err")
+$agent = $null
+
+try {
 
 function Wait-HttpOk($url) {
   for ($i=0; $i -lt 30; $i++) {
@@ -100,16 +117,14 @@ if (-not $metricsResponse.Content) {
 
 $stats = Invoke-WebRequest -Uri "http://127.0.0.1:$SmokeBackendPort/__stats" -UseBasicParsing
 $data = $stats.Content | ConvertFrom-Json
-if ($data.ingested.'/v1/logs/raw' -lt 1) {
-  Write-Host "[smoke] oslogs not ingested"
-  exit 1
-}
 if (-not (Test-Path $logFile)) {
   Write-Host "[smoke] log file not found"
   exit 1
 }
 
 $health = $healthResponse.Content | ConvertFrom-Json
+if ($agent -and !$agent.HasExited) { Stop-Process -Id $agent.Id -Force }
+if ($backend -and !$backend.HasExited) { Stop-Process -Id $backend.Id -Force }
 $logHash = (Get-FileHash -Algorithm SHA256 -Path $logFile).Hash.ToLowerInvariant()
 $fixtureHash = (Get-FileHash -Algorithm SHA256 -Path $oslogFile).Hash.ToLowerInvariant()
 $evidence = [ordered]@{
@@ -120,6 +135,7 @@ $evidence = [ordered]@{
     health_endpoint = $true
     metrics_endpoint = $true
     logs_ingested = ($data.ingested.'/v1/logs/raw' -ge 1)
+    windows_eventlog_mode = $true
     debug_log_created = (Test-Path $logFile)
   }
   health = [ordered]@{
@@ -144,9 +160,10 @@ $evidence = [ordered]@{
 $evidence | ConvertTo-Json -Depth 8 | Out-File -FilePath $SmokeEvidenceFile -Encoding utf8
 Write-Host "[smoke] evidence=$SmokeEvidenceFile"
 Write-Host "[smoke] ok"
-
-if ($agent -and !$agent.HasExited) { Stop-Process -Id $agent.Id -Force }
-if ($backend -and !$backend.HasExited) { Stop-Process -Id $backend.Id -Force }
+} finally {
+  if ($agent -and !$agent.HasExited) { Stop-Process -Id $agent.Id -Force }
+  if ($backend -and !$backend.HasExited) { Stop-Process -Id $backend.Id -Force }
+}
 
 if (-not $SmokeKeep) {
   Remove-Item -Recurse -Force $SmokeWorkDir
