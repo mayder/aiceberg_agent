@@ -49,6 +49,7 @@ O payload tambem pode enviar `dropped_count` para indicar quantos eventos foram 
 - Evidencia real PKG-69 validou EventLog em Windows desktop real, journald/syslog em Linux real, logs de container Docker e replay sem duplicidade apos reboot real.
 - Em 2026-06-19, teste controlado cobriu Graylog/GELF, Linux auth, app JSON, log texto comum, classificacao por basename e parsing/classificacao de Windows Security e Sysmon no build Windows.
 - Bundle auditavel: `docs/evidence/pkg60/controlled-20260619T172555Z/evidence.md`, gerado por `scripts/pkg60_logs_controlled_evidence.sh` com manifest, proveniencia e artefato bruto leve.
+- Gate de lacunas: `scripts/pkg60_logs_evidence_gap_report.sh docs/evidence/pkg60`. O gate diferencia evidencia controlada de evidencia real e permanece `BLOQUEADO` enquanto faltarem bundles reais `pkg60-real-os-files`, `pkg60-real-source-formats` e `pkg60-real-journald-windows-channels`.
 
 ## Limites
 
@@ -66,4 +67,5 @@ Desativar coleta de logs com `OSLOG_ENABLED=false` ou remover flags remotas `OSL
 ```bash
 go test ./internal/platform/collectors/oslogs ./internal/common/config ./internal/domain/usecase
 GOOS=windows GOARCH=amd64 go test ./internal/platform/collectors/oslogs
+scripts/pkg60_logs_evidence_gap_report.sh docs/evidence/pkg60
 ```

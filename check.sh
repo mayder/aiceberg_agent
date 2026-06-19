@@ -95,6 +95,9 @@ go vet ./...
 log "go test"
 go test ./...
 
+log "pkg60 evidence gap report self-test"
+scripts/pkg60_logs_evidence_gap_report_selftest.sh
+
 log "pkg72 evidence gate self-test"
 scripts/pkg72_contextual_evidence_gate_selftest.sh
 

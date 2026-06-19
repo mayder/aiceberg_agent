@@ -160,6 +160,15 @@ scripts/pkg60_logs_controlled_evidence.sh
 
 O comando gera `docs/evidence/pkg60/controlled-*/evidence.md`, `MANIFEST.tsv`, `PROVENANCE.tsv` e artefato bruto com logs de teste. A compilacao Windows e registrada por SHA256/tamanho, mas o binario Windows de teste nao fica retido no repo. Essa evidencia nao substitui homologacao real de Graylog, Windows Security, Linux auth e Sysmon.
 
+Gate de lacunas:
+
+```bash
+scripts/pkg60_logs_evidence_gap_report.sh docs/evidence/pkg60
+PKG60_GAP_REPORT_REQUIRE_COMPLETE=true scripts/pkg60_logs_evidence_gap_report.sh docs/evidence/pkg60
+```
+
+O gate aceita a evidencia controlada apenas como suporte funcional. Para fechamento, devem existir bundles reais com `MANIFEST.tsv`, `PROVENANCE.tsv`, `evidence.md` e artefato bruto sanitizado para `pkg60-real-os-files`, `pkg60-real-source-formats` e `pkg60-real-journald-windows-channels`. O aceite final exige `PKG60_ACCEPT_CLOSURE=true` junto de `PKG60_GAP_REPORT_REQUIRE_ACCEPTED=true`.
+
 ### PKG-61 - Metricas custom locais
 
 Contrato tecnico: `docs/pkg61_custom_metrics.md`.
