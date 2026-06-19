@@ -468,7 +468,10 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 
 - Unitario focado: `go test ./internal/platform/collectors/localchecks ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.
 - Cobertura local: HTTP, TCP, OpenMetrics, tipo nao permitido, timeout por contexto e redaction de credenciais.
-- Validacao real pendente para PKG-69/PKG-71: apps reais, bancos reais, JMX real, IIS/WMI real e ponte automatica com autodiscovery Kubernetes.
+- Evidencia focada: `PKG66_EVIDENCE_DIR=/tmp/aiceberg_pkg66_localchecks_lifecycle_20260619T185846Z go test ./internal/platform/collectors/localchecks -run TestPKG66LocalChecksLifecycleRollbackUpgradeEvidence -count=1 -v`.
+- Bundle versionado: `docs/evidence/pkg66/localchecks-lifecycle-rollback-upgrade-20260619T185846Z`.
+- Cobertura da evidencia: criacao, execucao, falha, bloqueio de tipo, rollback por config, upgrade de manifest e preservacao de config sem vazamento de credencial.
+- Apps reais, bancos reais, JMX real e IIS/WMI real ficam para PKG-71.
 
 ### PKG-67 - Fleet, rollout e flare
 

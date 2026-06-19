@@ -133,10 +133,10 @@ Referências:
 
 - Status: aceita
 - Contexto: PKG-66 precisa executar checks locais extensiveis sem transformar config remota em execucao arbitraria.
-- Decisao: criar coletor `localchecks`, desligado por padrao, com contrato aditivo em `body.local_checks`, timeout por check e allowlist de tipos (`http`, `tcp`, `openmetrics` e checks basicos de integracoes). Nao ha shell generico, comando livre, PowerShell remoto ou script arbitrario.
+- Decisao: criar coletor `localchecks`, desligado por padrao, com contrato aditivo em `body.local_checks`, timeout por check, manifests locais instalaveis e allowlist de tipos (`http`, `tcp`, `openmetrics` e checks basicos de integracoes). Nao ha shell generico, comando livre, PowerShell remoto ou script arbitrario.
 - Alternativas consideradas: plugins executaveis externos ja no primeiro pacote ou reusar Agentless remoto para tudo.
-- Consequencias: checks locais simples rodam no agente sem duplicar Agentless remoto; integracoes profundas ficam para manifestos oficiais versionados.
-- Impacto em testes: unitarios cobrem HTTP, TCP, OpenMetrics, bloqueio de tipo nao permitido e redaction.
+- Consequencias: checks locais simples rodam no agente sem duplicar Agentless remoto; upgrade de manifest nao altera config do check e rollback operacional desliga o coletor.
+- Impacto em testes: unitarios cobrem HTTP, TCP, OpenMetrics, bloqueio de tipo nao permitido, redaction, falha, rollback e upgrade de manifest.
 - Impacto em rollback: desligar `LOCAL_CHECKS_ENABLED` ou config remota `local_checks.enabled=false`.
 - Como reverter: remover coletor `localchecks` do scheduler.
 

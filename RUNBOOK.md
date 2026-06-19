@@ -288,6 +288,8 @@ Instalar/remover integracao sem rebuild: adicionar/remover manifest JSON em dire
 
 Rollback: definir `LOCAL_CHECKS_ENABLED=false` ou config remota `local_checks.enabled=false`. Nao ha SQL do PKG-66.
 
+Estado aceito em 2026-06-19: `docs/evidence/pkg66/localchecks-lifecycle-rollback-upgrade-20260619T185846Z` valida criacao, execucao, falha, bloqueio de tipo fora da allowlist, rollback por config, upgrade de manifest e preservacao de config sem vazamento de credencial.
+
 ### PKG-67 - Fleet, rollout e flare seguro
 
 Contrato tecnico: `docs/pkg67_fleet_rollout_flare.md`.

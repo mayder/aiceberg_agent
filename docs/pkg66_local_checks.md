@@ -100,3 +100,16 @@ Definir `LOCAL_CHECKS_ENABLED=false` ou config remota `local_checks.enabled=fals
 ```bash
 go test ./internal/platform/collectors/localchecks ./internal/common/config ./internal/domain/usecase ./internal/bootstrap
 ```
+
+## Evidencia de fechamento
+
+Bundle aceito: `docs/evidence/pkg66/localchecks-lifecycle-rollback-upgrade-20260619T185846Z`.
+
+Cobertura:
+
+- criacao e execucao de check HTTP OK;
+- falha de check HTTP registrada sem travar o agente;
+- tipo fora da allowlist bloqueado sem executar shell;
+- rollback por config remota `local_checks.enabled=false`;
+- upgrade de manifest instalavel mantendo a configuracao dos checks;
+- `credentials_ref` e segredo em target redigidos no payload.

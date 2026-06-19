@@ -1,0 +1,6 @@
+field	value
+scenario	localchecks-lifecycle-rollback-upgrade
+timestamp_utc	20260619T185846Z
+source_tool	go_test_localchecks_collector
+runtime	localchecks_loopback_controlled
+raw_archive	raw/pkg66-localchecks-lifecycle-rollback-upgrade-raw.tgz

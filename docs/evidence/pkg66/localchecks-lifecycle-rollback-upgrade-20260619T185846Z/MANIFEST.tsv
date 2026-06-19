@@ -1,0 +1,2 @@
+scenario	evidence_path	evidence_sha256	evidence_bytes	raw_archive	raw_sha256	raw_bytes	timestamp_utc
+localchecks-lifecycle-rollback-upgrade	docs/evidence/pkg66/localchecks-lifecycle-rollback-upgrade-20260619T185846Z/evidence.md	d9a0bf667fa67854decfaf5ed76e3c65b680bb37d2d782fb8a8c9723e5ef4f37	996	docs/evidence/pkg66/localchecks-lifecycle-rollback-upgrade-20260619T185846Z/raw/pkg66-localchecks-lifecycle-rollback-upgrade-raw.tgz	dc1b132b13fa1e41cdd089b3c205bf9bd438555d4e68863705e23884d56e8e95	1291	20260619T185846Z
