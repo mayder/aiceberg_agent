@@ -50,6 +50,21 @@ func TestParseEventXMLBlock_ExtractsRecordAndWindowsSeverity(t *testing.T) {
 	}
 }
 
+func TestParseEventXMLBlock_ClassifiesSecurityAndSysmonChannels(t *testing.T) {
+	securityBlock := []byte(`<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Microsoft-Windows-Security-Auditing'/><EventID>4625</EventID><Level>0</Level><TimeCreated SystemTime='2026-06-19T16:30:02Z'/><EventRecordID>100</EventRecordID><Channel>Security</Channel><Computer>dc01</Computer></System><EventData><Data>failed logon</Data></EventData></Event>`)
+	sysmonBlock := []byte(`<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Microsoft-Windows-Sysmon'/><EventID>1</EventID><Level>4</Level><TimeCreated SystemTime='2026-06-19T16:31:02Z'/><EventRecordID>101</EventRecordID><Channel>Microsoft-Windows-Sysmon/Operational</Channel><Computer>srv01</Computer></System><EventData><Data>process created</Data></EventData></Event>`)
+
+	security := parseEventXMLBlock(securityBlock, "Security", "fallback", 4096)
+	sysmon := parseEventXMLBlock(sysmonBlock, "Microsoft-Windows-Sysmon/Operational", "fallback", 4096)
+
+	if security.SourceCategory != "security" || security.Provider != "Microsoft-Windows-Security-Auditing" || security.EventID != 4625 {
+		t.Fatalf("unexpected security event: %#v", security)
+	}
+	if sysmon.SourceCategory != "security" || sysmon.Provider != "Microsoft-Windows-Sysmon" || sysmon.Channel != "Microsoft-Windows-Sysmon/Operational" {
+		t.Fatalf("unexpected sysmon event: %#v", sysmon)
+	}
+}
+
 func TestWindowsEventQuery_AddsSeverityPredicate(t *testing.T) {
 	query := windowsEventQuery(42, nil, nil, "error")
 

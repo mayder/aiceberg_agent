@@ -47,6 +47,7 @@ O payload tambem pode enviar `dropped_count` para indicar quantos eventos foram 
 - Em 2026-06-19, `go test ./internal/platform/collectors/oslogs` passou cobrindo restart sem duplicar, truncamento e rotacao de arquivo comum.
 - Em 2026-06-19, a compilacao Windows do coletor passou com `GOOS=windows GOARCH=amd64 go test -c -o /tmp/aiceberg_oslogs_windows.test.exe ./internal/platform/collectors/oslogs`.
 - Evidencia real PKG-69 validou EventLog em Windows desktop real, journald/syslog em Linux real, logs de container Docker e replay sem duplicidade apos reboot real.
+- Em 2026-06-19, teste controlado cobriu Graylog/GELF, Linux auth, app JSON, log texto comum, classificacao por basename e parsing/classificacao de Windows Security e Sysmon no build Windows.
 
 ## Limites
 

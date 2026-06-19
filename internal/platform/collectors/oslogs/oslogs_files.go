@@ -330,9 +330,17 @@ func (c *collector) buildEvent(path, hostname, line string) logEvent {
 		msg = msg[:c.maxBytes]
 	}
 	attributes := jsonAttributes(msg)
+	sourceTool := sourceToolForUnix(path, attributes)
+	if gelfMsg := graylogMessage(attributes); gelfMsg != "" {
+		msg = gelfMsg
+	}
 	if lvl == "" {
 		lvl = levelFromAttributes(attributes)
 		severity = lvl
+	}
+	service := app
+	if service == "" {
+		service = serviceFromAttributes(attributes)
 	}
 	msg, redactionStatus := redactMessage(msg)
 	category := ""
@@ -352,7 +360,7 @@ func (c *collector) buildEvent(path, hostname, line string) logEvent {
 		Cursor:          cursor,
 		Message:         msg,
 		App:             app,
-		Service:         app,
+		Service:         service,
 		PID:             pid,
 		Level:           lvl,
 		Severity:        severity,
@@ -361,7 +369,7 @@ func (c *collector) buildEvent(path, hostname, line string) logEvent {
 		Attributes:      attributes,
 		RedactionStatus: redactionStatus,
 		Transport:       "agent_file",
-		SourceTool:      "linux_syslog",
+		SourceTool:      sourceTool,
 		SourceCategory:  sourceCategoryForUnix(path, facility),
 	}
 }

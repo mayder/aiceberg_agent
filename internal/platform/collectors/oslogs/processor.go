@@ -3,6 +3,7 @@ package oslogs
 import (
 	"encoding/json"
 	"hash/fnv"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -382,7 +383,7 @@ func isSensitiveKey(key string) bool {
 }
 
 func sourceCategoryForUnix(path, facility string) string {
-	p := strings.ToLower(path)
+	p := strings.ToLower(filepath.Base(path))
 	f := strings.ToLower(facility)
 	switch {
 	case strings.Contains(p, "auth") || f == "auth" || f == "authpriv":
@@ -391,6 +392,72 @@ func sourceCategoryForUnix(path, facility string) string {
 		return "observability"
 	default:
 		return "log"
+	}
+}
+
+func sourceToolForUnix(path string, attrs map[string]any) string {
+	if isGraylogGELF(attrs) {
+		return "graylog_gelf"
+	}
+	p := strings.ToLower(filepath.Base(path))
+	switch {
+	case strings.Contains(p, "auth"):
+		return "linux_auth"
+	case strings.Contains(p, "syslog") || strings.Contains(p, "messages"):
+		return "linux_syslog"
+	default:
+		return "file"
+	}
+}
+
+func isGraylogGELF(attrs map[string]any) bool {
+	if attrs == nil {
+		return false
+	}
+	if _, ok := attrs["short_message"]; !ok {
+		return false
+	}
+	if _, ok := attrs["host"]; !ok {
+		return false
+	}
+	if _, ok := attrs["version"]; ok {
+		return true
+	}
+	if _, ok := attrs["_gl2_source_input"]; ok {
+		return true
+	}
+	return false
+}
+
+func graylogMessage(attrs map[string]any) string {
+	if short := attrString(attrs, "short_message"); short != "" {
+		return short
+	}
+	return attrString(attrs, "full_message")
+}
+
+func serviceFromAttributes(attrs map[string]any) string {
+	for _, key := range []string{"service", "service.name", "app", "application", "application_name", "program", "_app", "_program"} {
+		if value := attrString(attrs, key); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func attrString(attrs map[string]any, key string) string {
+	if attrs == nil {
+		return ""
+	}
+	value, ok := attrs[key]
+	if !ok {
+		return ""
+	}
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	default:
+		return ""
 	}
 }
 

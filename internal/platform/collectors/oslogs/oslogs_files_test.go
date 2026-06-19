@@ -100,6 +100,59 @@ func TestCollectorMinSeverityUsesJSONSeverity(t *testing.T) {
 	}
 }
 
+func TestCollectorClassifiesGraylogGELFAndLinuxAuthAndAppFormats(t *testing.T) {
+	tmp := t.TempDir()
+	graylogFile := filepath.Join(tmp, "graylog.log")
+	authFile := filepath.Join(tmp, "auth.log")
+	appFile := filepath.Join(tmp, "app.log")
+	textFile := filepath.Join(tmp, "plain.log")
+	if err := os.WriteFile(graylogFile, []byte(`{"version":"1.1","host":"winhost","short_message":"failed logon","level":3,"_gl2_source_input":"gelf-tcp","_app":"ad"}`+"\n"), 0o644); err != nil {
+		t.Fatalf("write graylog file: %v", err)
+	}
+	if err := os.WriteFile(authFile, []byte("Jan  1 00:00:01 host sshd[123]: Failed password for invalid user root from 10.0.0.5\n"), 0o644); err != nil {
+		t.Fatalf("write auth file: %v", err)
+	}
+	if err := os.WriteFile(appFile, []byte(`{"severity":"error","message":"payment failed","service":"checkout","token":"secret"}`+"\n"), 0o644); err != nil {
+		t.Fatalf("write app file: %v", err)
+	}
+	if err := os.WriteFile(textFile, []byte("plain text warning line\n"), 0o644); err != nil {
+		t.Fatalf("write text file: %v", err)
+	}
+	cfg := config.Config{
+		OSLogFiles:      []string{graylogFile, authFile, appFile, textFile},
+		OSLogCursorPath: filepath.Join(tmp, "cursor.json"),
+		OSLogBatchLines: 10,
+		OSLogMaxBytes:   1024,
+		OSLogInterval:   time.Second,
+		OSLogEnrich:     true,
+		OSLogDetections: true,
+	}
+	prefs := func() config.CollectPrefs {
+		return config.CollectPrefs{OSLogFiles: true, OSLogEnrich: true, OSLogDetections: true}
+	}
+
+	payload := collectLogPayload(t, New(cfg, prefs))
+	if len(payload.Events) != 4 {
+		t.Fatalf("expected four events, got %#v", payload.Events)
+	}
+	byFile := map[string]logEvent{}
+	for _, event := range payload.Events {
+		byFile[event.File] = event
+	}
+	if got := byFile[graylogFile]; got.SourceTool != "graylog_gelf" || got.Message != "failed logon" || got.Service != "ad" || got.Level != "error" {
+		t.Fatalf("unexpected graylog event: %#v", got)
+	}
+	if got := byFile[authFile]; got.SourceTool != "linux_auth" || got.SourceCategory != "security" || got.Category != "auth_fail" {
+		t.Fatalf("unexpected linux auth event: %#v", got)
+	}
+	if got := byFile[appFile]; got.Service != "checkout" || got.Level != "error" || strings.Contains(got.Message, "secret") {
+		t.Fatalf("unexpected app json event: %#v", got)
+	}
+	if got := byFile[textFile]; got.SourceTool != "file" || got.Message != "plain text warning line" {
+		t.Fatalf("unexpected text file event: %#v", got)
+	}
+}
+
 func TestCollectorCollectsLocalUDPAndTCPLogs(t *testing.T) {
 	cfg := config.Config{
 		OSLogFiles:      []string{filepath.Join(t.TempDir(), "missing.log")},
