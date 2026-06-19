@@ -82,9 +82,9 @@ Execucao local em 2026-06-18, Darwin 25.5.0 arm64:
 
 - `scripts/pkg69_operational_homologation.sh`: passou com `go test` focado, cadeia Ed25519 local de artefato de update, reconexao pos-update local com `version_confirmed` e `version_mismatch_after_restart`, `HTTP_PROXY` autenticado local, TLS invalido rejeitado por padrao, timeout de download sem artefato finalizado, classificacao local de clock skew, degradacao local PCAP/tcpdump, replay de outbox apos restart local, burst local de cardinalidade custom metrics, topologia relay -> hub -> AIceberg em canal/ping/self-heal/update, e2e local multi-processo direct/hub/relay, smoke POSIX com RSS/CPU/goroutines locais, testes focados de API indisponivel/rede intermitente/payload grande/outbox cheia com logs dedicados, gate endurecido para topologia preenchida, anexo bruto local nao vazio com hash/tamanho no manifest, helper de bundle, coletor read-only, runner de bundles e relatorio de lacunas com self-tests, rollback validado, limites CPU/RSS e RBAC Kubernetes e `./check.sh`;
 - Docker daemon indisponivel no host local;
-- `kubectl` disponivel, mas sem validacao de cluster/DaemonSet/Helm;
-- Helm e PowerShell indisponiveis neste host;
-- Windows, Linux real, Docker, Kubernetes, proxy real/TLS, disco cheio real, alto volume real e rollback de update seguem pendentes de ambiente controlado.
+- `kubectl` disponivel; Kubernetes RBAC validado posteriormente em cluster kind efemero com Helm temporario em `/tmp`;
+- PowerShell indisponivel neste host;
+- Windows desktop, clock real e reboot real seguem pendentes de ambiente controlado.
 
 Smokes por sistema operacional:
 
@@ -203,6 +203,7 @@ Atualizacao/instalacao real adicional em 2026-06-19:
 - disco cheio validado em 2026-06-19 em volume APFS temporario de 16MB montado via `hdiutil`: outbox bbolt real recebeu item inicial, filesystem retornou `no space left on device`, push durante ENOSPC falhou sem alterar a fila, volume foi liberado/remontado logicamente e a outbox reabriu com replay preservado; `free_bytes_before=16359424`, `queue_items=2`, `recovered=yes`; bundle versionado em `docs/evidence/pkg69/disk-full-20260619T034504Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `8/14` evidencias OK;
 - Relay/Hub/Direct validado em 2026-06-19 com rede Docker dedicada e containers separados para backend AIceberg, Hub, Relay e Direct: `direct_host_id=docker:3238ff45487c@172.24.0.5`, `hub_host_id=docker:d711556feee6@172.24.0.3`, `relay_host_id=docker:b13360616801@172.24.0.4`, `relay_upstream_host_id=hub_host_id`, `direct_ingested=yes`, `hub_ingested=yes`, `relay_ingested_via_hub=yes`, `relay_direct_api_attempts=0`, `agentless_jobs=1`, `agentless_observations=1`; o backend registrou o trafego do Relay vindo do IP do Hub, nao do IP do Relay; bundle versionado em `docs/evidence/pkg69/relay-hub-direct-hosts-20260619T035749Z`;
 - Update remoto e rollback validado em 2026-06-19 com servidor remoto httptest, artefato assinado Ed25519, SHA256 validado, update-report com `download_ok`, `version_confirmed` e `apply_failed`, e apply script em container Debian root isolado restaurando binario anterior apos falha induzida; bundle versionado em `docs/evidence/pkg69/remote-update-rollback-20260619T040722Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `10/14` evidencias OK;
+- Kubernetes RBAC validado em 2026-06-19 com cluster kind efemero, imagem local do agente carregada no node, DaemonSet com 1/1 pod Running, Helm install/upgrade/rollback, coleta de pods/events/logs redigidos e `kubectl auth can-i` confirmando `pods/list`, `events/watch` e `pods/log` permitidos, mas `secrets`, `pods/exec` e `delete pods` negados; bundle versionado em `docs/evidence/pkg69/kubernetes-rbac-20260619T041959Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `11/14` evidencias OK;
 - `scripts/smoke.ps1` foi ajustado para aceitar binarios pre-compilados, limpar processos filhos em `finally`, silenciar progresso do PowerShell e tratar Windows EventLog como modo proprio, sem exigir o fixture POSIX de `/v1/logs/raw`.
 
 ## Ambientes obrigatorios
@@ -214,7 +215,7 @@ Atualizacao/instalacao real adicional em 2026-06-19:
 | Ubuntu/Debian | `smoke.sh`, systemd, logs, outbox, update | OK no gate para Debian: bundle `docs/evidence/pkg69/linux-debian-20260619T030202Z`, systemd/rollback/restore/journal/overhead validados no agente `19`; Ubuntu 24.04 id `70` ainda parcial por modo usuario/crontab; update remoto assinado fica no cenario `remote-update-rollback` |
 | RHEL/Alma/Rocky | `smoke.sh`, systemd, dnf/yum, update | OK no gate: bundle `docs/evidence/pkg69/linux-rhel-20260619T025113Z`, systemd/rollback/restore/journal/overhead validados no `VMAIPROD2`; update remoto assinado ainda fica no cenario `remote-update-rollback` |
 | Docker | `CONTAINER_ENABLED=true`, Docker socket, labels, recursos | OK no gate: bundle `docs/evidence/pkg69/docker-runtime-20260619T031843Z`, socket real, logs JSON com cursor, filtro de container controlado e cleanup validados |
-| Kubernetes | DaemonSet/Helm, RBAC minimo, pods/events, rollback chart | pendente |
+| Kubernetes | DaemonSet/Helm, RBAC minimo, pods/events, rollback chart | OK no gate: bundle `docs/evidence/pkg69/kubernetes-rbac-20260619T041959Z`, cluster kind efemero, DaemonSet 1/1, Helm install/upgrade/rollback e RBAC sem `secrets/exec/delete` |
 | macOS/dev local | testes focados, `./check.sh` e smoke POSIX | validado local em 2026-06-18 |
 
 ## Cenarios obrigatorios
@@ -231,7 +232,7 @@ Atualizacao/instalacao real adicional em 2026-06-19:
 | Update quebrado | `update-report` com falha e rollback seguro | OK no gate: bundle `docs/evidence/pkg69/remote-update-rollback-20260619T040722Z`, artefato assinado, update-report `apply_failed`/`version_confirmed` e rollback do apply script validado |
 | Relay/Hub/Direct | relay envia somente para Hub; Hub encaminha ao AIceberg | OK no gate: bundle `docs/evidence/pkg69/relay-hub-direct-hosts-20260619T035749Z`, containers separados, Relay visto pelo backend via IP do Hub e `relay_direct_api_attempts=0` |
 | Permissao insuficiente | degradacao com status claro | OK no gate: bundle `docs/evidence/pkg69/permission-ebpf-20260619T032753Z`, tcpdump sem permissao em Linux real, degradacao clara e ingest ativo validados |
-| Kubernetes RBAC minimo | sem permissao a secrets/exec/delete | pendente |
+| Kubernetes RBAC minimo | sem permissao a secrets/exec/delete | OK no gate: bundle `docs/evidence/pkg69/kubernetes-rbac-20260619T041959Z`, `auth can-i` negou secrets, pods/exec e delete pods |
 | Alto volume simultaneo | CPU/memoria dentro do limite definido | OK no gate: bundle `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z`, DogStatsD/OTLP metrics/logs/traces com accepted/dropped e overhead dentro do limite |
 
 ## Limites aceitaveis iniciais

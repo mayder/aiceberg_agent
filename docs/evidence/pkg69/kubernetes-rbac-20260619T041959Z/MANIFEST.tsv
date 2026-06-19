@@ -1,0 +1,2 @@
+scenario	template	sha256	bytes	artifact	artifact_sha256	artifact_bytes	created_at_utc
+kubernetes-rbac	docs/evidence/pkg69/kubernetes-rbac-20260619T041959Z/evidence.md	6f218fd90ebf8b9b3f1bff76970b3896210ef9ce3505266b2ceb1c3aa769ce46	1595	docs/evidence/pkg69/kubernetes-rbac-20260619T041959Z/raw/aiceberg_pkg69_kubernetes_rbac_raw_20260619T041625Z.tgz	a0bc733703ed877aaf1a7fd5f58051d605135f0bac84bf842422e57e84fd6263	6914145	20260619T041959Z
