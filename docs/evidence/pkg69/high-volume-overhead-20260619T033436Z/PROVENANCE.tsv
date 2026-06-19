@@ -1,0 +1,9 @@
+key	value
+bundle_tool	scripts/pkg69_bundle_evidence.sh
+bundle_tool_version	1
+scenario	high-volume-overhead
+created_at_utc	20260619T033452Z
+raw_source_type	directory
+raw_source_basename	aiceberg_pkg69_high_volume_raw_20260619T033436Z
+evidence_file	evidence.md
+artifact_file	raw/aiceberg_pkg69_high_volume_raw_20260619T033436Z.tgz

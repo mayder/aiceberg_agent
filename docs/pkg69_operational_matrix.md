@@ -198,6 +198,7 @@ Atualizacao/instalacao real adicional em 2026-06-19:
 - rollback controlado no Debian 11 do agente `19` validado em 2026-06-19: systemd `aiceberg-agent.service` permaneceu `active`, `NRestarts=0`, rollback para binario SHA-256 `794426c0ecddd17e8ef5f50798504fee455b75e59ebcf0a2a5e2b42a66ba25fe`, restore do binario atual SHA-256 `a3e03f930857f1bfc3c8a8e033f9adf53bb8e5e727f1072bc9720ec1fe451023`, journal com flush ACK e `retained=0`, CPU final `3.0%`, RSS `20197376`; bundle versionado em `docs/evidence/pkg69/linux-debian-20260619T030202Z`;
 - Docker Runtime validado em 2026-06-19 com daemon Docker real local em Linux VM do Docker Desktop: `CONTAINER_ENABLED=true`, socket `/var/run/docker.sock`, `/var/lib/docker/containers` read-only, container controlado `aiceberg-pkg69-log-probe-clean`, filtro de include para evitar logs de outros workloads, `containers_seen=1`, `container_logs_seen=7`, cursor JSON, CPU `0.0%`, RSS `9261056`, cleanup do container validado e bundle versionado em `docs/evidence/pkg69/docker-runtime-20260619T031843Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `4/14` evidencias OK;
 - permissao eBPF/PCAP restrita validada em 2026-06-19 no Linux `187.45.180.181` com usuario `deploy`: `tcpdump -i any` retornou `Operation not permitted`, o coletor de rede reportou warning `pcap indisponivel: permissao insuficiente para tcpdump`, manteve `socket_snapshot+pcap` sem crash, o agente `70` seguiu `status=ok`, `flush_ok=566`, canal direct conectado, CPU `1.4%`; bundle versionado em `docs/evidence/pkg69/permission-ebpf-20260619T032753Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `5/14` evidencias OK;
+- alto volume e overhead validados em 2026-06-19 com receptores reais locais dos coletores: DogStatsD 1500 series com limite de 1000, OTLP metrics/logs/traces 180 itens por tipo com limite de 100, `accepted_count=1300`, `dropped_count=740`, CPU `0.0%`, RSS `14567688`; bundle versionado em `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z`; `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` reporta `6/14` evidencias OK;
 - `scripts/smoke.ps1` foi ajustado para aceitar binarios pre-compilados, limpar processos filhos em `finally`, silenciar progresso do PowerShell e tratar Windows EventLog como modo proprio, sem exigir o fixture POSIX de `/v1/logs/raw`.
 
 ## Ambientes obrigatorios
@@ -227,7 +228,7 @@ Atualizacao/instalacao real adicional em 2026-06-19:
 | Relay/Hub/Direct | relay envia somente para Hub; Hub encaminha ao AIceberg | parcial local com e2e multi-processo; smoke real em hosts separados pendente |
 | Permissao insuficiente | degradacao com status claro | OK no gate: bundle `docs/evidence/pkg69/permission-ebpf-20260619T032753Z`, tcpdump sem permissao em Linux real, degradacao clara e ingest ativo validados |
 | Kubernetes RBAC minimo | sem permissao a secrets/exec/delete | pendente |
-| Alto volume simultaneo | CPU/memoria dentro do limite definido | parcial local para cardinalidade custom metrics e overhead de coleta normal; carga real CPU/mem pendente |
+| Alto volume simultaneo | CPU/memoria dentro do limite definido | OK no gate: bundle `docs/evidence/pkg69/high-volume-overhead-20260619T033436Z`, DogStatsD/OTLP metrics/logs/traces com accepted/dropped e overhead dentro do limite |
 
 ## Limites aceitaveis iniciais
 
