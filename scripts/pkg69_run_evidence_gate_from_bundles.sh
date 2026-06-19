@@ -84,6 +84,18 @@ provenance_field() {
   awk -F '\t' -v key="$key" 'NR > 1 && $1 == key { print $2; exit }' "$provenance"
 }
 
+tar_contains() {
+  local archive="$1"
+  local member="$2"
+  tar -tzf "$archive" | grep -Fxq "$member"
+}
+
+tar_extract_member() {
+  local archive="$1"
+  local member="$2"
+  tar -xOzf "$archive" "$member"
+}
+
 resolve_relative_path() {
   local base_dir="$1"
   local value="$2"
@@ -121,6 +133,8 @@ verify_bundle_manifest() {
   local provenance_evidence_file
   local provenance_tool
   local provenance_tool_version
+  local provenance_raw_source_type
+  local provenance_raw_source_basename
 
   expected_header="scenario	template	sha256	bytes	artifact	artifact_sha256	artifact_bytes	created_at_utc"
   if [[ "$(head -n 1 "$manifest")" != "$expected_header" ]]; then
@@ -155,6 +169,8 @@ verify_bundle_manifest() {
   provenance_created_at_utc="$(provenance_field "$provenance" created_at_utc)"
   provenance_evidence_file="$(provenance_field "$provenance" evidence_file)"
   provenance_artifact_file="$(provenance_field "$provenance" artifact_file)"
+  provenance_raw_source_type="$(provenance_field "$provenance" raw_source_type)"
+  provenance_raw_source_basename="$(provenance_field "$provenance" raw_source_basename)"
 
   if [[ ! "$expected_created_at_utc" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
     echo "bundle manifest created_at_utc must use YYYYMMDDTHHMMSSZ: $manifest" >&2
@@ -210,6 +226,20 @@ verify_bundle_manifest() {
   if [[ ! -e "$artifact_path" ]]; then
     echo "bundle raw artifact not found: $artifact_path" >&2
     exit 74
+  fi
+  if [[ "$provenance_raw_source_type" == "directory" && "$provenance_raw_source_basename" == "raw-host" ]]; then
+    if [[ ! "$artifact_path" =~ [.]tgz$ ]]; then
+      echo "host evidence artifact must be a tgz archive: $bundle_dir" >&2
+      exit 88
+    fi
+    if ! tar_contains "$artifact_path" "raw-host/COLLECTION_SUMMARY.tsv"; then
+      echo "host evidence summary missing: $bundle_dir" >&2
+      exit 89
+    fi
+    if ! tar_extract_member "$artifact_path" "raw-host/COLLECTION_SUMMARY.tsv" | grep -Fq $'redacted_env_file\tproxy_env_redacted.txt'; then
+      echo "host evidence summary missing redacted env reference: $bundle_dir" >&2
+      exit 90
+    fi
   fi
 
   actual_artifact_sha="$(file_sha256 "$artifact_path")"

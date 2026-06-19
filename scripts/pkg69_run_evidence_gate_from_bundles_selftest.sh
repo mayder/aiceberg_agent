@@ -93,6 +93,18 @@ write_template "$proxy_template" \
 scripts/pkg69_bundle_evidence.sh relay-hub-direct-hosts "$relay_template" "$raw" "$TMP_DIR/bundles/relay" >/dev/null
 scripts/pkg69_bundle_evidence.sh proxy-tls "$proxy_template" "$raw" "$TMP_DIR/bundles/proxy" >/dev/null
 
+host_raw="$TMP_DIR/raw-host"
+mkdir -p "$host_raw"
+{
+  printf 'key\tvalue\n'
+  printf 'scenario\tproxy-tls\n'
+  printf 'redacted_env_file\tproxy_env_redacted.txt\n'
+} >"$host_raw/COLLECTION_SUMMARY.tsv"
+printf 'scenario\tproxy-tls\n' >"$host_raw/README.tsv"
+printf 'uname\tpass\t/tmp/uname.txt\n' >"$host_raw/COMMANDS.tsv"
+printf 'HTTP_PROXY=http://<redacted>@example.test:8080\n' >"$host_raw/proxy_env_redacted.txt"
+scripts/pkg69_bundle_evidence.sh proxy-tls "$proxy_template" "$host_raw" "$TMP_DIR/host-bundles/proxy" >/dev/null
+
 PKG69_EVIDENCE_FILE="$TMP_DIR/gate.md" \
 PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/gate.tsv" \
 scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/bundles" >"$TMP_DIR/runner.out" 2>"$TMP_DIR/runner.err"
@@ -103,6 +115,32 @@ assert_contains "$TMP_DIR/gate.md" "proxy-tls: evidence"
 assert_contains "$TMP_DIR/gate.md" "real-evidence-manifest: incomplete"
 assert_contains "$TMP_DIR/gate.tsv" "$TMP_DIR/bundles/relay/evidence.md"
 assert_contains "$TMP_DIR/gate.tsv" "$TMP_DIR/bundles/proxy/evidence.md"
+
+PKG69_EVIDENCE_FILE="$TMP_DIR/host-gate.md" \
+PKG69_EVIDENCE_MANIFEST_TSV="$TMP_DIR/host-gate.tsv" \
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/host-bundles" >"$TMP_DIR/host-runner.out" 2>"$TMP_DIR/host-runner.err"
+assert_contains "$TMP_DIR/host-gate.md" "proxy-tls: evidence"
+
+mkdir -p "$TMP_DIR/host-bundles-missing-summary"
+cp -R "$TMP_DIR/host-bundles/proxy" "$TMP_DIR/host-bundles-missing-summary/proxy"
+mkdir -p "$TMP_DIR/repack"
+tar -xzf "$TMP_DIR/host-bundles-missing-summary/proxy/raw/raw-host.tgz" -C "$TMP_DIR/repack"
+rm "$TMP_DIR/repack/raw-host/COLLECTION_SUMMARY.tsv"
+tar -C "$TMP_DIR/repack" -czf "$TMP_DIR/host-bundles-missing-summary/proxy/raw/raw-host.tgz" raw-host
+new_artifact_sha="$(shasum -a 256 "$TMP_DIR/host-bundles-missing-summary/proxy/raw/raw-host.tgz" | awk '{ print $1 }')"
+new_artifact_bytes="$(wc -c <"$TMP_DIR/host-bundles-missing-summary/proxy/raw/raw-host.tgz" | tr -d ' ')"
+awk -F '\t' -v sha="$new_artifact_sha" -v bytes="$new_artifact_bytes" 'BEGIN { OFS="\t" } NR == 2 { $6 = sha; $7 = bytes } { print }' \
+  "$TMP_DIR/host-bundles-missing-summary/proxy/MANIFEST.tsv" >"$TMP_DIR/host-bundles-missing-summary/proxy/MANIFEST.tsv.tmp"
+mv "$TMP_DIR/host-bundles-missing-summary/proxy/MANIFEST.tsv.tmp" "$TMP_DIR/host-bundles-missing-summary/proxy/MANIFEST.tsv"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/host-bundles-missing-summary" >/dev/null 2>"$TMP_DIR/host-missing-summary.err"
+host_missing_summary_exit=$?
+set -e
+if [[ "$host_missing_summary_exit" -eq 0 ]]; then
+  echo "expected host bundle missing summary to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/host-missing-summary.err" "host evidence summary missing"
 
 mkdir -p "$TMP_DIR/bundles-tampered"
 cp -R "$TMP_DIR/bundles/relay" "$TMP_DIR/bundles-tampered/relay"
