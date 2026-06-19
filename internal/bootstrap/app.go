@@ -96,11 +96,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	}
 	pruneStore(store, "main")
 
-	if !cfg.SkipBootstrap {
-		if err := bootstrap(ctx, cfg, log); err != nil {
-			log.Fatal("bootstrap failed", "op", "bootstrap", "err", err)
-		}
-	}
+	runInitialBootstrap(ctx, cfg, log)
 
 	// Use cases
 	authHeader := ""
@@ -1129,6 +1125,18 @@ func bootstrap(ctx context.Context, cfg config.Config, log logger.Logger) error 
 	_ = persistBootstrapState(cfg.Agent.Token, hi.HostID)
 	log.Info(logger.KV("bootstrap ok"))
 	return nil
+}
+
+func runInitialBootstrap(ctx context.Context, cfg config.Config, log logger.Logger) {
+	if cfg.SkipBootstrap {
+		return
+	}
+	if err := bootstrap(ctx, cfg, log); err != nil {
+		log.Error(logger.KV("bootstrap degraded",
+			"op", "bootstrap",
+			"err", err,
+		))
+	}
 }
 
 func firstIP() string {

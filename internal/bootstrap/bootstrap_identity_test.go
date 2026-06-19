@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -59,9 +60,41 @@ func TestBootstrapSendsAgentIdentityHeaderAndPayload(t *testing.T) {
 	}
 }
 
+func TestInitialBootstrapFailureDegradesWithoutFatal(t *testing.T) {
+	t.Setenv("AGENT_STATE_PATH", filepath.Join(t.TempDir(), "bootstrap.ok"))
+	t.Setenv("AGENT_TOKEN_PATH", filepath.Join(t.TempDir(), "agent.token"))
+
+	log := &recordBootstrapLogger{}
+	runInitialBootstrap(context.Background(), config.Config{
+		Agent:      config.AgentCfg{Token: "bootstrap-token"},
+		APIBaseURL: "http://127.0.0.1:1",
+	}, log)
+
+	if log.fatalCalled {
+		t.Fatalf("bootstrap failure must not terminate the agent")
+	}
+	if !strings.Contains(log.errorMessage, "bootstrap degraded") {
+		t.Fatalf("expected degraded bootstrap log, got %q", log.errorMessage)
+	}
+}
+
 type testBootstrapLogger struct{}
 
 func (testBootstrapLogger) Info(string)          {}
 func (testBootstrapLogger) Error(string)         {}
 func (testBootstrapLogger) Fatal(string, ...any) {}
 func (testBootstrapLogger) Sync()                {}
+
+type recordBootstrapLogger struct {
+	errorMessage string
+	fatalCalled  bool
+}
+
+func (l *recordBootstrapLogger) Info(string) {}
+func (l *recordBootstrapLogger) Error(msg string) {
+	l.errorMessage = msg
+}
+func (l *recordBootstrapLogger) Fatal(string, ...any) {
+	l.fatalCalled = true
+}
+func (l *recordBootstrapLogger) Sync() {}

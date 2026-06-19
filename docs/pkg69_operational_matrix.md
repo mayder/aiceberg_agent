@@ -150,6 +150,16 @@ Smoke remoto oficial em 2026-06-19 no mesmo host, isolado em `/tmp/aiceberg_pkg6
 
 Esta evidencia real ainda nao fecha o cenario `linux-rhel` no gate porque rollback real, update remoto assinado e os demais cenarios obrigatorios nao foram executados. Ela valida instalacao Linux/RHEL-like, smoke POSIX oficial, bootstrap, canal, ingestao e flush no servidor real do AIceberg sem derrubar a aplicacao.
 
+Validacao real de API indisponivel em 2026-06-19 no `VMAIPROD2`, isolada em `/tmp/aiceberg_pkg69_api_down_20260619T010823Z`, com binario temporario e porta local fechada:
+
+- antes da correcao, o agente encerrava no bootstrap com `[FATAL] bootstrap failed` quando a API nao respondia;
+- `runInitialBootstrap` agora registra `bootstrap degraded` e permite que health, canal e schedulers subam;
+- `api-down-evidence.json` SHA-256 `043d754cdb2fc4e9e04edd53cfd539b8bfc24f8d5a22d79f37301cea5b3ae828`;
+- binario temporario SHA-256 `3b286a3903fcba71b182c0e178bb309ff5720c57facd88f4677facdd2e794a2b`;
+- checks reais: `process_alive=true`, `health_endpoint=true`, `bootstrap_degraded_logged=true`, `fatal_absent=true`, `channel_fallback_active=true`;
+- health real: `status=ok`, `agent_pipeline_version=2-compatible`, `proc_rss_bytes=13623296`, `proc_cpu_percent=2.5912926792576854`, `goroutines=6`;
+- o servico instalado `aiceberg-agent.service` permaneceu `active`, `MainPID=2529804`, `NRestarts=0`.
+
 ## Ambientes obrigatorios
 
 | Ambiente | Evidencia exigida | Estado atual |
@@ -166,7 +176,7 @@ Esta evidencia real ainda nao fecha o cenario `linux-rhel` no gate porque rollba
 
 | Cenario | Evidencia exigida | Estado atual |
 | --- | --- | --- |
-| API indisponivel | backoff, outbox preservada, sem crash | parcial local |
+| API indisponivel | backoff, outbox preservada, sem crash | parcial real em `VMAIPROD2`: bootstrap degradado sem fatal, health OK e canal em fallback; recuperacao apos retorno da API ainda pendente |
 | Rede intermitente | retry/backoff e flush posterior | parcial local |
 | Proxy/TLS | proxy autenticado e TLS invalido controlado | parcial local para `HTTP_PROXY` e rejeicao TLS invalido; proxy real/TLS pendente |
 | Disco cheio/outbox cheia | erro claro, sem corrupcao | parcial local |
