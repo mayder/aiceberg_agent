@@ -1,0 +1,2 @@
+scenario	template	sha256	bytes	artifact	artifact_sha256	artifact_bytes	created_at_utc
+remote-update-rollback	docs/evidence/pkg69/remote-update-rollback-20260619T040722Z/evidence.md	da8e9954572142ecdb35e822a9fc5475b3e847175497b0bc40b340f6a5cd45cf	1172	docs/evidence/pkg69/remote-update-rollback-20260619T040722Z/raw/aiceberg_pkg69_remote_update_raw_20260619T040558Z.tgz	480bf64f388796650143e1c588e49b2b667675f0b1af5dfb928751bcc01de934	3638	20260619T040722Z

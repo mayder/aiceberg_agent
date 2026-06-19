@@ -1,0 +1,9 @@
+key	value
+bundle_tool	scripts/pkg69_bundle_evidence.sh
+bundle_tool_version	1
+scenario	remote-update-rollback
+created_at_utc	20260619T040722Z
+raw_source_type	file
+raw_source_basename	aiceberg_pkg69_remote_update_raw_20260619T040558Z.tgz
+evidence_file	evidence.md
+artifact_file	raw/aiceberg_pkg69_remote_update_raw_20260619T040558Z.tgz
