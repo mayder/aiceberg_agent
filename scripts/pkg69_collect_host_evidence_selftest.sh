@@ -80,9 +80,14 @@ assert_contains "$TMP_DIR/gate.tsv" "$TMP_DIR/out/bundle/raw/raw-host.tgz"
 
 tar -tzf "$TMP_DIR/out/bundle/raw/raw-host.tgz" | grep -Fq "raw-host/README.tsv"
 tar -tzf "$TMP_DIR/out/bundle/raw/raw-host.tgz" | grep -Fq "raw-host/COMMANDS.tsv"
+tar -tzf "$TMP_DIR/out/bundle/raw/raw-host.tgz" | grep -Fq "raw-host/COLLECTION_SUMMARY.tsv"
 tar -tzf "$TMP_DIR/out/bundle/raw/raw-host.tgz" | grep -Fq "raw-host/proxy_env_redacted.txt"
 mkdir -p "$TMP_DIR/extract"
 tar -xzf "$TMP_DIR/out/bundle/raw/raw-host.tgz" -C "$TMP_DIR/extract"
+assert_contains "$TMP_DIR/extract/raw-host/COLLECTION_SUMMARY.tsv" $'scenario\trelay-hub-direct-hosts'
+assert_contains "$TMP_DIR/extract/raw-host/COLLECTION_SUMMARY.tsv" $'smoke_requested\tfalse'
+assert_contains "$TMP_DIR/extract/raw-host/COLLECTION_SUMMARY.tsv" $'smoke_status\tnot-requested'
+assert_contains "$TMP_DIR/extract/raw-host/COLLECTION_SUMMARY.tsv" $'redacted_env_file\tproxy_env_redacted.txt'
 assert_contains "$TMP_DIR/extract/raw-host/proxy_env_redacted.txt" "HTTP_PROXY=http://<redacted>@example.test:8080"
 if grep -Fq -- "secret" "$TMP_DIR/extract/raw-host/proxy_env_redacted.txt"; then
   echo "proxy credentials leaked in redacted env evidence" >&2

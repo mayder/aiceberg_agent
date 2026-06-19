@@ -31,6 +31,7 @@ TEMPLATE="$2"
 OUT_DIR="${3:-}"
 RUN_SMOKE="${PKG69_RUN_SMOKE:-false}"
 PYTHON="${PYTHON:-python3}"
+SMOKE_STATUS="not-requested"
 
 if [[ ! -f "$TEMPLATE" ]]; then
   echo "template not found: $TEMPLATE" >&2
@@ -79,6 +80,27 @@ redacted_env() {
   done
 }
 
+write_collection_summary() {
+  local command_count
+  local command_pass
+  local command_fail
+  command_count="$(awk 'END { print NR + 0 }' "$RAW_DIR/COMMANDS.tsv")"
+  command_pass="$(awk -F '\t' '$2 == "pass" { count++ } END { print count + 0 }' "$RAW_DIR/COMMANDS.tsv")"
+  command_fail="$(awk -F '\t' '$2 == "fail" { count++ } END { print count + 0 }' "$RAW_DIR/COMMANDS.tsv")"
+  {
+    printf 'key\tvalue\n'
+    printf 'scenario\t%s\n' "$SCENARIO"
+    printf 'created_at_utc\t%s\n' "$timestamp"
+    printf 'host_uname\t%s\n' "$(uname -srm)"
+    printf 'command_count\t%s\n' "$command_count"
+    printf 'command_pass\t%s\n' "$command_pass"
+    printf 'command_fail\t%s\n' "$command_fail"
+    printf 'smoke_requested\t%s\n' "$RUN_SMOKE"
+    printf 'smoke_status\t%s\n' "$SMOKE_STATUS"
+    printf 'redacted_env_file\t%s\n' "proxy_env_redacted.txt"
+  } >"$RAW_DIR/COLLECTION_SUMMARY.tsv"
+}
+
 {
   printf 'scenario\t%s\n' "$SCENARIO"
   printf 'created_at_utc\t%s\n' "$timestamp"
@@ -101,9 +123,17 @@ command -v systemctl >/dev/null 2>&1 && record_cmd systemctl_status systemctl st
 redacted_env >"$RAW_DIR/proxy_env_redacted.txt"
 
 if [[ "$RUN_SMOKE" == "true" ]]; then
-  SMOKE_EVIDENCE_FILE="$RAW_DIR/smoke-evidence.json" \
+  if SMOKE_EVIDENCE_FILE="$RAW_DIR/smoke-evidence.json" \
     PYTHON="$PYTHON" \
-    scripts/smoke.sh >"$RAW_DIR/smoke.log" 2>&1
+    scripts/smoke.sh >"$RAW_DIR/smoke.log" 2>&1; then
+    SMOKE_STATUS="pass"
+  else
+    SMOKE_STATUS="fail"
+    echo "smoke failed; see $RAW_DIR/smoke.log" >&2
+    exit 66
+  fi
 fi
+
+write_collection_summary
 
 scripts/pkg69_bundle_evidence.sh "$SCENARIO" "$TEMPLATE" "$RAW_DIR" "$OUT_DIR/bundle"
