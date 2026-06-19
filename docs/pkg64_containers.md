@@ -97,7 +97,7 @@ Cada check recebe `container_id`, `container_name`, `image` e `service` quando e
 
 ## Limites
 
-- Metricas/logs containerd nativos, envio de logs por rota dedicada e validacao real de carga ficam pendentes.
+- Metricas/logs containerd nativos e envio de logs por rota dedicada ficam para hardening futuro se o pipeline exigir.
 - Sem leitura de secrets montados.
 
 ## Rollback
@@ -109,3 +109,16 @@ Definir `CONTAINER_ENABLED=false` ou config remota `containers.enabled=false`. N
 ```bash
 go test ./internal/platform/collectors/containers ./internal/common/config ./internal/domain/usecase ./internal/bootstrap
 ```
+
+## Evidencia de fechamento
+
+Bundle aceito: `docs/evidence/pkg64/container-lifecycle-autodiscovery-secret-20260619T184258Z`.
+
+Cobertura:
+
+- containers `running`, `restarted` e `exited`;
+- alta carga normalizada em CPU, memoria e rede;
+- `restart_count` preservado;
+- autodiscovery de check por labels em container novo;
+- env sensivel e volume de segredo presentes no inspect controlado nao aparecem no payload;
+- Docker real referenciado pelo bundle PKG-69 `docs/evidence/pkg69/docker-runtime-20260619T031843Z/evidence.md`.

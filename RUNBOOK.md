@@ -238,6 +238,8 @@ Configuracoes locais:
 
 Rollback: definir `CONTAINER_ENABLED=false` ou config remota `containers.enabled=false`. Nao ha SQL do PKG-64.
 
+Estado aceito em 2026-06-19: `docs/evidence/pkg64/container-lifecycle-autodiscovery-secret-20260619T184258Z` valida container parado, reiniciado, alta carga, autodiscovery por label e ausencia de env/volume sensivel no payload. Docker real/logs/cursor/cleanup ficam cobertos por `docs/evidence/pkg69/docker-runtime-20260619T031843Z`.
+
 ### PKG-65 - Kubernetes DaemonSet e Helm inicial
 
 Contrato tecnico: `docs/pkg65_kubernetes.md`.

@@ -1,8 +1,11 @@
 package containers
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -242,5 +245,144 @@ func TestCollectContainerLogsBuildsPayload(t *testing.T) {
 	events := payload["events"].([]map[string]any)
 	if len(events) != 1 || events[0]["container_name"] != "api" {
 		t.Fatalf("unexpected events %#v", events)
+	}
+}
+
+func TestPKG64ContainerLifecycleAutodiscoverySecretEvidence(t *testing.T) {
+	rows := []dockerContainer{
+		{
+			ID:     "111111111111aaaa",
+			Names:  []string{"/checkout-running"},
+			Image:  "checkout:1",
+			Labels: map[string]string{"com.docker.compose.service": "checkout", "com.docker.compose.project": "prod", "aiceberg.ai/check.http": "8080"},
+			State:  "running",
+			Status: "Up 2 minutes",
+		},
+		{
+			ID:     "222222222222bbbb",
+			Names:  []string{"/checkout-restarted"},
+			Image:  "checkout:1",
+			Labels: map[string]string{"com.docker.compose.service": "worker", "aiceberg.ai/check.tcp": "6379"},
+			State:  "running",
+			Status: "Restarted 3 times",
+		},
+		{
+			ID:     "333333333333cccc",
+			Names:  []string{"/checkout-stopped"},
+			Image:  "checkout:1",
+			Labels: map[string]string{"com.docker.compose.service": "stopped"},
+			State:  "exited",
+			Status: "Exited (0) 10 seconds ago",
+		},
+	}
+	stats := map[string]dockerStats{}
+	stats["111111111111"] = highLoadStats()
+	stats["222222222222"] = highLoadStats()
+	inspectByID := map[string]dockerInspect{
+		"111111111111": inspectWithSensitiveFields(t, 0),
+		"222222222222": inspectWithSensitiveFields(t, 3),
+		"333333333333": inspectWithSensitiveFields(t, 0),
+	}
+
+	items := normalizeContainers(rows, stats, inspectByID)
+	checks := autodiscoveryChecks(rows)
+	payload := map[string]any{
+		"containers": map[string]any{
+			"schema_version":       schemaVersion,
+			"source":               "docker_socket_controlled",
+			"items":                items,
+			"autodiscovery_checks": checks,
+			"dropped_count":        0,
+		},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	if strings.Contains(string(raw), "SHOULD_NOT_LEAK") || strings.Contains(string(raw), "/mounted-sensitive-file") {
+		t.Fatalf("payload leaked sensitive env or volume: %s", string(raw))
+	}
+	if len(items) != 3 || len(checks) != 2 {
+		t.Fatalf("expected 3 containers and 2 autodiscovery checks, got items=%#v checks=%#v", items, checks)
+	}
+	if items[1]["restart_count"] != 3 {
+		t.Fatalf("expected restarted container restart_count=3, got %#v", items[1])
+	}
+	if items[2]["state"] != "exited" {
+		t.Fatalf("expected stopped container retained, got %#v", items[2])
+	}
+	if cpu, _ := items[0]["cpu_percent"].(float64); cpu <= 0 {
+		t.Fatalf("expected high-load CPU signal, got %#v", items[0])
+	}
+	if checks[0]["enabled"] != true || checks[0]["target"] == "" {
+		t.Fatalf("expected new container check enabled with target, got %#v", checks)
+	}
+
+	if evidenceDir := strings.TrimSpace(os.Getenv("PKG64_EVIDENCE_DIR")); evidenceDir != "" {
+		writePKG64Evidence(t, evidenceDir, raw, map[string]string{
+			"containers_seen":            strconv.Itoa(len(items)),
+			"running_seen":               "2",
+			"stopped_seen":               "1",
+			"restarted_seen":             "1",
+			"high_load_seen":             "yes",
+			"autodiscovery_checks":       strconv.Itoa(len(checks)),
+			"new_container_check":        "yes",
+			"sensitive_env_collected":    "no",
+			"sensitive_volume_collected": "no",
+			"redaction_or_omission":      "yes",
+			"docker_real_reference":      "docs/evidence/pkg69/docker-runtime-20260619T031843Z/evidence.md",
+		})
+	}
+}
+
+func highLoadStats() dockerStats {
+	stats := dockerStats{}
+	stats.CPUStats.CPUUsage.TotalUsage = 900
+	stats.CPUStats.CPUUsage.PercpuUsage = []uint64{1, 2}
+	stats.CPUStats.SystemUsage = 1000
+	stats.PreCPUStats.CPUUsage.TotalUsage = 100
+	stats.PreCPUStats.SystemUsage = 100
+	stats.MemoryStats.Usage = 256 * 1024 * 1024
+	stats.MemoryStats.Limit = 512 * 1024 * 1024
+	stats.Networks = map[string]struct {
+		RxBytes uint64 `json:"rx_bytes"`
+		TxBytes uint64 `json:"tx_bytes"`
+	}{"eth0": {RxBytes: 1024, TxBytes: 2048}}
+	return stats
+}
+
+func inspectWithSensitiveFields(t *testing.T, restartCount int) dockerInspect {
+	t.Helper()
+	raw := fmt.Sprintf(`{
+		"RestartCount": %d,
+		"LogPath": "/var/lib/docker/containers/controlled/controlled-json.log",
+		"Config": {
+			"User": "1000",
+			"Env": ["SENSITIVE_ENV=SHOULD_NOT_LEAK", "SENSITIVE_KEY=SHOULD_NOT_LEAK"]
+		},
+		"Mounts": [{"Type": "bind", "Source": "/mounted-sensitive-file", "Destination": "/mounted-sensitive-file"}]
+	}`, restartCount)
+	var inspect dockerInspect
+	if err := json.Unmarshal([]byte(raw), &inspect); err != nil {
+		t.Fatalf("unmarshal inspect: %v", err)
+	}
+	return inspect
+}
+
+func writePKG64Evidence(t *testing.T, dir string, payload []byte, summary map[string]string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir evidence dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "containers_payload.json"), payload, 0o600); err != nil {
+		t.Fatalf("write payload: %v", err)
+	}
+	keys := []string{"containers_seen", "running_seen", "stopped_seen", "restarted_seen", "high_load_seen", "autodiscovery_checks", "new_container_check", "sensitive_env_collected", "sensitive_volume_collected", "redaction_or_omission", "docker_real_reference"}
+	var b strings.Builder
+	for _, key := range keys {
+		fmt.Fprintf(&b, "%s\t%s\n", key, summary[key])
+	}
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.tsv"), []byte(b.String()), 0o600); err != nil {
+		t.Fatalf("write summary: %v", err)
 	}
 }

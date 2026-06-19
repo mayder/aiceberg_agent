@@ -1,0 +1,2 @@
+scenario	evidence_path	evidence_sha256	evidence_bytes	raw_archive	raw_sha256	raw_bytes	timestamp_utc
+container-lifecycle-autodiscovery-secret	docs/evidence/pkg64/container-lifecycle-autodiscovery-secret-20260619T184258Z/evidence.md	01f73fc335804e5a46e535c622cb40eea817fb94e88c53ace1399b9abfa532e1	1251	docs/evidence/pkg64/container-lifecycle-autodiscovery-secret-20260619T184258Z/raw/pkg64-container-lifecycle-autodiscovery-secret-raw.tgz	d7d5a272ade56ff53bb91d6da571126f5c37a04be297ff6d491f2e306c99e741	1300	20260619T184258Z

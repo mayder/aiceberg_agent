@@ -107,14 +107,14 @@ Referências:
 - Impacto em rollback: desligar `OTLP_ENABLED` ou config remota `otlp.enabled=false`.
 - Como reverter: remover coletores `otlp_*` do scheduler.
 
-### DEC-20260618-06 - Containers iniciam por Docker socket opt-in
+### DEC-20260618-06 - Containers iniciam por Docker socket opt-in e autodiscovery seguro
 
 - Status: aceita
 - Contexto: PKG-64 precisa descobrir workloads sem exigir agente Kubernetes nem dependencias externas.
-- Decisao: criar coletor `containers`, desligado por padrao, usando Docker API via socket Unix local para discovery e metricas basicas. Containerd nativo, logs e autodiscovery de checks ficam para evolucao posterior.
+- Decisao: criar coletor `containers`, desligado por padrao, usando Docker API via socket Unix local para discovery, metricas basicas, logs JSON com cursor/redaction e autodiscovery por labels. Containerd entra por `ctr` local para metadados e checks; metricas/logs nativos de containerd ficam para hardening futuro.
 - Alternativas consideradas: depender do Docker CLI ou embutir SDK externo.
-- Consequencias: hosts Docker podem enviar inventario/metricas de containers sem quebrar host metrics.
-- Impacto em testes: unitarios cobrem normalizacao, labels sensiveis e stats.
+- Consequencias: hosts Docker podem enviar inventario, metricas, logs e checks descobertos sem quebrar host metrics; env vars e volumes nao sao coletados.
+- Impacto em testes: unitarios cobrem normalizacao, labels sensiveis, stats, lifecycle, autodiscovery e ausencia de env/volume sensivel no payload.
 - Impacto em rollback: desligar `CONTAINER_ENABLED` ou config remota `containers.enabled=false`.
 - Como reverter: remover coletor `containers` do scheduler.
 

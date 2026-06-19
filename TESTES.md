@@ -221,7 +221,11 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 
 - Unitario focado: `go test ./internal/platform/collectors/containers ./internal/common/config ./internal/domain/usecase ./internal/bootstrap`.
 - Cobrir normalizacao Docker, labels sensiveis mascaradas, compose service, CPU, memoria, rede e IO.
-- Validacao real Docker/containerd/logs/autodiscovery fica pendente para PKG-69.
+- Evidencia focada: `PKG64_EVIDENCE_DIR=/tmp/aiceberg_pkg64_container_lifecycle_20260619T184258Z go test ./internal/platform/collectors/containers -run TestPKG64ContainerLifecycleAutodiscoverySecretEvidence -count=1 -v`.
+- Bundle versionado: `docs/evidence/pkg64/container-lifecycle-autodiscovery-secret-20260619T184258Z`.
+- Cobertura: container parado, reiniciado, alta carga, autodiscovery por label em container novo e ausencia de env/volume sensivel no payload.
+- Docker real/logs JSON/cursor/cleanup cobertos pelo bundle PKG-69 `docs/evidence/pkg69/docker-runtime-20260619T031843Z`.
+- Containerd real continua como hardening operacional futuro; PKG-64 cobre parser/configuracao e fallback.
 
 ## PKG-70 - Rede avancada, USM e workload security
 

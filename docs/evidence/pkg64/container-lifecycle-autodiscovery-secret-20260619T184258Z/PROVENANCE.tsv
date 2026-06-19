@@ -1,0 +1,7 @@
+field	value
+scenario	container-lifecycle-autodiscovery-secret
+timestamp_utc	20260619T184258Z
+source_tool	go_test_containers_collector
+runtime	docker_contract_controlled
+raw_archive	raw/pkg64-container-lifecycle-autodiscovery-secret-raw.tgz
+docker_real_reference	docs/evidence/pkg69/docker-runtime-20260619T031843Z/evidence.md
