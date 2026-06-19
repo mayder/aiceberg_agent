@@ -1,0 +1,8 @@
+[pkg60] go test focused
+# github.com/shoenig/go-m1cpu
+../../../go/pkg/mod/github.com/shoenig/go-m1cpu@v0.1.6/cpu.go:75:17: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+../../../go/pkg/mod/github.com/shoenig/go-m1cpu@v0.1.6/cpu.go:77:16: warning: variable length array folded to constant array as an extension [-Wgnu-folding-constant]
+ok  	github.com/you/aiceberg_agent/internal/platform/collectors/oslogs	(cached)
+ok  	github.com/you/aiceberg_agent/internal/common/config	(cached)
+ok  	github.com/you/aiceberg_agent/internal/domain/usecase	(cached)
+ok  	github.com/you/aiceberg_agent/internal/bootstrap	(cached)

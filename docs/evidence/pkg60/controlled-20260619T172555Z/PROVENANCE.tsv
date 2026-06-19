@@ -1,0 +1,6 @@
+key	value
+bundle_tool	scripts/pkg60_logs_controlled_evidence.sh
+scenario	pkg60-controlled-logs
+created_at_utc	20260619T172555Z
+evidence_file	evidence.md
+raw_archive	raw/pkg60-controlled-raw.tgz

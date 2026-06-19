@@ -1,0 +1,2 @@
+scenario	evidence_file	evidence_sha256	evidence_size_bytes	raw_file	raw_sha256	raw_size_bytes	created_at_utc
+pkg60-controlled-logs	docs/evidence/pkg60/controlled-20260619T172555Z/evidence.md	60d1a6de85eafed25221f9d8c75c504b1060ce04c0ce898a4e51375e66321d68	1785	docs/evidence/pkg60/controlled-20260619T172555Z/raw/pkg60-controlled-raw.tgz	1926b4301cadc6d8f138cbf85127fe0867f736dc3da9baa0190d4ca9cba074a3	948	20260619T172555Z

@@ -190,6 +190,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 
 - Unitario focado: `go test ./internal/platform/collectors/oslogs ./internal/common/config ./internal/domain/usecase`.
 - Build Windows do coletor em host nao Windows: `GOOS=windows GOARCH=amd64 go test -c -o /tmp/aiceberg_oslogs_windows.test.exe ./internal/platform/collectors/oslogs`.
+- Evidencia controlada auditavel: `scripts/pkg60_logs_controlled_evidence.sh`, gerando `docs/evidence/pkg60/controlled-*/evidence.md`, `MANIFEST.tsv`, `PROVENANCE.tsv` e artefato bruto sem reter binario Windows no repo.
 - Cobrir redaction de token/senha/Authorization, atributos JSON sanitizados, Graylog/GELF, Linux auth, app JSON, log texto, multiline, cursor por arquivo/canal/journald, filtros include/exclude/min severity/unit/prioridade/provider/event_id, processors parse/remap/drop/mask/route/sample/enrich, dual-shipping restrito a `/v1/logs/*` e `dropped_count` sem conteudo descartado.
 - Validacao real Windows/Linux/container/proxy/disco cheio fica pendente para PKG-69.
 

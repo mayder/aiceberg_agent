@@ -1,0 +1,2 @@
+[pkg60] go test oslogs
+ok  	github.com/you/aiceberg_agent/internal/platform/collectors/oslogs	(cached)

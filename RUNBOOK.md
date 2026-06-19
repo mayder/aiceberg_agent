@@ -152,6 +152,14 @@ Rollback: desligar logs por `OSLOG_ENABLED=false` ou remover flags remotas `OSLo
 
 Nao registrar conteudo descartado por filtro; usar apenas `dropped_count`.
 
+Evidencia controlada:
+
+```bash
+scripts/pkg60_logs_controlled_evidence.sh
+```
+
+O comando gera `docs/evidence/pkg60/controlled-*/evidence.md`, `MANIFEST.tsv`, `PROVENANCE.tsv` e artefato bruto com logs de teste. A compilacao Windows e registrada por SHA256/tamanho, mas o binario Windows de teste nao fica retido no repo. Essa evidencia nao substitui homologacao real de Graylog, Windows Security, Linux auth e Sysmon.
+
 ### PKG-61 - Metricas custom locais
 
 Contrato tecnico: `docs/pkg61_custom_metrics.md`.

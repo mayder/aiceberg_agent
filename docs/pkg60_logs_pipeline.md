@@ -48,6 +48,7 @@ O payload tambem pode enviar `dropped_count` para indicar quantos eventos foram 
 - Em 2026-06-19, a compilacao Windows do coletor passou com `GOOS=windows GOARCH=amd64 go test -c -o /tmp/aiceberg_oslogs_windows.test.exe ./internal/platform/collectors/oslogs`.
 - Evidencia real PKG-69 validou EventLog em Windows desktop real, journald/syslog em Linux real, logs de container Docker e replay sem duplicidade apos reboot real.
 - Em 2026-06-19, teste controlado cobriu Graylog/GELF, Linux auth, app JSON, log texto comum, classificacao por basename e parsing/classificacao de Windows Security e Sysmon no build Windows.
+- Bundle auditavel: `docs/evidence/pkg60/controlled-20260619T172555Z/evidence.md`, gerado por `scripts/pkg60_logs_controlled_evidence.sh` com manifest, proveniencia e artefato bruto leve.
 
 ## Limites
 
