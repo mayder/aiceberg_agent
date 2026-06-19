@@ -71,3 +71,8 @@ Fechamento:
 ```bash
 ./check.sh
 ```
+
+Evidencia real:
+
+- PKG-69 aceito em 2026-06-19 cobre API indisponivel, recuperacao apos retorno da API, rede intermitente, disco cheio/outbox preservada, proxy autenticado, TLS estrito, reboot com replay, Windows, Linux, container e Kubernetes.
+- Bundles principais: `docs/evidence/pkg69/linux-rhel-20260619T025113Z`, `docs/evidence/pkg69/disk-full-20260619T034504Z`, `docs/evidence/pkg69/proxy-tls-20260619T033945Z`, `docs/evidence/pkg69/reboot-during-collection-20260619T165440Z`.

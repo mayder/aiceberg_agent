@@ -184,7 +184,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Contrato: validar que `CollectAndBuffer` preserva o corpo original e adiciona apenas `schema_version`, `agent_pipeline_version`, `collector_name` e `ingest_endpoint`.
 - Diagnostico: validar que `/health` e `inspect_runtime_config` expõem `agent_pipeline_version` sem segredo.
 - Fechamento: rodar `./check.sh`.
-- Validacao real pendente para PKG-69: Windows, Linux, container, perda de rede, API indisponivel, disco cheio, proxy e agente instalado anteriormente.
+- Validacao real fechada pelo PKG-69 aceito em 2026-06-19: Windows, Linux, container, perda de rede, API indisponivel, disco cheio/outbox preservada, proxy/TLS e agente instalado anteriormente.
 
 ## PKG-60 - Pipeline seguro de logs
 
