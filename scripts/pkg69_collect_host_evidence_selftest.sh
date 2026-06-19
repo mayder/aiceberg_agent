@@ -34,6 +34,10 @@ cat >"$template" <<'EOF'
 
 ## Evidencia obrigatoria
 
+- direct_host_id: direct-host
+- hub_host_id: hub-host
+- relay_host_id: relay-host
+- relay_upstream_host_id: hub-host
 - direct -> AIceberg confirmado: yes
 - hub -> AIceberg confirmado: yes
 - relay -> hub -> AIceberg confirmado: yes

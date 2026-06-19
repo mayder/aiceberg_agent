@@ -225,6 +225,46 @@ require_one_of_field() {
   return 0
 }
 
+require_field_equals_field() {
+  local path="$1"
+  local left_field="$2"
+  local right_field="$3"
+  local left_value
+  local right_value
+  left_value="$(field_value "$path" "$left_field")"
+  right_value="$(field_value "$path" "$right_field")"
+  if [[ "$left_value" != "$right_value" ]]; then
+    echo "field $left_field must match $right_field"
+    return 0
+  fi
+  return 1
+}
+
+require_distinct_fields() {
+  local path="$1"
+  shift
+  local fields=("$@")
+  local i
+  local j
+  local left_field
+  local right_field
+  local left_value
+  local right_value
+  for ((i = 0; i < ${#fields[@]}; i++)); do
+    left_field="${fields[$i]}"
+    left_value="$(field_value "$path" "$left_field")"
+    for ((j = i + 1; j < ${#fields[@]}; j++)); do
+      right_field="${fields[$j]}"
+      right_value="$(field_value "$path" "$right_field")"
+      if [[ "$left_value" == "$right_value" ]]; then
+        echo "fields ${fields[*]} must be distinct"
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
 require_no_synthetic_marker() {
   local path="$1"
   local field
@@ -301,6 +341,8 @@ scenario_incomplete_reason() {
       if reason="$(require_number_field "$path" "dropped_count")"; then echo "$reason"; return 0; fi
       ;;
     "PKG-69 - Relay Hub Direct Hosts")
+      if reason="$(require_distinct_fields "$path" "direct_host_id" "hub_host_id" "relay_host_id")"; then echo "$reason"; return 0; fi
+      if reason="$(require_field_equals_field "$path" "relay_upstream_host_id" "hub_host_id")"; then echo "$reason"; return 0; fi
       if reason="$(require_bool_field "$path" "direct -> AIceberg confirmado")"; then echo "$reason"; return 0; fi
       if reason="$(require_bool_field "$path" "hub -> AIceberg confirmado")"; then echo "$reason"; return 0; fi
       if reason="$(require_bool_field "$path" "relay -> hub -> AIceberg confirmado")"; then echo "$reason"; return 0; fi
@@ -606,7 +648,11 @@ generate_templates() {
   write_template "$TEMPLATE_DIR/relay_hub_direct_hosts.md" \
     "PKG-69 - Relay Hub Direct Hosts" \
     "Hosts separados" \
-    "- direct -> AIceberg confirmado:
+    "- direct_host_id:
+- hub_host_id:
+- relay_host_id:
+- relay_upstream_host_id:
+- direct -> AIceberg confirmado:
 - hub -> AIceberg confirmado:
 - relay -> hub -> AIceberg confirmado:
 - relay sem conexao direta com API AIceberg:

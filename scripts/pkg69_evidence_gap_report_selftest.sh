@@ -46,6 +46,10 @@ fill_synthetic_template() {
   for field in proc_cpu_percent proc_rss_bytes queue_items containers_seen container_logs_seen pods_seen events_seen requests_ok requests_failed_expected retry_count offset_ms degraded_collectors queued_before replayed_after duplicate_count free_bytes_before accepted_count dropped_count; do
     set_field "$path" "$field" "1"
   done
+  set_field "$path" "direct_host_id" "direct-host"
+  set_field "$path" "hub_host_id" "hub-host"
+  set_field "$path" "relay_host_id" "relay-host"
+  set_field "$path" "relay_upstream_host_id" "hub-host"
   set_field "$path" "secrets_allowed" "no"
   set_field "$path" "exec_allowed" "no"
   set_field "$path" "delete_allowed" "no"
@@ -105,6 +109,10 @@ cat >"$template" <<'EOF'
 
 ## Evidencia obrigatoria
 
+- direct_host_id: direct-host
+- hub_host_id: hub-host
+- relay_host_id: relay-host
+- relay_upstream_host_id: hub-host
 - direct -> AIceberg confirmado: yes
 - hub -> AIceberg confirmado: yes
 - relay -> hub -> AIceberg confirmado: yes

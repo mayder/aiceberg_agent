@@ -63,7 +63,11 @@ relay_template="$TMP_DIR/relay.md"
 write_template "$relay_template" \
   "PKG-69 - Relay Hub Direct Hosts" \
   "direct/hub/relay hosts separados" \
-  "- direct -> AIceberg confirmado: yes
+  "- direct_host_id: direct-host
+- hub_host_id: hub-host
+- relay_host_id: relay-host
+- relay_upstream_host_id: hub-host
+- direct -> AIceberg confirmado: yes
 - hub -> AIceberg confirmado: yes
 - relay -> hub -> AIceberg confirmado: yes
 - relay sem conexao direta com API AIceberg: yes
