@@ -1,0 +1,2 @@
+scenario	evidence_file	evidence_sha256	evidence_size_bytes	raw_file	raw_sha256	raw_size_bytes	created_at_utc
+pkg60-real-os-files	docs/evidence/pkg60/real-os-files-20260619T174357Z/evidence.md	2748e4866d6e57088d357cbf5cb90bfc3c084cbcf650f36da5c33d49f3e9f4d7	2964	docs/evidence/pkg60/real-os-files-20260619T174357Z/raw/aiceberg_pkg60_real_os_files_20260619T174357Z.tgz	b3bc1cc94ca07cf4155ab1aa7409af7124c1cc7826b5dbb8c17eedab84bea270	5629	20260619T174357Z
