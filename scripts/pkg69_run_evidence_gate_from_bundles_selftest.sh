@@ -217,6 +217,74 @@ if [[ "$host_counter_inconsistent_exit" -eq 0 ]]; then
 fi
 assert_contains "$TMP_DIR/host-counter-inconsistent.err" "host evidence summary command counters are inconsistent"
 
+mkdir -p "$TMP_DIR/host-bundles-commands-missing"
+cp -R "$TMP_DIR/host-bundles/proxy" "$TMP_DIR/host-bundles-commands-missing/proxy"
+rm -rf "$TMP_DIR/repack"
+mkdir -p "$TMP_DIR/repack"
+tar -xzf "$TMP_DIR/host-bundles-commands-missing/proxy/raw/raw-host.tgz" -C "$TMP_DIR/repack"
+rm "$TMP_DIR/repack/raw-host/COMMANDS.tsv"
+tar -C "$TMP_DIR/repack" -czf "$TMP_DIR/host-bundles-commands-missing/proxy/raw/raw-host.tgz" raw-host
+new_artifact_sha="$(shasum -a 256 "$TMP_DIR/host-bundles-commands-missing/proxy/raw/raw-host.tgz" | awk '{ print $1 }')"
+new_artifact_bytes="$(wc -c <"$TMP_DIR/host-bundles-commands-missing/proxy/raw/raw-host.tgz" | tr -d ' ')"
+awk -F '\t' -v sha="$new_artifact_sha" -v bytes="$new_artifact_bytes" 'BEGIN { OFS="\t" } NR == 2 { $6 = sha; $7 = bytes } { print }' \
+  "$TMP_DIR/host-bundles-commands-missing/proxy/MANIFEST.tsv" >"$TMP_DIR/host-bundles-commands-missing/proxy/MANIFEST.tsv.tmp"
+mv "$TMP_DIR/host-bundles-commands-missing/proxy/MANIFEST.tsv.tmp" "$TMP_DIR/host-bundles-commands-missing/proxy/MANIFEST.tsv"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/host-bundles-commands-missing" >/dev/null 2>"$TMP_DIR/host-commands-missing.err"
+host_commands_missing_exit=$?
+set -e
+if [[ "$host_commands_missing_exit" -eq 0 ]]; then
+  echo "expected host bundle missing commands to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/host-commands-missing.err" "host evidence commands missing"
+
+mkdir -p "$TMP_DIR/host-bundles-commands-mismatch"
+cp -R "$TMP_DIR/host-bundles/proxy" "$TMP_DIR/host-bundles-commands-mismatch/proxy"
+rm -rf "$TMP_DIR/repack"
+mkdir -p "$TMP_DIR/repack"
+tar -xzf "$TMP_DIR/host-bundles-commands-mismatch/proxy/raw/raw-host.tgz" -C "$TMP_DIR/repack"
+printf 'extra\tpass\t/tmp/extra.txt\n' >>"$TMP_DIR/repack/raw-host/COMMANDS.tsv"
+tar -C "$TMP_DIR/repack" -czf "$TMP_DIR/host-bundles-commands-mismatch/proxy/raw/raw-host.tgz" raw-host
+new_artifact_sha="$(shasum -a 256 "$TMP_DIR/host-bundles-commands-mismatch/proxy/raw/raw-host.tgz" | awk '{ print $1 }')"
+new_artifact_bytes="$(wc -c <"$TMP_DIR/host-bundles-commands-mismatch/proxy/raw/raw-host.tgz" | tr -d ' ')"
+awk -F '\t' -v sha="$new_artifact_sha" -v bytes="$new_artifact_bytes" 'BEGIN { OFS="\t" } NR == 2 { $6 = sha; $7 = bytes } { print }' \
+  "$TMP_DIR/host-bundles-commands-mismatch/proxy/MANIFEST.tsv" >"$TMP_DIR/host-bundles-commands-mismatch/proxy/MANIFEST.tsv.tmp"
+mv "$TMP_DIR/host-bundles-commands-mismatch/proxy/MANIFEST.tsv.tmp" "$TMP_DIR/host-bundles-commands-mismatch/proxy/MANIFEST.tsv"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/host-bundles-commands-mismatch" >/dev/null 2>"$TMP_DIR/host-commands-mismatch.err"
+host_commands_mismatch_exit=$?
+set -e
+if [[ "$host_commands_mismatch_exit" -eq 0 ]]; then
+  echo "expected host bundle command mismatch to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/host-commands-mismatch.err" "host evidence summary counters do not match commands"
+
+mkdir -p "$TMP_DIR/host-bundles-command-status-invalid"
+cp -R "$TMP_DIR/host-bundles/proxy" "$TMP_DIR/host-bundles-command-status-invalid/proxy"
+rm -rf "$TMP_DIR/repack"
+mkdir -p "$TMP_DIR/repack"
+tar -xzf "$TMP_DIR/host-bundles-command-status-invalid/proxy/raw/raw-host.tgz" -C "$TMP_DIR/repack"
+awk -F '\t' 'BEGIN { OFS="\t" } NR == 1 { $2 = "skipped" } { print }' \
+  "$TMP_DIR/repack/raw-host/COMMANDS.tsv" >"$TMP_DIR/repack/raw-host/COMMANDS.tsv.tmp"
+mv "$TMP_DIR/repack/raw-host/COMMANDS.tsv.tmp" "$TMP_DIR/repack/raw-host/COMMANDS.tsv"
+tar -C "$TMP_DIR/repack" -czf "$TMP_DIR/host-bundles-command-status-invalid/proxy/raw/raw-host.tgz" raw-host
+new_artifact_sha="$(shasum -a 256 "$TMP_DIR/host-bundles-command-status-invalid/proxy/raw/raw-host.tgz" | awk '{ print $1 }')"
+new_artifact_bytes="$(wc -c <"$TMP_DIR/host-bundles-command-status-invalid/proxy/raw/raw-host.tgz" | tr -d ' ')"
+awk -F '\t' -v sha="$new_artifact_sha" -v bytes="$new_artifact_bytes" 'BEGIN { OFS="\t" } NR == 2 { $6 = sha; $7 = bytes } { print }' \
+  "$TMP_DIR/host-bundles-command-status-invalid/proxy/MANIFEST.tsv" >"$TMP_DIR/host-bundles-command-status-invalid/proxy/MANIFEST.tsv.tmp"
+mv "$TMP_DIR/host-bundles-command-status-invalid/proxy/MANIFEST.tsv.tmp" "$TMP_DIR/host-bundles-command-status-invalid/proxy/MANIFEST.tsv"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/host-bundles-command-status-invalid" >/dev/null 2>"$TMP_DIR/host-command-status-invalid.err"
+host_command_status_invalid_exit=$?
+set -e
+if [[ "$host_command_status_invalid_exit" -eq 0 ]]; then
+  echo "expected host bundle invalid command status to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/host-command-status-invalid.err" "host evidence command status invalid"
+
 mkdir -p "$TMP_DIR/bundles-tampered"
 cp -R "$TMP_DIR/bundles/relay" "$TMP_DIR/bundles-tampered/relay"
 printf '\n# tampered\n' >>"$TMP_DIR/bundles-tampered/relay/evidence.md"

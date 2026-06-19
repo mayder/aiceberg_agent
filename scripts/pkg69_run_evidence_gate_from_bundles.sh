@@ -114,6 +114,25 @@ summary_number_field() {
   return 0
 }
 
+commands_count() {
+  local archive="$1"
+  tar_extract_member "$archive" "raw-host/COMMANDS.tsv" |
+    awk -F '\t' 'NF >= 3 { count++ } END { print count + 0 }'
+}
+
+commands_status_count() {
+  local archive="$1"
+  local status="$2"
+  tar_extract_member "$archive" "raw-host/COMMANDS.tsv" |
+    awk -F '\t' -v status="$status" 'NF >= 3 && $2 == status { count++ } END { print count + 0 }'
+}
+
+commands_statuses_valid() {
+  local archive="$1"
+  tar_extract_member "$archive" "raw-host/COMMANDS.tsv" |
+    awk -F '\t' 'NF >= 3 && $2 != "pass" && $2 != "fail" { invalid = 1 } END { exit invalid }'
+}
+
 resolve_relative_path() {
   local base_dir="$1"
   local value="$2"
@@ -156,6 +175,9 @@ verify_bundle_manifest() {
   local summary_command_count
   local summary_command_pass
   local summary_command_fail
+  local commands_total
+  local commands_pass
+  local commands_fail
 
   expected_header="scenario	template	sha256	bytes	artifact	artifact_sha256	artifact_bytes	created_at_utc"
   if [[ "$(head -n 1 "$manifest")" != "$expected_header" ]]; then
@@ -257,6 +279,14 @@ verify_bundle_manifest() {
       echo "host evidence summary missing: $bundle_dir" >&2
       exit 89
     fi
+    if ! tar_contains "$artifact_path" "raw-host/COMMANDS.tsv"; then
+      echo "host evidence commands missing: $bundle_dir" >&2
+      exit 94
+    fi
+    if ! commands_statuses_valid "$artifact_path"; then
+      echo "host evidence command status invalid: $bundle_dir" >&2
+      exit 95
+    fi
     if [[ "$(summary_field "$artifact_path" scenario)" != "$(scenario_from_manifest "$manifest")" ]]; then
       echo "host evidence summary scenario mismatch: $bundle_dir" >&2
       exit 90
@@ -277,6 +307,15 @@ verify_bundle_manifest() {
     if ((10#$summary_command_count != 10#$summary_command_pass + 10#$summary_command_fail)); then
       echo "host evidence summary command counters are inconsistent: $bundle_dir" >&2
       exit 93
+    fi
+    commands_total="$(commands_count "$artifact_path")"
+    commands_pass="$(commands_status_count "$artifact_path" pass)"
+    commands_fail="$(commands_status_count "$artifact_path" fail)"
+    if ((10#$summary_command_count != 10#$commands_total ||
+      10#$summary_command_pass != 10#$commands_pass ||
+      10#$summary_command_fail != 10#$commands_fail)); then
+      echo "host evidence summary counters do not match commands: $bundle_dir" >&2
+      exit 96
     fi
   fi
 
