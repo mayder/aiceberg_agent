@@ -1,0 +1,9 @@
+key	value
+bundle_tool	scripts/pkg69_bundle_evidence.sh
+bundle_tool_version	1
+scenario	linux-rhel
+created_at_utc	20260619T025206Z
+raw_source_type	directory
+raw_source_basename	aiceberg_pkg69_linux_rhel_rollback_20260619T024805Z
+evidence_file	evidence.md
+artifact_file	raw/aiceberg_pkg69_linux_rhel_rollback_20260619T024805Z.tgz
