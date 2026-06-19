@@ -153,6 +153,9 @@ verify_bundle_manifest() {
   local provenance_tool_version
   local provenance_raw_source_type
   local provenance_raw_source_basename
+  local summary_command_count
+  local summary_command_pass
+  local summary_command_fail
 
   expected_header="scenario	template	sha256	bytes	artifact	artifact_sha256	artifact_bytes	created_at_utc"
   if [[ "$(head -n 1 "$manifest")" != "$expected_header" ]]; then
@@ -267,6 +270,13 @@ verify_bundle_manifest() {
       ! summary_number_field "$artifact_path" command_fail; then
       echo "host evidence summary command counters must be numeric: $bundle_dir" >&2
       exit 92
+    fi
+    summary_command_count="$(summary_field "$artifact_path" command_count)"
+    summary_command_pass="$(summary_field "$artifact_path" command_pass)"
+    summary_command_fail="$(summary_field "$artifact_path" command_fail)"
+    if ((10#$summary_command_count != 10#$summary_command_pass + 10#$summary_command_fail)); then
+      echo "host evidence summary command counters are inconsistent: $bundle_dir" >&2
+      exit 93
     fi
   fi
 
