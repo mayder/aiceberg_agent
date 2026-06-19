@@ -142,6 +142,30 @@ if [[ "$host_missing_summary_exit" -eq 0 ]]; then
 fi
 assert_contains "$TMP_DIR/host-missing-summary.err" "host evidence summary missing"
 
+mkdir -p "$TMP_DIR/host-bundles-summary-mismatch"
+cp -R "$TMP_DIR/host-bundles/proxy" "$TMP_DIR/host-bundles-summary-mismatch/proxy"
+rm -rf "$TMP_DIR/repack"
+mkdir -p "$TMP_DIR/repack"
+tar -xzf "$TMP_DIR/host-bundles-summary-mismatch/proxy/raw/raw-host.tgz" -C "$TMP_DIR/repack"
+awk -F '\t' 'BEGIN { OFS="\t" } $1 == "scenario" { $2 = "relay-hub-direct-hosts" } { print }' \
+  "$TMP_DIR/repack/raw-host/COLLECTION_SUMMARY.tsv" >"$TMP_DIR/repack/raw-host/COLLECTION_SUMMARY.tsv.tmp"
+mv "$TMP_DIR/repack/raw-host/COLLECTION_SUMMARY.tsv.tmp" "$TMP_DIR/repack/raw-host/COLLECTION_SUMMARY.tsv"
+tar -C "$TMP_DIR/repack" -czf "$TMP_DIR/host-bundles-summary-mismatch/proxy/raw/raw-host.tgz" raw-host
+new_artifact_sha="$(shasum -a 256 "$TMP_DIR/host-bundles-summary-mismatch/proxy/raw/raw-host.tgz" | awk '{ print $1 }')"
+new_artifact_bytes="$(wc -c <"$TMP_DIR/host-bundles-summary-mismatch/proxy/raw/raw-host.tgz" | tr -d ' ')"
+awk -F '\t' -v sha="$new_artifact_sha" -v bytes="$new_artifact_bytes" 'BEGIN { OFS="\t" } NR == 2 { $6 = sha; $7 = bytes } { print }' \
+  "$TMP_DIR/host-bundles-summary-mismatch/proxy/MANIFEST.tsv" >"$TMP_DIR/host-bundles-summary-mismatch/proxy/MANIFEST.tsv.tmp"
+mv "$TMP_DIR/host-bundles-summary-mismatch/proxy/MANIFEST.tsv.tmp" "$TMP_DIR/host-bundles-summary-mismatch/proxy/MANIFEST.tsv"
+set +e
+scripts/pkg69_run_evidence_gate_from_bundles.sh "$TMP_DIR/host-bundles-summary-mismatch" >/dev/null 2>"$TMP_DIR/host-summary-mismatch.err"
+host_summary_mismatch_exit=$?
+set -e
+if [[ "$host_summary_mismatch_exit" -eq 0 ]]; then
+  echo "expected host bundle summary scenario mismatch to fail" >&2
+  exit 1
+fi
+assert_contains "$TMP_DIR/host-summary-mismatch.err" "host evidence summary scenario mismatch"
+
 mkdir -p "$TMP_DIR/bundles-tampered"
 cp -R "$TMP_DIR/bundles/relay" "$TMP_DIR/bundles-tampered/relay"
 printf '\n# tampered\n' >>"$TMP_DIR/bundles-tampered/relay/evidence.md"

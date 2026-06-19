@@ -96,6 +96,13 @@ tar_extract_member() {
   tar -xOzf "$archive" "$member"
 }
 
+summary_field() {
+  local archive="$1"
+  local key="$2"
+  tar_extract_member "$archive" "raw-host/COLLECTION_SUMMARY.tsv" |
+    awk -F '\t' -v key="$key" 'NR > 1 && $1 == key { print $2; exit }'
+}
+
 resolve_relative_path() {
   local base_dir="$1"
   local value="$2"
@@ -236,9 +243,13 @@ verify_bundle_manifest() {
       echo "host evidence summary missing: $bundle_dir" >&2
       exit 89
     fi
-    if ! tar_extract_member "$artifact_path" "raw-host/COLLECTION_SUMMARY.tsv" | grep -Fq $'redacted_env_file\tproxy_env_redacted.txt'; then
-      echo "host evidence summary missing redacted env reference: $bundle_dir" >&2
+    if [[ "$(summary_field "$artifact_path" scenario)" != "$(scenario_from_manifest "$manifest")" ]]; then
+      echo "host evidence summary scenario mismatch: $bundle_dir" >&2
       exit 90
+    fi
+    if [[ "$(summary_field "$artifact_path" redacted_env_file)" != "proxy_env_redacted.txt" ]]; then
+      echo "host evidence summary missing redacted env reference: $bundle_dir" >&2
+      exit 91
     fi
   fi
 
