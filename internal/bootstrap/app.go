@@ -134,7 +134,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	bootstrapEndpoint := "/v1/ingest/bootstrap"
 	networkCaptureEndpoint := "/v1/ingest/network_capture"
 
-	metricsUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics", metricsEndpoint, 10*time.Second, metricsKeys()), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
+	metricsUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics", metricsEndpoint, cfg.MetricsInterval, metricsKeys()), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
 	healthUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_health", healthEndpoint, 10*time.Minute, healthKeys()), outboxRepo, log, authHeader, identityHeader, healthEndpoint)
 	inventoryUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_inventory", inventoryEndpoint, 8*time.Hour, inventoryKeys()), outboxRepo, log, authHeader, identityHeader, inventoryEndpoint)
 	bootstrapUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_bootstrap", bootstrapEndpoint, 24*time.Hour, bootstrapKeys()), outboxRepo, log, authHeader, identityHeader, bootstrapEndpoint)
@@ -439,7 +439,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		go hub.ServeHub(addr, cfg, outboxRepo, log, pendingCfg)
 	}
 
-	tMetrics := time.NewTicker(10 * time.Second)
+	tMetrics := time.NewTicker(cfg.MetricsInterval)
 	tHealth := time.NewTicker(10 * time.Minute)
 	tInventory := time.NewTicker(8 * time.Hour)
 	tFlush := time.NewTicker(cfg.OutboxFlushInterval)

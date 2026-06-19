@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadUsesAgentModeOverridePath(t *testing.T) {
@@ -37,6 +38,32 @@ func TestLoadBlocksTLSInsecureForProductionAPI(t *testing.T) {
 
 	if _, err := Load(""); err == nil {
 		t.Fatalf("expected TLS insecure blocked for production API")
+	}
+}
+
+func TestLoadUsesConfigurableMetricsInterval(t *testing.T) {
+	t.Setenv("AGENT_TOKEN", "token")
+	t.Setenv("METRICS_INTERVAL", "45")
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.MetricsInterval != 45*time.Second {
+		t.Fatalf("unexpected metrics interval: %s", cfg.MetricsInterval)
+	}
+}
+
+func TestLoadFallsBackWhenMetricsIntervalIsNotPositive(t *testing.T) {
+	t.Setenv("AGENT_TOKEN", "token")
+	t.Setenv("METRICS_INTERVAL", "0")
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.MetricsInterval != 10*time.Second {
+		t.Fatalf("unexpected fallback metrics interval: %s", cfg.MetricsInterval)
 	}
 }
 

@@ -174,6 +174,17 @@ Referências:
 - Impacto em rollback: nao altera runtime.
 - Como reverter: remover script/matriz sem impacto no binario.
 
+### DEC-20260619-01 - Intervalo de sysmetrics configuravel para reduzir overhead
+
+- Status: aceita
+- Contexto: validacao real do agente `70` em Ubuntu user-mode mostrou CPU ~7.7% com sysmetrics a cada 10s, acima do limite inicial de fechamento do PKG-69.
+- Decisao: adicionar `METRICS_INTERVAL` para controlar o intervalo da coleta principal de metricas do host, mantendo default `10` segundos para compatibilidade retroativa.
+- Alternativas consideradas: desligar coletores via prefs, aumentar todos os intervalos de forma global ou aceitar CPU acima do limite.
+- Consequencias: ambientes reais podem reduzir overhead sem recompilar nem desativar capacidades; fechamento do gate ainda exige evidencia real por host.
+- Impacto em testes: unitarios cobrem env customizado e fallback para default quando o valor nao e positivo.
+- Impacto em rollback: remover `METRICS_INTERVAL` do ambiente volta ao default anterior de 10s.
+- Como reverter: restaurar binario anterior ou remover o campo/configuracao e voltar ao ticker hardcoded.
+
 ### DEC-20260618-12 - USM e workload security evoluem sobre networkcapture
 
 - Status: aceita

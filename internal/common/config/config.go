@@ -48,6 +48,7 @@ type Config struct {
 	HTTPGzip                           bool
 	HTTPIdempotency                    bool
 	IngestTimeout                      time.Duration
+	MetricsInterval                    time.Duration
 	OutboxFlushBatch                   int
 	OutboxFlushInterval                time.Duration
 	TLSInsecureSkip                    bool
@@ -328,6 +329,7 @@ func Load(configPath string) (Config, error) {
 	cfgSyncInterval := time.Duration(intEnv("CONFIG_SYNC_INTERVAL", 30)) * time.Second
 	channelHeartbeatInterval := time.Duration(intEnv("CHANNEL_HEARTBEAT_INTERVAL", 30)) * time.Second
 	ingestTimeout := time.Duration(intEnv("INGEST_TIMEOUT_SEC", 10)) * time.Second
+	metricsInterval := time.Duration(intEnv("METRICS_INTERVAL", 10)) * time.Second
 	outboxFlushInterval := time.Duration(intEnv("OUTBOX_FLUSH_INTERVAL", 15)) * time.Second
 	agentlessPoll := time.Duration(intEnv("AGENTLESS_POLL_INTERVAL", 30)) * time.Second
 	agentlessFlush := time.Duration(intEnv("AGENTLESS_FLUSH_INTERVAL", 15)) * time.Second
@@ -471,6 +473,12 @@ func Load(configPath string) (Config, error) {
 				return 10 * time.Second
 			}
 			return ingestTimeout
+		}(),
+		MetricsInterval: func() time.Duration {
+			if metricsInterval <= 0 {
+				return 10 * time.Second
+			}
+			return metricsInterval
 		}(),
 		OutboxFlushInterval: func() time.Duration {
 			if outboxFlushInterval <= 0 {
