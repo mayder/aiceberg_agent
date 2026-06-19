@@ -169,13 +169,27 @@ Validacao real de recuperacao apos retorno da API em 2026-06-19 no `VMAIPROD2`, 
 - health real: `status=ok`, `agent_pipeline_version=2-compatible`, `flush_ok=2`, `proc_rss_bytes=16588800`, `proc_cpu_percent=4.83237575441734`, `goroutines=14`;
 - o servico instalado `aiceberg-agent.service` permaneceu `active`, `MainPID=2529804`, `NRestarts=0`.
 
+Validacao real parcial nos servidores Inspect autorizados em 2026-06-19:
+
+- `old-plesk-92.204.168.1`, agente esperado `19`, Debian 11, `aiceberg-agent.service` ja instalado e ativo: smoke temporario isolado em `/tmp/aiceberg_pkg69_old_plesk_19_smoke_20260619T012221Z`, com backend fake local e binario Linux amd64 temporario SHA-256 `a3e03f930857f1bfc3c8a8e033f9adf53bb8e5e727f1072bc9720ec1fe451023`;
+- evidencia `evidence.json` SHA-256 `91992345bba689fc4e1e5bc20f769bb58873e398750f7504838c92482b5f39f8`;
+- checks: `health_endpoint=true`, `metrics_endpoint=true`, `logs_ingested=true`, `installed_service_still_active=true`;
+- backend fake recebeu `bootstraps=1`, `config_gets=3`, `ping_get=8`, `ping_post=8`, ingestao em `/v1/ingest/bootstrap`, `/v1/ingest/health`, `/v1/ingest/metrics` e `/v1/logs/raw`;
+- health temporario: `status=ok`, `agent_pipeline_version=2-compatible`, `proc_rss_bytes=15962112`, `proc_cpu_percent=4.877856900533356`, `goroutines=15`;
+- o servico instalado permaneceu `active/running`, `MainPID=913797`, `NRestarts=0`; o host esta com disco em 97%, entao disco cheio real permanece pendente de ambiente controlado e nao deve ser forcado nesse servidor;
+- `old-plesk-92.42.106.121`, agente esperado `1`, bloqueou acesso nao interativo (`Permission denied publickey,password`); fica pendente ate disponibilizar chave ou procedimento nao interativo seguro;
+- servidor novo `187.45.180.181`, Ubuntu 24.04, sem unit AIceberg instalada (`LoadState=not-found`): smoke temporario isolado em `/tmp/aiceberg_pkg69_new_inspect_smoke_20260619T012423Z`, com backend fake local e mesmo binario temporario;
+- evidencia `evidence.json` SHA-256 `b325aeea690f72c853d595239c85451c1925e34b72334fe28e6955d82ee5f20b`;
+- checks: `health_endpoint=true`, `metrics_endpoint=true`, `logs_ingested=true`; backend fake recebeu `bootstraps=1`, `config_gets=3`, `ping_get=6`, `ping_post=6`, ingestao em `/v1/ingest/bootstrap`, `/v1/ingest/health`, `/v1/ingest/metrics` e `/v1/logs/raw`;
+- health temporario: `status=ok`, `agent_pipeline_version=2-compatible`, `proc_rss_bytes=17932288`, `proc_cpu_percent=12.162803612228979`, `goroutines=15`; como CPU ficou acima do limite inicial de coleta normal e nao houve instalacao systemd/update/rollback, esta evidencia conta apenas como smoke POSIX parcial, nao como fechamento do ambiente Ubuntu/Debian.
+
 ## Ambientes obrigatorios
 
 | Ambiente | Evidencia exigida | Estado atual |
 | --- | --- | --- |
 | Windows Server | `smoke.ps1`, EventLog, servico Windows, update/rollback | pendente real |
 | Windows desktop | `smoke.ps1`, EventLog, instalador, proxy | pendente real |
-| Ubuntu/Debian | `smoke.sh`, systemd, logs, outbox, update | pendente real |
+| Ubuntu/Debian | `smoke.sh`, systemd, logs, outbox, update | parcial real: Debian 11 com agente instalado no `old-plesk-92.204.168.1` manteve systemd ativo durante smoke temporario; Ubuntu 24.04 novo passou smoke POSIX temporario sem unit instalada; update/rollback e CPU dentro do limite ainda pendentes |
 | RHEL/Alma/Rocky | `smoke.sh`, systemd, dnf/yum, update | parcial real em `VMAIPROD2`: instalacao 0.8.8, systemd ativo, bootstrap/canal/flush/snapshot OK e `scripts/smoke.sh` remoto OK; rollback/update real pendentes |
 | Docker | `CONTAINER_ENABLED=true`, Docker socket, labels, recursos | pendente |
 | Kubernetes | DaemonSet/Helm, RBAC minimo, pods/events, rollback chart | pendente |
