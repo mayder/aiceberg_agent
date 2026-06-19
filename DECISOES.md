@@ -283,6 +283,17 @@ Referências:
 - Impacto em rollback: ignorar `contextual_evidence` no backend ou desligar o diferencial por configuracao sem alterar ingestao, scheduler, outbox ou Agentless.
 - Como reverter: remover o bundle de evidencia e voltar o PKG-72 para pendente de validacao.
 
+### DEC-20260619-21 - PKG-73 adiciona contrato SOC aditivo aos logs do agente
+
+- Status: aceita
+- Contexto: PKG-54 no web precisa de origem real, elegibilidade e tipo SOC por log sem depender apenas do Graylog nem inferir tudo por texto.
+- Decisao: criar normalizador comum `internal/common/soclog` e enriquecer eventos de `oslogs`, journald, Windows EventLog, OTLP logs, Docker logs e Kubernetes pod logs com campos `aiceberg_*`, motivo de roteamento e campos SOC seguros. O agente sugere origem/elegibilidade; a decisao final LOG/NOC/SOC permanece no web.
+- Alternativas consideradas: deixar todo roteamento no backend ou exigir Graylog como unica fonte de enriquecimento. Ambas foram rejeitadas por fragilidade e dependencia operacional.
+- Consequencias: payloads antigos seguem validos; payloads novos carregam evidencia auditavel para PKG-54; DistributedCOM 10028 e logs operacionais nao viram SOC critico por padrao.
+- Impacto em testes: unitarios cobrem Windows Security, Sysmon, DCOM operacional, Linux auth, Graylog/GELF, app JSON, journald, Docker, Kubernetes e OTLP; compilacao cruzada valida build Windows.
+- Impacto em rollback: desligar logs, remover overrides `aiceberg.*` ou publicar versao anterior do agente.
+- Como reverter: ignorar campos `aiceberg_*` no backend e remover o enriquecimento dos coletores.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

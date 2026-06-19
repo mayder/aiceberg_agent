@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/common/soclog"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
 
@@ -211,9 +212,11 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 				"redaction_status": redactionStatus,
 				"transport":        "otlp_http_json",
 				"source_tool":      "opentelemetry",
+				"source_category":  "conditional",
 				"trace_id":         stringValue(item["trace_id"]),
 				"span_id":          stringValue(item["span_id"]),
 			}
+			soclog.EnrichMap(event)
 			if shouldDropLog(event, include, exclude, minSeverity) {
 				droppedCount++
 				continue
@@ -413,7 +416,7 @@ func severityAllowed(level, minSeverity string) bool {
 	}
 	currentRank, ok := severityRank(level)
 	if !ok {
-		return true
+		return false
 	}
 	return currentRank >= minRank
 }

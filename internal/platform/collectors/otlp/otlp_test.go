@@ -129,6 +129,43 @@ func TestReceiverRedactsAndFiltersOTLPLogs(t *testing.T) {
 	if attrs["token"] != "[redacted]" || attrs["route"] != "/login" {
 		t.Fatalf("unexpected attributes: %#v", attrs)
 	}
+	if payload.Events[0]["aiceberg_tool_origin"] != "otlp_log" || payload.Events[0]["aiceberg_source_category"] != "conditional" || payload.Events[0]["aiceberg_soc_source_type"] != "application" {
+		t.Fatalf("expected OTLP log SOC contract, got %#v", payload.Events[0])
+	}
+}
+
+func TestReceiverDropsOTLPLogWithoutSeverityWhenMinimumConfigured(t *testing.T) {
+	addr := freeTCPAddr(t)
+	receiver := NewReceiver(config.Config{
+		OTLPEnabled:      true,
+		OTLPHTTPAddr:     addr,
+		OTLPInterval:     time.Second,
+		OTLPMaxItems:     10,
+		OTLPMaxBytes:     4096,
+		OSLogMinSeverity: "error",
+	}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if _, err := receiver.LogsCollector().Collect(ctx); err != nil {
+		t.Fatalf("start receiver: %v", err)
+	}
+
+	postOTLP(t, addr, "/v1/logs", `{"resourceLogs":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"api"}}]},"scopeLogs":[{"logRecords":[{"timeUnixNano":"1","body":{"stringValue":"no level"}},{"timeUnixNano":"2","severityText":"ERROR","body":{"stringValue":"real error"}}]}]}]}`)
+
+	logsRaw, err := receiver.LogsCollector().Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect logs: %v", err)
+	}
+	var payload struct {
+		Events       []map[string]any `json:"events"`
+		DroppedCount int              `json:"dropped_count"`
+	}
+	if err := json.Unmarshal(logsRaw, &payload); err != nil {
+		t.Fatalf("invalid logs payload: %v", err)
+	}
+	if len(payload.Events) != 1 || payload.Events[0]["message"] != "real error" || payload.DroppedCount != 1 {
+		t.Fatalf("expected only severity error event, got %#v dropped=%d", payload.Events, payload.DroppedCount)
+	}
 }
 
 func TestReceiverLimitsAttributesAndPreservesEssentials(t *testing.T) {
@@ -303,21 +340,21 @@ func TestPKG63APMHighVolumeErrorJourneyEvidence(t *testing.T) {
 
 	if evidenceDir := strings.TrimSpace(os.Getenv("PKG63_EVIDENCE_DIR")); evidenceDir != "" {
 		writePKG63Evidence(t, evidenceDir, logsRaw, tracesRaw, map[string]string{
-			"input_spans":           "80",
-			"accepted_count":       strconv.Itoa(tracesPayload.OTLP.AcceptedCount),
-			"dropped_count":        strconv.Itoa(tracesPayload.OTLP.DroppedCount),
-			"trace_items":          strconv.Itoa(len(tracesPayload.OTLP.Items)),
-			"logs_events":          strconv.Itoa(len(logsPayload.Events)),
-			"application_error":    "yes",
-			"sampling_error":       boolString(reasons["error"]),
-			"sampling_slow":        boolString(reasons["slow"]),
-			"journey_log_trace":    "yes",
-			"service":              serviceName,
-			"host":                 hostName,
-			"api_credential":       "not_used",
-			"transport":            "otlp_http_json",
-			"profiler_scope":       "out_of_scope_by_decision",
-			"overhead_reference":   "docs/evidence/pkg69/high-volume-overhead-20260619T033436Z/evidence.md",
+			"input_spans":        "80",
+			"accepted_count":     strconv.Itoa(tracesPayload.OTLP.AcceptedCount),
+			"dropped_count":      strconv.Itoa(tracesPayload.OTLP.DroppedCount),
+			"trace_items":        strconv.Itoa(len(tracesPayload.OTLP.Items)),
+			"logs_events":        strconv.Itoa(len(logsPayload.Events)),
+			"application_error":  "yes",
+			"sampling_error":     boolString(reasons["error"]),
+			"sampling_slow":      boolString(reasons["slow"]),
+			"journey_log_trace":  "yes",
+			"service":            serviceName,
+			"host":               hostName,
+			"api_credential":     "not_used",
+			"transport":          "otlp_http_json",
+			"profiler_scope":     "out_of_scope_by_decision",
+			"overhead_reference": "docs/evidence/pkg69/high-volume-overhead-20260619T033436Z/evidence.md",
 		})
 	}
 }
@@ -433,15 +470,15 @@ func TestPKG62ExampleServiceOTLPEvidence(t *testing.T) {
 
 	if evidenceDir := strings.TrimSpace(os.Getenv("PKG62_EVIDENCE_DIR")); evidenceDir != "" {
 		writePKG62Evidence(t, evidenceDir, metricsRaw, logsRaw, tracesRaw, map[string]string{
-			"metrics_items":      strconv.Itoa(len(metricsPayload.OTLP.Items)),
-			"logs_events":        strconv.Itoa(len(logsPayload.Events)),
-			"traces_items":       strconv.Itoa(len(tracesPayload.OTLP.Items)),
-			"service":            "checkout-service",
-			"env":                "controlled",
-			"trace_correlation":  "yes",
-			"redaction":          "yes",
-			"api_credential":     "not_used",
-			"transport":          "otlp_http_json",
+			"metrics_items":       strconv.Itoa(len(metricsPayload.OTLP.Items)),
+			"logs_events":         strconv.Itoa(len(logsPayload.Events)),
+			"traces_items":        strconv.Itoa(len(tracesPayload.OTLP.Items)),
+			"service":             "checkout-service",
+			"env":                 "controlled",
+			"trace_correlation":   "yes",
+			"redaction":           "yes",
+			"api_credential":      "not_used",
+			"transport":           "otlp_http_json",
 			"simple_service_span": "yes",
 		})
 	}

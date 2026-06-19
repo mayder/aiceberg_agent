@@ -41,28 +41,52 @@ type winCollector struct {
 }
 
 type logEvent struct {
-	SchemaVersion   int            `json:"schema_version"`
-	Timestamp       string         `json:"timestamp"`
-	TimestampUTC    string         `json:"timestamp_utc"`
-	Source          string         `json:"source,omitempty"`
-	Host            string         `json:"host,omitempty"`
-	Channel         string         `json:"channel,omitempty"`
-	Path            string         `json:"path,omitempty"`
-	Cursor          string         `json:"cursor,omitempty"`
-	EventID         uint64         `json:"event_id,omitempty"`
-	RecordID        uint64         `json:"record_id,omitempty"`
-	Provider        string         `json:"provider,omitempty"`
-	Level           string         `json:"level,omitempty"`
-	Severity        string         `json:"severity,omitempty"`
-	Computer        string         `json:"computer,omitempty"`
-	Message         string         `json:"message"`
-	Category        string         `json:"category,omitempty"`
-	Service         string         `json:"service,omitempty"`
-	Attributes      map[string]any `json:"attributes,omitempty"`
-	RedactionStatus string         `json:"redaction_status,omitempty"`
-	Transport       string         `json:"transport,omitempty"`
-	SourceTool      string         `json:"source_tool,omitempty"`
-	SourceCategory  string         `json:"source_category,omitempty"`
+	SchemaVersion            int            `json:"schema_version"`
+	Timestamp                string         `json:"timestamp"`
+	TimestampUTC             string         `json:"timestamp_utc"`
+	Source                   string         `json:"source,omitempty"`
+	Host                     string         `json:"host,omitempty"`
+	Channel                  string         `json:"channel,omitempty"`
+	Path                     string         `json:"path,omitempty"`
+	Cursor                   string         `json:"cursor,omitempty"`
+	EventID                  uint64         `json:"event_id,omitempty"`
+	RecordID                 uint64         `json:"record_id,omitempty"`
+	Provider                 string         `json:"provider,omitempty"`
+	Level                    string         `json:"level,omitempty"`
+	Severity                 string         `json:"severity,omitempty"`
+	Computer                 string         `json:"computer,omitempty"`
+	Message                  string         `json:"message"`
+	Category                 string         `json:"category,omitempty"`
+	Service                  string         `json:"service,omitempty"`
+	Attributes               map[string]any `json:"attributes,omitempty"`
+	RedactionStatus          string         `json:"redaction_status,omitempty"`
+	Transport                string         `json:"transport,omitempty"`
+	SourceTool               string         `json:"source_tool,omitempty"`
+	SourceCategory           string         `json:"source_category,omitempty"`
+	AicebergTransport        string         `json:"aiceberg_transport,omitempty"`
+	AicebergToolOrigin       string         `json:"aiceberg_tool_origin,omitempty"`
+	AicebergSourceCategory   string         `json:"aiceberg_source_category,omitempty"`
+	AicebergSOCSourceType    string         `json:"aiceberg_soc_source_type,omitempty"`
+	AicebergSOCEligible      string         `json:"aiceberg_soc_eligible,omitempty"`
+	AicebergOriginConfidence string         `json:"aiceberg_origin_confidence,omitempty"`
+	AicebergRouteReason      string         `json:"aiceberg_route_reason,omitempty"`
+	EventCode                string         `json:"event_code,omitempty"`
+	Vendor                   string         `json:"vendor,omitempty"`
+	Product                  string         `json:"product,omitempty"`
+	SrcIP                    string         `json:"src_ip,omitempty"`
+	DstIP                    string         `json:"dst_ip,omitempty"`
+	SrcHost                  string         `json:"src_host,omitempty"`
+	DstHost                  string         `json:"dst_host,omitempty"`
+	Username                 string         `json:"username,omitempty"`
+	ProcessName              string         `json:"process_name,omitempty"`
+	CommandLine              string         `json:"command_line,omitempty"`
+	FileHash                 string         `json:"file_hash,omitempty"`
+	Domain                   string         `json:"domain,omitempty"`
+	URL                      string         `json:"url,omitempty"`
+	Action                   string         `json:"action,omitempty"`
+	RuleName                 string         `json:"rule_name,omitempty"`
+	TechniqueID              string         `json:"technique_id,omitempty"`
+	AlertID                  string         `json:"alert_id,omitempty"`
 }
 
 type payload struct {
@@ -332,7 +356,7 @@ func parseEventXMLBlock(block []byte, channel, hostname string, maxBytes int) lo
 		ev.Attributes["provider"] = ev.Provider
 	}
 	ev.Cursor = strconv.FormatUint(ev.RecordID, 10)
-	return ev
+	return enrichSOCEvent(ev)
 }
 
 func windowsLevelName(level int) string {
@@ -428,7 +452,7 @@ func parseEventBlock(block, channel, hostname string, maxBytes int) logEvent {
 		ev.Attributes["provider"] = ev.Provider
 	}
 	ev.Cursor = strconv.FormatUint(ev.RecordID, 10)
-	return ev
+	return enrichSOCEvent(ev)
 }
 
 func windowsEventQuery(lastRecord uint64, providers []string, eventIDs []uint64, minSeverity string) string {

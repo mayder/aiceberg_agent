@@ -48,6 +48,9 @@ func TestParseEventXMLBlock_ExtractsRecordAndWindowsSeverity(t *testing.T) {
 	if ev.Message != "controlled error" {
 		t.Fatalf("unexpected message %q", ev.Message)
 	}
+	if ev.AicebergSourceCategory != "observability" || ev.AicebergSOCEligible != "no" {
+		t.Fatalf("expected operational Windows Application contract, got %#v", ev)
+	}
 }
 
 func TestParseEventXMLBlock_ClassifiesSecurityAndSysmonChannels(t *testing.T) {
@@ -60,8 +63,24 @@ func TestParseEventXMLBlock_ClassifiesSecurityAndSysmonChannels(t *testing.T) {
 	if security.SourceCategory != "security" || security.Provider != "Microsoft-Windows-Security-Auditing" || security.EventID != 4625 {
 		t.Fatalf("unexpected security event: %#v", security)
 	}
+	if security.AicebergToolOrigin != "ad_security" || security.AicebergSourceCategory != "soc" || security.AicebergSOCEligible != "yes" {
+		t.Fatalf("unexpected security SOC contract: %#v", security)
+	}
 	if sysmon.SourceCategory != "security" || sysmon.Provider != "Microsoft-Windows-Sysmon" || sysmon.Channel != "Microsoft-Windows-Sysmon/Operational" {
 		t.Fatalf("unexpected sysmon event: %#v", sysmon)
+	}
+	if sysmon.AicebergSourceCategory != "soc" || sysmon.AicebergSOCEligible != "yes" || sysmon.AicebergRouteReason != "sysmon_security_telemetry" {
+		t.Fatalf("unexpected sysmon SOC contract: %#v", sysmon)
+	}
+}
+
+func TestParseEventXMLBlock_DoesNotPromoteDistributedCOMToSOC(t *testing.T) {
+	block := []byte(`<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Microsoft-Windows-DistributedCOM'/><EventID>10028</EventID><Level>2</Level><TimeCreated SystemTime='2026-06-19T16:30:02Z'/><EventRecordID>200</EventRecordID><Channel>System</Channel><Computer>srv01</Computer></System><EventData><Data>DistributedCOM remote activation failed</Data></EventData></Event>`)
+
+	ev := parseEventXMLBlock(block, "System", "srv01", 4096)
+
+	if ev.AicebergSourceCategory != "observability" || ev.AicebergSOCEligible != "no" || ev.AicebergRouteReason != "windows_distributedcom_operational" {
+		t.Fatalf("DistributedCOM must remain operational, got %#v", ev)
 	}
 }
 

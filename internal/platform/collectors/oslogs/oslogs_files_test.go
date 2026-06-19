@@ -146,14 +146,23 @@ func TestCollectorClassifiesGraylogGELFAndLinuxAuthAndAppFormats(t *testing.T) {
 	if got := byFile[graylogFile]; got.SourceTool != "graylog_gelf" || got.Message != "failed logon" || got.Service != "ad" || got.Level != "error" {
 		t.Fatalf("unexpected graylog event: %#v", got)
 	}
+	if got := byFile[graylogFile]; got.AicebergToolOrigin != "graylog_gelf" || got.AicebergSOCEligible != "conditional" || got.AicebergRouteReason != "graylog_unknown_origin" {
+		t.Fatalf("unexpected graylog SOC contract: %#v", got)
+	}
 	if got := byFile[authFile]; got.SourceTool != "linux_auth" || got.SourceCategory != "security" || got.Category != "auth_fail" {
 		t.Fatalf("unexpected linux auth event: %#v", got)
+	}
+	if got := byFile[authFile]; got.AicebergSourceCategory != "soc" || got.AicebergSOCSourceType != "linux_security" || got.AicebergSOCEligible != "yes" {
+		t.Fatalf("unexpected linux auth SOC contract: %#v", got)
 	}
 	if got := byFile[secureFile]; got.SourceTool != "linux_auth" || got.SourceCategory != "security" || got.Category != "auth_fail" {
 		t.Fatalf("unexpected linux secure event: %#v", got)
 	}
 	if got := byFile[appFile]; got.Service != "checkout" || got.Level != "error" || strings.Contains(got.Message, "secret") {
 		t.Fatalf("unexpected app json event: %#v", got)
+	}
+	if got := byFile[appFile]; got.AicebergToolOrigin != "application" || got.AicebergSourceCategory != "conditional" || got.AicebergSOCEligible != "conditional" {
+		t.Fatalf("unexpected app SOC contract: %#v", got)
 	}
 	if got := byFile[textFile]; got.SourceTool != "file" || got.Message != "plain text warning line" {
 		t.Fatalf("unexpected text file event: %#v", got)
@@ -303,6 +312,9 @@ func TestCollectorCollectsJournaldWithUnitAndPriorityFilters(t *testing.T) {
 	if event["service"] != "nginx.service" || event["level"] != "warning" {
 		t.Fatalf("expected service and level, got %#v", event)
 	}
+	if event["aiceberg_transport"] != "agent_journald" || event["aiceberg_tool_origin"] != "journald" || event["aiceberg_source_category"] != "observability" {
+		t.Fatalf("expected journald SOC contract, got %#v", event)
+	}
 }
 
 func TestCollectorAppliesConfiguredProcessors(t *testing.T) {
@@ -354,6 +366,9 @@ func TestCollectorAppliesConfiguredProcessors(t *testing.T) {
 	event := payload.Events[0]
 	if event["service"] != "billing" || event["level"] != "error" || event["source_category"] != "security" {
 		t.Fatalf("expected remap and route processors, got %#v", event)
+	}
+	if event["aiceberg_source_category"] != "soc" {
+		t.Fatalf("expected SOC contract recalculated after route processor, got %#v", event)
 	}
 	msg, _ := event["message"].(string)
 	if strings.Contains(msg, "411111") || !strings.Contains(msg, "card=[redacted]") {

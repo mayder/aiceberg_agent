@@ -75,27 +75,51 @@ func (c *collector) Name() string { return "oslogs" }
 func (c *collector) Interval() time.Duration { return c.interval }
 
 type logEvent struct {
-	SchemaVersion   int            `json:"schema_version"`
-	Timestamp       string         `json:"timestamp"`
-	TimestampUTC    string         `json:"timestamp_utc"`
-	Source          string         `json:"source,omitempty"`
-	Host            string         `json:"host,omitempty"`
-	File            string         `json:"file"`
-	Path            string         `json:"path,omitempty"`
-	Cursor          string         `json:"cursor,omitempty"`
-	Message         string         `json:"message"`
-	App             string         `json:"app,omitempty"`
-	Service         string         `json:"service,omitempty"`
-	PID             string         `json:"pid,omitempty"`
-	Level           string         `json:"level,omitempty"`
-	Facility        string         `json:"facility,omitempty"`
-	Severity        string         `json:"severity,omitempty"`
-	Category        string         `json:"category,omitempty"`
-	Attributes      map[string]any `json:"attributes,omitempty"`
-	RedactionStatus string         `json:"redaction_status,omitempty"`
-	Transport       string         `json:"transport,omitempty"`
-	SourceTool      string         `json:"source_tool,omitempty"`
-	SourceCategory  string         `json:"source_category,omitempty"`
+	SchemaVersion            int            `json:"schema_version"`
+	Timestamp                string         `json:"timestamp"`
+	TimestampUTC             string         `json:"timestamp_utc"`
+	Source                   string         `json:"source,omitempty"`
+	Host                     string         `json:"host,omitempty"`
+	File                     string         `json:"file"`
+	Path                     string         `json:"path,omitempty"`
+	Cursor                   string         `json:"cursor,omitempty"`
+	Message                  string         `json:"message"`
+	App                      string         `json:"app,omitempty"`
+	Service                  string         `json:"service,omitempty"`
+	PID                      string         `json:"pid,omitempty"`
+	Level                    string         `json:"level,omitempty"`
+	Facility                 string         `json:"facility,omitempty"`
+	Severity                 string         `json:"severity,omitempty"`
+	Category                 string         `json:"category,omitempty"`
+	Attributes               map[string]any `json:"attributes,omitempty"`
+	RedactionStatus          string         `json:"redaction_status,omitempty"`
+	Transport                string         `json:"transport,omitempty"`
+	SourceTool               string         `json:"source_tool,omitempty"`
+	SourceCategory           string         `json:"source_category,omitempty"`
+	AicebergTransport        string         `json:"aiceberg_transport,omitempty"`
+	AicebergToolOrigin       string         `json:"aiceberg_tool_origin,omitempty"`
+	AicebergSourceCategory   string         `json:"aiceberg_source_category,omitempty"`
+	AicebergSOCSourceType    string         `json:"aiceberg_soc_source_type,omitempty"`
+	AicebergSOCEligible      string         `json:"aiceberg_soc_eligible,omitempty"`
+	AicebergOriginConfidence string         `json:"aiceberg_origin_confidence,omitempty"`
+	AicebergRouteReason      string         `json:"aiceberg_route_reason,omitempty"`
+	EventCode                string         `json:"event_code,omitempty"`
+	Vendor                   string         `json:"vendor,omitempty"`
+	Product                  string         `json:"product,omitempty"`
+	SrcIP                    string         `json:"src_ip,omitempty"`
+	DstIP                    string         `json:"dst_ip,omitempty"`
+	SrcHost                  string         `json:"src_host,omitempty"`
+	DstHost                  string         `json:"dst_host,omitempty"`
+	Username                 string         `json:"username,omitempty"`
+	ProcessName              string         `json:"process_name,omitempty"`
+	CommandLine              string         `json:"command_line,omitempty"`
+	FileHash                 string         `json:"file_hash,omitempty"`
+	Domain                   string         `json:"domain,omitempty"`
+	URL                      string         `json:"url,omitempty"`
+	Action                   string         `json:"action,omitempty"`
+	RuleName                 string         `json:"rule_name,omitempty"`
+	TechniqueID              string         `json:"technique_id,omitempty"`
+	AlertID                  string         `json:"alert_id,omitempty"`
 }
 
 type payload struct {
@@ -349,7 +373,7 @@ func (c *collector) buildEvent(path, hostname, line string) logEvent {
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	cursor := strconv.FormatInt(c.cursor[path], 10)
-	return logEvent{
+	return enrichSOCEvent(logEvent{
 		SchemaVersion:   logSchemaVersion,
 		Timestamp:       now,
 		TimestampUTC:    now,
@@ -371,7 +395,7 @@ func (c *collector) buildEvent(path, hostname, line string) logEvent {
 		Transport:       "agent_file",
 		SourceTool:      sourceTool,
 		SourceCategory:  sourceCategoryForUnix(path, facility),
-	}
+	})
 }
 
 func (c *collector) buildLocalEvent(hostname string, item localLogEntry) logEvent {
@@ -392,7 +416,7 @@ func (c *collector) buildLocalEvent(hostname string, item localLogEntry) logEven
 	}
 	sourceTool := "local_" + item.Transport
 	sourcePath := "local://" + item.Transport
-	return logEvent{
+	return enrichSOCEvent(logEvent{
 		SchemaVersion:   logSchemaVersion,
 		Timestamp:       now,
 		TimestampUTC:    now,
@@ -409,7 +433,7 @@ func (c *collector) buildLocalEvent(hostname string, item localLogEntry) logEven
 		Transport:       "agent_" + item.Transport,
 		SourceTool:      sourceTool,
 		SourceCategory:  "log",
-	}
+	})
 }
 
 func defaultPaths() []string {

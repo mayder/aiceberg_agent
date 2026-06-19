@@ -146,7 +146,7 @@ func parseJournalLine(line string, hostname string, maxBytes int) (logEvent, boo
 		SourceTool:      "journald",
 		SourceCategory:  "observability",
 	}
-	return ev, true
+	return enrichSOCEvent(ev), true
 }
 
 func journalAttributes(item map[string]any) map[string]any {

@@ -197,10 +197,18 @@ func TestReadContainerLogsWithCursorAndRedaction(t *testing.T) {
 		t.Fatalf("write log: %v", err)
 	}
 	row := dockerContainer{
-		ID:     "abcdef1234567890",
-		Names:  []string{"/api"},
-		Image:  "api:1",
-		Labels: map[string]string{"com.docker.compose.service": "api", "com.docker.compose.project": "prod"},
+		ID:    "abcdef1234567890",
+		Names: []string{"/api"},
+		Image: "api:1",
+		Labels: map[string]string{
+			"com.docker.compose.service":  "api",
+			"com.docker.compose.project":  "prod",
+			"aiceberg.ai/tool-origin":     "crowdstrike",
+			"aiceberg.ai/source-category": "soc",
+			"aiceberg.ai/soc-source-type": "edr",
+			"aiceberg.ai/soc-eligible":    "yes",
+			"aiceberg.ai/route-reason":    "container_security_label",
+		},
 	}
 	inspect := dockerInspect{LogPath: logPath}
 	inspect.Config.User = "1000"
@@ -220,6 +228,9 @@ func TestReadContainerLogsWithCursorAndRedaction(t *testing.T) {
 		}
 		if event["redaction_status"] != "redacted" {
 			t.Fatalf("expected redacted event, got %#v", event)
+		}
+		if event["aiceberg_tool_origin"] != "crowdstrike" || event["aiceberg_source_category"] != "soc" || event["aiceberg_soc_source_type"] != "edr" || event["aiceberg_origin_confidence"] != "configured" {
+			t.Fatalf("expected container SOC contract, got %#v", event)
 		}
 	}
 

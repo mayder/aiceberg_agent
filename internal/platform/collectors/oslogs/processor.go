@@ -106,7 +106,7 @@ func processLogEvent(ev logEvent, processors []config.LogProcessorConfig) (logEv
 			return ev, false
 		}
 	}
-	return ev, true
+	return enrichSOCEvent(ev), true
 }
 
 func applyLogProcessor(ev logEvent, processor config.LogProcessorConfig) (logEvent, bool) {
@@ -405,6 +405,8 @@ func sourceToolForUnix(path string, attrs map[string]any) string {
 		return "linux_auth"
 	case strings.Contains(p, "syslog") || strings.Contains(p, "messages"):
 		return "linux_syslog"
+	case len(attrs) > 0:
+		return "application"
 	default:
 		return "file"
 	}

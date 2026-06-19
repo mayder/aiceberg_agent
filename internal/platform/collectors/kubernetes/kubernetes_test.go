@@ -53,8 +53,13 @@ func TestAutodiscoveryChecksFromAnnotations(t *testing.T) {
 	p.Metadata.Name = "web"
 	p.Metadata.Namespace = "default"
 	p.Metadata.Annotations = map[string]string{
-		"aiceberg.ai/checks":    `[{"type":"http","url":"http://%%host%%:8080/health"}]`,
-		"aiceberg.ai/check.tcp": "8080",
+		"aiceberg.ai/checks":          `[{"type":"http","url":"http://%%host%%:8080/health"}]`,
+		"aiceberg.ai/check.tcp":       "8080",
+		"aiceberg.ai/tool-origin":     "application",
+		"aiceberg.ai/source-category": "conditional",
+		"aiceberg.ai/soc-source-type": "application",
+		"aiceberg.ai/soc-eligible":    "conditional",
+		"aiceberg.ai/route-reason":    "kubernetes_annotation",
 	}
 
 	checks := autodiscoveryChecks([]pod{p})
@@ -138,8 +143,13 @@ func TestPKG65KubernetesPayloadAutodiscoveryMetricsEvidence(t *testing.T) {
 	p.Metadata.UID = "pod-uid-1"
 	p.Metadata.Labels = map[string]string{"app": "api", "tier": "backend"}
 	p.Metadata.Annotations = map[string]string{
-		"aiceberg.ai/checks":    `[{"type":"http","url":"http://%%host%%:8080/health"}]`,
-		"aiceberg.ai/check.tcp": "8080",
+		"aiceberg.ai/checks":          `[{"type":"http","url":"http://%%host%%:8080/health"}]`,
+		"aiceberg.ai/check.tcp":       "8080",
+		"aiceberg.ai/tool-origin":     "application",
+		"aiceberg.ai/source-category": "conditional",
+		"aiceberg.ai/soc-source-type": "application",
+		"aiceberg.ai/soc-eligible":    "conditional",
+		"aiceberg.ai/route-reason":    "kubernetes_annotation",
 	}
 	p.Spec.NodeName = "node-a"
 	p.Spec.Containers = []containerSpec{{Name: "api", Image: "api:1"}}
@@ -210,6 +220,9 @@ func TestPKG65KubernetesPayloadAutodiscoveryMetricsEvidence(t *testing.T) {
 	logEvents := k8s["logs"].(map[string]any)["events"].([]map[string]any)
 	if len(logEvents) != 1 || logEvents[0]["redaction_status"] != "redacted" {
 		t.Fatalf("expected redacted pod log, got %#v", logEvents)
+	}
+	if logEvents[0]["aiceberg_tool_origin"] != "application" || logEvents[0]["aiceberg_source_category"] != "conditional" || logEvents[0]["aiceberg_soc_source_type"] != "application" || logEvents[0]["aiceberg_origin_confidence"] != "configured" {
+		t.Fatalf("expected Kubernetes log SOC contract, got %#v", logEvents[0])
 	}
 
 	if evidenceDir := strings.TrimSpace(os.Getenv("PKG65_EVIDENCE_DIR")); evidenceDir != "" {

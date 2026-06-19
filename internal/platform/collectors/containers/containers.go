@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/common/soclog"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
 
@@ -829,7 +830,31 @@ func parseContainerLogLine(row dockerContainer, inspect dockerInspect, line stri
 	if user := strings.TrimSpace(inspect.Config.User); user != "" {
 		event["user"] = user
 	}
+	applyOriginLabels(event, row.Labels)
+	soclog.EnrichMap(event)
 	return event, true
+}
+
+func applyOriginLabels(event map[string]any, labels map[string]string) {
+	for label, field := range map[string]string{
+		"aiceberg.ai/transport":        "aiceberg_transport",
+		"aiceberg.ai/tool-origin":      "aiceberg_tool_origin",
+		"aiceberg.ai/source-category":  "aiceberg_source_category",
+		"aiceberg.ai/soc-source-type":  "aiceberg_soc_source_type",
+		"aiceberg.ai/soc-eligible":     "aiceberg_soc_eligible",
+		"aiceberg.ai/route-reason":     "aiceberg_route_reason",
+		"aiceberg.com/transport":       "aiceberg_transport",
+		"aiceberg.com/tool-origin":     "aiceberg_tool_origin",
+		"aiceberg.com/source-category": "aiceberg_source_category",
+		"aiceberg.com/soc-source-type": "aiceberg_soc_source_type",
+		"aiceberg.com/soc-eligible":    "aiceberg_soc_eligible",
+		"aiceberg.com/route-reason":    "aiceberg_route_reason",
+	} {
+		if value := strings.TrimSpace(labels[label]); value != "" {
+			event[field] = value
+			event["aiceberg_origin_confidence"] = "configured"
+		}
+	}
 }
 
 var containerSensitivePatterns = []*regexp.Regexp{

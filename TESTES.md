@@ -498,6 +498,14 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 - Fechamento real exige executar matriz em Windows Server, Windows desktop, Linux Debian/RHEL, Docker e Kubernetes controlado.
 - Validacao real fechada em 2026-06-19: o gate `scripts/pkg69_evidence_gap_report.sh docs/evidence/pkg69` mapeia 14/14 cenarios reais, incluindo Windows Server, Windows desktop, Linux Debian/RHEL, Docker, Kubernetes, API indisponivel/recuperacao, rede/backoff, proxy/TLS, disco cheio/outbox preservada, payload/alto volume, clock skew, permissao eBPF/PCAP restrita, update remoto/rollback, Relay/Hub/Direct e reboot real durante coleta. Com `PKG69_GAP_REPORT_REQUIRE_ACCEPTED=true PKG69_ACCEPT_CLOSURE=true`, o gate retorna `closure_status=ACEITO_PARA_FECHAMENTO` e `closure_acceptance=accepted`.
 
+### PKG-73 - Taxonomia SOC de logs
+
+- Unitario focado: `go test ./internal/common/soclog ./internal/platform/collectors/oslogs ./internal/platform/collectors/containers ./internal/platform/collectors/kubernetes ./internal/platform/collectors/otlp`.
+- Compilacao Windows do parser EventLog: `GOOS=windows GOARCH=amd64 go test -c ./internal/platform/collectors/oslogs -o /tmp/aiceberg-oslogs-windows.test.exe`.
+- Cobrir Windows Security, Sysmon, DistributedCOM 10028, Linux auth, app JSON, Graylog/GELF, journald, OTLP log, Docker log e Kubernetes pod log.
+- Validar `aiceberg_transport`, `aiceberg_tool_origin`, `aiceberg_source_category`, `aiceberg_soc_source_type`, `aiceberg_soc_eligible`, `aiceberg_origin_confidence`, `aiceberg_route_reason`, redaction e campos SOC promovidos.
+- Fechamento coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`.
+
 ## Politica minima de testes
 
 - Unitário: validar regra de negocio, casos de erro e limites sem depender de rede, banco real ou UI.

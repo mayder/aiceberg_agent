@@ -445,6 +445,20 @@ Operacao segura:
 
 Rollback: ignorar `contextual_evidence` no backend. Nao ha SQL do PKG-72.
 
+### PKG-73 - Taxonomia SOC de logs
+
+Contrato tecnico: `docs/pkg73_soc_log_origin.md`.
+
+O agente adiciona contrato SOC canonico aos eventos de log coletados por `oslogs`, journald, Windows EventLog, OTLP logs, Docker logs e Kubernetes pod logs. Campos novos sao aditivos: `aiceberg_transport`, `aiceberg_tool_origin`, `aiceberg_source_category`, `aiceberg_soc_source_type`, `aiceberg_soc_eligible`, `aiceberg_origin_confidence` e `aiceberg_route_reason`.
+
+Overrides seguros:
+- logs estruturados podem informar `aiceberg_*` no evento;
+- Docker usa labels `aiceberg.ai/*` ou `aiceberg.com/*`;
+- Kubernetes usa annotations `aiceberg.ai/*` ou `aiceberg.com/*`;
+- config remota pode usar `logs.processors`, sujeita a assinatura/escopo quando sensivel.
+
+Rollback: desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*` ou publicar versao anterior. O backend deve continuar aceitando payload legado.
+
 ## Deploy/publicação
 
 1. Confirmar branch e diff.
