@@ -1,0 +1,2 @@
+scenario	template	sha256	bytes	artifact	artifact_sha256	artifact_bytes	created_at_utc
+reboot-during-collection	docs/evidence/pkg69/reboot-during-collection-20260619T165440Z/evidence.md	85f95552695c324b21ca2e64284128070dbbe2b76d0905a4b9d4d4d22969c152	1799	docs/evidence/pkg69/reboot-during-collection-20260619T165440Z/raw/pkg69-reboot-evidence-20260619T164617Z.zip	98f4c2df866eff3bc448c95ecb3f77c756d7b7222be0597013696ecb23c4b0e3	3936	20260619T165542Z

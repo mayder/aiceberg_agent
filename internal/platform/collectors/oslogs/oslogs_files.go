@@ -291,6 +291,10 @@ func (c *collector) buildEvent(path, hostname, line string) logEvent {
 		msg = msg[:c.maxBytes]
 	}
 	attributes := jsonAttributes(msg)
+	if lvl == "" {
+		lvl = levelFromAttributes(attributes)
+		severity = lvl
+	}
 	msg, redactionStatus := redactMessage(msg)
 	category := ""
 	if c.detect {
@@ -329,6 +333,7 @@ func (c *collector) buildLocalEvent(hostname string, item localLogEntry) logEven
 		msg = msg[:c.maxBytes]
 	}
 	attributes := jsonAttributes(msg)
+	level := levelFromAttributes(attributes)
 	msg, redactionStatus := redactMessage(msg)
 	category := ""
 	if c.detect {
@@ -349,6 +354,8 @@ func (c *collector) buildLocalEvent(hostname string, item localLogEntry) logEven
 		File:            sourcePath,
 		Path:            sourcePath,
 		Message:         msg,
+		Level:           level,
+		Severity:        level,
 		Category:        category,
 		Attributes:      attributes,
 		RedactionStatus: redactionStatus,
@@ -455,24 +462,30 @@ func detectLevel(msg string) string {
 	}
 }
 
-func severityName(code int) string {
-	switch code {
-	case 0:
-		return "emergency"
-	case 1:
-		return "alert"
-	case 2:
-		return "critical"
-	case 3:
-		return "error"
-	case 4:
-		return "warning"
-	case 5:
-		return "notice"
-	case 6:
-		return "info"
-	case 7:
-		return "debug"
+func levelFromAttributes(attrs map[string]any) string {
+	if attrs == nil {
+		return ""
+	}
+	for _, key := range []string{"level", "severity", "priority", "syslog_severity", "log_level"} {
+		if value, ok := attrs[key]; ok {
+			if normalized := normalizeSeverityValue(value); normalized != "" {
+				return normalized
+			}
+		}
+	}
+	return ""
+}
+
+func normalizeSeverityValue(value any) string {
+	switch v := value.(type) {
+	case string:
+		return normalizeSeverityString(v)
+	case float64:
+		return severityName(int(v))
+	case int:
+		return severityName(v)
+	case int64:
+		return severityName(int(v))
 	default:
 		return ""
 	}

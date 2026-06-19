@@ -1,0 +1,9 @@
+key	value
+bundle_tool	scripts/pkg69_bundle_evidence.sh
+bundle_tool_version	1
+scenario	windows-desktop
+created_at_utc	20260619T160253Z
+raw_source_type	file
+raw_source_basename	raw-windows-desktop-lowoverhead-20260619T125957Z.zip
+evidence_file	evidence.md
+artifact_file	raw/raw-windows-desktop-lowoverhead-20260619T125957Z.zip

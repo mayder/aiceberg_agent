@@ -1,0 +1,9 @@
+key	value
+bundle_tool	scripts/pkg69_bundle_evidence.sh
+bundle_tool_version	1
+scenario	reboot-during-collection
+created_at_utc	20260619T165542Z
+raw_source_type	file
+raw_source_basename	pkg69-reboot-evidence-20260619T164617Z.zip
+evidence_file	evidence.md
+artifact_file	raw/pkg69-reboot-evidence-20260619T164617Z.zip

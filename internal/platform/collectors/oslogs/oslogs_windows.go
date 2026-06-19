@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"os"
 	"os/exec"
@@ -191,8 +192,8 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 
 func (c *winCollector) fetchChannel(ctx context.Context, channel string, lastRecord uint64, limit int, hostname string) []logEvent {
 	var events []logEvent
-	query := windowsEventQuery(lastRecord, c.providers, c.eventIDs)
-	args := []string{"qe", channel, "/q:" + query, "/f:Text", "/c:" + strconv.Itoa(limit), "/rd:true"}
+	query := windowsEventQuery(lastRecord, c.providers, c.eventIDs, c.minSeverity)
+	args := []string{"qe", channel, "/q:" + query, "/f:XML", "/c:" + strconv.Itoa(limit), "/rd:true"}
 	cmd := exec.CommandContext(ctx, "wevtutil", args...)
 	raw, err := cmd.Output()
 	if err != nil {
@@ -201,9 +202,12 @@ func (c *winCollector) fetchChannel(ctx context.Context, channel string, lastRec
 		}
 		return events
 	}
-	blocks := splitEvents(string(raw))
+	blocks := splitEventXML(raw)
 	for _, blk := range blocks {
-		ev := parseEventBlock(blk, channel, hostname, c.maxBytes)
+		ev := parseEventXMLBlock(blk, channel, hostname, c.maxBytes)
+		if ev.RecordID == 0 {
+			ev = parseEventBlock(string(blk), channel, hostname, c.maxBytes)
+		}
 		if ev.RecordID == 0 {
 			continue
 		}
@@ -213,6 +217,139 @@ func (c *winCollector) fetchChannel(ctx context.Context, channel string, lastRec
 		events = append(events, ev)
 	}
 	return events
+}
+
+type winEventXML struct {
+	System struct {
+		Provider struct {
+			Name string `xml:"Name,attr"`
+		} `xml:"Provider"`
+		EventID     uint64 `xml:"EventID"`
+		Level       int    `xml:"Level"`
+		TimeCreated struct {
+			SystemTime string `xml:"SystemTime,attr"`
+		} `xml:"TimeCreated"`
+		EventRecordID uint64 `xml:"EventRecordID"`
+		Channel       string `xml:"Channel"`
+		Computer      string `xml:"Computer"`
+	} `xml:"System"`
+	EventData struct {
+		Data []string `xml:"Data"`
+	} `xml:"EventData"`
+}
+
+func splitEventXML(raw []byte) [][]byte {
+	var out [][]byte
+	decoder := xml.NewDecoder(bytes.NewReader(raw))
+	for {
+		tok, err := decoder.Token()
+		if err != nil {
+			break
+		}
+		start, ok := tok.(xml.StartElement)
+		if !ok || start.Name.Local != "Event" {
+			continue
+		}
+		var buf bytes.Buffer
+		enc := xml.NewEncoder(&buf)
+		_ = enc.EncodeToken(start)
+		depth := 1
+		for depth > 0 {
+			tok, err = decoder.Token()
+			if err != nil {
+				break
+			}
+			switch t := tok.(type) {
+			case xml.StartElement:
+				depth++
+				_ = enc.EncodeToken(t)
+			case xml.EndElement:
+				depth--
+				_ = enc.EncodeToken(t)
+			default:
+				_ = enc.EncodeToken(tok)
+			}
+		}
+		_ = enc.Flush()
+		if buf.Len() > 0 {
+			out = append(out, append([]byte(nil), buf.Bytes()...))
+		}
+	}
+	return out
+}
+
+func parseEventXMLBlock(block []byte, channel, hostname string, maxBytes int) logEvent {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	ev := logEvent{
+		SchemaVersion:  logSchemaVersion,
+		Channel:        channel,
+		Path:           channel,
+		Source:         hostname,
+		Host:           hostname,
+		Timestamp:      now,
+		TimestampUTC:   now,
+		Transport:      "agent_windows_eventlog",
+		SourceTool:     "windows_eventlog",
+		SourceCategory: sourceCategoryForWindows(channel),
+	}
+	var parsed winEventXML
+	if err := xml.Unmarshal(block, &parsed); err != nil {
+		return ev
+	}
+	ev.EventID = parsed.System.EventID
+	ev.RecordID = parsed.System.EventRecordID
+	ev.Provider = strings.TrimSpace(parsed.System.Provider.Name)
+	if parsed.System.Channel != "" {
+		ev.Channel = parsed.System.Channel
+		ev.Path = parsed.System.Channel
+		ev.SourceCategory = sourceCategoryForWindows(parsed.System.Channel)
+	}
+	if parsed.System.Computer != "" {
+		ev.Computer = parsed.System.Computer
+	}
+	if parsed.System.TimeCreated.SystemTime != "" {
+		ev.Timestamp = parsed.System.TimeCreated.SystemTime
+		ev.TimestampUTC = parsed.System.TimeCreated.SystemTime
+	}
+	ev.Level = windowsLevelName(parsed.System.Level)
+	ev.Severity = ev.Level
+	msg := strings.TrimSpace(strings.Join(parsed.EventData.Data, "\n"))
+	if msg == "" {
+		msg = string(block)
+	}
+	if len(msg) > maxBytes {
+		msg = msg[:maxBytes]
+	}
+	attributes := jsonAttributes(msg)
+	msg, redactionStatus := redactMessage(msg)
+	ev.Message = msg
+	ev.RedactionStatus = redactionStatus
+	ev.Attributes = attributes
+	if ev.Provider != "" {
+		if ev.Attributes == nil {
+			ev.Attributes = map[string]any{}
+		}
+		ev.Attributes["provider"] = ev.Provider
+	}
+	ev.Cursor = strconv.FormatUint(ev.RecordID, 10)
+	return ev
+}
+
+func windowsLevelName(level int) string {
+	switch level {
+	case 1:
+		return "critical"
+	case 2:
+		return "error"
+	case 3:
+		return "warning"
+	case 4:
+		return "info"
+	case 5:
+		return "debug"
+	default:
+		return ""
+	}
 }
 
 func splitEvents(s string) []string {
@@ -252,7 +389,7 @@ func parseEventBlock(block, channel, hostname string, maxBytes int) logEvent {
 	}
 	lines := strings.Split(block, "\n")
 	for _, ln := range lines {
-		ln = strings.TrimSpace(ln)
+		ln = strings.TrimSpace(strings.ReplaceAll(ln, "\x00", ""))
 		if strings.HasPrefix(ln, "Event ID:") {
 			if id, err := strconv.ParseUint(strings.TrimSpace(strings.TrimPrefix(ln, "Event ID:")), 10, 64); err == nil {
 				ev.EventID = id
@@ -264,7 +401,13 @@ func parseEventBlock(block, channel, hostname string, maxBytes int) logEvent {
 		} else if strings.HasPrefix(ln, "Provider Name:") {
 			ev.Provider = strings.TrimSpace(strings.TrimPrefix(ln, "Provider Name:"))
 		} else if strings.HasPrefix(ln, "Level:") {
-			ev.Level = strings.TrimSpace(strings.TrimPrefix(ln, "Level:"))
+			rawLevel := strings.TrimSpace(strings.TrimPrefix(ln, "Level:"))
+			if normalized := normalizeSeverityString(rawLevel); normalized != "" {
+				ev.Level = normalized
+			} else {
+				ev.Level = rawLevel
+			}
+			ev.Severity = ev.Level
 		} else if strings.HasPrefix(ln, "Computer:") {
 			ev.Computer = strings.TrimSpace(strings.TrimPrefix(ln, "Computer:"))
 		}
@@ -288,8 +431,11 @@ func parseEventBlock(block, channel, hostname string, maxBytes int) logEvent {
 	return ev
 }
 
-func windowsEventQuery(lastRecord uint64, providers []string, eventIDs []uint64) string {
+func windowsEventQuery(lastRecord uint64, providers []string, eventIDs []uint64, minSeverity string) string {
 	conditions := []string{"EventRecordID>" + strconv.FormatUint(lastRecord, 10)}
+	if maxLevel, ok := windowsMaxLevelForMinSeverity(minSeverity); ok {
+		conditions = append(conditions, "Level<="+strconv.Itoa(maxLevel))
+	}
 	if len(eventIDs) > 0 {
 		parts := make([]string, 0, len(eventIDs))
 		for _, eventID := range eventIDs {
@@ -305,6 +451,23 @@ func windowsEventQuery(lastRecord uint64, providers []string, eventIDs []uint64)
 		conditions = append(conditions, "("+strings.Join(parts, " or ")+")")
 	}
 	return "*[System[" + strings.Join(conditions, " and ") + "]]"
+}
+
+func windowsMaxLevelForMinSeverity(minSeverity string) (int, bool) {
+	switch normalizeSeverityString(minSeverity) {
+	case "critical", "alert", "emergency":
+		return 1, true
+	case "error":
+		return 2, true
+	case "warning":
+		return 3, true
+	case "info", "notice":
+		return 4, true
+	case "debug", "trace", "verbose":
+		return 5, true
+	default:
+		return 0, false
+	}
 }
 
 func windowsEventMatches(ev logEvent, providers []string, eventIDs []uint64) bool {

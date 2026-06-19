@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"hash/fnv"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -300,13 +301,13 @@ func severityAllowed(level, minSeverity string) bool {
 	}
 	currentRank, ok := severityRank(level)
 	if !ok {
-		return true
+		return false
 	}
 	return currentRank >= minRank
 }
 
 func severityRank(value string) (int, bool) {
-	switch strings.ToLower(strings.TrimSpace(value)) {
+	switch normalizeSeverityString(value) {
 	case "debug", "trace", "verbose":
 		return 1, true
 	case "info", "information", "notice":
@@ -319,6 +320,53 @@ func severityRank(value string) (int, bool) {
 		return 5, true
 	default:
 		return 0, false
+	}
+}
+
+func normalizeSeverityString(value string) string {
+	v := strings.ToLower(strings.TrimSpace(strings.ReplaceAll(value, "\x00", "")))
+	if v == "" {
+		return ""
+	}
+	if n, err := strconv.Atoi(v); err == nil {
+		return severityName(n)
+	}
+	switch v {
+	case "err", "erro":
+		return "error"
+	case "warn", "aviso", "advertencia", "advertência":
+		return "warning"
+	case "crit", "critico", "crítico", "fatal", "panic":
+		return "critical"
+	case "emerg":
+		return "emergency"
+	case "information", "informational", "informacao", "informação", "informacoes", "informações":
+		return "info"
+	default:
+		return v
+	}
+}
+
+func severityName(code int) string {
+	switch code {
+	case 0:
+		return "emergency"
+	case 1:
+		return "alert"
+	case 2:
+		return "critical"
+	case 3:
+		return "error"
+	case 4:
+		return "warning"
+	case 5:
+		return "notice"
+	case 6:
+		return "info"
+	case 7:
+		return "debug"
+	default:
+		return ""
 	}
 }
 

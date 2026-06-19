@@ -44,6 +44,61 @@ func TestCollectorCollectDisabled(t *testing.T) {
 	}
 }
 
+func TestSeverityFilterDropsUnknownWhenMinimumConfigured(t *testing.T) {
+	if !shouldDropLogEvent(logEvent{Message: "regular cron line"}, "", "", "error") {
+		t.Fatalf("expected unknown level to be dropped when min severity is configured")
+	}
+	if shouldDropLogEvent(logEvent{Level: "error", Message: "failed login"}, "", "", "error") {
+		t.Fatalf("expected error level to pass min severity filter")
+	}
+}
+
+func TestCollectorMinSeverityUsesJSONSeverity(t *testing.T) {
+	tmp := t.TempDir()
+	logFile := filepath.Join(tmp, "app.log")
+	content := strings.Join([]string{
+		`{"severity":"info","message":"health ok"}`,
+		`{"severity":"error","message":"payment failed"}`,
+		`{"message":"no level"}`,
+		"",
+	}, "\n")
+	if err := os.WriteFile(logFile, []byte(content), 0o644); err != nil {
+		t.Fatalf("write log file: %v", err)
+	}
+	cfg := config.Config{
+		OSLogFiles:       []string{logFile},
+		OSLogCursorPath:  filepath.Join(tmp, "cursor.json"),
+		OSLogBatchLines:  10,
+		OSLogMaxBytes:    512,
+		OSLogInterval:    time.Second,
+		OSLogMinSeverity: "error",
+	}
+	prefs := func() config.CollectPrefs {
+		return config.CollectPrefs{OSLogFiles: true}
+	}
+	c := New(cfg, prefs)
+	data, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	var payload struct {
+		Events       []map[string]any `json:"events"`
+		DroppedCount int              `json:"dropped_count"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("invalid payload: %v", err)
+	}
+	if len(payload.Events) != 1 {
+		t.Fatalf("expected only error event, got %#v", payload.Events)
+	}
+	if got := payload.Events[0]["level"]; got != "error" {
+		t.Fatalf("expected level error, got %#v", got)
+	}
+	if payload.DroppedCount != 2 {
+		t.Fatalf("expected 2 dropped events, got %d", payload.DroppedCount)
+	}
+}
+
 func TestCollectorCollectsLocalUDPAndTCPLogs(t *testing.T) {
 	cfg := config.Config{
 		OSLogFiles:      []string{filepath.Join(t.TempDir(), "missing.log")},

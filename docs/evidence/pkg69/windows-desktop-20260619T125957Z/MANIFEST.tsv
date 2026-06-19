@@ -1,0 +1,2 @@
+scenario	template	sha256	bytes	artifact	artifact_sha256	artifact_bytes	created_at_utc
+windows-desktop	docs/evidence/pkg69/windows-desktop-20260619T125957Z/evidence.md	d1c6e4123c6d6c26cd2382ca3d58dff35e6277d8ce9ba4a7caf8b476df2af153	1920	docs/evidence/pkg69/windows-desktop-20260619T125957Z/raw/raw-windows-desktop-lowoverhead-20260619T125957Z.zip	03d8b82782fe68247cf7d03ef576fd376e388620b2cc485a8cd3a57cab65f9ae	9112942	20260619T160253Z
