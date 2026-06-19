@@ -1,0 +1,2 @@
+scenario	template	sha256	bytes	artifact	artifact_sha256	artifact_bytes	created_at_utc
+relay-hub-direct-hosts	docs/evidence/pkg69/relay-hub-direct-hosts-20260619T035749Z/evidence.md	a1159f8fd7ec690d73634c61fc99eb8325c13a3be8767246896705431d6affa7	1387	docs/evidence/pkg69/relay-hub-direct-hosts-20260619T035749Z/raw/aiceberg_pkg69_relay_hub_direct_raw_20260619T035635Z.tgz	d0bcd19a30e28ae00cad18aa4aeed78c99fa6ee78433b062ca27afe80b154497	4569	20260619T035749Z
