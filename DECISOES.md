@@ -330,6 +330,14 @@ Referências:
 - Consequencias: clientes com identidade estrita mantêm segurança sem ruído de token/identidade durante self-heal e relato de erro do worker.
 - Rollback: publicar versão anterior do agente e desligar temporariamente `agent_identity_strict_enabled` no cliente afetado se houver regressão operacional.
 
+### DEC-20260620-26 - ACK explícito de configuração aplicada
+
+- Status: aceita
+- Contexto: o backend publicava novas versões de configuração e marcava envio como `sent`, mas o agente `0.8.15` aplicava localmente sem confirmar `/v1/agent/config-report`, deixando a web em `Pendente de ACK` após edições do operador.
+- Decisao: o sync de configuração passa a enviar `config-report` com `status=applied`, versão, hash e mensagem após payload recebido, inclusive quando a versão já estava aplicada localmente. Em falha de persistência local, envia `apply_failed`. O HUB também encaminha `/v1/agent/config-report` para relays preservando autenticação e identidade.
+- Consequencias: a web deixa de depender de inferência visual para confirmar configuração e consegue diferenciar recebido, aplicado e falha real.
+- Rollback: publicar versão anterior do agente; a web continuará exibindo pendência até novo report ou evidência runtime.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

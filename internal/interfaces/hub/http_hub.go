@@ -204,6 +204,7 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 	mux.HandleFunc("/v1/agent/selfheal-report", forwardAgentRequest(cfg, 10*time.Second, http.MethodPost, "/v1/agent/selfheal-report"))
 	mux.HandleFunc("/v1/agent/error-report", forwardAgentRequest(cfg, 10*time.Second, http.MethodPost, "/v1/agent/error-report"))
 	mux.HandleFunc("/v1/agent/update-report", forwardAgentRequest(cfg, 10*time.Second, http.MethodPost, "/v1/agent/update-report"))
+	mux.HandleFunc("/v1/agent/config-report", forwardAgentRequest(cfg, 10*time.Second, http.MethodPost, "/v1/agent/config-report"))
 
 	mux.HandleFunc("/v1/agent/channel", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

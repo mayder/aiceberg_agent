@@ -1,9 +1,15 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -85,8 +91,14 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 		return err
 	}
 
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		uc.recordFailure(err)
+		return err
+	}
+	configHash := hashPayload(body)
 	var payload ConfigPayload
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&payload); err != nil {
 		uc.recordFailure(err)
 		return err
 	}
@@ -100,7 +112,21 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 			"version", version,
 			"err", err,
 		))
+		if reportErr := uc.reportConfigApply(ctx, version, configHash, "apply_failed", err.Error()); reportErr != nil {
+			uc.log.Error(logger.KV("config report failed",
+				"version", version,
+				"status", "apply_failed",
+				"err", reportErr,
+			))
+		}
 		return err
+	}
+	if reportErr := uc.reportConfigApply(ctx, version, configHash, "applied", configApplyMessage(applied)); reportErr != nil {
+		uc.log.Error(logger.KV("config report failed",
+			"version", version,
+			"status", "applied",
+			"err", reportErr,
+		))
 	}
 	if applied {
 		uc.log.Info(logger.KV("config sync ok",
@@ -129,4 +155,61 @@ func (uc *ConfigSync) recordFailure(err error) retry.ErrorKind {
 		"retry_after_ms", delay.Milliseconds(),
 	))
 	return kind
+}
+
+func (uc *ConfigSync) reportConfigApply(ctx context.Context, version string, configHash string, status string, message string) error {
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return nil
+	}
+	body := map[string]any{
+		"status":         status,
+		"config_version": strings.TrimSpace(version),
+		"config_hash":    strings.TrimSpace(configHash),
+		"message":        strings.TrimSpace(message),
+		"ts_unix_ms":     time.Now().UnixMilli(),
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	url := uc.cfg.APIEndpoint("/v1/agent/config-report")
+	if uc.cfg.AgentMode == "relay" && strings.TrimSpace(uc.cfg.HubURL) != "" {
+		url = strings.TrimRight(strings.TrimSpace(uc.cfg.HubURL), "/") + "/v1/agent/config-report"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	httpx.SetAuth(req, uc.cfg)
+	if identityHeader := uc.cfg.AgentIdentityHeader(""); identityHeader != "" {
+		req.Header.Set("X-Agent-Identity", identityHeader)
+	}
+	resp, err := uc.cl.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
+	}
+	return fmt.Errorf("config-report status=%d", resp.StatusCode)
+}
+
+func configApplyMessage(applied bool) string {
+	if applied {
+		return "configuration applied locally"
+	}
+	return "configuration already applied locally"
+}
+
+func hashPayload(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
 }

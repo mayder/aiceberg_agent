@@ -533,6 +533,8 @@ Evidência 2026-06-20:
 - Artefatos `0.8.14`: `./scripts/build_installers.sh` gerou os compactados oficiais; `SHA256SUMS` validou `linux-amd64=9c73d73cba4e3a60bcdfa4e0da53cf4b42decaf3bf3548d44fedc1ff83c9ae78` e `windows-amd64=b490efc744c661b9f93cad700ffb014a9cf61b4695ebd619cc767aed74fc5713`.
 - Correção 2026-06-20: `go test ./internal/data/remote -run 'TestAgentControlClient(FetchSelfHealCommandsDirect|ReportsSendIdentityHeader|ReportSelfHealRelayDoesNotFallbackToAPI)' -count=1 -v` validou que `selfheal-commands`, `selfheal-report` e `error-report` enviam `X-Agent-Identity`, evitando falso alerta de identidade obrigatória em clientes com `agent_identity_strict_enabled=1`; versão runtime atualizada para `0.8.15`.
 - Artefatos `0.8.15`: `./scripts/build_installers.sh` gerou os compactados oficiais; `SHA256SUMS` validou `linux-amd64=9ddfc55a08178747cebc6028347bd407aabb9a67b405c979188958ddf66d75bf` e `windows-amd64=6b014fa9b9fc8ac661e0bdbac652cfc0ed89d5c039e83e473c9a7ac001a9ebf0`.
+- Correção 2026-06-20: `go test ./internal/domain/usecase -run 'TestConfigSync'` validou que o agente confirma `/v1/agent/config-report` com `status=applied`, versão e hash após receber payload de configuração. `go test ./internal/interfaces/hub -run 'TestHubProxyForwardsAgentControlRoutes|TestHubProxyPreservesIdentityForBootstrapConfigAndPing'` validou o forward de `config-report` via HUB preservando token e identidade; versão runtime atualizada para `0.8.16`.
+- Artefatos `0.8.16`: `./scripts/build_installers.sh` gerou os compactados oficiais; `SHA256SUMS` validou `linux-amd64=feb83617fa836a141c6a6c64cd6b174fc2996751bff3527a93461ba7504e6b07` e `windows-amd64=9507a565c71b046d9a6829f545bea94d21c01916739d15956e28007f2b9875d2`.
 
 ## Politica minima de testes
 

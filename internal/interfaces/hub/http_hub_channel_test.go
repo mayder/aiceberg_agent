@@ -214,6 +214,7 @@ func TestHubProxyForwardsAgentControlRoutes(t *testing.T) {
 		{method: http.MethodPost, path: "/v1/agent/selfheal-report", body: `{"command_id":"cmd-1","status":"success"}`},
 		{method: http.MethodPost, path: "/v1/agent/error-report", body: `{"errors":[]}`},
 		{method: http.MethodPost, path: "/v1/agent/update-report", body: `{"status":"precheck_ok"}`},
+		{method: http.MethodPost, path: "/v1/agent/config-report", body: `{"status":"applied","config_version":"111"}`},
 	} {
 		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
 		req.Header.Set("Authorization", "Token relay-token")
@@ -226,8 +227,8 @@ func TestHubProxyForwardsAgentControlRoutes(t *testing.T) {
 		}
 	}
 
-	if len(seen) != 4 {
-		t.Fatalf("expected 4 upstream calls, got %#v", seen)
+	if len(seen) != 5 {
+		t.Fatalf("expected 5 upstream calls, got %#v", seen)
 	}
 	for _, call := range seen {
 		if !strings.Contains(call, "|Token relay-token|relay-identity") {

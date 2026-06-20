@@ -44,8 +44,25 @@ func TestConfigSync_NoContent(t *testing.T) {
 
 func TestConfigSync_AppliesPayload(t *testing.T) {
 	const checksum = "2689367b205c16ce32ca6f3d2f0a21f9923f5f0f68e6f4f7638f353cec3588f3"
+	var configReport struct {
+		Status        string `json:"status"`
+		ConfigVersion string `json:"config_version"`
+		ConfigHash    string `json:"config_hash"`
+		Message       string `json:"message"`
+	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/agent/config" {
+		switch r.URL.Path {
+		case "/v1/agent/config":
+		case "/v1/agent/config-report":
+			if r.Method != http.MethodPost {
+				t.Fatalf("expected POST config-report, got %s", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&configReport); err != nil {
+				t.Fatalf("decode config report: %v", err)
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		default:
 			http.NotFound(w, r)
 			return
 		}
@@ -79,6 +96,15 @@ func TestConfigSync_AppliesPayload(t *testing.T) {
 	}
 	if store.Get().Version != "e2e-1" {
 		t.Fatalf("expected version e2e-1, got %q", store.Get().Version)
+	}
+	if configReport.Status != "applied" {
+		t.Fatalf("expected applied config report, got %#v", configReport)
+	}
+	if configReport.ConfigVersion != "e2e-1" {
+		t.Fatalf("expected config version e2e-1, got %q", configReport.ConfigVersion)
+	}
+	if configReport.ConfigHash == "" {
+		t.Fatalf("expected config hash in report")
 	}
 	select {
 	case got := <-cmd:
