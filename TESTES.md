@@ -523,7 +523,8 @@ Evidência 2026-06-20:
 - `go test ./internal/platform/collectors/logdiscovery` validou contrato, disable remoto, dedupe e redaction.
 - `go test ./internal/bootstrap ./internal/common/config ./internal/data/local/prefs` validou scheduler, config e `collect_now=log_source_discovery`.
 - `go test ./internal/platform/collectors/logdiscovery ./internal/bootstrap` passou após inclusão de systemd/journald, paths ampliados, Kubernetes básico e `useful_for`.
-- Pendência de fechamento: `./check.sh`, geração/publicação da versão nova e validação real de update em Linux/Windows.
+- `go test ./internal/platform/collectors/logdiscovery ./internal/bootstrap ./internal/common/config` validou também sinais controlados de Docker, containerd, Kubernetes token e OTLP sem depender de socket real externo.
+- `./check.sh` passou no repo do agente. Pendência de fechamento: publicação da versão nova e validação real de update em Linux/Windows.
 
 ## Politica minima de testes
 

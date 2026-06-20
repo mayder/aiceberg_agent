@@ -77,6 +77,46 @@ func TestCollectDisabledReturnsNil(t *testing.T) {
 	}
 }
 
+func TestCollectDetectsContainerKubernetesAndOTLPRuntimeSignals(t *testing.T) {
+	dir := t.TempDir()
+	dockerSock := filepath.Join(dir, "docker.sock")
+	containerdSock := filepath.Join(dir, "containerd.sock")
+	kubeToken := filepath.Join(dir, "token")
+	for _, path := range []string{dockerSock, containerdSock, kubeToken} {
+		if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	c := newCollector(config.Config{
+		LogDiscoveryEnabled:       true,
+		ContainerDockerSocket:     dockerSock,
+		ContainerContainerdSocket: containerdSock,
+		KubernetesTokenPath:       kubeToken,
+		OTLPEnabled:               true,
+		OTLPHTTPAddr:              "127.0.0.1:4318",
+	}, nil, nil)
+	c.now = func() time.Time { return time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC) }
+	c.hostname = func() (string, error) { return "runtime-host", nil }
+
+	raw, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]payload
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	body := decoded[schemaVersion]
+	assertCandidateProduct(t, body.Candidates, "docker")
+	assertCandidateProduct(t, body.Candidates, "containerd")
+	assertCandidateProduct(t, body.Candidates, "kubernetes")
+	assertCandidateProduct(t, body.Candidates, "opentelemetry")
+	if body.Capabilities["docker_socket"] != true || body.Capabilities["kubernetes_token"] != true || body.Capabilities["otlp_enabled"] != true {
+		t.Fatalf("unexpected capabilities: %#v", body.Capabilities)
+	}
+}
+
 func TestFingerprintDeduplicatesSuperficialDuplicates(t *testing.T) {
 	row := baseCandidate("log_file", "nginx")
 	row.Path = "/var/log/nginx/error.log"
@@ -102,4 +142,17 @@ func TestSanitizeTextRedactsSecretLikeArguments(t *testing.T) {
 	if got != "worker [redacted] [redacted] [redacted] --safe ok" {
 		t.Fatalf("unexpected redacted value: %q", got)
 	}
+}
+
+func assertCandidateProduct(t *testing.T, rows []Candidate, product string) {
+	t.Helper()
+	for _, row := range rows {
+		if row.Product == product {
+			if row.Fingerprint == "" || row.MinSeverity != "error" || row.RedactionPolicy == "" {
+				t.Fatalf("candidate %s missing governance fields: %#v", product, row)
+			}
+			return
+		}
+	}
+	t.Fatalf("candidate product %q not found in %#v", product, rows)
 }
