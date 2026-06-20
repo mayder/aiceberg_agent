@@ -506,6 +506,18 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 - Validar `aiceberg_transport`, `aiceberg_tool_origin`, `aiceberg_source_category`, `aiceberg_soc_source_type`, `aiceberg_soc_eligible`, `aiceberg_origin_confidence`, `aiceberg_route_reason`, redaction e campos SOC promovidos.
 - Fechamento coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`.
 
+### PKG-74 - Descoberta automática de fontes locais
+
+- Unitario focado previsto: `go test ./internal/platform/collectors/logdiscovery ./internal/platform/collectors/oslogs ./internal/platform/collectors/containers ./internal/platform/collectors/kubernetes ./internal/platform/collectors/otlp ./internal/domain/usecase ./internal/bootstrap`.
+- Contrato: validar `log_source_discovery_v1` com payload completo, payload parcial, agente legado, fingerprint estável, deduplicação e serialização em snapshot/bootstrap.
+- Linux: cobrir Nginx, Apache/httpd, Plesk, journald, auth.log/secure, syslog, app log, PostgreSQL, MySQL/MariaDB, Redis, RabbitMQ/MongoDB quando fixture existir, processo/listener e permissão negada.
+- Windows: cobrir EventLog Security/System/Application, Sysmon quando fixture existir, IIS/W3SVC, SQL Server, serviços Windows, app log, permissão negada e compilação cruzada.
+- Containers/Kubernetes: cobrir Docker/containerd, labels/annotations, path de log, pod/container/namespace, socket/API indisponível e RBAC insuficiente.
+- Segurança: validar redaction de cmdline, env, URL, token, cookie, segredo, Authorization e payload sensível em candidato, snapshot, log local, flare e evidência.
+- Volume: validar `min_severity=error`, descarte local de evento sem nível quando severidade mínima exigir nível conhecido, limites de bytes/eventos, backpressure, sampling e retenção/limpeza local quando aplicável.
+- Remoto: validar aplicação de configuração aprovada assinada/escopada, rejeição/ignorar fonte, rollback, API indisponível, perda de rede, outbox cheia/disco cheio, payload grande e compatibilidade com coletas atuais.
+- Fechamento coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`, com evidência controlada em Linux, Windows, container e Kubernetes antes de marcar 100%.
+
 ## Politica minima de testes
 
 - Unitário: validar regra de negocio, casos de erro e limites sem depender de rede, banco real ou UI.

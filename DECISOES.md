@@ -294,6 +294,17 @@ Referências:
 - Impacto em rollback: desligar logs, remover overrides `aiceberg.*` ou publicar versao anterior do agente.
 - Como reverter: ignorar campos `aiceberg_*` no backend e remover o enriquecimento dos coletores.
 
+### DEC-20260620-22 - PKG-74 descobre candidatos locais sem coletar tudo automaticamente
+
+- Status: aceita
+- Contexto: para POCs e investigação real, o agente precisa encontrar automaticamente IIS, Nginx, Apache, aplicações, bancos, filas, EventLog Security, Linux auth, Docker, Kubernetes, OTLP/APM e dependências locais. Coletar tudo que for encontrado por padrão criaria ruído, risco de segredo e custo de IA.
+- Decisao: criar discovery local read-only, bounded e sanitizado que emite candidatos `log_source_discovery_v1`. O agente calcula evidência, confiança, severidade mínima, volume estimado, risco, utilidade, lacunas e permissões; a coleta ampla só ativa com configuração aprovada, assinada e escopada pelo web.
+- Alternativas consideradas: exigir configuração manual por cliente ou coletar todos os arquivos/canais descobertos automaticamente. A primeira mantém lacuna operacional; a segunda viola governança de custo, segurança e privacidade.
+- Consequencias: o agente passa a alimentar inventário e contexto de IA/NOC/SOC sem depender de Graylog, mas preserva controle humano/operacional para ativação de fonte, severidade `error+`, limites de volume, redaction e rollback.
+- Impacto em testes: fixtures e evidências devem cobrir Linux, Windows, container, Kubernetes, OTLP/APM, permissão negada, segredo, severidade, volume, API indisponível, perda de rede, disco cheio/outbox e rollback.
+- Impacto em rollback: desligar discovery por flag, ignorar `log_source_discovery_v1`, remover fontes aprovadas e manter coletas atuais.
+- Como reverter: remover o coletor de discovery e publicar versão anterior sem afetar `oslogs`, snapshots, outbox ou auto-update.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

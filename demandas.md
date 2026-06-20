@@ -9,6 +9,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 - `PKG-32` Canal operacional bidirecional com agentes
 - `PKG-33` Flush resiliente e backpressure para HUB/Relay
 - `PKG-73` Agente/SOC — taxonomia canônica de origem, campos SOC e roteamento seguro para PKG-54
+- `PKG-74` Agente/Web — descoberta automática de fontes de logs, aplicações e dependências locais
 
 ---
 
@@ -242,6 +243,79 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 ### Rollback
 
 Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar campos `aiceberg_*` no backend ou publicar versão anterior.
+
+---
+
+## [PKG-74] Agente/Web — descoberta automática de fontes de logs, aplicações e dependências locais
+
+**Status** — pacote criado em 20/06/2026 como entrega coordenada com `aiceberg_web`. Não implementado.
+
+**Problema a resolver** — o agente já coleta fontes configuradas e emite taxonomia SOC, mas ainda não inventaria automaticamente tudo que pode ajudar Log/NOC/SOC/APM/troubleshooting no host: IIS, Nginx, Apache, Plesk, aplicações, bancos, filas, containers, Kubernetes, EventLog Security, Linux auth, serviços, portas e dependências. Sem isso, a web não consegue listar fontes candidatas para aprovação e a IA recebe contexto incompleto.
+
+**Objetivo** — implementar descoberta local segura, bounded e read-only de fontes de log, aplicações e dependências, reportando candidatos `log_source_discovery_v1` para o web. O agente deve propor candidatos com evidência, confiança, severidade mínima, risco, volume e permissões, mas a coleta ampla depende de configuração aprovada/remota e assinada pela web.
+
+**Reuso obrigatório** — coletores `oslogs`, `journald`, `containers`, `kubernetes`, `otlp`, `localchecks`, `networkcapture`, snapshot/bootstrap, configuração remota assinada do PKG-68, runtime de plugins/checks do PKG-66, integrações do PKG-71, contexto do PKG-72 e contrato SOC do PKG-73. Não criar runtime paralelo nem shell arbitrário.
+
+**Fora do escopo** — varrer disco inteiro, coletar `debug`/`info` por padrão, ler segredos, executar comandos remotos arbitrários, ativar EDR/NDR/SOAR, alterar banco da web, burlar permissões do sistema operacional ou declarar causa raiz sem evidência.
+
+### Lotes propostos
+
+1) **Contrato e domínio de discovery**
+   - [ ] [exec] criar domínio/contrato `log_source_discovery_v1` com `schema_version`, `agent_id`, `asset_id`, `host`, `os`, `collected_at`, `scan_policy`, `capabilities`, `candidates[]`, `gaps[]` e `redaction_summary`;
+   - [ ] [exec] cada candidato deve expor `fingerprint`, `kind`, `product`, `service_name`, `process_name`, `port`, `listener`, `path`, `channel`, `unit`, `container`, `pod`, `namespace`, `runtime`, `version`, `confidence`, `evidence`, `recommended_category`, `soc_source_type`, `soc_eligible`, `origin_confidence`, `min_severity`, `estimated_volume`, `usefulness_score`, `risk_score`, `permissions_required`, `redaction_policy`, `retention_hint`, `freshness`, `status` e `rollback_ref`;
+   - [ ] [exec] deduplicar candidatos por fingerprint estável;
+   - [ ] [validacao] validar serialização, compatibilidade de snapshot/bootstrap e payload parcial.
+
+2) **Descoberta Linux**
+   - [ ] [exec] descobrir systemd units, processos, listeners e pacotes ligados a `nginx`, `apache/httpd`, `php-fpm`, `tomcat`, `java`, `node`, `python`, `dotnet`, `plesk`, `ssh`, `sudo`, `auth.log/secure`, `journald`, `syslog`, `postgres`, `mysql/mariadb`, `redis`, `rabbitmq`, `mongodb`, filas e aplicações comuns;
+   - [ ] [exec] mapear paths/canais conhecidos sem scan recursivo amplo, com allowlist de diretórios, profundidade, timeout, limite de arquivos, limite de bytes, CPU e I/O;
+   - [ ] [exec] redigir secrets de cmdline/config/env antes de evidência ou flare;
+   - [ ] [validacao] fixtures e host controlado com Nginx/Apache/Plesk/app/banco/rede e permissão negada.
+
+3) **Descoberta Windows**
+   - [ ] [exec] descobrir EventLog `System`, `Application`, `Security`, Sysmon quando existir, IIS/W3SVC, SQL Server, serviços Windows, processos .NET/Java/Node/Python, listeners e paths seguros em `ProgramData`, `inetpub` e logs configuráveis;
+   - [ ] [exec] preferir EventLog/canal estruturado a arquivo bruto quando possível;
+   - [ ] [exec] detectar permissão ausente sem falhar o agente;
+   - [ ] [validacao] cobrir Windows Server e Windows desktop com EventLog Security, IIS e app log.
+
+4) **Containers, Kubernetes, OTLP e APM**
+   - [ ] [exec] descobrir Docker/containerd por socket/permissão, log JSON path, labels, compose/swarm service, imagem, rede, portas e containers sem expor env sensível;
+   - [ ] [exec] descobrir Kubernetes por namespace, pod, container, annotations e endpoints de log quando a permissão do DaemonSet permitir;
+   - [ ] [exec] correlacionar OTLP resource attributes, `service.name`, spans APM e runtime local quando existirem;
+   - [ ] [validacao] cobrir Docker, Kubernetes, permissão negada, OTLP/APM e rollback de config.
+
+5) **Scoring, severidade e proteção de volume**
+   - [ ] [exec] classificar candidatos como `log`, `noc`, `observability`, `soc` ou `conditional`, com `useful_for` para Log/NOC/SOC/APM/troubleshooting;
+   - [ ] [exec] aplicar `min_severity=error` por padrão para logs;
+   - [ ] [exec] descartar localmente evento sem nível quando severidade mínima configurada exigir nível conhecido, salvo override explícito;
+   - [ ] [exec] estimar volume, impor limites de bytes/eventos, backpressure, sampling controlado e limpeza/retenção local quando aplicável;
+   - [ ] [validacao] provar que `info/debug` não seguem para IA por padrão e que segredo não vaza em payload, log local, snapshot ou flare.
+
+6) **Aplicação de configuração aprovada**
+   - [ ] [exec] receber configuração remota assinada/escopada com fontes aprovadas/rejeitadas/ignoradas;
+   - [ ] [exec] ativar coleta somente para candidatos aprovados, mantendo configs atuais compatíveis;
+   - [ ] [exec] registrar versão de config, origem, rollback e status de aplicação;
+   - [ ] [validacao] aprovar fonte, coletar `error+`, rejeitar fonte, fazer rollback, simular API indisponível e perda de rede sem duplicidade.
+
+7) **Evidência e fechamento**
+   - [ ] [validacao] rodar testes focados por coletor e contrato;
+   - [ ] [validacao] rodar `./check.sh`;
+   - [ ] [validacao] gerar bundle controlado com Linux, Windows, Docker, Kubernetes, OTLP/APM, proxy, disco cheio/outbox, payload grande, CPU/mem e agente legado;
+   - [ ] [exec] atualizar docs, testes, decisões e release somente após validação completa.
+
+### Critérios de aceite
+
+- [ ] o agente descobre fontes úteis sem configuração manual inicial e sem scan amplo;
+- [ ] cada candidato tem fingerprint estável, evidência sanitizada, confiança, severidade mínima, volume estimado, risco, utilidade e permissões;
+- [ ] IIS, Nginx, Apache, app, banco, fila, EventLog Security, Linux auth, Docker, Kubernetes e OTLP/APM são detectados quando presentes;
+- [ ] fonte sem permissão ou sem nível vira lacuna, não falso positivo;
+- [ ] coleta padrão respeita `error` ou superior e não envia `info/debug` para IA;
+- [ ] configuração atual, ingestão, snapshots, outbox e auto-update não quebram;
+- [ ] nenhum segredo aparece em payload, log local, snapshot, flare ou evidência.
+
+### Rollback
+
+Desligar discovery por flag local/remota, ignorar `log_source_discovery_v1` no web, remover aprovações de fontes, voltar às coletas configuradas atuais ou publicar versão anterior do agente.
 
 ---
 
