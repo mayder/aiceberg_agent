@@ -249,7 +249,7 @@ Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar
 
 ## [PKG-74] Agente/Web — descoberta automática de fontes de logs, aplicações e dependências locais
 
-**Status** — implementado em código em 20/06/2026 como entrega coordenada com `aiceberg_web`. Testes focados e `./check.sh` executados; fechamento 100% ainda exige geração/publicação da versão nova e validação real externa.
+**Status** — implementado em código em 20/06/2026 como entrega coordenada com `aiceberg_web`. Testes focados e `./check.sh` executados; artefatos `0.8.13` gerados e publicados no web. Fechamento 100% ainda exige validação real externa de update/aplicação.
 
 **Problema a resolver** — o agente já coleta fontes configuradas e emite taxonomia SOC, mas ainda não inventaria automaticamente tudo que pode ajudar Log/NOC/SOC/APM/troubleshooting no host: IIS, Nginx, Apache, Plesk, aplicações, bancos, filas, containers, Kubernetes, EventLog Security, Linux auth, serviços, portas e dependências. Sem isso, a web não consegue listar fontes candidatas para aprovação e a IA recebe contexto incompleto.
 

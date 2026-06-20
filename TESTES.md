@@ -524,7 +524,9 @@ Evidência 2026-06-20:
 - `go test ./internal/bootstrap ./internal/common/config ./internal/data/local/prefs` validou scheduler, config e `collect_now=log_source_discovery`.
 - `go test ./internal/platform/collectors/logdiscovery ./internal/bootstrap` passou após inclusão de systemd/journald, paths ampliados, Kubernetes básico e `useful_for`.
 - `go test ./internal/platform/collectors/logdiscovery ./internal/bootstrap ./internal/common/config` validou também sinais controlados de Docker, containerd, Kubernetes token e OTLP sem depender de socket real externo.
-- `./check.sh` passou no repo do agente. Pendência de fechamento: publicação da versão nova e validação real de update em Linux/Windows.
+- `./check.sh` passou no repo do agente.
+- Artefatos `0.8.13` foram gerados por `./scripts/build_installers.sh`, copiados para `aiceberg_web/cliente/web/downloads/agent/0.8.13/` e publicados em produção; SHA256 HTTP validado para Linux amd64 e Windows amd64.
+- Pendência de fechamento: validação real de update/aplicação em Linux/Windows.
 
 ## Politica minima de testes
 
