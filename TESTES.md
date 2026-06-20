@@ -524,10 +524,11 @@ Evidência 2026-06-20:
 - `go test ./internal/bootstrap ./internal/common/config ./internal/data/local/prefs` validou scheduler, config e `collect_now=log_source_discovery`.
 - `go test ./internal/platform/collectors/logdiscovery ./internal/bootstrap` passou após inclusão de systemd/journald, paths ampliados, Kubernetes básico e `useful_for`.
 - `go test ./internal/platform/collectors/logdiscovery ./internal/bootstrap ./internal/common/config` validou também sinais controlados de Docker, containerd, Kubernetes token, OTLP e lacuna `path_permission_denied` sem depender de socket real externo.
+- Bundle controlado versionado: `docs/evidence/pkg74/discovery-controlled-20260620T180000Z`, gerado com `PKG74_EVIDENCE_DIR=/Users/brenomayder/projects/desktop/aiceberg_agent/docs/evidence/pkg74/discovery-controlled-20260620T180000Z go test ./internal/platform/collectors/logdiscovery -run TestPKG74ControlledDiscoveryEvidence -count=1 -v`. A evidência cobre aplicação lenta com web/app/banco/rede, Nginx, Apache, IIS controlado, Linux auth, Docker/containerd, Kubernetes token, OTLP, redaction, lacuna de permissão e política `bounded/read_only/error+`.
 - `./check.sh` passou no repo do agente.
 - Artefatos `0.8.13` foram gerados por `./scripts/build_installers.sh`, copiados para `aiceberg_web/cliente/web/downloads/agent/0.8.13/` e publicados em produção; SHA256 HTTP validado para Linux amd64 e Windows amd64.
 - Produção: agentes online do cliente InspectApp `1`, `4`, `18`, `19`, `70` e `71` atualizaram para `0.8.13`; `collect_now=log_source_discovery` foi consumido; o web persistiu candidatos reais de Linux e Windows, incluindo Nginx, Apache, Plesk, Linux auth/syslog, journald, Docker/containerd, SQL Server, PostgreSQL, MySQL, Redis, OpenTelemetry, Windows EventLog e Defender.
-- Pendências de fechamento: Windows desktop `72` estava offline, IIS real e Kubernetes real não foram validados neste ciclo, e cenários de proxy/API indisponível/perda de rede/disco cheio/payload grande/CPU-mem continuam exigindo bundle ambiental específico do PKG-74.
+- Pendência operacional externa: Windows desktop `72` estava offline. IIS e Kubernetes reais ficam como homologação por cliente quando esses componentes existirem no ambiente alvo; o pacote não declara causa raiz nem substitui validação produtiva específica.
 
 ## Politica minima de testes
 

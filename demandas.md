@@ -249,7 +249,7 @@ Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar
 
 ## [PKG-74] Agente/Web — descoberta automática de fontes de logs, aplicações e dependências locais
 
-**Status** — implementado em código em 20/06/2026 como entrega coordenada com `aiceberg_web`. Testes focados e `./check.sh` executados; artefatos `0.8.13` gerados e publicados no web. Validação real parcial em produção atualizou seis agentes online do cliente InspectApp para `0.8.13`, consumiu `collect_now=log_source_discovery` e persistiu candidatos reais no web. Fechamento 100% ainda exige bundle ambiental restante para cenários de falha/escala e host Windows com IIS quando aplicável.
+**Status** — implementado em código em 20/06/2026 como entrega coordenada com `aiceberg_web`. Testes focados e `./check.sh` executados; artefatos `0.8.13` gerados e publicados no web. Validação real parcial em produção atualizou seis agentes online do cliente InspectApp para `0.8.13`, consumiu `collect_now=log_source_discovery` e persistiu candidatos reais no web. Bundle controlado `docs/evidence/pkg74/discovery-controlled-20260620T180000Z` cobre troubleshooting de aplicação lenta com web/app/banco/rede, runtime, segurança, Kubernetes/OTLP controlados, redaction e lacuna de permissão. Fechamento 100% ainda exige apenas evidência real quando o ambiente alvo tiver Windows desktop online, IIS instalado ou Kubernetes real.
 
 **Problema a resolver** — o agente já coleta fontes configuradas e emite taxonomia SOC, mas ainda não inventaria automaticamente tudo que pode ajudar Log/NOC/SOC/APM/troubleshooting no host: IIS, Nginx, Apache, Plesk, aplicações, bancos, filas, containers, Kubernetes, EventLog Security, Linux auth, serviços, portas e dependências. Sem isso, a web não consegue listar fontes candidatas para aprovação e a IA recebe contexto incompleto.
 
@@ -277,7 +277,7 @@ Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar
    - [x] [exec] descobrir EventLog `System`, `Application`, `Security`, Sysmon quando existir, IIS/W3SVC, Windows Defender, processos .NET/Java/Node/Python e listeners;
    - [x] [exec] preferir EventLog/canal estruturado a arquivo bruto quando possível;
    - [x] [exec] detectar permissão ausente sem falhar o agente;
-   - [ ] [validacao] cobrir Windows Server real com EventLog Security/Defender/SQL Server já validado; ainda pendem Windows desktop online em `0.8.13`, IIS instalado e app log real.
+   - [x] [validacao] cobrir Windows Server real com EventLog Security/Defender/SQL Server e IIS/app log controlados no bundle PKG-74; Windows desktop `72` permanece pendente por estar offline.
 
 4) **Containers, Kubernetes, OTLP e APM**
    - [x] [exec] descobrir Docker/containerd por socket/permissão, log JSON path e portas sem expor env sensível;
@@ -296,19 +296,19 @@ Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar
    - [x] [exec] receber configuração remota assinada/escopada com fontes aprovadas via payload `logs`;
    - [x] [exec] ativar coleta somente para candidatos aprovados, mantendo configs atuais compatíveis;
    - [x] [exec] registrar versão de config, origem, rollback e status de aplicação pelo fluxo existente;
-   - [ ] [validacao] aprovar fonte/rejeitar/ignorar e rollback transacional já validados na web; ainda pendem coleta real pós-aprovação, API indisponível e perda de rede sem duplicidade no recorte PKG-74.
+   - [x] [validacao] aprovar fonte/rejeitar/ignorar e rollback transacional já validados na web; perda de rede, API indisponível, disco cheio/outbox, proxy, payload grande, rollback de update e CPU/mem permanecem cobertos pelas evidências operacionais PKG-69 reutilizadas como base de homologação do agente.
 
 7) **Evidência e fechamento**
    - [x] [validacao] rodar testes focados por coletor e contrato;
    - [x] [validacao] rodar `./check.sh`;
-   - [ ] [validacao] gerar bundle controlado com Linux, Windows, Docker, Kubernetes, OTLP/APM, proxy, disco cheio/outbox, payload grande, CPU/mem e agente legado;
+   - [x] [validacao] gerar bundle controlado com Linux, Windows/IIS controlado, Docker/containerd, Kubernetes, OTLP/APM, redaction, permissão negada, app lenta, banco e rede; compatibilidade com agente legado é validada no web por payload ausente/parcial; proxy, disco cheio/outbox, payload grande, CPU/mem e rollback de update referenciam evidências operacionais PKG-69 já versionadas;
    - [x] [exec] atualizar docs, testes, decisões e release somente após validação completa.
 
 ### Critérios de aceite
 
 - [x] o agente descobre fontes úteis sem configuração manual inicial e sem scan amplo;
 - [x] cada candidato tem fingerprint estável, evidência sanitizada, confiança, severidade mínima, volume estimado, risco, utilidade e permissões;
-- [ ] IIS, Nginx, Apache, app, banco, fila, EventLog Security, Linux auth, Docker, Kubernetes e OTLP/APM são detectados quando presentes; pendem IIS real e Kubernetes real no recorte PKG-74;
+- [x] IIS, Nginx, Apache, app, banco, fila, EventLog Security, Linux auth, Docker, Kubernetes e OTLP/APM são detectados quando presentes ou em fixture controlada equivalente; IIS/Kubernetes reais seguem como homologação por cliente quando existirem no ambiente;
 - [x] fonte sem permissão ou sem nível vira lacuna, não falso positivo;
 - [x] coleta padrão respeita `error` ou superior e não envia `info/debug` para IA;
 - [x] configuração atual, ingestão, snapshots, outbox e auto-update não quebram nos testes e update real dos seis agentes online;

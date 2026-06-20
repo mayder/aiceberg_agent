@@ -1,0 +1,2 @@
+scenario	evidence_path	evidence_sha256	evidence_bytes	raw_path	raw_sha256	raw_bytes	created_at_utc
+pkg74-discovery-controlled	docs/evidence/pkg74/discovery-controlled-20260620T180000Z/evidence.md	67a6faf81500666e4cd5f483bdc1cd7084ffda93a8b41e261779e8ead1a06105	971	docs/evidence/pkg74/discovery-controlled-20260620T180000Z/raw/pkg74-discovery-controlled-raw.tgz	c4e926a1ad574e859b0346616103c777df62babfc93dd28474714007e8427296	3488	20260620T180000Z
