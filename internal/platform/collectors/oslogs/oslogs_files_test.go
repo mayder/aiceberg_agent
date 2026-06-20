@@ -45,6 +45,62 @@ func TestCollectorCollectDisabled(t *testing.T) {
 	}
 }
 
+func TestCollectorDiagNoNewEventsDoesNotReturnError(t *testing.T) {
+	tmp := t.TempDir()
+	logFile := filepath.Join(tmp, "sys.log")
+	if err := os.WriteFile(logFile, []byte("Jun 20 10:00:00 host app[1]: first error\n"), 0o644); err != nil {
+		t.Fatalf("write log file: %v", err)
+	}
+	cfg := config.Config{
+		OSLogFiles:      []string{logFile},
+		OSLogCursorPath: filepath.Join(tmp, "cursor.json"),
+		OSLogBatchLines: 10,
+		OSLogMaxBytes:   256,
+		OSLogInterval:   time.Second,
+		OSLogDiag:       true,
+	}
+	prefs := func() config.CollectPrefs {
+		return config.CollectPrefs{OSLogFiles: true, OSLogDiag: true}
+	}
+	c := New(cfg, prefs)
+
+	first, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("first collect: %v", err)
+	}
+	if first == nil {
+		t.Fatalf("expected first payload")
+	}
+	second, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("expected no diagnostic error for no new events, got %v", err)
+	}
+	if second != nil {
+		t.Fatalf("expected nil payload for no new events, got %s", string(second))
+	}
+}
+
+func TestCollectorDiagMissingFileStillReturnsError(t *testing.T) {
+	tmp := t.TempDir()
+	missingFile := filepath.Join(tmp, "missing.log")
+	cfg := config.Config{
+		OSLogFiles:      []string{missingFile},
+		OSLogCursorPath: filepath.Join(tmp, "cursor.json"),
+		OSLogBatchLines: 10,
+		OSLogMaxBytes:   256,
+		OSLogInterval:   time.Second,
+		OSLogDiag:       true,
+	}
+	prefs := func() config.CollectPrefs {
+		return config.CollectPrefs{OSLogFiles: true, OSLogDiag: true}
+	}
+	c := New(cfg, prefs)
+
+	if _, err := c.Collect(context.Background()); err == nil {
+		t.Fatalf("expected diagnostic error for missing file")
+	}
+}
+
 func TestSeverityFilterDropsUnknownWhenMinimumConfigured(t *testing.T) {
 	if !shouldDropLogEvent(logEvent{Message: "regular cron line"}, "", "", "error") {
 		t.Fatalf("expected unknown level to be dropped when min severity is configured")

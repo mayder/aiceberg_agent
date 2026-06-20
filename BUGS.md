@@ -43,7 +43,44 @@ Registro oficial de bugs conhecidos, reprodução, impacto, correção e reteste
 
 ## Organização
 
-Ainda não há bugs registrados.
+## [BUG-20260620-01] Coleta vazia de oslogs era tratada como erro e podia virar log bruto
+
+Status: corrigido
+Severidade: Alta
+Área: Coleta de logs
+Módulo: `internal/platform/collectors/oslogs`
+Pacote relacionado: PKG-60, PKG-73, PKG-74
+Tela relacionada: Detalhe de log no web
+Data: 2026-06-20
+
+Reprodução:
+- Habilitar `OSLOG_DIAG=true` em agente Windows com `OSLOG_WIN_CHANNELS=System,Application,Security`.
+- Rodar coleta quando não há evento novo após o cursor.
+- O agente registrava `collect failed collector=oslogs err=oslogs: nenhum evento lido...`; em alguns ambientes essa mensagem podia ser capturada e enviada como log bruto.
+
+Esperado:
+- Ausência de evento novo deve ser coleta vazia, sem erro e sem persistir log para IA.
+
+Observado:
+- O coletor retornava erro diagnóstico mesmo sem falha real de canal/permissão.
+
+Causa provável:
+- `oslogs` adicionava `nenhum evento lido` em `c.errors` com diagnóstico ativo e retornava `formatDiagError` quando não havia eventos.
+
+Hipóteses alternativas:
+- Falha real de `wevtutil`, permissão ou arquivo inexistente deve continuar sendo erro diagnóstico.
+- Backend pode receber o padrão de agentes antigos até todos atualizarem.
+
+Correção:
+- Windows: remover `nenhum evento lido do canal` da lista de erros e retornar `nil` quando não houver evento novo nem falha real.
+- Linux/POSIX: retornar `nil` quando não houver evento novo mesmo com diagnóstico ativo; manter erro para arquivo ausente/permissão/falha real.
+- Web: filtrar defensivamente `collect failed|collect empty collector=oslogs` em `/v1/logs/raw`.
+
+Critério de fechamento:
+- `go test ./internal/platform/collectors/oslogs` passa.
+- `php -l api/modules/v1/controllers/LogsController.php` passa no web.
+- `./check.sh` passa nos dois repositórios.
+- Agente atualizado não gera novo log bruto apenas por ausência de eventos.
 
 ## Modelo para novos registros
 

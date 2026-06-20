@@ -171,9 +171,6 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 		}
 		last := c.cursor[ch]
 		events := c.fetchChannel(ctx, ch, last, c.batchLines-len(out), hostname)
-		if len(events) == 0 && c.diag {
-			c.errors = append(c.errors, "nenhum evento lido do canal "+ch)
-		}
 		if len(events) > 0 {
 			if c.detect {
 				for i := range events {
@@ -204,9 +201,6 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 	if len(out) == 0 && droppedCount == 0 {
 		if c.diag && len(c.errors) > 0 {
 			return nil, formatDiagError(c.errors)
-		}
-		if c.diag {
-			return nil, formatDiagError([]string{"nenhum evento lido; verifique OSLOG_WIN_CHANNELS e permissões (wevtutil)"})
 		}
 		return nil, nil
 	}

@@ -218,9 +218,6 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		if c.diag && len(c.errors) > 0 {
 			return nil, formatDiagError(c.errors)
 		}
-		if c.diag {
-			return nil, formatDiagError([]string{"nenhum evento lido; verifique OSLOG_FILES, existência e permissões"})
-		}
 		return nil, nil
 	}
 	_ = saveCursor(c.cursorPath, c.cursor)
