@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -114,6 +115,52 @@ func TestCollectDetectsContainerKubernetesAndOTLPRuntimeSignals(t *testing.T) {
 	assertCandidateProduct(t, body.Candidates, "opentelemetry")
 	if body.Capabilities["docker_socket"] != true || body.Capabilities["kubernetes_token"] != true || body.Capabilities["otlp_enabled"] != true {
 		t.Fatalf("unexpected capabilities: %#v", body.Capabilities)
+	}
+}
+
+func TestCollectReportsPermissionGapForInaccessiblePath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod permission fixture is POSIX-only")
+	}
+	dir := t.TempDir()
+	blockedDir := filepath.Join(dir, "blocked")
+	if err := os.Mkdir(blockedDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	logPath := filepath.Join(blockedDir, "error.log")
+	if err := os.WriteFile(logPath, []byte("error\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(blockedDir, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.Chmod(blockedDir, 0o700)
+	}()
+
+	c := newCollector(config.Config{LogDiscoveryEnabled: true}, nil, []knownPath{{
+		Path:                logPath,
+		Kind:                "log_file",
+		Product:             "nginx",
+		ServiceName:         "nginx",
+		RecommendedCategory: "observability",
+		SOCSourceType:       "none",
+		SOCEligible:         "conditional",
+	}})
+	raw, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]payload
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	body := decoded[schemaVersion]
+	if len(body.Gaps) == 0 {
+		t.Skip("filesystem allowed stat despite blocked directory")
+	}
+	if body.Gaps[0].Code != "path_permission_denied" || body.Gaps[0].Scope != logPath {
+		t.Fatalf("unexpected permission gap: %#v", body.Gaps)
 	}
 }
 

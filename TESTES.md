@@ -523,10 +523,11 @@ Evidência 2026-06-20:
 - `go test ./internal/platform/collectors/logdiscovery` validou contrato, disable remoto, dedupe e redaction.
 - `go test ./internal/bootstrap ./internal/common/config ./internal/data/local/prefs` validou scheduler, config e `collect_now=log_source_discovery`.
 - `go test ./internal/platform/collectors/logdiscovery ./internal/bootstrap` passou após inclusão de systemd/journald, paths ampliados, Kubernetes básico e `useful_for`.
-- `go test ./internal/platform/collectors/logdiscovery ./internal/bootstrap ./internal/common/config` validou também sinais controlados de Docker, containerd, Kubernetes token e OTLP sem depender de socket real externo.
+- `go test ./internal/platform/collectors/logdiscovery ./internal/bootstrap ./internal/common/config` validou também sinais controlados de Docker, containerd, Kubernetes token, OTLP e lacuna `path_permission_denied` sem depender de socket real externo.
 - `./check.sh` passou no repo do agente.
 - Artefatos `0.8.13` foram gerados por `./scripts/build_installers.sh`, copiados para `aiceberg_web/cliente/web/downloads/agent/0.8.13/` e publicados em produção; SHA256 HTTP validado para Linux amd64 e Windows amd64.
-- Pendência de fechamento: validação real de update/aplicação em Linux/Windows.
+- Produção: agentes online do cliente InspectApp `1`, `4`, `18`, `19`, `70` e `71` atualizaram para `0.8.13`; `collect_now=log_source_discovery` foi consumido; o web persistiu candidatos reais de Linux e Windows, incluindo Nginx, Apache, Plesk, Linux auth/syslog, journald, Docker/containerd, SQL Server, PostgreSQL, MySQL, Redis, OpenTelemetry, Windows EventLog e Defender.
+- Pendências de fechamento: Windows desktop `72` estava offline, IIS real e Kubernetes real não foram validados neste ciclo, e cenários de proxy/API indisponível/perda de rede/disco cheio/payload grande/CPU-mem continuam exigindo bundle ambiental específico do PKG-74.
 
 ## Politica minima de testes
 

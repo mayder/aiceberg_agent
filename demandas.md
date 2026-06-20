@@ -249,7 +249,7 @@ Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar
 
 ## [PKG-74] Agente/Web — descoberta automática de fontes de logs, aplicações e dependências locais
 
-**Status** — implementado em código em 20/06/2026 como entrega coordenada com `aiceberg_web`. Testes focados e `./check.sh` executados; artefatos `0.8.13` gerados e publicados no web. Fechamento 100% ainda exige validação real externa de update/aplicação.
+**Status** — implementado em código em 20/06/2026 como entrega coordenada com `aiceberg_web`. Testes focados e `./check.sh` executados; artefatos `0.8.13` gerados e publicados no web. Validação real parcial em produção atualizou seis agentes online do cliente InspectApp para `0.8.13`, consumiu `collect_now=log_source_discovery` e persistiu candidatos reais no web. Fechamento 100% ainda exige bundle ambiental restante para cenários de falha/escala e host Windows com IIS quando aplicável.
 
 **Problema a resolver** — o agente já coleta fontes configuradas e emite taxonomia SOC, mas ainda não inventaria automaticamente tudo que pode ajudar Log/NOC/SOC/APM/troubleshooting no host: IIS, Nginx, Apache, Plesk, aplicações, bancos, filas, containers, Kubernetes, EventLog Security, Linux auth, serviços, portas e dependências. Sem isso, a web não consegue listar fontes candidatas para aprovação e a IA recebe contexto incompleto.
 
@@ -271,19 +271,19 @@ Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar
    - [x] [exec] descobrir systemd units, processos, listeners e paths ligados a `nginx`, `apache/httpd`, `php-fpm`, `tomcat`, `java`, `node`, `python`, `dotnet`, `plesk`, `ssh`, `auth.log/secure`, `journald`, `syslog`, `postgres`, `mysql/mariadb`, `redis`, `rabbitmq`, `mongodb`, filas e aplicações comuns;
    - [x] [exec] mapear paths/canais conhecidos sem scan recursivo amplo, com allowlist de diretórios, limite de candidatos e permissões;
    - [x] [exec] redigir secrets de cmdline antes de evidência ou flare;
-   - [ ] [validacao] fixtures e host controlado com Nginx/Apache/Plesk/app/banco/rede e permissão negada.
+   - [x] [validacao] fixtures/testes e hosts reais cobriram Nginx/Apache/Plesk/app/banco/rede; permissão negada coberta por teste controlado `path_permission_denied`.
 
 3) **Descoberta Windows**
    - [x] [exec] descobrir EventLog `System`, `Application`, `Security`, Sysmon quando existir, IIS/W3SVC, Windows Defender, processos .NET/Java/Node/Python e listeners;
    - [x] [exec] preferir EventLog/canal estruturado a arquivo bruto quando possível;
    - [x] [exec] detectar permissão ausente sem falhar o agente;
-   - [ ] [validacao] cobrir Windows Server e Windows desktop com EventLog Security, IIS e app log.
+   - [ ] [validacao] cobrir Windows Server real com EventLog Security/Defender/SQL Server já validado; ainda pendem Windows desktop online em `0.8.13`, IIS instalado e app log real.
 
 4) **Containers, Kubernetes, OTLP e APM**
    - [x] [exec] descobrir Docker/containerd por socket/permissão, log JSON path e portas sem expor env sensível;
    - [x] [exec] descobrir Kubernetes por namespace/pod quando rodando em cluster;
    - [x] [exec] correlacionar OTLP configurado e runtime local quando existirem;
-   - [ ] [validacao] cobrir Docker, Kubernetes, permissão negada, OTLP/APM e rollback de config.
+   - [x] [validacao] cobrir Docker/containerd real, Kubernetes/OTLP controlados, permissão negada controlada e rollback transacional de config na web.
 
 5) **Scoring, severidade e proteção de volume**
    - [x] [exec] classificar candidatos como `log`, `noc`, `observability`, `soc` ou `conditional`, com `useful_for` para Log/NOC/SOC/troubleshooting;
@@ -296,7 +296,7 @@ Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar
    - [x] [exec] receber configuração remota assinada/escopada com fontes aprovadas via payload `logs`;
    - [x] [exec] ativar coleta somente para candidatos aprovados, mantendo configs atuais compatíveis;
    - [x] [exec] registrar versão de config, origem, rollback e status de aplicação pelo fluxo existente;
-   - [ ] [validacao] aprovar fonte, coletar `error+`, rejeitar fonte, fazer rollback, simular API indisponível e perda de rede sem duplicidade.
+   - [ ] [validacao] aprovar fonte/rejeitar/ignorar e rollback transacional já validados na web; ainda pendem coleta real pós-aprovação, API indisponível e perda de rede sem duplicidade no recorte PKG-74.
 
 7) **Evidência e fechamento**
    - [x] [validacao] rodar testes focados por coletor e contrato;
@@ -306,13 +306,13 @@ Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar
 
 ### Critérios de aceite
 
-- [ ] o agente descobre fontes úteis sem configuração manual inicial e sem scan amplo;
-- [ ] cada candidato tem fingerprint estável, evidência sanitizada, confiança, severidade mínima, volume estimado, risco, utilidade e permissões;
-- [ ] IIS, Nginx, Apache, app, banco, fila, EventLog Security, Linux auth, Docker, Kubernetes e OTLP/APM são detectados quando presentes;
-- [ ] fonte sem permissão ou sem nível vira lacuna, não falso positivo;
-- [ ] coleta padrão respeita `error` ou superior e não envia `info/debug` para IA;
-- [ ] configuração atual, ingestão, snapshots, outbox e auto-update não quebram;
-- [ ] nenhum segredo aparece em payload, log local, snapshot, flare ou evidência.
+- [x] o agente descobre fontes úteis sem configuração manual inicial e sem scan amplo;
+- [x] cada candidato tem fingerprint estável, evidência sanitizada, confiança, severidade mínima, volume estimado, risco, utilidade e permissões;
+- [ ] IIS, Nginx, Apache, app, banco, fila, EventLog Security, Linux auth, Docker, Kubernetes e OTLP/APM são detectados quando presentes; pendem IIS real e Kubernetes real no recorte PKG-74;
+- [x] fonte sem permissão ou sem nível vira lacuna, não falso positivo;
+- [x] coleta padrão respeita `error` ou superior e não envia `info/debug` para IA;
+- [x] configuração atual, ingestão, snapshots, outbox e auto-update não quebram nos testes e update real dos seis agentes online;
+- [x] nenhum segredo aparece em payload, log local, snapshot, flare ou evidência.
 
 ### Rollback
 
@@ -335,7 +335,7 @@ Desligar discovery por flag local/remota, ignorar `log_source_discovery_v1` no w
 2) **Compatibilidade e rollback**
    - [x] [exec] não alterar contrato legado de `/v1/logs/raw`;
    - [x] [exec] permitir desligar discovery por `LOG_DISCOVERY_ENABLED=false` ou configuração remota;
-   - [ ] [validacao] validar update real para a versão nova em Linux e Windows.
+   - [x] [validacao] validar update real para a versão nova em Linux e Windows: agentes Linux `1`, `4`, `18`, `19`, `70` e Windows `71` chegaram em `0.8.13`; desktop `72` permanece offline com payload Windows pendente.
 
 ---
 
