@@ -518,6 +518,13 @@ Cada projeto deve adaptar o comando ao ecossistema real.
 - Remoto: validar aplicação de configuração aprovada assinada/escopada, rejeição/ignorar fonte, rollback, API indisponível, perda de rede, outbox cheia/disco cheio, payload grande e compatibilidade com coletas atuais.
 - Fechamento coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`, com evidência controlada em Linux, Windows, container e Kubernetes antes de marcar 100%.
 
+Evidência 2026-06-20:
+
+- `go test ./internal/platform/collectors/logdiscovery` validou contrato, disable remoto, dedupe e redaction.
+- `go test ./internal/bootstrap ./internal/common/config ./internal/data/local/prefs` validou scheduler, config e `collect_now=log_source_discovery`.
+- `go test ./internal/platform/collectors/logdiscovery ./internal/bootstrap` passou após inclusão de systemd/journald, paths ampliados, Kubernetes básico e `useful_for`.
+- Pendência de fechamento: `./check.sh`, geração/publicação da versão nova e validação real de update em Linux/Windows.
+
 ## Politica minima de testes
 
 - Unitário: validar regra de negocio, casos de erro e limites sem depender de rede, banco real ou UI.

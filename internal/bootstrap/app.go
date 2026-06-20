@@ -45,6 +45,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/platform/collectors/custommetrics"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/kubernetes"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/localchecks"
+	"github.com/you/aiceberg_agent/internal/platform/collectors/logdiscovery"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/networkcapture"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/oslogs"
 	"github.com/you/aiceberg_agent/internal/platform/collectors/otlp"
@@ -143,6 +144,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	containersUC := usecase.NewCollectAndBufferWithIdentity(containers.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
 	kubernetesUC := usecase.NewCollectAndBufferWithIdentity(kubernetes.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
 	localChecksUC := usecase.NewCollectAndBufferWithIdentity(localchecks.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
+	logDiscoveryUC := usecase.NewCollectAndBufferWithIdentity(logdiscovery.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
 	otlpReceiver := otlp.NewReceiver(cfg, prefStore.Get)
 	otlpMetricsUC := usecase.NewCollectAndBufferWithIdentity(otlpReceiver.MetricsCollector(), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
 	otlpTracesUC := usecase.NewCollectAndBufferWithIdentity(otlpReceiver.TracesCollector(), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
@@ -451,6 +453,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var tContainers *time.Ticker
 	var tKubernetes *time.Ticker
 	var tLocalChecks *time.Ticker
+	var tLogDiscovery *time.Ticker
 	var tAgentlessTick *time.Ticker
 	var tSelfHeal *time.Ticker
 	tPing = time.NewTicker(cfg.PingInterval)
@@ -463,6 +466,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	tContainers = time.NewTicker(cfg.ContainerInterval)
 	tKubernetes = time.NewTicker(cfg.KubernetesInterval)
 	tLocalChecks = time.NewTicker(cfg.LocalChecksInterval)
+	tLogDiscovery = time.NewTicker(cfg.LogDiscoveryInterval)
 	if agentlessUC != nil {
 		tAgentlessTick = time.NewTicker(5 * time.Second)
 	}
@@ -494,6 +498,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	}
 	if tLocalChecks != nil {
 		defer tLocalChecks.Stop()
+	}
+	if tLogDiscovery != nil {
+		defer tLogDiscovery.Stop()
 	}
 	if tAgentlessTick != nil {
 		defer tAgentlessTick.Stop()
@@ -723,6 +730,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			"route": bootstrapEndpoint,
 		})
 	}
+	if err := logDiscoveryUC.Execute(ctx); err != nil {
+		reportWorkerError(ctx, "collect_log_source_discovery_failed", "warning", "open", err, map[string]any{
+			"route": metricsEndpoint,
+		})
+	}
 
 	for {
 		select {
@@ -774,6 +786,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			if err := localChecksUC.Execute(ctx); err != nil {
 				counters.collectErr.Add(1)
 				reportWorkerError(ctx, "collect_local_checks_failed", "warning", "open", err, map[string]any{"route": metricsEndpoint})
+			}
+		case <-readTick(tLogDiscovery):
+			if err := logDiscoveryUC.Execute(ctx); err != nil {
+				counters.collectErr.Add(1)
+				reportWorkerError(ctx, "collect_log_source_discovery_failed", "warning", "open", err, map[string]any{"route": metricsEndpoint})
 			}
 		case <-tHealth.C:
 			if err := healthUC.Execute(ctx); err != nil {
@@ -870,6 +887,18 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				if err != nil {
 					reportControlCollectError(ctx, cmd, "network_capture", err)
 					reportWorkerError(ctx, "collect_network_capture_failed", "warning", "open", err, map[string]any{
+						"source": "command",
+						"name":   cmd.Name,
+					})
+				} else {
+					reportControlCollectResult(ctx, cmd, result)
+				}
+			case "log_source_discovery":
+				reportControlCollectProgress(ctx, cmd, "running", "log_source_discovery", nil)
+				result, err := logDiscoveryUC.ExecuteDetailed(ctx)
+				if err != nil {
+					reportControlCollectError(ctx, cmd, "log_source_discovery", err)
+					reportWorkerError(ctx, "collect_log_source_discovery_failed", "warning", "open", err, map[string]any{
 						"source": "command",
 						"name":   cmd.Name,
 					})
@@ -1434,11 +1463,12 @@ func channelEnvelopeCollectNow(env channel.Envelope) []string {
 		raw = env.Payload["collect"]
 	}
 	allowed := map[string]struct{}{
-		"inventory":       {},
-		"health":          {},
-		"bootstrap":       {},
-		"agentless":       {},
-		"network_capture": {},
+		"inventory":            {},
+		"health":               {},
+		"bootstrap":            {},
+		"agentless":            {},
+		"network_capture":      {},
+		"log_source_discovery": {},
 	}
 	out := []string{}
 	appendName := func(value string) {

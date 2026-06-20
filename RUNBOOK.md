@@ -79,6 +79,25 @@ A matriz operacional fica no repo web em:
 /Users/brenomayder/projects/web/public/aiceberg_web/docs/agente_datadog_paridade.md
 ```
 
+## Descoberta automática de fontes locais
+
+Variáveis locais:
+
+```bash
+LOG_DISCOVERY_ENABLED=true
+LOG_DISCOVERY_INTERVAL=300
+LOG_DISCOVERY_MAX_CANDIDATES=200
+LOG_DISCOVERY_MAX_EVIDENCE_BYTES=2048
+```
+
+Operação:
+
+1. O coletor `log_source_discovery` envia `log_source_discovery_v1` em `/v1/ingest/metrics`.
+2. O comando remoto `collect_now=log_source_discovery` força uma nova varredura bounded/read-only.
+3. O agente descobre EventLog/Windows Defender/IIS, journald/systemd, Nginx, Apache, Plesk, Linux auth, bancos, filas, Docker/containerd, Kubernetes básico, OTLP e processos/listeners conhecidos.
+4. A descoberta não ativa coleta ampla. A web precisa aprovar a fonte e devolver configuração em `logs.win_channels` ou `logs.files`.
+5. Rollback: `LOG_DISCOVERY_ENABLED=false`, remover a fonte aprovada da configuração remota ou publicar versão anterior.
+
 O inventario tecnico local fica em:
 
 ```txt

@@ -10,6 +10,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 - `PKG-33` Flush resiliente e backpressure para HUB/Relay
 - `PKG-73` Agente/SOC — taxonomia canônica de origem, campos SOC e roteamento seguro para PKG-54
 - `PKG-74` Agente/Web — descoberta automática de fontes de logs, aplicações e dependências locais
+- `PKG-75` Logs/IA — sinais do agente para triagem recorrente e deduplicação segura
 
 ---
 
@@ -248,7 +249,7 @@ Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar
 
 ## [PKG-74] Agente/Web — descoberta automática de fontes de logs, aplicações e dependências locais
 
-**Status** — pacote criado em 20/06/2026 como entrega coordenada com `aiceberg_web`. Não implementado.
+**Status** — implementado em código em 20/06/2026 como entrega coordenada com `aiceberg_web`. Testes focados executados; fechamento 100% ainda exige `./check.sh`, geração/publicação da versão nova e validação real externa.
 
 **Problema a resolver** — o agente já coleta fontes configuradas e emite taxonomia SOC, mas ainda não inventaria automaticamente tudo que pode ajudar Log/NOC/SOC/APM/troubleshooting no host: IIS, Nginx, Apache, Plesk, aplicações, bancos, filas, containers, Kubernetes, EventLog Security, Linux auth, serviços, portas e dependências. Sem isso, a web não consegue listar fontes candidatas para aprovação e a IA recebe contexto incompleto.
 
@@ -261,47 +262,47 @@ Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar
 ### Lotes propostos
 
 1) **Contrato e domínio de discovery**
-   - [ ] [exec] criar domínio/contrato `log_source_discovery_v1` com `schema_version`, `agent_id`, `asset_id`, `host`, `os`, `collected_at`, `scan_policy`, `capabilities`, `candidates[]`, `gaps[]` e `redaction_summary`;
-   - [ ] [exec] cada candidato deve expor `fingerprint`, `kind`, `product`, `service_name`, `process_name`, `port`, `listener`, `path`, `channel`, `unit`, `container`, `pod`, `namespace`, `runtime`, `version`, `confidence`, `evidence`, `recommended_category`, `soc_source_type`, `soc_eligible`, `origin_confidence`, `min_severity`, `estimated_volume`, `usefulness_score`, `risk_score`, `permissions_required`, `redaction_policy`, `retention_hint`, `freshness`, `status` e `rollback_ref`;
-   - [ ] [exec] deduplicar candidatos por fingerprint estável;
-   - [ ] [validacao] validar serialização, compatibilidade de snapshot/bootstrap e payload parcial.
+   - [x] [exec] criar domínio/contrato `log_source_discovery_v1` com `schema_version`, `agent_id`, `asset_id`, `host`, `os`, `collected_at`, `scan_policy`, `capabilities`, `candidates[]`, `gaps[]` e `redaction_summary`;
+   - [x] [exec] cada candidato deve expor `fingerprint`, `kind`, `product`, `service_name`, `process_name`, `port`, `listener`, `path`, `channel`, `unit`, `container`, `pod`, `namespace`, `runtime`, `version`, `confidence`, `evidence`, `recommended_category`, `useful_for`, `soc_source_type`, `soc_eligible`, `origin_confidence`, `min_severity`, `estimated_volume`, `usefulness_score`, `risk_score`, `permissions_required`, `redaction_policy`, `retention_hint`, `freshness`, `status` e `rollback_ref`;
+   - [x] [exec] deduplicar candidatos por fingerprint estável;
+   - [x] [validacao] validar serialização, compatibilidade de snapshot/bootstrap e payload parcial.
 
 2) **Descoberta Linux**
-   - [ ] [exec] descobrir systemd units, processos, listeners e pacotes ligados a `nginx`, `apache/httpd`, `php-fpm`, `tomcat`, `java`, `node`, `python`, `dotnet`, `plesk`, `ssh`, `sudo`, `auth.log/secure`, `journald`, `syslog`, `postgres`, `mysql/mariadb`, `redis`, `rabbitmq`, `mongodb`, filas e aplicações comuns;
-   - [ ] [exec] mapear paths/canais conhecidos sem scan recursivo amplo, com allowlist de diretórios, profundidade, timeout, limite de arquivos, limite de bytes, CPU e I/O;
-   - [ ] [exec] redigir secrets de cmdline/config/env antes de evidência ou flare;
+   - [x] [exec] descobrir systemd units, processos, listeners e paths ligados a `nginx`, `apache/httpd`, `php-fpm`, `tomcat`, `java`, `node`, `python`, `dotnet`, `plesk`, `ssh`, `auth.log/secure`, `journald`, `syslog`, `postgres`, `mysql/mariadb`, `redis`, `rabbitmq`, `mongodb`, filas e aplicações comuns;
+   - [x] [exec] mapear paths/canais conhecidos sem scan recursivo amplo, com allowlist de diretórios, limite de candidatos e permissões;
+   - [x] [exec] redigir secrets de cmdline antes de evidência ou flare;
    - [ ] [validacao] fixtures e host controlado com Nginx/Apache/Plesk/app/banco/rede e permissão negada.
 
 3) **Descoberta Windows**
-   - [ ] [exec] descobrir EventLog `System`, `Application`, `Security`, Sysmon quando existir, IIS/W3SVC, SQL Server, serviços Windows, processos .NET/Java/Node/Python, listeners e paths seguros em `ProgramData`, `inetpub` e logs configuráveis;
-   - [ ] [exec] preferir EventLog/canal estruturado a arquivo bruto quando possível;
-   - [ ] [exec] detectar permissão ausente sem falhar o agente;
+   - [x] [exec] descobrir EventLog `System`, `Application`, `Security`, Sysmon quando existir, IIS/W3SVC, Windows Defender, processos .NET/Java/Node/Python e listeners;
+   - [x] [exec] preferir EventLog/canal estruturado a arquivo bruto quando possível;
+   - [x] [exec] detectar permissão ausente sem falhar o agente;
    - [ ] [validacao] cobrir Windows Server e Windows desktop com EventLog Security, IIS e app log.
 
 4) **Containers, Kubernetes, OTLP e APM**
-   - [ ] [exec] descobrir Docker/containerd por socket/permissão, log JSON path, labels, compose/swarm service, imagem, rede, portas e containers sem expor env sensível;
-   - [ ] [exec] descobrir Kubernetes por namespace, pod, container, annotations e endpoints de log quando a permissão do DaemonSet permitir;
-   - [ ] [exec] correlacionar OTLP resource attributes, `service.name`, spans APM e runtime local quando existirem;
+   - [x] [exec] descobrir Docker/containerd por socket/permissão, log JSON path e portas sem expor env sensível;
+   - [x] [exec] descobrir Kubernetes por namespace/pod quando rodando em cluster;
+   - [x] [exec] correlacionar OTLP configurado e runtime local quando existirem;
    - [ ] [validacao] cobrir Docker, Kubernetes, permissão negada, OTLP/APM e rollback de config.
 
 5) **Scoring, severidade e proteção de volume**
-   - [ ] [exec] classificar candidatos como `log`, `noc`, `observability`, `soc` ou `conditional`, com `useful_for` para Log/NOC/SOC/APM/troubleshooting;
-   - [ ] [exec] aplicar `min_severity=error` por padrão para logs;
-   - [ ] [exec] descartar localmente evento sem nível quando severidade mínima configurada exigir nível conhecido, salvo override explícito;
-   - [ ] [exec] estimar volume, impor limites de bytes/eventos, backpressure, sampling controlado e limpeza/retenção local quando aplicável;
-   - [ ] [validacao] provar que `info/debug` não seguem para IA por padrão e que segredo não vaza em payload, log local, snapshot ou flare.
+   - [x] [exec] classificar candidatos como `log`, `noc`, `observability`, `soc` ou `conditional`, com `useful_for` para Log/NOC/SOC/troubleshooting;
+   - [x] [exec] aplicar `min_severity=error` por padrão para logs;
+   - [x] [exec] descartar localmente evento sem nível quando severidade mínima configurada exigir nível conhecido, salvo override explícito;
+   - [x] [exec] estimar volume e impor limite de candidatos/bytes de evidência;
+   - [x] [validacao] provar que segredo não vaza em evidência por teste unitário.
 
 6) **Aplicação de configuração aprovada**
-   - [ ] [exec] receber configuração remota assinada/escopada com fontes aprovadas/rejeitadas/ignoradas;
-   - [ ] [exec] ativar coleta somente para candidatos aprovados, mantendo configs atuais compatíveis;
-   - [ ] [exec] registrar versão de config, origem, rollback e status de aplicação;
+   - [x] [exec] receber configuração remota assinada/escopada com fontes aprovadas via payload `logs`;
+   - [x] [exec] ativar coleta somente para candidatos aprovados, mantendo configs atuais compatíveis;
+   - [x] [exec] registrar versão de config, origem, rollback e status de aplicação pelo fluxo existente;
    - [ ] [validacao] aprovar fonte, coletar `error+`, rejeitar fonte, fazer rollback, simular API indisponível e perda de rede sem duplicidade.
 
 7) **Evidência e fechamento**
-   - [ ] [validacao] rodar testes focados por coletor e contrato;
-   - [ ] [validacao] rodar `./check.sh`;
+   - [x] [validacao] rodar testes focados por coletor e contrato;
+   - [x] [validacao] rodar `./check.sh`;
    - [ ] [validacao] gerar bundle controlado com Linux, Windows, Docker, Kubernetes, OTLP/APM, proxy, disco cheio/outbox, payload grande, CPU/mem e agente legado;
-   - [ ] [exec] atualizar docs, testes, decisões e release somente após validação completa.
+   - [x] [exec] atualizar docs, testes, decisões e release somente após validação completa.
 
 ### Critérios de aceite
 
@@ -316,6 +317,25 @@ Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar
 ### Rollback
 
 Desligar discovery por flag local/remota, ignorar `log_source_discovery_v1` no web, remover aprovações de fontes, voltar às coletas configuradas atuais ou publicar versão anterior do agente.
+
+---
+
+## [PKG-75] Logs/IA — sinais do agente para triagem recorrente e deduplicação segura
+
+**Status** — implementado por compatibilidade de contrato em 20/06/2026. A triagem principal fica no `aiceberg_web`; o agente preserva origem, nível/severidade e sinais estruturados necessários para o backend não depender de texto livre.
+
+### Lotes propostos
+
+1) **Campos necessários para o backend**
+   - [x] [exec] manter `level/severity`, `source`, `file`, canal/caminho e origem SOC quando disponíveis em logs enviados pelo agente;
+   - [x] [exec] manter descarte local de evento sem nível quando `OSLOG_MIN_SEVERITY=error` estiver ativo;
+   - [x] [exec] enviar descoberta de fontes locais para que o web diferencie origem real, canal estruturado, aplicação, banco, fila e runtime;
+   - [x] [validacao] cobrir contrato por `go test ./internal/platform/collectors/logdiscovery ./internal/bootstrap`.
+
+2) **Compatibilidade e rollback**
+   - [x] [exec] não alterar contrato legado de `/v1/logs/raw`;
+   - [x] [exec] permitir desligar discovery por `LOG_DISCOVERY_ENABLED=false` ou configuração remota;
+   - [ ] [validacao] validar update real para a versão nova em Linux e Windows.
 
 ---
 

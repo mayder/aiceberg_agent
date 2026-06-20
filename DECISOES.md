@@ -305,6 +305,14 @@ Referências:
 - Impacto em rollback: desligar discovery por flag, ignorar `log_source_discovery_v1`, remover fontes aprovadas e manter coletas atuais.
 - Como reverter: remover o coletor de discovery e publicar versão anterior sem afetar `oslogs`, snapshots, outbox ou auto-update.
 
+### DEC-20260620-23 - Discovery roda no endpoint de métricas com contrato aditivo
+
+- Status: aceita
+- Contexto: a web já persiste snapshots de métricas e envia configuração remota assinada no retorno do ingest. Criar endpoint novo aumentaria acoplamento e risco de compatibilidade.
+- Decisao: publicar `log_source_discovery_v1` como coletor periódico no endpoint `/v1/ingest/metrics`, com `collect_now=log_source_discovery` aceito pelo canal e pelo controle. O payload é aditivo e pode ser ignorado por web antiga.
+- Consequencias: agentes antigos continuam compatíveis, a web nova governa aprovação por fingerprint e o agente só coleta fontes aprovadas por `logs.win_channels`/`logs.files`.
+- Rollback: desligar `LOG_DISCOVERY_ENABLED`, remover o comando de coleta imediata ou publicar versão anterior do agente.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

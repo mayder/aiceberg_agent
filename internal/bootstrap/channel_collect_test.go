@@ -19,10 +19,10 @@ func TestChannelEnvelopeCollectNowFiltersAllowedNames(t *testing.T) {
 	got := channelEnvelopeCollectNow(channel.Envelope{
 		Payload: map[string]any{
 			"code":        "collect_now",
-			"collect_now": []any{"inventory", "health", "shell", "network_capture"},
+			"collect_now": []any{"inventory", "health", "shell", "network_capture", "log_source_discovery"},
 		},
 	})
-	want := []string{"inventory", "health", "network_capture"}
+	want := []string{"inventory", "health", "network_capture", "log_source_discovery"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("unexpected collect_now list: %#v", got)
 	}
