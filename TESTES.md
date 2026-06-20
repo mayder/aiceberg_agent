@@ -529,6 +529,8 @@ Evidência 2026-06-20:
 - Artefatos `0.8.13` foram gerados por `./scripts/build_installers.sh`, copiados para `aiceberg_web/cliente/web/downloads/agent/0.8.13/` e publicados em produção; SHA256 HTTP validado para Linux amd64 e Windows amd64.
 - Produção: agentes online do cliente InspectApp `1`, `4`, `18`, `19`, `70` e `71` atualizaram para `0.8.13`; `collect_now=log_source_discovery` foi consumido; o web persistiu candidatos reais de Linux e Windows, incluindo Nginx, Apache, Plesk, Linux auth/syslog, journald, Docker/containerd, SQL Server, PostgreSQL, MySQL, Redis, OpenTelemetry, Windows EventLog e Defender.
 - Pendência operacional externa: Windows desktop `72` estava offline. IIS e Kubernetes reais ficam como homologação por cliente quando esses componentes existirem no ambiente alvo; o pacote não declara causa raiz nem substitui validação produtiva específica.
+- Correção 2026-06-20: `go test ./internal/domain/usecase -run 'Test(ConfigSyncBackoffSkipsTransientFailure|PingBackendBackoffSkipsTransientFailure|FlushOutbox_TransientTransportFailureDoesNotLogError|FlushOutbox_BackoffSkipsFailedRouteTemporarily)' -count=1 -v` validou que timeouts transitórios de `/v1/agent/config`, `/v1/agent/ping` e `/v1/ingest/*` entram em backoff sem log local `ERROR`; versão runtime atualizada para `0.8.14`.
+- Artefatos `0.8.14`: `./scripts/build_installers.sh` gerou os compactados oficiais; `SHA256SUMS` validou `linux-amd64=9c73d73cba4e3a60bcdfa4e0da53cf4b42decaf3bf3548d44fedc1ff83c9ae78` e `windows-amd64=b490efc744c661b9f93cad700ffb014a9cf61b4695ebd619cc767aed74fc5713`.
 
 ## Politica minima de testes
 

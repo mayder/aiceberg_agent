@@ -313,6 +313,15 @@ Referências:
 - Consequencias: agentes antigos continuam compatíveis, a web nova governa aprovação por fingerprint e o agente só coleta fontes aprovadas por `logs.win_channels`/`logs.files`.
 - Rollback: desligar `LOG_DISCOVERY_ENABLED`, remover o comando de coleta imediata ou publicar versão anterior do agente.
 
+### DEC-20260620-24 - Timeout transitório do próprio agente não deve virar erro coletável
+
+- Status: aceita
+- Contexto: logs locais do próprio `aiceberg_agent` com `config sync failed`, `ping challenge failed` e `transport failed` por `context deadline exceeded` foram coletados de `/var/log/messages` e analisados pela IA como problema do cliente.
+- Decisao: falhas transitórias classificadas pelo backoff em `ConfigSync`, `PingBackend` e `FlushOutbox` passam a ser registradas como `INFO`/backoff. `ERROR` fica reservado para falha permanente, erro local de persistência, update, coleta ou condição que exige intervenção.
+- Consequencias: o agente continua observável por snapshot/canal/contadores, mas evita alimentar o coletor de logs com auto-ruído de conectividade. A correção runtime exige versão `0.8.14`.
+- Impacto em testes: testes focados garantem que falhas transitórias não escrevem no logger de erro.
+- Rollback: publicar versão anterior do agente; a web continua protegida pelo filtro de ingestão.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

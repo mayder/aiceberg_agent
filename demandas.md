@@ -249,7 +249,7 @@ Desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*`, ignorar
 
 ## [PKG-74] Agente/Web — descoberta automática de fontes de logs, aplicações e dependências locais
 
-**Status** — implementado em código em 20/06/2026 como entrega coordenada com `aiceberg_web`. Testes focados e `./check.sh` executados; artefatos `0.8.13` gerados e publicados no web. Validação real parcial em produção atualizou seis agentes online do cliente InspectApp para `0.8.13`, consumiu `collect_now=log_source_discovery` e persistiu candidatos reais no web. Bundle controlado `docs/evidence/pkg74/discovery-controlled-20260620T180000Z` cobre troubleshooting de aplicação lenta com web/app/banco/rede, runtime, segurança, Kubernetes/OTLP controlados, redaction e lacuna de permissão. Fechamento 100% ainda exige apenas evidência real quando o ambiente alvo tiver Windows desktop online, IIS instalado ou Kubernetes real.
+**Status** — implementado em código em 20/06/2026 como entrega coordenada com `aiceberg_web`. Testes focados e `./check.sh` executados; artefatos `0.8.13` gerados e publicados no web. Validação real parcial em produção atualizou seis agentes online do cliente InspectApp para `0.8.13`, consumiu `collect_now=log_source_discovery` e persistiu candidatos reais no web. Bundle controlado `docs/evidence/pkg74/discovery-controlled-20260620T180000Z` cobre troubleshooting de aplicação lenta com web/app/banco/rede, runtime, segurança, Kubernetes/OTLP controlados, redaction e lacuna de permissão. Desktop `72` está desligado e foi removido do bloqueio desta meta por decisão operacional do usuário; IIS/Kubernetes reais ficam como homologação por cliente quando existirem no ambiente alvo.
 
 **Problema a resolver** — o agente já coleta fontes configuradas e emite taxonomia SOC, mas ainda não inventaria automaticamente tudo que pode ajudar Log/NOC/SOC/APM/troubleshooting no host: IIS, Nginx, Apache, Plesk, aplicações, bancos, filas, containers, Kubernetes, EventLog Security, Linux auth, serviços, portas e dependências. Sem isso, a web não consegue listar fontes candidatas para aprovação e a IA recebe contexto incompleto.
 
@@ -322,7 +322,7 @@ Desligar discovery por flag local/remota, ignorar `log_source_discovery_v1` no w
 
 ## [PKG-75] Logs/IA — sinais do agente para triagem recorrente e deduplicação segura
 
-**Status** — implementado por compatibilidade de contrato em 20/06/2026. A triagem principal fica no `aiceberg_web`; o agente preserva origem, nível/severidade e sinais estruturados necessários para o backend não depender de texto livre.
+**Status** — implementado por compatibilidade de contrato em 20/06/2026. A triagem principal fica no `aiceberg_web`; o agente preserva origem, nível/severidade e sinais estruturados necessários para o backend não depender de texto livre. Correção runtime `0.8.14` gerada como pacote instalável para impedir auto-ruído de conectividade em logs coletados.
 
 ### Lotes propostos
 
@@ -335,7 +335,12 @@ Desligar discovery por flag local/remota, ignorar `log_source_discovery_v1` no w
 2) **Compatibilidade e rollback**
    - [x] [exec] não alterar contrato legado de `/v1/logs/raw`;
    - [x] [exec] permitir desligar discovery por `LOG_DISCOVERY_ENABLED=false` ou configuração remota;
-   - [x] [validacao] validar update real para a versão nova em Linux e Windows: agentes Linux `1`, `4`, `18`, `19`, `70` e Windows `71` chegaram em `0.8.13`; desktop `72` permanece offline com payload Windows pendente.
+   - [x] [validacao] validar update real para a versão nova em Linux e Windows: agentes Linux `1`, `4`, `18`, `19`, `70` e Windows `71` chegaram em `0.8.13`; desktop `72` está desligado e será testado futuramente se necessário.
+
+3) **Auto-ruído de conectividade do agente**
+   - [x] [exec] rebaixar timeouts transitórios de `config`, `ping` e `ingest` para log operacional `INFO`/backoff, mantendo `ERROR` para falha permanente ou erro local real;
+   - [x] [exec] gerar versão `0.8.14` para impedir que `/var/log/messages`/EventLog capturem timeout transitório do próprio AIceberg como incidente do cliente;
+   - [x] [validacao] cobrir regressão com testes focados de `ConfigSync`, `PingBackend` e `FlushOutbox`.
 
 ---
 

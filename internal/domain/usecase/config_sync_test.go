@@ -120,7 +120,8 @@ func TestConfigSyncBackoffSkipsTransientFailure(t *testing.T) {
 		Agent:      config.AgentCfg{Token: "t"},
 	}
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
-	uc := NewConfigSync(cfg, &fakeLogger{}, store, nil)
+	log := &fakeLogger{}
+	uc := NewConfigSync(cfg, log, store, nil)
 
 	if err := uc.Execute(context.Background()); err == nil {
 		t.Fatalf("expected first transient failure")
@@ -130,5 +131,8 @@ func TestConfigSyncBackoffSkipsTransientFailure(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("expected second execution not to call API, got %d calls", calls)
+	}
+	if len(log.err) != 0 {
+		t.Fatalf("transient config sync failure must not be logged as ERROR, got %#v", log.err)
 	}
 }

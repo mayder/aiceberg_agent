@@ -57,9 +57,18 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 
 	resp, err := uc.cl.Do(req)
 	if err != nil {
-		uc.recordFailure(err)
+		kind := uc.recordFailure(err)
+		if kind == retry.ErrorKindTransient {
+			uc.log.Info(logger.KV("config sync transient failure",
+				"route", "/v1/agent/config",
+				"err_kind", kind,
+				"err", err,
+			))
+			return err
+		}
 		uc.log.Error(logger.KV("config sync failed",
 			"route", "/v1/agent/config",
+			"err_kind", kind,
 			"err", err,
 		))
 		return err
@@ -102,7 +111,7 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 	return nil
 }
 
-func (uc *ConfigSync) recordFailure(err error) {
+func (uc *ConfigSync) recordFailure(err error) retry.ErrorKind {
 	delay, kind := uc.backoff.Failure(err)
 	if kind != retry.ErrorKindTransient {
 		delay = uc.backoff.Cooldown(retry.DefaultMaxBackoff)
@@ -112,11 +121,12 @@ func (uc *ConfigSync) recordFailure(err error) {
 			"retry_after_ms", delay.Milliseconds(),
 			"err", err,
 		))
-		return
+		return kind
 	}
 	uc.log.Info(logger.KV("config sync backoff scheduled",
 		"route", "/v1/agent/config",
 		"err_kind", kind,
 		"retry_after_ms", delay.Milliseconds(),
 	))
+	return kind
 }

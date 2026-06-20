@@ -46,9 +46,18 @@ func (uc *PingBackend) Execute(ctx context.Context) error {
 	challenge, err := uc.fetchChallenge(ctx)
 	if err != nil || challenge == "" {
 		if err != nil {
-			uc.recordFailure(err)
+			kind := uc.recordFailure(err)
+			if kind == retry.ErrorKindTransient {
+				uc.log.Info(logger.KV("ping challenge transient failure",
+					"route", "/v1/agent/ping",
+					"err_kind", kind,
+					"err", err,
+				))
+				return err
+			}
 			uc.log.Error(logger.KV("ping challenge failed",
 				"route", "/v1/agent/ping",
+				"err_kind", kind,
 				"err", err,
 			))
 		}
@@ -59,9 +68,18 @@ func (uc *PingBackend) Execute(ctx context.Context) error {
 	}
 	err = uc.sendAck(ctx, challenge)
 	if err != nil {
-		uc.recordFailure(err)
+		kind := uc.recordFailure(err)
+		if kind == retry.ErrorKindTransient {
+			uc.log.Info(logger.KV("ping ack transient failure",
+				"route", "/v1/agent/ping",
+				"err_kind", kind,
+				"err", err,
+			))
+			return err
+		}
 		uc.log.Error(logger.KV("ping ack failed",
 			"route", "/v1/agent/ping",
+			"err_kind", kind,
 			"err", err,
 		))
 		return err
@@ -76,7 +94,7 @@ func (uc *PingBackend) Execute(ctx context.Context) error {
 	return nil
 }
 
-func (uc *PingBackend) recordFailure(err error) {
+func (uc *PingBackend) recordFailure(err error) retry.ErrorKind {
 	delay, kind := uc.backoff.Failure(err)
 	if kind != retry.ErrorKindTransient {
 		delay = uc.backoff.Cooldown(retry.DefaultMaxBackoff)
@@ -86,13 +104,14 @@ func (uc *PingBackend) recordFailure(err error) {
 			"retry_after_ms", delay.Milliseconds(),
 			"err", err,
 		))
-		return
+		return kind
 	}
 	uc.log.Info(logger.KV("ping backoff scheduled",
 		"route", "/v1/agent/ping",
 		"err_kind", kind,
 		"retry_after_ms", delay.Milliseconds(),
 	))
+	return kind
 }
 
 func (uc *PingBackend) fetchChallenge(ctx context.Context) (string, error) {

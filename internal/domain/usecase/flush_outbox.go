@@ -139,20 +139,7 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 		respBody, err := uc.tx.SendWithAuth(list, group.auth, group.endpoint)
 		if err != nil {
 			retained += len(list)
-			if se, ok := err.(interface{ StatusCode() int }); ok {
-				uc.log.Error(logger.KV("transport failed",
-					"route", group.endpoint,
-					"batch_size", len(list),
-					"status", se.StatusCode(),
-					"err", err,
-				))
-			} else {
-				uc.log.Error(logger.KV("transport failed",
-					"route", group.endpoint,
-					"batch_size", len(list),
-					"err", err,
-				))
-			}
+			uc.logTransportFailure(group.endpoint, len(list), err)
 			if delay, ok := uc.registerFailure(key, group.endpoint, len(list), err); ok {
 				uc.log.Info(logger.KV("transport backoff scheduled",
 					"route", group.endpoint,
@@ -213,6 +200,24 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 	))
 	uc.recordSummary(durationMs, retained)
 	return acked, firstErr
+}
+
+func (uc *FlushOutbox) logTransportFailure(endpoint string, batchSize int, err error) {
+	kind := retry.ClassifyError(err)
+	fields := []any{
+		"route", endpoint,
+		"batch_size", batchSize,
+		"err_kind", kind,
+	}
+	if se, ok := err.(interface{ StatusCode() int }); ok {
+		fields = append(fields, "status", se.StatusCode())
+	}
+	fields = append(fields, "err", err)
+	if kind == retry.ErrorKindTransient {
+		uc.log.Info(logger.KV("transport transient failure", fields...))
+		return
+	}
+	uc.log.Error(logger.KV("transport failed", fields...))
 }
 
 func (uc *FlushOutbox) Snapshot() FlushOutboxSnapshot {

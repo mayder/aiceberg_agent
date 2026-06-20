@@ -222,6 +222,24 @@ func TestFlushOutbox_BackoffSkipsFailedRouteTemporarily(t *testing.T) {
 	}
 }
 
+func TestFlushOutbox_TransientTransportFailureDoesNotLogError(t *testing.T) {
+	outbox := &fakeOutbox{batch: []entities.Envelope{
+		{ID: "metrics-1", AuthHeader: "Token a", Endpoint: "/v1/ingest/metrics", AgentID: "a"},
+	}}
+	tx := &fakeTransport{errByEndpoint: map[string]error{
+		"/v1/ingest/metrics": context.DeadlineExceeded,
+	}}
+	log := &fakeLogger{}
+	uc := NewFlushOutbox(outbox, tx, log, "Token default", nil)
+
+	if _, err := uc.Execute(context.Background()); err == nil {
+		t.Fatalf("expected transient transport error")
+	}
+	if len(log.err) != 0 {
+		t.Fatalf("transient transport failure must not be logged as ERROR, got %#v", log.err)
+	}
+}
+
 func TestFlushOutbox_PermanentHTTPErrorUsesCooldownWithoutExponentialRetry(t *testing.T) {
 	outbox := &fakeOutbox{batch: []entities.Envelope{
 		{ID: "metrics-1", AuthHeader: "Token a", Endpoint: "/v1/ingest/metrics", AgentID: "a"},

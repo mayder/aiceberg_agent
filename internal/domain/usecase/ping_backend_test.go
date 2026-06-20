@@ -132,7 +132,8 @@ func TestPingBackendBackoffSkipsTransientFailure(t *testing.T) {
 		APIBaseURL: server.URL,
 		AgentMode:  "direct",
 	}
-	ping := NewPingBackend(cfg, logger.New("test"))
+	log := &fakeLogger{}
+	ping := NewPingBackend(cfg, log)
 
 	if err := ping.Execute(context.Background()); err == nil {
 		t.Fatalf("expected first transient failure")
@@ -142,5 +143,8 @@ func TestPingBackendBackoffSkipsTransientFailure(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("expected second execution not to call API, got %d calls", calls)
+	}
+	if len(log.err) != 0 {
+		t.Fatalf("transient ping failure must not be logged as ERROR, got %#v", log.err)
 	}
 }
