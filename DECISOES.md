@@ -322,6 +322,14 @@ Referências:
 - Impacto em testes: testes focados garantem que falhas transitórias não escrevem no logger de erro.
 - Rollback: publicar versão anterior do agente; a web continua protegida pelo filtro de ingestão.
 
+### DEC-20260620-25 - Endpoints de controle do agente também assinam identidade
+
+- Status: aceita
+- Contexto: com `agent_identity_strict_enabled=1`, os agentes `0.8.14` autenticavam com token válido e confirmavam update, mas `selfheal-commands`/`selfheal-report`/`error-report` ainda não enviavam `X-Agent-Identity`, gerando falso alerta de identidade obrigatória.
+- Decisao: centralizar o header de autenticação dos clientes de controle em `AgentControlClient`, incluindo `Authorization` e `X-Agent-Identity` quando a identidade local estiver provisionada.
+- Consequencias: clientes com identidade estrita mantêm segurança sem ruído de token/identidade durante self-heal e relato de erro do worker.
+- Rollback: publicar versão anterior do agente e desligar temporariamente `agent_identity_strict_enabled` no cliente afetado se houver regressão operacional.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

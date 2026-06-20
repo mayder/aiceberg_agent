@@ -36,7 +36,7 @@ func (c *AgentControlClient) FetchSelfHealCommands(ctx context.Context) ([]entit
 	if err != nil {
 		return nil, err
 	}
-	httpx.SetAuth(req, c.cfg)
+	c.setAgentHeaders(req)
 	resp, err := c.cl.Do(req)
 	if err != nil {
 		return nil, err
@@ -98,7 +98,7 @@ func (c *AgentControlClient) postWithFallback(ctx context.Context, path string, 
 			continue
 		}
 		req.Header.Set("Content-Type", "application/json")
-		httpx.SetAuth(req, c.cfg)
+		c.setAgentHeaders(req)
 		resp, err := c.cl.Do(req)
 		if err != nil {
 			errs = append(errs, err.Error())
@@ -115,4 +115,11 @@ func (c *AgentControlClient) postWithFallback(ctx context.Context, path string, 
 		return nil
 	}
 	return fmt.Errorf("%s", strings.Join(errs, " | "))
+}
+
+func (c *AgentControlClient) setAgentHeaders(req *http.Request) {
+	httpx.SetAuth(req, c.cfg)
+	if identityHeader := c.cfg.AgentIdentityHeader(""); identityHeader != "" {
+		req.Header.Set("X-Agent-Identity", identityHeader)
+	}
 }

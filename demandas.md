@@ -322,7 +322,7 @@ Desligar discovery por flag local/remota, ignorar `log_source_discovery_v1` no w
 
 ## [PKG-75] Logs/IA — sinais do agente para triagem recorrente e deduplicação segura
 
-**Status** — implementado por compatibilidade de contrato em 20/06/2026. A triagem principal fica no `aiceberg_web`; o agente preserva origem, nível/severidade e sinais estruturados necessários para o backend não depender de texto livre. Correção runtime `0.8.14` gerada como pacote instalável para impedir auto-ruído de conectividade em logs coletados.
+**Status** — implementado por compatibilidade de contrato em 20/06/2026. A triagem principal fica no `aiceberg_web`; o agente preserva origem, nível/severidade e sinais estruturados necessários para o backend não depender de texto livre. Correção runtime `0.8.14` gerada como pacote instalável para impedir auto-ruído de conectividade em logs coletados. Correção `0.8.15` adiciona identidade assinada nos endpoints de self-heal/erro do worker para clientes com identidade estrita habilitada.
 
 ### Lotes propostos
 
@@ -341,6 +341,11 @@ Desligar discovery por flag local/remota, ignorar `log_source_discovery_v1` no w
    - [x] [exec] rebaixar timeouts transitórios de `config`, `ping` e `ingest` para log operacional `INFO`/backoff, mantendo `ERROR` para falha permanente ou erro local real;
    - [x] [exec] gerar versão `0.8.14` para impedir que `/var/log/messages`/EventLog capturem timeout transitório do próprio AIceberg como incidente do cliente;
    - [x] [validacao] cobrir regressão com testes focados de `ConfigSync`, `PingBackend` e `FlushOutbox`.
+
+4) **Identidade estrita em controle do agente**
+   - [x] [exec] enviar `X-Agent-Identity` em `selfheal-commands`, `selfheal-report` e `error-report`;
+   - [x] [exec] gerar versão `0.8.15` para evitar falso alerta de identidade obrigatória quando o token é válido;
+   - [x] [validacao] cobrir regressão com teste focado de `AgentControlClient`.
 
 ---
 

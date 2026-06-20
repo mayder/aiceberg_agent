@@ -22,6 +22,9 @@ func TestAgentControlClientFetchSelfHealCommandsDirect(t *testing.T) {
 		if got := r.Header.Get("Authorization"); got != "Token test-token" {
 			t.Fatalf("unexpected auth header: %q", got)
 		}
+		if got := r.Header.Get("X-Agent-Identity"); got == "" {
+			t.Fatalf("expected identity header")
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "ok",
 			"commands": []map[string]any{
@@ -35,9 +38,11 @@ func TestAgentControlClientFetchSelfHealCommandsDirect(t *testing.T) {
 	defer srv.Close()
 
 	cfg := config.Config{
-		APIBaseURL: srv.URL,
-		AgentMode:  "direct",
-		Agent:      config.AgentCfg{Token: "test-token"},
+		APIBaseURL:    srv.URL,
+		AgentMode:     "direct",
+		Agent:         config.AgentCfg{Token: "test-token"},
+		AgentClientID: 7,
+		AgentID:       42,
 	}
 	client := NewAgentControlClient(cfg)
 
@@ -50,6 +55,42 @@ func TestAgentControlClientFetchSelfHealCommandsDirect(t *testing.T) {
 	}
 	if commands[0].CommandID != "cmd-1" || commands[0].Code != "reload_configuration" {
 		t.Fatalf("unexpected command payload: %#v", commands[0])
+	}
+}
+
+func TestAgentControlClientReportsSendIdentityHeader(t *testing.T) {
+	t.Helper()
+
+	seen := map[string]string{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen[r.URL.Path] = r.Header.Get("X-Agent-Identity")
+		if got := r.Header.Get("Authorization"); got != "Token test-token" {
+			t.Fatalf("unexpected auth header: %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	cfg := config.Config{
+		APIBaseURL:    srv.URL,
+		AgentMode:     "direct",
+		Agent:         config.AgentCfg{Token: "test-token"},
+		AgentClientID: 7,
+		AgentID:       42,
+	}
+	client := NewAgentControlClient(cfg)
+
+	if err := client.ReportSelfHeal(context.Background(), entities.SelfHealReport{CommandID: "cmd-1", Status: "success"}); err != nil {
+		t.Fatalf("report selfheal: %v", err)
+	}
+	if err := client.ReportWorkerErrors(context.Background(), []entities.WorkerErrorEvent{{ErrorType: "test_error", Severity: "warning", RecoveryStatus: "open"}}); err != nil {
+		t.Fatalf("report worker error: %v", err)
+	}
+	if seen["/v1/agent/selfheal-report"] == "" {
+		t.Fatalf("expected identity header on selfheal report")
+	}
+	if seen["/v1/agent/error-report"] == "" {
+		t.Fatalf("expected identity header on worker error report")
 	}
 }
 
