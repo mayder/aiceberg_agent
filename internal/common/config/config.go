@@ -56,6 +56,8 @@ type Config struct {
 	RemoteConfigSignatureSecret        string
 	RemoteConfigSignatureRequired      bool
 	RemoteConfigAllowUnsignedSensitive bool
+	EDRSafe                            bool
+	EDRSafeProfile                     string
 	OutboxPath                         string
 	OutboxMaxMB                        int
 	OutboxMaxPerAgent                  int
@@ -222,6 +224,8 @@ type CollectPrefs struct {
 	OSLogWinChannels             bool                 `json:"oslog_win_channels"`
 	OSLogFiles                   bool                 `json:"oslog_files"`
 	CollectNow                   []string             `json:"collect_now,omitempty"`
+	EDRSafe                      bool                 `json:"edr_safe,omitempty"`
+	EDRSafeProfile               string               `json:"edr_safe_profile,omitempty"`
 	CVESignaturesURL             string               `json:"cve_signatures_url,omitempty"`
 	OSLogWinChList               []string             `json:"oslog_win_channels_list,omitempty"`
 	OSLogWinProviders            []string             `json:"oslog_win_providers,omitempty"`
@@ -357,6 +361,8 @@ func Load(configPath string) (Config, error) {
 		RemoteConfigSignatureSecret:        getenv("REMOTE_CONFIG_SIGNATURE_SECRET", ""),
 		RemoteConfigSignatureRequired:      strings.ToLower(getenv("REMOTE_CONFIG_SIGNATURE_REQUIRED", "")) == "true",
 		RemoteConfigAllowUnsignedSensitive: strings.ToLower(getenv("REMOTE_CONFIG_ALLOW_UNSIGNED_SENSITIVE", "")) == "true",
+		EDRSafe:                            boolEnv("EDR_SAFE", false) || boolEnv("AICEBERG_EDR_SAFE", false),
+		EDRSafeProfile:                     getenv("EDR_SAFE_PROFILE", "conservative"),
 		OutboxPath:                         getenv("OUTBOX_PATH", "./data/outbox.db"),
 		OutboxMaxMB:                        intEnv("OUTBOX_MAX_MB", 200),
 		OutboxMaxPerAgent:                  intEnv("OUTBOX_MAX_PER_AGENT", 0),
@@ -544,10 +550,114 @@ func Load(configPath string) (Config, error) {
 	if cfg.TLSInsecureSkip && !cfg.TLSInsecureAllowProd && strings.Contains(strings.ToLower(cfg.APIBaseURL), "api.aiceberg.com.br") {
 		return cfg, fmt.Errorf("TLS_INSECURE_SKIP_VERIFY bloqueado para API de producao")
 	}
+	ApplyEDRSafeDefaults(&cfg)
 	if cfg.Agent.Token == "" {
 		return cfg, fmt.Errorf("AGENT_TOKEN obrigatório")
 	}
 	return cfg, nil
+}
+
+func ApplyEDRSafeDefaults(cfg *Config) {
+	if cfg == nil || !cfg.EDRSafe {
+		return
+	}
+	cfg.EDRSafeProfile = normalizeEDRSafeProfile(cfg.EDRSafeProfile)
+	if !severityAtLeast(cfg.OSLogMinSeverity, "error") {
+		cfg.OSLogMinSeverity = "error"
+	}
+	cfg.OSLogDiag = false
+	cfg.LogDiscoveryMaxCandidates = capPositive(cfg.LogDiscoveryMaxCandidates, 100)
+	cfg.LogDiscoveryMaxEvidenceBytes = capPositive(cfg.LogDiscoveryMaxEvidenceBytes, 1024)
+	cfg.ContainerMaxItems = capPositive(cfg.ContainerMaxItems, 100)
+	cfg.KubernetesMaxItems = capPositive(cfg.KubernetesMaxItems, 200)
+	cfg.KubernetesMaxEvents = capPositive(cfg.KubernetesMaxEvents, 50)
+	cfg.LocalChecksMaxChecks = capPositive(cfg.LocalChecksMaxChecks, 50)
+	cfg.LocalChecksMaxBytes = capPositive(cfg.LocalChecksMaxBytes, 512*1024)
+	cfg.OTLPMaxItems = capPositive(cfg.OTLPMaxItems, 500)
+	cfg.OTLPMaxBytes = capPositive(cfg.OTLPMaxBytes, 512*1024)
+}
+
+func ApplyEDRSafeCollectPrefs(p *CollectPrefs) {
+	if p == nil || !p.EDRSafe {
+		return
+	}
+	p.EDRSafeProfile = normalizeEDRSafeProfile(p.EDRSafeProfile)
+	p.CPU = true
+	p.Memory = true
+	p.Disk = true
+	p.Network = true
+	p.Host = true
+	p.Logs = true
+	p.Agent = true
+	p.OSLogDiag = false
+	if !severityAtLeast(p.OSLogMinSeverity, "error") {
+		p.OSLogMinSeverity = "error"
+	}
+	p.OSLogBatchLines = capNonZero(p.OSLogBatchLines, 100)
+	p.OSLogMaxBytes = capNonZero(p.OSLogMaxBytes, 128*1024)
+	p.LogDiscoveryMaxCandidates = capNonZero(p.LogDiscoveryMaxCandidates, 100)
+	p.LogDiscoveryMaxEvidenceBytes = capNonZero(p.LogDiscoveryMaxEvidenceBytes, 1024)
+	p.ContainerMaxItems = capNonZero(p.ContainerMaxItems, 100)
+	p.KubernetesMaxItems = capNonZero(p.KubernetesMaxItems, 200)
+	p.KubernetesMaxEvents = capNonZero(p.KubernetesMaxEvents, 50)
+	p.LocalChecksMaxChecks = capNonZero(p.LocalChecksMaxChecks, 50)
+	p.LocalChecksMaxBytes = capNonZero(p.LocalChecksMaxBytes, 512*1024)
+	p.OTLPMaxItems = capNonZero(p.OTLPMaxItems, 500)
+	p.OTLPMaxBytes = capNonZero(p.OTLPMaxBytes, 512*1024)
+}
+
+func normalizeEDRSafeProfile(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "conservative", "standard", "crowdstrike", "darktrace", "defender":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return "conservative"
+	}
+}
+
+func severityAtLeast(value, minimum string) bool {
+	return severityRank(value) >= severityRank(minimum)
+}
+
+func severityRank(value string) int {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "trace", "debug":
+		return 10
+	case "info", "notice":
+		return 20
+	case "warn", "warning":
+		return 30
+	case "error", "err":
+		return 40
+	case "critical", "crit":
+		return 50
+	case "alert":
+		return 60
+	case "emergency", "fatal", "panic":
+		return 70
+	default:
+		return 0
+	}
+}
+
+func capPositive(value, max int) int {
+	if value <= 0 {
+		return max
+	}
+	if value > max {
+		return max
+	}
+	return value
+}
+
+func capNonZero(value, max int) int {
+	if value <= 0 {
+		return value
+	}
+	if value > max {
+		return max
+	}
+	return value
 }
 
 func getenv(k, def string) string {
@@ -639,6 +749,15 @@ func intEnv(key string, def int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			return n
+		}
+	}
+	return def
+}
+
+func boolEnv(key string, def bool) bool {
+	if v := os.Getenv(key); v != "" {
+		if b, err := strconv.ParseBool(strings.ToLower(strings.TrimSpace(v))); err == nil {
+			return b
 		}
 	}
 	return def

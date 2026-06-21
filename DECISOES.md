@@ -338,6 +338,15 @@ Referências:
 - Consequencias: a web deixa de depender de inferência visual para confirmar configuração e consegue diferenciar recebido, aplicado e falha real.
 - Rollback: publicar versão anterior do agente; a web continuará exibindo pendência até novo report ou evidência runtime.
 
+### DEC-20260621-01 - Readiness EDR/NDR no runtime do agente
+
+- Status: aceita
+- Contexto: o agente roda em ambientes que podem ter EDR/NDR/SOC e seu comportamento legítimo de telemetria, discovery bounded, inventário, logs, auto-update e self-healing pode ser confundido com discovery, persistência ou beaconing.
+- Decisao: adicionar modo `edr_safe`, aplicar caps conservadores e emitir `edr_ndr_readiness` no snapshot runtime com manifesto, política, allowlist mínima, módulos preservados, ações bloqueadas, lacunas e status de validação.
+- Alternativas consideradas: não emitir manifesto e depender de documentação externa; ou recomendar allowlist ampla por diretório/processo. Ambas foram rejeitadas por baixa auditabilidade e risco de segurança.
+- Impacto: o web consegue mostrar readiness por agente e o operador pode registrar validação, sem o agente tentar burlar ferramenta de segurança ou declarar compatibilidade com fornecedor sem evidência real.
+- Rollback: desligar `EDR_SAFE`, voltar ao perfil padrão ou publicar versão anterior do agente.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

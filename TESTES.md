@@ -545,3 +545,11 @@ Evidência 2026-06-20:
 - Dados de teste e fixtures: usar dados pequenos, deterministas, sem dump real de producao e com IDs previsiveis.
 - Pacote/lote: lotes usam testes rasos e direcionados; fechamento do pacote exige check completo.
 - Bug simples ou melhoria sem impacto de codigo pode usar teste local/direcionado. Bug complexo ou mudanca ampla exige check completo.
+
+### PKG-76 - Readiness EDR/NDR seguro
+
+- Unitario focado: `go test ./internal/bootstrap ./internal/common/config ./internal/domain/usecase ./internal/platform/collectors/logdiscovery ./internal/platform/collectors/oslogs`.
+- Cobertura: `EDR_SAFE`, perfil seguro, caps remotos, logs `error+`, manifesto `edr_ndr_readiness`, EventLog/journald, discovery bounded e compatibilidade com configuração remota.
+- Fechamento: rodar `./check.sh`, gerar artefatos oficiais com `./scripts/build_installers.sh`, copiar para o diretório versionado do web e validar SHA256.
+- Artefatos `0.8.18`: `./scripts/build_installers.sh` gerou os compactados oficiais; `SHA256SUMS` validou `linux-amd64=29bd698d9694906f5d48309ba23e0eb1ba590f7445ed20083a6e1935dfa63ffe` e `windows-amd64=f3b9ec0e16b9b23cdecbfe1643a71c13cf0a2ea570d69d5c4c24e6702db7c908`.
+- Homologação de fornecedor real: CrowdStrike/Darktrace exigem ambiente real, janela aprovada, evidência do console do fornecedor e ação operacional registrada no web.

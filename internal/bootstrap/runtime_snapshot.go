@@ -59,6 +59,7 @@ func buildSelfHealRuntimeSnapshot(
 	out["agent_env"] = buildAgentEnvSnapshot(cfg)
 	out["fleet_runtime"] = buildFleetRuntimeSnapshot(cfg, mode, prefs)
 	out["security_runtime"] = buildSecurityRuntimeSnapshot(cfg)
+	out["edr_ndr_readiness"] = buildEDRNDRReadinessSnapshot(cfg, mode, prefs)
 	out["contextual_evidence"] = buildContextualEvidenceSnapshot(cfg, mode, prefs, settings, workerAvailable)
 	out["scheduler_snapshot"] = agentruntime.SchedulerSnapshotForCollectors(runtimeCollectorSpecs(cfg))
 	if selfUpdateUC != nil {
@@ -366,6 +367,216 @@ func buildSecurityRuntimeSnapshot(cfg config.Config) map[string]any {
 			"shell_blocked":     true,
 		},
 	}
+}
+
+func buildEDRNDRReadinessSnapshot(cfg config.Config, mode string, prefs config.CollectPrefs) map[string]any {
+	enabled := cfg.EDRSafe || prefs.EDRSafe
+	profile := strings.TrimSpace(cfg.EDRSafeProfile)
+	if prefs.EDRSafeProfile != "" {
+		profile = strings.TrimSpace(prefs.EDRSafeProfile)
+	}
+	if profile == "" {
+		profile = "standard"
+	}
+	gaps := edrNDRGaps(cfg, enabled)
+	status := "ready"
+	if !enabled {
+		status = "limited"
+	} else if len(gaps) > 0 {
+		status = "attention"
+	}
+	return map[string]any{
+		"schema_version": 1,
+		"status":         status,
+		"mode":           map[string]any{"edr_safe": enabled, "profile": profile, "agent_mode": strings.TrimSpace(mode)},
+		"policy": map[string]any{
+			"remote_shell_blocked":             true,
+			"arbitrary_execution_blocked":      true,
+			"destructive_actions_blocked":      true,
+			"sensitive_config_signed_required": cfg.RemoteConfigSignatureRequired,
+			"auto_update_hash_required":        true,
+			"auto_update_signature_required":   cfg.AutoUpdateTrustRequired,
+			"log_min_severity":                 effectiveOSLogSeverity(cfg, prefs),
+			"log_source_discovery_bounded":     true,
+			"credential_payload_blocked":       true,
+			"supplier_claim_without_evidence":  false,
+		},
+		"manifest": edrNDRManifest(cfg),
+		"modules": map[string]any{
+			"core_preserved": []string{"cpu", "memory", "disk", "network", "host", "agent_health", "secure_update"},
+			"logs": map[string]any{
+				"enabled":          cfg.OSLogEnabled || prefs.Logs,
+				"min_severity":     effectiveOSLogSeverity(cfg, prefs),
+				"eventlog_enabled": runtime.GOOS == "windows",
+				"journald_enabled": cfg.OSLogJournaldEnabled || len(cfg.OSLogJournaldUnits) > 0,
+				"raw_file_allowed": len(cfg.OSLogFiles) > 0 || len(prefs.OSLogFilesList) > 0,
+			},
+			"bounded_collectors": []string{"log_source_discovery", "local_checks", "containers", "kubernetes", "otlp"},
+			"blocked_actions":    []string{"shell", "powershell", "cmd", "bash", "script", "delete", "isolate", "disable_security_tool"},
+		},
+		"allowlist": edrNDRAllowlist(cfg),
+		"gaps":      gaps,
+		"validation": map[string]any{
+			"windows_defender_eventlog": "fixture_required_or_real_when_available",
+			"linux_audit_journald":      "fixture_required_or_real_when_available",
+			"edr_ndr_vendor_fixture":    "required",
+			"crowdstrike_darktrace":     "no_claim_without_customer_environment",
+		},
+	}
+}
+
+func edrNDRGaps(cfg config.Config, enabled bool) []string {
+	gaps := make([]string, 0, 8)
+	if !enabled {
+		gaps = append(gaps, "edr_safe_disabled")
+	}
+	if !cfg.RemoteConfigSignatureRequired {
+		gaps = append(gaps, "remote_config_signature_not_required")
+	}
+	if !cfg.AutoUpdateTrustRequired {
+		gaps = append(gaps, "auto_update_signature_not_required")
+	}
+	if cfg.TLSInsecureSkip {
+		gaps = append(gaps, "tls_insecure_skip_verify")
+	}
+	if strings.TrimSpace(cfg.AgentIdentitySecret) == "" {
+		gaps = append(gaps, "agent_identity_secret_not_reported")
+	}
+	return uniqueStrings(gaps, 16)
+}
+
+func edrNDRManifest(cfg config.Config) map[string]any {
+	exePath, _ := os.Executable()
+	apiBase := strings.TrimRight(strings.TrimSpace(cfg.APIBaseURL), "/")
+	return map[string]any{
+		"binary": inspectLocalFile(exePath, true),
+		"process": map[string]any{
+			"pid":     os.Getpid(),
+			"goos":    runtime.GOOS,
+			"goarch":  runtime.GOARCH,
+			"version": strings.TrimSpace(version.Version),
+		},
+		"service": map[string]any{
+			"name": serviceNameForOS(),
+			"user": runtimeUserName(),
+		},
+		"directories": map[string]any{
+			"prefs":             inspectLocalFile(cfg.PrefsPath, true),
+			"outbox":            inspectLocalFile(cfg.OutboxPath, false),
+			"agentless_outbox":  inspectLocalFile(cfg.AgentlessOutboxPath, false),
+			"update_directory":  inspectLocalFile(cfg.AutoUpdateDir, false),
+			"log_cursor":        inspectLocalFile(cfg.OSLogCursorPath, true),
+			"log_discovery_dir": inspectLocalFile(filepath.Dir(cfg.PrefsPath), false),
+		},
+		"network": map[string]any{
+			"api_base_url": apiBase,
+			"endpoints": []string{
+				apiBase + "/v1/ingest/metrics",
+				apiBase + "/v1/ingest/health",
+				apiBase + "/v1/logs/raw",
+				apiBase + "/v1/agent/config",
+				apiBase + "/v1/agent/channel",
+				apiBase + "/v1/agent/update-report",
+			},
+			"ports":            edrNDRPorts(cfg),
+			"proxy_configured": proxyConfigured(),
+		},
+		"publisher": map[string]any{
+			"name":       "AIceberg",
+			"signer":     "not_reported_by_runtime",
+			"claim_safe": false,
+		},
+		"update_policy": map[string]any{
+			"enabled":                     cfg.AutoUpdateEnabled,
+			"hash_validation_required":    true,
+			"signature_validation":        cfg.AutoUpdateTrustRequired,
+			"trust_public_key_configured": strings.TrimSpace(cfg.AutoUpdateTrustPublicKey) != "",
+			"max_mb":                      cfg.AutoUpdateMaxMB,
+			"rollback_directory":          cfg.AutoUpdateDir,
+		},
+	}
+}
+
+func edrNDRAllowlist(cfg config.Config) map[string]any {
+	return map[string]any{
+		"paths": uniqueStrings([]string{
+			os.Getenv("AGENT_ENV_FILE"),
+			cfg.PrefsPath,
+			cfg.OutboxPath,
+			cfg.AgentlessOutboxPath,
+			cfg.AutoUpdateDir,
+			cfg.OSLogCursorPath,
+		}, 16),
+		"processes": []string{"aiceberg_agent", "aiceberg-agent"},
+		"services":  []string{serviceNameForOS()},
+		"domains":   uniqueStrings([]string{hostFromURL(cfg.APIBaseURL), hostFromURL(cfg.HubURL)}, 8),
+		"ports":     edrNDRPorts(cfg),
+		"scope":     "least_privilege_readonly_observability",
+		"notes": []string{
+			"no_security_tool_bypass",
+			"no_global_exclusion_required",
+			"validate_hash_before_allowlisting_binary",
+		},
+	}
+}
+
+func effectiveOSLogSeverity(cfg config.Config, prefs config.CollectPrefs) string {
+	if strings.TrimSpace(prefs.OSLogMinSeverity) != "" {
+		return strings.ToLower(strings.TrimSpace(prefs.OSLogMinSeverity))
+	}
+	if strings.TrimSpace(cfg.OSLogMinSeverity) != "" {
+		return strings.ToLower(strings.TrimSpace(cfg.OSLogMinSeverity))
+	}
+	return "not_configured"
+}
+
+func edrNDRPorts(cfg config.Config) []string {
+	ports := make([]string, 0, 4)
+	if cfg.HealthPort > 0 {
+		ports = append(ports, strconv.Itoa(cfg.HealthPort)+"/tcp")
+	}
+	if strings.TrimSpace(cfg.CustomMetricsUDPAddr) != "" {
+		ports = append(ports, cfg.CustomMetricsUDPAddr+"/udp")
+	}
+	if strings.TrimSpace(cfg.CustomMetricsHTTPAddr) != "" {
+		ports = append(ports, cfg.CustomMetricsHTTPAddr+"/tcp")
+	}
+	if strings.TrimSpace(cfg.OTLPHTTPAddr) != "" {
+		ports = append(ports, cfg.OTLPHTTPAddr+"/tcp")
+	}
+	return uniqueStrings(ports, 8)
+}
+
+func hostFromURL(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return ""
+	}
+	value = strings.TrimPrefix(value, "https://")
+	value = strings.TrimPrefix(value, "http://")
+	if idx := strings.Index(value, "/"); idx >= 0 {
+		value = value[:idx]
+	}
+	if idx := strings.Index(value, ":"); idx >= 0 {
+		value = value[:idx]
+	}
+	return strings.TrimSpace(value)
+}
+
+func serviceNameForOS() string {
+	if runtime.GOOS == "windows" {
+		return "AIcebergAgent"
+	}
+	return "aiceberg-agent"
+}
+
+func runtimeUserName() string {
+	for _, key := range []string{"USER", "USERNAME", "LOGNAME"} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return "not_reported"
 }
 
 func proxyConfigured() bool {

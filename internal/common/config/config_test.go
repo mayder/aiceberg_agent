@@ -54,6 +54,41 @@ func TestLoadUsesConfigurableMetricsInterval(t *testing.T) {
 	}
 }
 
+func TestLoadAppliesEDRSafeDefaults(t *testing.T) {
+	t.Setenv("AGENT_TOKEN", "token")
+	t.Setenv("EDR_SAFE", "true")
+	t.Setenv("EDR_SAFE_PROFILE", "crowdstrike")
+	t.Setenv("OSLOG_MIN_SEVERITY", "info")
+	t.Setenv("OSLOG_DIAG", "true")
+	t.Setenv("LOG_DISCOVERY_MAX_SOURCES", "500")
+	t.Setenv("CONTEXTUAL_EVIDENCE_MAX_BYTES", "524288")
+	t.Setenv("CONTAINERS_MAX_CONTAINERS", "200")
+	t.Setenv("K8S_MAX_EVENTS", "1000")
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if !cfg.EDRSafe {
+		t.Fatalf("expected EDR safe enabled")
+	}
+	if cfg.EDRSafeProfile != "crowdstrike" {
+		t.Fatalf("unexpected profile: %q", cfg.EDRSafeProfile)
+	}
+	if cfg.OSLogMinSeverity != "error" {
+		t.Fatalf("expected min severity error, got %q", cfg.OSLogMinSeverity)
+	}
+	if cfg.OSLogDiag {
+		t.Fatalf("diagnostic log mode must be disabled in EDR safe mode")
+	}
+	if cfg.LogDiscoveryMaxCandidates > 100 || cfg.LogDiscoveryMaxEvidenceBytes > 1024 {
+		t.Fatalf("expected discovery caps, got candidates=%d bytes=%d", cfg.LogDiscoveryMaxCandidates, cfg.LogDiscoveryMaxEvidenceBytes)
+	}
+	if cfg.ContainerMaxItems > 100 || cfg.KubernetesMaxEvents > 50 {
+		t.Fatalf("expected container/k8s caps, got containers=%d k8s_events=%d", cfg.ContainerMaxItems, cfg.KubernetesMaxEvents)
+	}
+}
+
 func TestLoadFallsBackWhenMetricsIntervalIsNotPositive(t *testing.T) {
 	t.Setenv("AGENT_TOKEN", "token")
 	t.Setenv("METRICS_INTERVAL", "0")

@@ -255,6 +255,77 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 	if !strings.Contains(fmt.Sprint(benchmark["required_evidence"]), "datadog_reference") {
 		t.Fatalf("benchmark must require Datadog reference evidence: %#v", benchmark)
 	}
+
+	readiness, ok := snap["edr_ndr_readiness"].(map[string]any)
+	if !ok {
+		t.Fatalf("edr_ndr_readiness missing or invalid: %#v", snap["edr_ndr_readiness"])
+	}
+	if readiness["schema_version"] != 1 {
+		t.Fatalf("unexpected EDR/NDR schema: %#v", readiness)
+	}
+	policy, ok := readiness["policy"].(map[string]any)
+	if !ok {
+		t.Fatalf("readiness policy missing: %#v", readiness)
+	}
+	if policy["destructive_actions_blocked"] != true || policy["remote_shell_blocked"] != true || policy["arbitrary_execution_blocked"] != true {
+		t.Fatalf("EDR/NDR policy must block destructive and shell execution: %#v", policy)
+	}
+	if policy["supplier_claim_without_evidence"] != false {
+		t.Fatalf("supplier claim must stay blocked without vendor evidence: %#v", policy)
+	}
+	allowlist, ok := readiness["allowlist"].(map[string]any)
+	if !ok {
+		t.Fatalf("allowlist missing: %#v", readiness)
+	}
+	if allowlist["scope"] != "least_privilege_readonly_observability" {
+		t.Fatalf("allowlist must be least privilege: %#v", allowlist)
+	}
+	modules, ok := readiness["modules"].(map[string]any)
+	if !ok {
+		t.Fatalf("modules missing: %#v", readiness)
+	}
+	if fmt.Sprint(modules["blocked_actions"]) == "" || !strings.Contains(fmt.Sprint(modules["blocked_actions"]), "disable_security_tool") {
+		t.Fatalf("unexpected module contract: %#v", modules)
+	}
+}
+
+func TestBuildEDRNDRReadinessSnapshotReadyWhenSafeAndSigned(t *testing.T) {
+	cfg := config.Config{
+		EDRSafe:                       true,
+		EDRSafeProfile:                "crowdstrike",
+		APIBaseURL:                    "https://api.aiceberg.com.br",
+		OutboxPath:                    filepath.Join(t.TempDir(), "outbox.db"),
+		AgentIdentitySecret:           "identity",
+		RemoteConfigSignatureSecret:   "remote",
+		RemoteConfigSignatureRequired: true,
+		AutoUpdateTrustRequired:       true,
+	}
+	prefs := config.CollectPrefs{
+		OSLogFiles:       true,
+		OSLogMinSeverity: "error",
+	}
+
+	readiness := buildEDRNDRReadinessSnapshot(cfg, "direct", prefs)
+	if readiness["status"] != "ready" {
+		t.Fatalf("expected ready readiness, got %#v", readiness)
+	}
+	mode, ok := readiness["mode"].(map[string]any)
+	if !ok {
+		t.Fatalf("readiness mode missing: %#v", readiness)
+	}
+	if mode["edr_safe"] != true || mode["profile"] != "crowdstrike" {
+		t.Fatalf("expected edr_safe mode, got %#v", mode)
+	}
+	if gaps, ok := readiness["gaps"].([]string); !ok || len(gaps) != 0 {
+		t.Fatalf("expected no gaps, got %#v", readiness["gaps"])
+	}
+	validation, ok := readiness["validation"].(map[string]any)
+	if !ok {
+		t.Fatalf("validation missing: %#v", readiness)
+	}
+	if validation["edr_ndr_vendor_fixture"] != "required" || validation["crowdstrike_darktrace"] != "no_claim_without_customer_environment" {
+		t.Fatalf("unexpected validation contract: %#v", validation)
+	}
 }
 
 func TestBuildOfflineFirstEvidenceRelayKeepsHubOnlyTopology(t *testing.T) {

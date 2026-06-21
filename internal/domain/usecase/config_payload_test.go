@@ -194,6 +194,58 @@ func TestApplyConfigPayloadAppliesLogLocalTransportAddresses(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadKeepsEDRSafeCapsFromRemoteConfig(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+
+	payload := ConfigPayload{
+		Version: "cfg-edr-safe",
+		Collect: config.CollectPrefs{
+			EDRSafe:                      true,
+			EDRSafeProfile:               "darktrace",
+			CPU:                          true,
+			Memory:                       true,
+			Disk:                         true,
+			Network:                      true,
+			Host:                         true,
+			OSLogFiles:                   true,
+			OSLogMinSeverity:             "info",
+			OSLogDiag:                    true,
+			LogDiscoveryMaxCandidates:    500,
+			LogDiscoveryMaxEvidenceBytes: 512 * 1024,
+			ContainerMaxItems:            200,
+			KubernetesMaxEvents:          1000,
+			LocalChecksMaxChecks:         200,
+			OTLPMaxItems:                 5000,
+			OTLPMaxBytes:                 4 * 1024 * 1024,
+		},
+	}
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if !got.EDRSafe || got.EDRSafeProfile != "darktrace" {
+		t.Fatalf("expected EDR safe persisted, got %#v", got)
+	}
+	if got.OSLogMinSeverity != "error" || got.OSLogDiag {
+		t.Fatalf("expected log safety enforced, got min=%q diag=%v", got.OSLogMinSeverity, got.OSLogDiag)
+	}
+	if got.LogDiscoveryMaxCandidates > 100 || got.LogDiscoveryMaxEvidenceBytes > 1024 {
+		t.Fatalf("expected discovery caps, got candidates=%d bytes=%d", got.LogDiscoveryMaxCandidates, got.LogDiscoveryMaxEvidenceBytes)
+	}
+	if got.ContainerMaxItems > 100 || got.KubernetesMaxEvents > 50 {
+		t.Fatalf("expected runtime caps, got containers=%d k8s=%d", got.ContainerMaxItems, got.KubernetesMaxEvents)
+	}
+	if got.LocalChecksMaxChecks > 50 || got.OTLPMaxItems > 500 || got.OTLPMaxBytes > 512*1024 {
+		t.Fatalf("expected local/otlp caps, got local=%d otlp_items=%d otlp_bytes=%d", got.LocalChecksMaxChecks, got.OTLPMaxItems, got.OTLPMaxBytes)
+	}
+}
+
 func TestApplyConfigPayloadAppliesJournaldFilters(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}

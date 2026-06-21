@@ -536,6 +536,33 @@ Validação:
 Próximo ajuste:
 ```
 
+## Readiness EDR/NDR
+
+Ativação:
+
+- `EDR_SAFE=true` ou `AICEBERG_EDR_SAFE=true`.
+- `EDR_SAFE_PROFILE=conservative|standard|crowdstrike|darktrace|defender`.
+
+Comportamento esperado:
+
+- Preserva métricas essenciais, saúde, inventário mínimo, logs `error+`, update seguro e snapshots.
+- Limita discovery/coletas volumosas e reduz ruído local.
+- Não executa shell remoto arbitrário, ação destrutiva, varredura ampla ou coleta de segredo.
+- Emite `edr_ndr_readiness` no snapshot runtime com manifesto, política, allowlist mínima, lacunas e validação.
+
+Validação:
+
+```bash
+go test ./internal/bootstrap ./internal/common/config ./internal/domain/usecase ./internal/platform/collectors/logdiscovery ./internal/platform/collectors/oslogs
+./check.sh
+```
+
+Rollback:
+
+- Remover `EDR_SAFE`/`AICEBERG_EDR_SAFE`.
+- Reverter configuração remota para perfil padrão.
+- Publicar versão anterior do agente se o modo seguro afetar coleta essencial.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

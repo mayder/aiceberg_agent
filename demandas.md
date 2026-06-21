@@ -349,6 +349,39 @@ Desligar discovery por flag local/remota, ignorar `log_source_discovery_v1` no w
 
 ---
 
+## [PKG-76] Agente — readiness EDR/NDR seguro
+
+**Status** — implementado e validado em fixture/contrato controlado em 21/06/2026. Homologação real com CrowdStrike/Darktrace depende de fornecedor ativo no ambiente do cliente e não gera declaração ampla de compatibilidade sem evidência objetiva.
+
+### Lotes propostos
+
+1) **Modo seguro e limites**
+   - [x] [exec] adicionar `EDR_SAFE`/`AICEBERG_EDR_SAFE` e `EDR_SAFE_PROFILE`;
+   - [x] [exec] aplicar defaults conservadores para logs `error+`, discovery bounded, containers, Kubernetes, OTLP e checks locais;
+   - [x] [exec] preservar métricas essenciais, inventário mínimo, logs úteis e auto-update seguro;
+   - [x] [validacao] cobrir com `go test ./internal/common/config ./internal/domain/usecase`.
+
+2) **Manifesto runtime**
+   - [x] [exec] emitir `edr_ndr_readiness` no snapshot runtime com modo, política, manifesto, módulos, allowlist, lacunas e validação;
+   - [x] [exec] bloquear shell remoto, ação destrutiva, execução arbitrária e claim de fornecedor sem evidência;
+   - [x] [validacao] cobrir com `go test ./internal/bootstrap`.
+
+3) **Coleta e compatibilidade**
+   - [x] [exec] manter EventLog/journald/log discovery preferenciais e limitar arquivo bruto quando possível;
+   - [x] [exec] manter compatibilidade com instalações atuais e configuração remota;
+   - [x] [validacao] cobrir com `go test ./internal/platform/collectors/logdiscovery ./internal/platform/collectors/oslogs`.
+
+4) **Fechamento**
+   - [x] [validacao] rodar `go test ./internal/bootstrap ./internal/common/config ./internal/domain/usecase ./internal/platform/collectors/logdiscovery ./internal/platform/collectors/oslogs`;
+   - [x] [exec] gerar versão instalável após `./check.sh`;
+   - [x] [validacao] fechamento coordenado com o web para exibir readiness e bloquear auto-ruído interno em análise SOC.
+
+### Rollback
+
+Desativar `EDR_SAFE`, voltar ao perfil padrão, pausar módulos sensíveis por configuração remota assinada ou publicar a versão anterior do agente. Remover allowlist específica aplicada em fornecedor se ela tiver sido usada apenas para teste.
+
+---
+
 ## Modelo de trabalho IA - 2026-05-22
 
 Projeto: `aiceberg_agent`. Stack: Go agent/CLI, gopsutil, NTP, SNMP. Este arquivo segue `PATHS.toml` e deve ser mantido atualizado ao iniciar ou alterar o projeto.

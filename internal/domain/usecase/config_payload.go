@@ -431,6 +431,7 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	if payload.Agentless.FlushBatch > 0 {
 		collect.AgentlessFlushBatch = payload.Agentless.FlushBatch
 	}
+	config.ApplyEDRSafeCollectPrefs(&collect)
 
 	collectNow := collect.CollectNow
 	if payload.CollectNow != nil {
