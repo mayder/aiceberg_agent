@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	goruntime "runtime"
 	"time"
 )
 
@@ -103,7 +105,27 @@ func WithPayloadMetadata(raw []byte, collectorName, endpoint string) ([]byte, er
 	body["agent_pipeline_version"] = PipelineVersion
 	body["collector_name"] = collectorName
 	body["ingest_endpoint"] = endpoint
+	ensureHostMetadata(body)
 	return json.Marshal(body)
+}
+
+func ensureHostMetadata(body map[string]any) {
+	host, ok := body["host"].(map[string]any)
+	if !ok || host == nil {
+		host = map[string]any{}
+		body["host"] = host
+	}
+	if _, ok := host["hostname"]; !ok {
+		if hostname, err := os.Hostname(); err == nil && hostname != "" {
+			host["hostname"] = hostname
+		}
+	}
+	if _, ok := host["os"]; !ok {
+		host["os"] = goruntime.GOOS
+	}
+	if _, ok := host["arch"]; !ok {
+		host["arch"] = goruntime.GOARCH
+	}
 }
 
 func SchedulerSnapshotForCollectors(collectors []CollectorSpec) SchedulerSnapshot {

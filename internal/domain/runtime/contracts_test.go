@@ -30,6 +30,10 @@ func TestWithPayloadMetadataAddsCompatibleFields(t *testing.T) {
 	if body["collector_name"] != "sysmetrics" || body["ingest_endpoint"] != "/v1/ingest/metrics" {
 		t.Fatalf("unexpected metadata %#v", body)
 	}
+	host, ok := body["host"].(map[string]any)
+	if !ok || host["hostname"] == "" || host["os"] == "" || host["arch"] == "" {
+		t.Fatalf("expected host metadata, got %#v", body["host"])
+	}
 }
 
 func TestWithPayloadMetadataRejectsInvalidJSON(t *testing.T) {
