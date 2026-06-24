@@ -712,6 +712,144 @@ func TestSelfUpdate_PreflightFailsWhenStagingIsNotWritable(t *testing.T) {
 	}
 }
 
+func TestSelfUpdate_PreflightFailsWhenStagingHasLowSpace(t *testing.T) {
+	var received []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/agent/update-report" {
+			http.NotFound(w, r)
+			return
+		}
+		raw, _ := io.ReadAll(r.Body)
+		payload := map[string]any{}
+		_ = json.Unmarshal(raw, &payload)
+		received = append(received, payload)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer srv.Close()
+
+	uc := NewSelfUpdate(config.Config{
+		Agent:             config.AgentCfg{Token: "agent-token"},
+		APIBaseURL:        srv.URL,
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     t.TempDir(),
+		AutoUpdateTimeout: time.Second,
+		AutoUpdateMaxMB:   100_000_000,
+	}, &fakeLogger{})
+
+	err := uc.Execute(context.Background(), &UpdatePayload{
+		Version: "0.9.0",
+		URL:     srv.URL + "/pkg.bin",
+	})
+	if err == nil {
+		t.Fatalf("expected low space preflight error")
+	}
+	if len(received) != 1 {
+		t.Fatalf("expected one preflight report, got %d", len(received))
+	}
+	report := received[0]
+	if status, _ := report["status"].(string); status != "preflight_failed" {
+		t.Fatalf("expected preflight_failed, got %v", report["status"])
+	}
+	update, ok := report["update"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected update metadata")
+	}
+	preflight, ok := update["preflight"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected preflight metadata: %#v", update)
+	}
+	if code, _ := preflight["failure_code"].(string); code != "staging_low_space" {
+		t.Fatalf("expected staging_low_space, got %v", preflight["failure_code"])
+	}
+	checks, ok := preflight["checks"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected preflight checks: %#v", preflight)
+	}
+	if value, _ := checks["staging_free_space"].(string); !strings.Contains(value, "low:") {
+		t.Fatalf("expected low staging_free_space check, got %v", checks["staging_free_space"])
+	}
+}
+
+func TestSelfUpdate_ApplyFailureReportsExitCodeCooldownAndClearsPending(t *testing.T) {
+	pkg := []byte("payload")
+	sum := sha256.Sum256(pkg)
+	var received []map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/agent/update-report" {
+			raw, _ := io.ReadAll(r.Body)
+			payload := map[string]any{}
+			_ = json.Unmarshal(raw, &payload)
+			received = append(received, payload)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(pkg)
+	}))
+	defer srv.Close()
+
+	command := "exit 42"
+	if runtime.GOOS == "windows" {
+		command = "exit 42"
+	}
+	cfg := config.Config{
+		Agent:                   config.AgentCfg{Token: "agent-token"},
+		APIBaseURL:              srv.URL,
+		AutoUpdateEnabled:       true,
+		AutoUpdateDir:           t.TempDir(),
+		AutoUpdateTimeout:       2 * time.Second,
+		AutoUpdateMaxMB:         5,
+		AutoUpdateRetryInterval: time.Hour,
+		AutoUpdateCommand:       command,
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	payload := &UpdatePayload{
+		Version: testUpdateVersion(),
+		URL:     srv.URL + "/pkg.bin",
+		SHA256:  hex.EncodeToString(sum[:]),
+	}
+
+	err := uc.Execute(context.Background(), payload)
+	if err == nil {
+		t.Fatalf("expected apply command failure")
+	}
+	var applyFailed map[string]any
+	for _, report := range received {
+		if status, _ := report["status"].(string); status == "apply_failed" {
+			applyFailed = report
+			break
+		}
+	}
+	if applyFailed == nil {
+		t.Fatalf("expected apply_failed report, got %#v", received)
+	}
+	update, ok := applyFailed["update"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected update metadata")
+	}
+	if stage, _ := update["stage"].(string); stage != "apply" {
+		t.Fatalf("expected apply stage, got %v", update["stage"])
+	}
+	if exitCode, ok := update["launcher_exit_code"].(float64); !ok || int(exitCode) != 42 {
+		t.Fatalf("expected launcher_exit_code=42, got %#v", update["launcher_exit_code"])
+	}
+	if attempt, ok := update["attempt_count"].(float64); !ok || int(attempt) != 1 {
+		t.Fatalf("expected cooldown attempt_count=1, got %#v", update["attempt_count"])
+	}
+	if reason, _ := update["last_reason_code"].(string); reason == "" {
+		t.Fatalf("expected cooldown last_reason_code in update metadata: %#v", update)
+	}
+	if pending, pendingErr := uc.loadPendingState(cfg.AutoUpdateDir); pendingErr != nil || pending != nil {
+		t.Fatalf("expected pending state cleared after apply failure, pending=%#v err=%v", pending, pendingErr)
+	}
+	if cooldown, ok := uc.loadUpdateCooldown(cfg.AutoUpdateDir); !ok || cooldown.LastReasonCode == "" {
+		t.Fatalf("expected cooldown persisted after apply failure, got %#v ok=%v", cooldown, ok)
+	}
+}
+
 func TestSelfUpdate_SnapshotIncludesPendingStateMetadata(t *testing.T) {
 	cfg := config.Config{
 		AutoUpdateEnabled: true,

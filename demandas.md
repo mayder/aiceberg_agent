@@ -98,7 +98,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 ## [PKG-84] Agente/Web — update resiliente e diagnosticável do agente
 
-**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.25` adiciona cooldown persistido por versão/erro, fingerprint de falha, fingerprint idempotente do report, metadados de tentativa, preflight local e status `rolled_back` quando a versão alvo não confirma após restart no `update-report`. A versão `0.8.27` reforça o preflight com espaço livre de staging, escrita no diretório de instalação, gerenciador de serviço e sinalização de lock/binário por SO. A versão `0.8.28` preserva `.part`, retoma download com `Range` quando possível, valida SHA256 após retomada e registra evidência de retomada. A versão `0.8.29` expõe `rollback_available`/`rollback_version` no estado pendente e nos reports de reconexão/rollback e limpa staging antigo com retenção segura. Fechamento completo depende de piloto real Windows/Linux com falha induzida/conhecida.
+**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.25` adiciona cooldown persistido por versão/erro, fingerprint de falha, fingerprint idempotente do report, metadados de tentativa, preflight local e status `rolled_back` quando a versão alvo não confirma após restart no `update-report`. A versão `0.8.27` reforça o preflight com espaço livre de staging, escrita no diretório de instalação, gerenciador de serviço e sinalização de lock/binário por SO. A versão `0.8.28` preserva `.part`, retoma download com `Range` quando possível, valida SHA256 após retomada e registra evidência de retomada. A versão `0.8.29` expõe `rollback_available`/`rollback_version` no estado pendente e nos reports de reconexão/rollback e limpa staging antigo com retenção segura. Em 24/06/2026 foi adicionada validação controlada de staging sem espaço e falha de apply com exit code, cooldown e limpeza de pendência. Fechamento completo depende de piloto real Windows/Linux com falha induzida/conhecida.
 
 **Escopo no agente** — impedir loop quente de update após restart, preservar diagnóstico de falha e enviar evidência objetiva para o web sem novo endpoint.
 
@@ -123,6 +123,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 3) **Preflight local**
    - [x] validar executável atual, diretório de instalação, staging gravável, espaço livre, gerenciador de serviço e shell/PowerShell antes do download/apply;
    - [x] reportar `preflight_failed` com `failure_code`, recomendação, checks e lacunas por SO;
+   - [x] validar em teste controlado `staging_not_writable` e `staging_low_space` sem tocar em host produtivo;
    - [x] manter lacunas explícitas para restart real, lock de binário, EDR/antivírus e SELinux/AppArmor quando só podem ser provadas no apply real.
 
 4) **Download resiliente**
@@ -134,6 +135,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 5) **Staging e retenção**
    - [x] preservar metadados de rollback do update pendente sem expor segredo;
    - [x] limpar diretórios antigos de staging após validação do artefato, preservando versão atual, diretórios recentes e arquivos de estado `.pending_update.json`/`.update_cooldown.json`;
+   - [x] validar falha controlada de apply com `launcher_exit_code`, cooldown persistido e pendência limpa;
    - [x] cobrir limpeza por teste unitário sem apagar estado operacional.
 
 6) **Fechamento**
