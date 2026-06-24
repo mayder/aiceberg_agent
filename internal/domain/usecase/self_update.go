@@ -1112,15 +1112,18 @@ func (uc *SelfUpdate) reportStatus(ctx context.Context, payload *UpdatePayload, 
 	if strings.TrimSpace(status) == "" {
 		return nil
 	}
+	reportFingerprint := updateReportFingerprint(payload, status, reasonCode, currentVersion, updateMeta)
 	body := map[string]any{
-		"status":          status,
-		"target_version":  payloadVersion(payload),
-		"current_version": strings.TrimSpace(currentVersion),
-		"reason_code":     strings.TrimSpace(reasonCode),
-		"reason_message":  strings.TrimSpace(reasonMessage),
-		"ts_unix_ms":      time.Now().UnixMilli(),
+		"status":             status,
+		"target_version":     payloadVersion(payload),
+		"current_version":    strings.TrimSpace(currentVersion),
+		"reason_code":        strings.TrimSpace(reasonCode),
+		"reason_message":     strings.TrimSpace(reasonMessage),
+		"report_fingerprint": reportFingerprint,
+		"ts_unix_ms":         time.Now().UnixMilli(),
 	}
 	if len(updateMeta) > 0 {
+		updateMeta["report_fingerprint"] = reportFingerprint
 		body["update"] = updateMeta
 	}
 	enc, err := json.Marshal(body)
@@ -1402,6 +1405,34 @@ func updateErrorFingerprint(reasonCode string, err error) string {
 	}
 	sum := sha256.Sum256([]byte(text))
 	return hex.EncodeToString(sum[:12])
+}
+
+func updateReportFingerprint(payload *UpdatePayload, status, reasonCode, currentVersion string, updateMeta map[string]any) string {
+	parts := []string{
+		payloadVersion(payload),
+		strings.TrimSpace(currentVersion),
+		strings.TrimSpace(status),
+		strings.TrimSpace(reasonCode),
+	}
+	for _, key := range []string{
+		"download_sha256",
+		"artifact_sha256",
+		"stage",
+		"failure_class",
+		"last_error_fingerprint",
+		"launcher_exit_code",
+	} {
+		if updateMeta == nil {
+			continue
+		}
+		value := strings.TrimSpace(fmt.Sprint(updateMeta[key]))
+		if value != "" && value != "<nil>" {
+			parts = append(parts, key+"="+value)
+		}
+	}
+	text := sanitizeUpdateErrorFingerprint(strings.Join(parts, "|"))
+	sum := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(sum[:16])
 }
 
 func sanitizeUpdateErrorFingerprint(value string) string {

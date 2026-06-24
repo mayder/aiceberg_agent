@@ -94,11 +94,11 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 ## [PKG-84] Agente/Web — update resiliente e diagnosticável do agente
 
-**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.23` adiciona cooldown persistido por versão/erro, fingerprint de falha, metadados de tentativa e preflight local no `update-report`. Fechamento completo depende de piloto real Windows/Linux e publicação coordenada com o web.
+**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.24` adiciona cooldown persistido por versão/erro, fingerprint de falha, fingerprint idempotente do report, metadados de tentativa e preflight local no `update-report`. Fechamento completo depende de piloto real Windows/Linux e publicação coordenada com o web.
 
 **Escopo no agente** — impedir loop quente de update após restart, preservar diagnóstico de falha e enviar evidência objetiva para o web sem novo endpoint.
 
-**Contrato** — `update-report` pode conter `update.attempt_count`, `update.cooldown_until`, `update.cooldown_until_unix`, `update.last_error_fingerprint`, `update.last_reason_code`, `update.failure_class`, `update.download_file` e `update.download_sha256`.
+**Contrato** — `update-report` pode conter `report_fingerprint`, `update.report_fingerprint`, `update.attempt_count`, `update.cooldown_until`, `update.cooldown_until_unix`, `update.last_error_fingerprint`, `update.last_reason_code`, `update.failure_class`, `update.download_file` e `update.download_sha256`.
 
 ### Lotes
 
@@ -110,6 +110,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 2) **Diagnóstico no report**
    - [x] anexar `attempt_count`, `cooldown_until`, `last_error_fingerprint` e `last_reason_code` em falhas/cooldown;
+   - [x] anexar `report_fingerprint` estável por versão, status, SHA, estágio e fingerprint de erro;
    - [x] preservar `failure_class`, arquivo, SHA e estágio já existentes;
    - [x] cobrir contrato em `go test ./internal/domain/usecase -run 'SelfUpdate|Update'`.
 

@@ -536,6 +536,22 @@ func TestSelfUpdate_ReportIncludesDownloadMetadata(t *testing.T) {
 	if sha, _ := update["download_sha256"].(string); sha == "" {
 		t.Fatalf("expected download_sha256")
 	}
+	reportFingerprint, _ := report["report_fingerprint"].(string)
+	updateFingerprint, _ := update["report_fingerprint"].(string)
+	if strings.TrimSpace(reportFingerprint) == "" {
+		t.Fatalf("expected report_fingerprint")
+	}
+	if reportFingerprint != updateFingerprint {
+		t.Fatalf("expected matching fingerprints, got report=%q update=%q", reportFingerprint, updateFingerprint)
+	}
+	delete(update, "report_fingerprint")
+	reportStatus, _ := report["status"].(string)
+	reportReason, _ := report["reason_code"].(string)
+	reportCurrentVersion, _ := report["current_version"].(string)
+	expected := updateReportFingerprint(payload, reportStatus, reportReason, reportCurrentVersion, update)
+	if reportFingerprint != expected {
+		t.Fatalf("expected stable fingerprint %q, got %q", expected, reportFingerprint)
+	}
 }
 
 func TestSelfUpdate_PreflightFailsWhenStagingIsNotWritable(t *testing.T) {
