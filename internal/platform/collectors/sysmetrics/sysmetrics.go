@@ -2224,6 +2224,9 @@ func detectPackages(ctx context.Context) map[string]string {
 // listLinuxPackages devolve inventário com EVR para RPM (RHEL-like) ou versão simples via dpkg.
 func listLinuxPackages(ctx context.Context) []rpmPkg {
 	var pkgs []rpmPkg
+	if strings.TrimSpace(os.Getenv("AICEBERG_AGENT_ENABLE_PACKAGE_INVENTORY")) != "true" {
+		return pkgs
+	}
 
 	if path, err := exec.LookPath("dpkg"); err == nil {
 		cmdCtx, cancel := boundedContext(ctx, linuxPackageCommandTimeout)

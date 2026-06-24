@@ -145,6 +145,14 @@ func TestLinuxSecurityUpdatesSkipsDnfByDefault(t *testing.T) {
 	}
 }
 
+func TestListLinuxPackagesSkipsFullInventoryByDefault(t *testing.T) {
+	t.Setenv("AICEBERG_AGENT_ENABLE_PACKAGE_INVENTORY", "")
+
+	if got := listLinuxPackages(context.Background()); len(got) != 0 {
+		t.Fatalf("expected package inventory skipped by default, got %d packages", len(got))
+	}
+}
+
 func TestBuildPerformanceProfileSanitizesProcessCommand(t *testing.T) {
 	mem := &memSnapshot{Total: 1000}
 	profile := buildPerformanceProfile(snapshot{
