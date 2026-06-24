@@ -42,6 +42,8 @@ type SelfUpdate struct {
 	policy   runtimeAutoUpdateOptions
 }
 
+var currentExecutablePath = os.Executable
+
 type updateDownloadSource struct {
 	URL     string
 	Name    string
@@ -347,7 +349,7 @@ func (uc *SelfUpdate) preflightUpdate(opts effectiveAutoUpdateOptions) updatePre
 		result.User = strings.TrimSpace(os.Getenv("USER"))
 	}
 
-	exe, exeErr := os.Executable()
+	exe, exeErr := currentExecutablePath()
 	if exeErr != nil || strings.TrimSpace(exe) == "" {
 		result.fail("executable_unavailable", "Validar instalação do agente e executar o update manual oficial para o sistema operacional.")
 	} else {
@@ -357,6 +359,7 @@ func (uc *SelfUpdate) preflightUpdate(opts effectiveAutoUpdateOptions) updatePre
 			result.fail("executable_unavailable", "Validar caminho do binário atual do agente antes de aplicar update.")
 		} else {
 			result.Checks["executable"] = "ok"
+			result.Checks["executable_mode"] = info.Mode().Perm().String()
 		}
 	}
 
@@ -420,7 +423,18 @@ func (uc *SelfUpdate) enrichPreflightFilesystemChecks(result *updatePreflightRes
 		return
 	}
 	if strings.TrimSpace(result.InstallDir) != "" {
+		if info, err := os.Stat(result.InstallDir); err != nil {
+			result.fail("install_dir_unavailable", "Corrigir o diretório de instalação do agente antes de aplicar update.")
+			result.Checks["install_dir"] = safeUpdateText(err.Error(), 160)
+		} else if !info.IsDir() {
+			result.fail("install_dir_unavailable", "Corrigir o diretório de instalação do agente antes de aplicar update.")
+			result.Checks["install_dir"] = "not_directory"
+		} else {
+			result.Checks["install_dir"] = "ok"
+			result.Checks["install_dir_mode"] = info.Mode().Perm().String()
+		}
 		if err := probeWritableDir(result.InstallDir); err != nil {
+			result.fail("install_dir_not_writable", "Corrigir permissão do diretório de instalação ou usar o comando manual oficial com privilégio adequado.")
 			result.Checks["install_dir_writable"] = safeUpdateText(err.Error(), 160)
 		} else {
 			result.Checks["install_dir_writable"] = "ok"

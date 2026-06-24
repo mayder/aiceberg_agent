@@ -605,7 +605,7 @@ func TestSelfUpdate_ReportIncludesDownloadMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected preflight checks: %#v", preflight)
 	}
-	for _, key := range []string{"staging_dir", "staging_free_space", "service_manager", "binary_lock"} {
+	for _, key := range []string{"staging_dir", "staging_free_space", "service_manager", "binary_lock", "install_dir", "install_dir_mode", "install_dir_writable", "executable_mode"} {
 		if strings.TrimSpace(fmt.Sprint(checks[key])) == "" {
 			t.Fatalf("expected preflight check %s in %#v", key, checks)
 		}
@@ -768,6 +768,91 @@ func TestSelfUpdate_PreflightFailsWhenStagingHasLowSpace(t *testing.T) {
 	}
 	if value, _ := checks["staging_free_space"].(string); !strings.Contains(value, "low:") {
 		t.Fatalf("expected low staging_free_space check, got %v", checks["staging_free_space"])
+	}
+}
+
+func TestSelfUpdate_PreflightFailsWhenInstallDirIsNotWritable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits are not reliable on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root can write to read-only test directories")
+	}
+	var received []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/agent/update-report" {
+			http.NotFound(w, r)
+			return
+		}
+		raw, _ := io.ReadAll(r.Body)
+		payload := map[string]any{}
+		_ = json.Unmarshal(raw, &payload)
+		received = append(received, payload)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer srv.Close()
+
+	installDir := filepath.Join(t.TempDir(), "install")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("create install dir: %v", err)
+	}
+	exePath := filepath.Join(installDir, "aiceberg-agent")
+	if err := os.WriteFile(exePath, []byte("agent"), 0o755); err != nil {
+		t.Fatalf("write fake executable: %v", err)
+	}
+	if err := os.Chmod(installDir, 0o555); err != nil {
+		t.Fatalf("chmod install dir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(installDir, 0o755)
+	})
+	oldExecutablePath := currentExecutablePath
+	currentExecutablePath = func() (string, error) { return exePath, nil }
+	t.Cleanup(func() {
+		currentExecutablePath = oldExecutablePath
+	})
+
+	uc := NewSelfUpdate(config.Config{
+		Agent:             config.AgentCfg{Token: "agent-token"},
+		APIBaseURL:        srv.URL,
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     t.TempDir(),
+		AutoUpdateTimeout: time.Second,
+		AutoUpdateMaxMB:   1,
+	}, &fakeLogger{})
+
+	err := uc.Execute(context.Background(), &UpdatePayload{
+		Version: "0.9.0",
+		URL:     srv.URL + "/pkg.bin",
+	})
+	if err == nil {
+		t.Fatalf("expected install dir preflight error")
+	}
+	if len(received) != 1 {
+		t.Fatalf("expected one preflight report, got %d", len(received))
+	}
+	report := received[0]
+	if status, _ := report["status"].(string); status != "preflight_failed" {
+		t.Fatalf("expected preflight_failed, got %v", report["status"])
+	}
+	update, ok := report["update"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected update metadata")
+	}
+	preflight, ok := update["preflight"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected preflight metadata: %#v", update)
+	}
+	if code, _ := preflight["failure_code"].(string); code != "install_dir_not_writable" {
+		t.Fatalf("expected install_dir_not_writable, got %v", preflight["failure_code"])
+	}
+	checks, ok := preflight["checks"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected preflight checks: %#v", preflight)
+	}
+	if value, _ := checks["install_dir_writable"].(string); strings.TrimSpace(value) == "" || value == "ok" {
+		t.Fatalf("expected install_dir_writable failure, got %v", value)
 	}
 }
 

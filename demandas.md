@@ -98,7 +98,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 ## [PKG-84] Agente/Web — update resiliente e diagnosticável do agente
 
-**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.25` adiciona cooldown persistido por versão/erro, fingerprint de falha, fingerprint idempotente do report, metadados de tentativa, preflight local e status `rolled_back` quando a versão alvo não confirma após restart no `update-report`. A versão `0.8.27` reforça o preflight com espaço livre de staging, escrita no diretório de instalação, gerenciador de serviço e sinalização de lock/binário por SO. A versão `0.8.28` preserva `.part`, retoma download com `Range` quando possível, valida SHA256 após retomada e registra evidência de retomada. A versão `0.8.29` expõe `rollback_available`/`rollback_version` no estado pendente e nos reports de reconexão/rollback e limpa staging antigo com retenção segura. Em 24/06/2026 foi adicionada validação controlada de staging sem espaço e falha de apply com exit code, cooldown e limpeza de pendência. Em produção, agentes InspectApp `1`, `4`, `18`, `19`, `70` e `71` permaneceram em `0.8.29`, `version_confirmed`, sem payload pendente e sem loop quente de `update-report`. Fechamento completo depende de piloto real Windows/Linux com falha induzida/conhecida.
+**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.25` adiciona cooldown persistido por versão/erro, fingerprint de falha, fingerprint idempotente do report, metadados de tentativa, preflight local e status `rolled_back` quando a versão alvo não confirma após restart no `update-report`. A versão `0.8.27` reforça o preflight com espaço livre de staging, escrita no diretório de instalação, gerenciador de serviço e sinalização de lock/binário por SO. A versão `0.8.28` preserva `.part`, retoma download com `Range` quando possível, valida SHA256 após retomada e registra evidência de retomada. A versão `0.8.29` expõe `rollback_available`/`rollback_version` no estado pendente e nos reports de reconexão/rollback e limpa staging antigo com retenção segura. A versão `0.8.30` falha cedo no preflight quando o diretório de instalação não é gravável e passa a reportar modo do binário, modo do diretório de instalação e checagem explícita de escrita antes de download/apply. Em produção, agentes InspectApp `1`, `4`, `18`, `19`, `70` e `71` permaneceram em `0.8.29`, `version_confirmed`, sem payload pendente e sem loop quente de `update-report`. Fechamento completo depende de piloto real Windows/Linux com falha induzida/conhecida.
 
 **Escopo no agente** — impedir loop quente de update após restart, preservar diagnóstico de falha e enviar evidência objetiva para o web sem novo endpoint.
 
@@ -123,7 +123,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 3) **Preflight local**
    - [x] validar executável atual, diretório de instalação, staging gravável, espaço livre, gerenciador de serviço e shell/PowerShell antes do download/apply;
    - [x] reportar `preflight_failed` com `failure_code`, recomendação, checks e lacunas por SO;
-   - [x] validar em teste controlado `staging_not_writable` e `staging_low_space` sem tocar em host produtivo;
+   - [x] validar em teste controlado `staging_not_writable`, `staging_low_space` e `install_dir_not_writable` sem tocar em host produtivo;
    - [x] manter lacunas explícitas para restart real, lock de binário, EDR/antivírus e SELinux/AppArmor quando só podem ser provadas no apply real.
 
 4) **Download resiliente**
@@ -144,6 +144,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
    - [x] validar piloto real Windows/Linux de update bem-sucedido no cliente InspectApp em 24/06/2026: agentes `1`, `4`, `18`, `19`, `70` Linux AMD64 e agente `71` Windows AMD64 confirmaram `0.8.24`;
    - [x] validar piloto real complementar `0.8.25` no cliente InspectApp em 24/06/2026: agentes `1`, `4`, `18`, `19`, `70` Linux AMD64 e agente `71` Windows AMD64 terminaram em `version_confirmed`, sem `send_configuration` pendente e sem `pending_update_payload`; o agente `4` confirmou após reenvio controlado do manifest;
    - [x] validar piloto real complementar `0.8.29` no cliente InspectApp em 24/06/2026: agentes `1`, `4`, `18`, `19`, `70` Linux AMD64 e agente `71` Windows AMD64 permaneceram em `version_confirmed`, sem `send_configuration` pendente, sem `pending_update_payload` e sem loop quente de `update-report`;
+   - [x] gerar pacote `0.8.30` com reforço de preflight de diretório de instalação não gravável e metadados de permissão do binário/diretório;
    - [ ] validar piloto real Windows/Linux com falhas induzidas/conhecidas de permissão, lock, EDR/AV, restart e rollback.
 
 ### Rollback
