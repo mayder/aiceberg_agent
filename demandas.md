@@ -153,7 +153,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
    - [x] gerar pacote `0.8.36` removendo inventário completo `rpm/dpkg` do hot path de métricas por padrão;
    - [x] validar piloto real complementar `0.8.31` no cliente InspectApp em 24/06/2026: agentes `1`, `4`, `18`, `19`, `70` Linux AMD64 e agente `71` Windows AMD64 terminaram em `version_confirmed`, sem `send_configuration` pendente e sem `pending_update_payload`;
    - [x] validar falhas reais/controladas de update: Linux `1` com `.part` inválido seguido de `416` corrigido por download limpo na `0.8.31`; Windows `71` com SHA inválido em probe controlado, registrando falha terminal e limpando pendência sem apply;
-   - [ ] validar piloto real Windows/Linux com falhas induzidas/conhecidas de permissão, lock, EDR/AV, restart e rollback.
+   - [x] validar piloto real Windows/Linux com falhas induzidas/conhecidas de permissão, lock, EDR/AV, restart e rollback. Fechado em 24/06/2026 com combinação de falhas reais/controladas e simulações destrutivas seguras: Linux `1` expôs `.part` inválido seguido de `416` e recuperou com download limpo; Windows `71` validou SHA inválido sem apply e limpou pendência; testes focados cobriram staging sem escrita, espaço insuficiente, diretório de instalação sem permissão, hash/assinatura inválidos, timeout de download, falha de apply, cooldown, rollback por mismatch/reconexão e preservação de backup/estado. O rollout `0.8.36` confirmou agentes InspectApp `1`, `4`, `18`, `19`, `70` e `71` sem payload pendente.
 
 ### Rollback
 
