@@ -193,6 +193,13 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Fechamento: rodar `./check.sh`.
 - Validacao real fechada pelo PKG-69 aceito em 2026-06-19: Windows, Linux, container, perda de rede, API indisponivel, disco cheio/outbox preservada, proxy/TLS e agente instalado anteriormente.
 
+## PKG-83 - Cobertura e integridade de logs locais
+
+- Unitario focado: `go test ./internal/platform/collectors/oslogs`.
+- Build Windows do coletor em host nao Windows: `GOOS=windows GOARCH=amd64 go test -c -o /tmp/aiceberg_oslogs_windows.test.exe ./internal/platform/collectors/oslogs`.
+- Cobrir health por fonte, `no_new_events`, `channel_missing`, `dropped_by_severity`, sinais SSH, mail/SASL, sudo/PAM, nginx/apache, Windows Security 4625 e Sysmon.
+- Fechamento coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`.
+
 ## PKG-60 - Pipeline seguro de logs
 
 - Unitario focado: `go test ./internal/platform/collectors/oslogs ./internal/common/config ./internal/domain/usecase`.

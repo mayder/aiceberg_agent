@@ -61,7 +61,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 ## [PKG-83] Agente/Web — garantia de cobertura, integridade e segurança da coleta de logs locais
 
-**Status** — implementado no agente em 24/06/2026 como payload aditivo `log_source_health` dentro de `/v1/logs/raw`, gerado como versão `0.8.22`.
+**Status** — implementado no agente em 24/06/2026 como payload aditivo `log_source_health` dentro de `/v1/logs/raw`, gerado originalmente como versão `0.8.22`. A versão `0.8.26` reforça a promoção determinística de sinais de segurança/erro operacional e cobre fixtures de fechamento do PKG-83.
 
 **Escopo no agente** — reportar health por fonte local de log sem enviar conteúdo bruto: arquivo/canal, cursor, tamanho, mtime, identidade, contadores de linhas lidas, eventos aceitos, eventos descartados, erro, permissão, estado canônico e lacunas.
 
@@ -84,8 +84,9 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 3) **Validação**
    - [x] cobrir POSIX com `go test ./internal/platform/collectors/oslogs`;
    - [x] validar build cruzado Windows com `GOOS=windows GOARCH=amd64 go test -c`;
+   - [x] cobrir fixtures de SSH, mail/SASL, sudo/PAM, nginx/apache, Windows Security 4625, Sysmon e canal Windows inexistente;
    - [x] rodar `./check.sh` no fechamento;
-   - [ ] publicar pacote coordenado com o web.
+   - [x] publicar pacote `0.8.26` coordenado com o web.
 
 ### Rollback
 

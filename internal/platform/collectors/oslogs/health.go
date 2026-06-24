@@ -136,13 +136,18 @@ func securitySignalSeverity(message string) string {
 		"authentication failure",
 		"sasl login authentication failed",
 		"sudo authentication failure",
+		"pam_unix",
 		"pam",
 		"permission denied",
 		"segfault",
 		"out of memory",
 		" oom",
 		"nginx error",
+		"nginx: [error]",
+		"[error] ",
 		"apache error",
+		"apache2: [error]",
+		"httpd: [error]",
 	}
 	for _, p := range patterns {
 		if strings.Contains(l, p) {

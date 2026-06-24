@@ -123,6 +123,45 @@ func TestSeverityFilterDropsUnknownWhenMinimumConfigured(t *testing.T) {
 	}
 }
 
+func TestSecuritySignalsPassMinimumSeverityWithoutExplicitLevel(t *testing.T) {
+	signals := []string{
+		"sshd[10]: Failed password for invalid user root from 10.0.0.5",
+		"postfix/smtpd[20]: warning: unknown[10.0.0.6]: SASL LOGIN authentication failed",
+		"sudo: pam_unix(sudo:auth): authentication failure",
+		"nginx: [error] upstream timed out while reading response header",
+		"apache2: [error] client denied by server configuration",
+		"kernel: Out of memory: Killed process 42",
+	}
+	for _, msg := range signals {
+		if shouldDropLogEvent(logEvent{Message: msg}, "", "", "error") {
+			t.Fatalf("expected security/operational signal to pass min severity: %s", msg)
+		}
+	}
+}
+
+func TestHealthStatusForMissingWindowsChannelAndDroppedEvents(t *testing.T) {
+	channelHealth := newLogSourceHealth("windows_eventlog", "Microsoft-Windows-Sysmon/Operational")
+	channelHealth.PermissionStatus = "missing"
+	channelHealth.LastError = "falha wevtutil Microsoft-Windows-Sysmon/Operational"
+	channelHealth.Gaps = appendUniqueHealthGap(channelHealth.Gaps, "channel_or_permission_error")
+
+	finalChannel := finalizeLogSourceHealth(channelHealth)
+	if finalChannel.Status != "channel_missing" || finalChannel.Confidence != "high" {
+		t.Fatalf("expected missing Windows channel health, got %#v", finalChannel)
+	}
+
+	droppedHealth := newLogSourceHealth("file", "/var/log/auth.log")
+	droppedHealth.PermissionStatus = "ok"
+	droppedHealth.ReadLines = 3
+	droppedHealth.DroppedEvents = 3
+	droppedHealth.DropReason = "severity_or_processor"
+
+	finalDropped := finalizeLogSourceHealth(droppedHealth)
+	if finalDropped.Status != "dropped_by_severity" || finalDropped.Confidence != "medium" {
+		t.Fatalf("expected dropped_by_severity health, got %#v", finalDropped)
+	}
+}
+
 func TestCollectorMinSeverityUsesJSONSeverity(t *testing.T) {
 	tmp := t.TempDir()
 	logFile := filepath.Join(tmp, "app.log")
