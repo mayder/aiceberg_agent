@@ -1055,6 +1055,34 @@ func TestSelfUpdate_SnapshotIncludesPendingStateMetadata(t *testing.T) {
 	}
 }
 
+func TestSelfUpdate_SnapshotClearsCurrentVersionPendingState(t *testing.T) {
+	cfg := config.Config{
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     t.TempDir(),
+		AutoUpdateCommand: "echo ok",
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	opts := uc.effectiveOptions()
+	artifact := downloadedArtifact{
+		FilePath:  filepath.Join(cfg.AutoUpdateDir, version.Version, "pkg.bin"),
+		DirPath:   filepath.Join(cfg.AutoUpdateDir, version.Version),
+		SHA256:    strings.Repeat("b", 64),
+		SizeBytes: 42,
+		Source:    "pending_state",
+	}
+	if err := uc.savePendingState(opts.dir, version.Version, "old-version", artifact, opts); err != nil {
+		t.Fatalf("savePendingState failed: %v", err)
+	}
+
+	snap := uc.Snapshot()
+	if _, ok := snap["pending_state"]; ok {
+		t.Fatalf("did not expect pending_state for current version: %#v", snap)
+	}
+	if pending, err := uc.loadPendingState(cfg.AutoUpdateDir); err != nil || pending != nil {
+		t.Fatalf("expected current-version pending state cleared, pending=%#v err=%v", pending, err)
+	}
+}
+
 func TestSelfUpdate_ClearsCurrentVersionPendingStateBeforeNewUpdate(t *testing.T) {
 	pkg := []byte("next package")
 	sum := sha256.Sum256(pkg)

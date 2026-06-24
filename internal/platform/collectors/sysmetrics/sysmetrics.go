@@ -52,6 +52,8 @@ type AgentRuntimeStats struct {
 const (
 	linuxInventoryTimeout      = 5 * time.Second
 	linuxPackageCommandTimeout = 3 * time.Second
+	processSnapshotTimeout     = 2 * time.Second
+	processSnapshotScanLimit   = 200
 )
 
 func New(queueStats func() (int, int64), prefsProvider func() config.CollectPrefs, runtimeStatsProvider ...func() AgentRuntimeStats) ports.Collector {
@@ -872,7 +874,9 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		s.Capabilities["inventory"] = false
 	}
 	if p.Processes {
-		s.Processes = topProcesses(ctx, 10, 10)
+		processCtx, cancel := boundedContext(ctx, processSnapshotTimeout)
+		s.Processes = topProcesses(processCtx, 10, 10)
+		cancel()
 		s.Capabilities["processes"] = len(s.Processes) > 0
 	} else {
 		s.Capabilities["processes"] = false
@@ -1993,7 +1997,10 @@ func topProcesses(ctx context.Context, topCPU, topMem int) []procSnapshot {
 	}
 
 	all := make([]procData, 0, len(procs))
-	for _, pr := range procs {
+	for idx, pr := range procs {
+		if idx >= processSnapshotScanLimit || ctx.Err() != nil {
+			break
+		}
 		name, _ := pr.NameWithContext(ctx)
 		cpuPct, _ := pr.PercentWithContext(ctx, 0)
 		if mi, err := pr.MemoryInfoWithContext(ctx); err == nil {

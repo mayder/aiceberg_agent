@@ -1151,6 +1151,7 @@ func (uc *SelfUpdate) effectiveOptions() effectiveAutoUpdateOptions {
 
 func (uc *SelfUpdate) Snapshot() map[string]any {
 	opts := uc.effectiveOptions()
+	cleanupErr := uc.clearCurrentVersionPendingState(opts.dir)
 	out := map[string]any{
 		"enabled_effective":  opts.enabled,
 		"download_dir":       strings.TrimSpace(opts.dir),
@@ -1161,7 +1162,9 @@ func (uc *SelfUpdate) Snapshot() map[string]any {
 		"command":            strings.TrimSpace(opts.command),
 		"workdir":            strings.TrimSpace(opts.workDir),
 	}
-	if st, err := uc.loadPendingState(opts.dir); err == nil && st != nil {
+	if cleanupErr != nil {
+		out["pending_state_error"] = cleanupErr.Error()
+	} else if st, err := uc.loadPendingState(opts.dir); err == nil && st != nil {
 		out["pending_state"] = map[string]any{
 			"target_version":      strings.TrimSpace(st.TargetVersion),
 			"from_version":        strings.TrimSpace(st.FromVersion),
