@@ -117,11 +117,13 @@ type updatePreflightResult struct {
 }
 
 type downloadedArtifact struct {
-	FilePath  string
-	DirPath   string
-	SHA256    string
-	SizeBytes int64
-	Source    string
+	FilePath     string
+	DirPath      string
+	SHA256       string
+	SizeBytes    int64
+	Source       string
+	Resumed      bool
+	ResumeOffset int64
 }
 
 var updateHandshakeSteps = []string{
@@ -571,14 +573,21 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts
 	var errs []string
 
 	for _, source := range sources {
-		if err := os.Remove(tmpPath); err != nil && !os.IsNotExist(err) {
-			return downloadedArtifact{}, fmt.Errorf("cleanup temp update file: %w", err)
+		partialSize := partialFileSize(tmpPath)
+		if partialSize > maxBytes {
+			if err := os.Remove(tmpPath); err != nil && !os.IsNotExist(err) {
+				return downloadedArtifact{}, fmt.Errorf("cleanup oversized partial update file: %w", err)
+			}
+			partialSize = 0
 		}
 
 		req, err := http.NewRequestWithContext(dlCtx, http.MethodGet, source.URL, nil)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("%s request: %v", source.Name, err))
 			continue
+		}
+		if partialSize > 0 {
+			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", partialSize))
 		}
 		if source.UseAuth {
 			httpx.SetAuth(req, uc.cfg)
@@ -590,33 +599,56 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts
 			continue
 		}
 
+		resumed := false
+		resumeOffset := int64(0)
 		downloadErr := func() error {
 			defer resp.Body.Close()
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				return fmt.Errorf("status %s", resp.Status)
 			}
+			appendPartial := partialSize > 0 && resp.StatusCode == http.StatusPartialContent
+			resumed = appendPartial
+			if appendPartial {
+				resumeOffset = partialSize
+			}
 
-			f, err := os.Create(tmpPath)
+			flag := os.O_CREATE | os.O_WRONLY
+			if appendPartial {
+				flag |= os.O_APPEND
+			} else {
+				flag |= os.O_TRUNC
+			}
+			f, err := os.OpenFile(tmpPath, flag, 0o644)
 			if err != nil {
 				return fmt.Errorf("create temp update file: %w", err)
 			}
 			defer func() { _ = f.Close() }()
 
-			hash := sha256.New()
-			limited := io.LimitReader(resp.Body, maxBytes+1)
-			written, copyErr := io.Copy(io.MultiWriter(f, hash), limited)
+			limit := maxBytes + 1
+			if appendPartial {
+				limit = maxBytes - partialSize + 1
+			}
+			limited := io.LimitReader(resp.Body, limit)
+			written, copyErr := io.Copy(f, limited)
 			if copyErr != nil {
 				return fmt.Errorf("download body: %w", copyErr)
 			}
-			if written > maxBytes {
-				return fmt.Errorf("update package too large: %d bytes (limit %d)", written, maxBytes)
+			totalWritten := written
+			if appendPartial {
+				totalWritten += partialSize
+			}
+			if totalWritten > maxBytes {
+				return fmt.Errorf("update package too large: %d bytes (limit %d)", totalWritten, maxBytes)
 			}
 			if closeErr := f.Close(); closeErr != nil {
 				return fmt.Errorf("flush update file: %w", closeErr)
 			}
 
+			got, hashErr := fileSHA256(tmpPath)
+			if hashErr != nil {
+				return fmt.Errorf("compute temp sha256: %w", hashErr)
+			}
 			if expectedSHA != "" {
-				got := hex.EncodeToString(hash.Sum(nil))
 				if got != expectedSHA {
 					return fmt.Errorf("sha256 mismatch: got=%s expected=%s", got, expectedSHA)
 				}
@@ -647,11 +679,13 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts
 				"source", source.Name,
 			))
 			return downloadedArtifact{
-				FilePath:  finalPath,
-				DirPath:   filepath.Dir(finalPath),
-				SHA256:    gotSHA,
-				SizeBytes: info.Size(),
-				Source:    source.Name,
+				FilePath:     finalPath,
+				DirPath:      filepath.Dir(finalPath),
+				SHA256:       gotSHA,
+				SizeBytes:    info.Size(),
+				Source:       source.Name,
+				Resumed:      resumed,
+				ResumeOffset: resumeOffset,
 			}, nil
 		}
 		errs = append(errs, fmt.Sprintf("%s %v", source.Name, downloadErr))
@@ -661,6 +695,14 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts
 		return downloadedArtifact{}, errors.New("download update failed: no source")
 	}
 	return downloadedArtifact{}, fmt.Errorf("download update failed: %s", strings.Join(errs, " | "))
+}
+
+func partialFileSize(path string) int64 {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return 0
+	}
+	return info.Size()
 }
 
 func (uc *SelfUpdate) validateArtifactTrust(payload *UpdatePayload, artifact downloadedArtifact) error {
@@ -1381,6 +1423,10 @@ func (uc *SelfUpdate) buildUpdateRuntimeEvidence(artifact downloadedArtifact, op
 	}
 	if strings.TrimSpace(artifact.Source) != "" {
 		out["download_source"] = strings.TrimSpace(artifact.Source)
+	}
+	if artifact.Resumed {
+		out["download_resumed"] = true
+		out["download_resume_offset"] = artifact.ResumeOffset
 	}
 	if strings.TrimSpace(opts.workDir) != "" {
 		out["launcher_workdir"] = strings.TrimSpace(opts.workDir)

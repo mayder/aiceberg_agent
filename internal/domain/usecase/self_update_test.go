@@ -418,6 +418,76 @@ func TestSelfUpdate_DownloadTimeoutDoesNotFinalizePartialFile(t *testing.T) {
 	}
 }
 
+func TestSelfUpdate_DownloadResumesPartialFileWithRange(t *testing.T) {
+	pkg := []byte("0123456789abcdefghijklmnopqrstuvwxyz")
+	sum := sha256.Sum256(pkg)
+	half := len(pkg) / 2
+	var calls int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		call := atomic.AddInt32(&calls, 1)
+		if call == 1 {
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(pkg)))
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(pkg[:half])
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+			return
+		}
+		expectedRange := fmt.Sprintf("bytes=%d-", half)
+		if got := r.Header.Get("Range"); got != expectedRange {
+			http.Error(w, "missing resume range", http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", half, len(pkg)-1, len(pkg)))
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write(pkg[half:])
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	cfg := config.Config{
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     dir,
+		AutoUpdateTimeout: 2 * time.Second,
+		AutoUpdateMaxMB:   5,
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	payload := &UpdatePayload{
+		Version: testUpdateVersion(),
+		URL:     srv.URL + "/pkg.bin",
+		SHA256:  hex.EncodeToString(sum[:]),
+	}
+	opts := uc.effectiveOptions()
+
+	if artifact, err := uc.download(context.Background(), payload, opts); err == nil {
+		t.Fatalf("expected first partial download to fail, got artifact %#v", artifact)
+	}
+	tmpPath := filepath.Join(dir, payload.Version, "pkg.bin.part")
+	if info, err := os.Stat(tmpPath); err != nil || info.Size() != int64(half) {
+		t.Fatalf("expected partial file with %d bytes, info=%#v err=%v", half, info, err)
+	}
+
+	artifact, err := uc.download(context.Background(), payload, opts)
+	if err != nil {
+		t.Fatalf("expected resumed download to succeed: %v", err)
+	}
+	if !artifact.Resumed || artifact.ResumeOffset != int64(half) {
+		t.Fatalf("expected resumed artifact from offset %d, got %#v", half, artifact)
+	}
+	raw, err := os.ReadFile(artifact.FilePath)
+	if err != nil {
+		t.Fatalf("read final artifact: %v", err)
+	}
+	if string(raw) != string(pkg) {
+		t.Fatalf("unexpected final artifact content: %q", string(raw))
+	}
+	if _, err := os.Stat(tmpPath); !os.IsNotExist(err) {
+		t.Fatalf("expected partial file to be finalized, got %v", err)
+	}
+}
+
 func TestSelfUpdate_ApplyRemoteConfigResetsOverridesWhenPayloadIsEmpty(t *testing.T) {
 	cfg := config.Config{
 		AutoUpdateEnabled: true,

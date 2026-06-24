@@ -95,7 +95,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 ## [PKG-84] Agente/Web — update resiliente e diagnosticável do agente
 
-**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.25` adiciona cooldown persistido por versão/erro, fingerprint de falha, fingerprint idempotente do report, metadados de tentativa, preflight local e status `rolled_back` quando a versão alvo não confirma após restart no `update-report`. A versão `0.8.27` reforça o preflight com espaço livre de staging, escrita no diretório de instalação, gerenciador de serviço e sinalização de lock/binário por SO. Fechamento completo depende de piloto real Windows/Linux com falha induzida/conhecida.
+**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.25` adiciona cooldown persistido por versão/erro, fingerprint de falha, fingerprint idempotente do report, metadados de tentativa, preflight local e status `rolled_back` quando a versão alvo não confirma após restart no `update-report`. A versão `0.8.27` reforça o preflight com espaço livre de staging, escrita no diretório de instalação, gerenciador de serviço e sinalização de lock/binário por SO. A versão `0.8.28` preserva `.part`, retoma download com `Range` quando possível, valida SHA256 após retomada e registra evidência de retomada. Fechamento completo depende de piloto real Windows/Linux com falha induzida/conhecida.
 
 **Escopo no agente** — impedir loop quente de update após restart, preservar diagnóstico de falha e enviar evidência objetiva para o web sem novo endpoint.
 
@@ -121,7 +121,13 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
    - [x] reportar `preflight_failed` com `failure_code`, recomendação, checks e lacunas por SO;
    - [x] manter lacunas explícitas para restart real, lock de binário, EDR/antivírus e SELinux/AppArmor quando só podem ser provadas no apply real.
 
-4) **Fechamento**
+4) **Download resiliente**
+   - [x] preservar arquivo parcial `.part` quando o download falha antes de finalizar;
+   - [x] retomar download com header `Range` a partir do tamanho parcial quando o servidor responder `206 Partial Content`;
+   - [x] reiniciar download limpo quando o servidor responder `200 OK` sem suportar retomada;
+   - [x] validar SHA256 do arquivo completo antes de finalizar e expor `download_resumed`/`download_resume_offset` no report.
+
+5) **Fechamento**
    - [x] rodar `./check.sh`;
    - [x] publicar pacote coordenado com o web;
    - [x] validar piloto real Windows/Linux de update bem-sucedido no cliente InspectApp em 24/06/2026: agentes `1`, `4`, `18`, `19`, `70` Linux AMD64 e agente `71` Windows AMD64 confirmaram `0.8.24`;

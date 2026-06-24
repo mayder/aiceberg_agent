@@ -203,6 +203,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 ## PKG-84 - Update resiliente e diagnosticavel
 
 - Unitario focado: `go test ./internal/domain/usecase -run 'TestSelfUpdate_ReportIncludesDownloadMetadata|TestSelfUpdate_PreflightFailsWhenStagingIsNotWritable|TestSelfUpdate_PersistsCooldownAcrossInstances|TestSelfUpdate_ReportPendingResult' -count=1 -v`.
+- Download resiliente: `go test ./internal/domain/usecase -run 'TestSelfUpdate_DownloadResumesPartialFileWithRange|TestSelfUpdate_DownloadTimeoutDoesNotFinalizePartialFile|TestSelfUpdate_ReportIncludesDownloadMetadata' -count=1 -v`.
 - Preflight: validar executavel atual, staging gravavel, espaco livre do staging, gerenciador de servico, shell/PowerShell, workdir e lacunas de lock/EDR/SELinux-AppArmor sem executar acao destrutiva.
 - Fechamento coordenado com web: rodar `./check.sh`, gerar instaladores, publicar artefatos versionados e validar update real nos agentes InspectApp.
 
