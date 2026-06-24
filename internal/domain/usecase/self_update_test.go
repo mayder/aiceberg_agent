@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -512,6 +513,33 @@ func TestSelfUpdate_ReportIncludesDownloadMetadata(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
+	var precheckReport map[string]any
+	for _, item := range received {
+		if status, _ := item["status"].(string); status == "precheck_ok" {
+			precheckReport = item
+			break
+		}
+	}
+	if precheckReport == nil {
+		t.Fatalf("expected precheck_ok report, got %#v", received)
+	}
+	precheckUpdate, ok := precheckReport["update"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected precheck update metadata")
+	}
+	preflight, ok := precheckUpdate["preflight"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected preflight metadata: %#v", precheckUpdate)
+	}
+	checks, ok := preflight["checks"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected preflight checks: %#v", preflight)
+	}
+	for _, key := range []string{"staging_dir", "staging_free_space", "service_manager", "binary_lock"} {
+		if strings.TrimSpace(fmt.Sprint(checks[key])) == "" {
+			t.Fatalf("expected preflight check %s in %#v", key, checks)
+		}
+	}
 	report := received[len(received)-1]
 	if status, _ := report["status"].(string); status != "download_ok" {
 		t.Fatalf("expected status download_ok, got %v", report["status"])

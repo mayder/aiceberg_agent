@@ -200,6 +200,12 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Cobrir health por fonte, `no_new_events`, `channel_missing`, `dropped_by_severity`, sinais SSH, mail/SASL, sudo/PAM, nginx/apache, Windows Security 4625 e Sysmon.
 - Fechamento coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`.
 
+## PKG-84 - Update resiliente e diagnosticavel
+
+- Unitario focado: `go test ./internal/domain/usecase -run 'TestSelfUpdate_ReportIncludesDownloadMetadata|TestSelfUpdate_PreflightFailsWhenStagingIsNotWritable|TestSelfUpdate_PersistsCooldownAcrossInstances|TestSelfUpdate_ReportPendingResult' -count=1 -v`.
+- Preflight: validar executavel atual, staging gravavel, espaco livre do staging, gerenciador de servico, shell/PowerShell, workdir e lacunas de lock/EDR/SELinux-AppArmor sem executar acao destrutiva.
+- Fechamento coordenado com web: rodar `./check.sh`, gerar instaladores, publicar artefatos versionados e validar update real nos agentes InspectApp.
+
 ## PKG-60 - Pipeline seguro de logs
 
 - Unitario focado: `go test ./internal/platform/collectors/oslogs ./internal/common/config ./internal/domain/usecase`.

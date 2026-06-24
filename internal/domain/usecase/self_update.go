@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
@@ -365,6 +366,8 @@ func (uc *SelfUpdate) preflightUpdate(opts effectiveAutoUpdateOptions) updatePre
 	} else {
 		result.Checks["staging_dir"] = "ok"
 	}
+	uc.enrichPreflightFilesystemChecks(&result, opts)
+	uc.enrichPreflightServiceChecks(&result)
 
 	if strings.TrimSpace(opts.command) != "" {
 		result.Command = sanitizeUpdateCommand(opts.command)
@@ -407,6 +410,63 @@ func (uc *SelfUpdate) preflightUpdate(opts effectiveAutoUpdateOptions) updatePre
 	return result
 }
 
+func (uc *SelfUpdate) enrichPreflightFilesystemChecks(result *updatePreflightResult, opts effectiveAutoUpdateOptions) {
+	if result == nil {
+		return
+	}
+	if strings.TrimSpace(result.InstallDir) != "" {
+		if err := probeWritableDir(result.InstallDir); err != nil {
+			result.Checks["install_dir_writable"] = safeUpdateText(err.Error(), 160)
+		} else {
+			result.Checks["install_dir_writable"] = "ok"
+		}
+	}
+
+	stagingDir := strings.TrimSpace(result.StagingDir)
+	if stagingDir == "" {
+		return
+	}
+	usage, err := disk.Usage(stagingDir)
+	if err != nil {
+		result.Checks["staging_free_space"] = safeUpdateText(err.Error(), 160)
+		return
+	}
+	maxMB := opts.maxMB
+	if maxMB <= 0 {
+		maxMB = 300
+	}
+	required := uint64(maxMB) * 1024 * 1024
+	if usage.Free < required {
+		result.fail("staging_low_space", "Liberar espaço no diretório de staging do auto-update antes de aplicar o pacote.")
+		result.Checks["staging_free_space"] = fmt.Sprintf("low:%dMB available:%dMB required", usage.Free/1024/1024, required/1024/1024)
+		return
+	}
+	result.Checks["staging_free_space"] = fmt.Sprintf("ok:%dMB available", usage.Free/1024/1024)
+}
+
+func (uc *SelfUpdate) enrichPreflightServiceChecks(result *updatePreflightResult) {
+	if result == nil {
+		return
+	}
+	if runtime.GOOS == "windows" {
+		if path, err := exec.LookPath("sc.exe"); err == nil {
+			result.Checks["service_manager"] = "ok:" + filepath.Base(path)
+		} else {
+			result.Checks["service_manager"] = "missing:" + safeUpdateText(err.Error(), 120)
+		}
+		result.Checks["binary_lock"] = "deferred_to_windows_apply_launcher"
+		return
+	}
+	if path, err := exec.LookPath("systemctl"); err == nil {
+		result.Checks["service_manager"] = "ok:" + filepath.Base(path)
+	} else if _, err := os.Stat("/etc/init.d"); err == nil {
+		result.Checks["service_manager"] = "ok:init.d"
+	} else {
+		result.Checks["service_manager"] = "missing:" + safeUpdateText(err.Error(), 120)
+	}
+	result.Checks["binary_lock"] = "best_effort_posix_atomic_replace"
+}
+
 func (r *updatePreflightResult) fail(code, recommendation string) {
 	r.OK = false
 	if r.FailureCode == "" {
@@ -421,6 +481,10 @@ func ensureWritableDir(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
+	return probeWritableDir(dir)
+}
+
+func probeWritableDir(dir string) error {
 	probe, err := os.CreateTemp(dir, ".aiceberg-update-preflight-*")
 	if err != nil {
 		return err
