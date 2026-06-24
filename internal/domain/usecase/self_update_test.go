@@ -756,6 +756,12 @@ func TestSelfUpdate_SnapshotIncludesPendingStateMetadata(t *testing.T) {
 	if got, _ := pending["download_sha256"].(string); got != expectedSHA {
 		t.Fatalf("unexpected download_sha256: %v", got)
 	}
+	if rollbackAvailable, _ := pending["rollback_available"].(bool); !rollbackAvailable {
+		t.Fatalf("expected rollback_available in pending_state: %#v", pending)
+	}
+	if rollbackVersion, _ := pending["rollback_version"].(string); rollbackVersion != version.Version {
+		t.Fatalf("unexpected rollback_version: %v", pending["rollback_version"])
+	}
 }
 
 func TestSelfUpdate_ReportPendingResultConfirmsVersionAfterReconnect(t *testing.T) {
@@ -872,6 +878,12 @@ func TestSelfUpdate_ReportPendingResultMarksVersionMismatchAfterRollback(t *test
 	if !ok {
 		t.Fatalf("expected update metadata")
 	}
+	if rollbackAvailable, _ := update["rollback_available"].(bool); !rollbackAvailable {
+		t.Fatalf("expected rollback_available in report metadata: %#v", update)
+	}
+	if rollbackVersion, _ := update["rollback_version"].(string); rollbackVersion != "old-version" {
+		t.Fatalf("expected rollback_version old-version, got %#v", update["rollback_version"])
+	}
 	if stage, _ := update["stage"].(string); stage != "rolled_back" {
 		t.Fatalf("expected rolled_back stage, got %v", update["stage"])
 	}
@@ -909,5 +921,37 @@ func TestSelfUpdate_PersistsCooldownAcrossInstances(t *testing.T) {
 	}
 	if loaded.AttemptCount != 1 || loaded.LastReasonCode != "download_failed" {
 		t.Fatalf("unexpected loaded cooldown: %#v", loaded)
+	}
+}
+
+func TestSelfUpdate_CleanupOldUpdateStagingKeepsCurrentAndMetadata(t *testing.T) {
+	dir := t.TempDir()
+	current := filepath.Join(dir, "0.8.current")
+	old := filepath.Join(dir, "0.8.old")
+	recent := filepath.Join(dir, "0.8.recent")
+	meta := filepath.Join(dir, ".pending_update.json")
+	for _, path := range []string{current, old, recent} {
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", path, err)
+		}
+	}
+	if err := os.WriteFile(meta, []byte("{}"), 0o644); err != nil {
+		t.Fatalf("write meta: %v", err)
+	}
+	oldTime := time.Now().Add(-10 * 24 * time.Hour)
+	if err := os.Chtimes(old, oldTime, oldTime); err != nil {
+		t.Fatalf("chtimes old: %v", err)
+	}
+
+	uc := NewSelfUpdate(config.Config{}, &fakeLogger{})
+	uc.cleanupOldUpdateStaging(dir, "0.8.current", 7*24*time.Hour)
+
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Fatalf("expected old staging removed, got %v", err)
+	}
+	for _, path := range []string{current, recent, meta} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected %s preserved: %v", path, err)
+		}
 	}
 }

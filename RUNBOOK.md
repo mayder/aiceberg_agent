@@ -351,6 +351,28 @@ Politica operacional:
 
 Rollback: desabilitar auto-update remoto e o comando `collect_support_flare` no backend. Nao ha SQL do PKG-67.
 
+### PKG-84 - Update resiliente e diagnosticavel
+
+Diagnostico:
+
+- `inspect_runtime_config` mostra `auto_update.pending_state` quando ha update despachado aguardando reconexao;
+- `pending_state.rollback_available=true` e `rollback_version` indicam que a versao anterior conhecida foi preservada no contrato local;
+- `update-report` inclui `rollback_available`/`rollback_version` nos reports de reconexao e `rolled_back`;
+- diretórios antigos de staging em `AUTO_UPDATE_DIR` sao limpos apos validacao de artefato, preservando a versao atual, diretorios recentes e arquivos `.pending_update.json`/`.update_cooldown.json`.
+
+Operacao segura:
+
+- download valida SHA256 e assinatura antes do apply;
+- arquivo `.part` pode ser retomado com `Range` quando o servidor suporta `206 Partial Content`;
+- scripts oficiais Linux fazem backup do binario atual antes da troca e tentam rollback se o restart falhar;
+- falha repetida deve respeitar `.update_cooldown.json`, evitando loop quente apos restart.
+
+Rollback:
+
+- desativar auto-update remoto no backend;
+- usar comando manual oficial gerado pela web para reinstalar a versao anterior quando o launcher nao conseguir restaurar;
+- apagar `.update_cooldown.json` somente apos diagnostico aprovado e quando for necessario liberar nova tentativa controlada.
+
 ### PKG-68 - Seguranca e assinatura
 
 Contrato tecnico: `docs/pkg68_security_hardening.md`.

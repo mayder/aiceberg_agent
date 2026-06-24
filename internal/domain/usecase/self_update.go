@@ -79,16 +79,18 @@ type effectiveAutoUpdateOptions struct {
 }
 
 type pendingUpdateState struct {
-	TargetVersion    string `json:"target_version"`
-	FromVersion      string `json:"from_version"`
-	RequestedAtMs    int64  `json:"requested_at_ms"`
-	DownloadFile     string `json:"download_file,omitempty"`
-	DownloadDir      string `json:"download_dir,omitempty"`
-	DownloadSHA256   string `json:"download_sha256,omitempty"`
-	DownloadSize     int64  `json:"download_size_bytes,omitempty"`
-	LauncherCommand  string `json:"launcher_command,omitempty"`
-	LauncherWorkDir  string `json:"launcher_workdir,omitempty"`
-	LauncherExitCode *int   `json:"launcher_exit_code,omitempty"`
+	TargetVersion     string `json:"target_version"`
+	FromVersion       string `json:"from_version"`
+	RollbackVersion   string `json:"rollback_version,omitempty"`
+	RollbackAvailable bool   `json:"rollback_available,omitempty"`
+	RequestedAtMs     int64  `json:"requested_at_ms"`
+	DownloadFile      string `json:"download_file,omitempty"`
+	DownloadDir       string `json:"download_dir,omitempty"`
+	DownloadSHA256    string `json:"download_sha256,omitempty"`
+	DownloadSize      int64  `json:"download_size_bytes,omitempty"`
+	LauncherCommand   string `json:"launcher_command,omitempty"`
+	LauncherWorkDir   string `json:"launcher_workdir,omitempty"`
+	LauncherExitCode  *int   `json:"launcher_exit_code,omitempty"`
 }
 
 type updateCooldownState struct {
@@ -219,6 +221,7 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 	validationMeta := uc.buildUpdateRuntimeEvidence(artifact, opts, nil)
 	addUpdateStageEvidence(validationMeta, "validation", "")
 	uc.reportStatusBestEffort(ctx, payload, "validation_ok", "", uc.downloadSummaryMessage(artifact), version.Version, validationMeta)
+	uc.cleanupOldUpdateStaging(opts.dir, payload.Version, 7*24*time.Hour)
 
 	if strings.TrimSpace(opts.command) == "" {
 		uc.log.Info(logger.KV("self update downloaded",
@@ -1128,6 +1131,8 @@ func (uc *SelfUpdate) Snapshot() map[string]any {
 		out["pending_state"] = map[string]any{
 			"target_version":      strings.TrimSpace(st.TargetVersion),
 			"from_version":        strings.TrimSpace(st.FromVersion),
+			"rollback_version":    strings.TrimSpace(st.RollbackVersion),
+			"rollback_available":  st.RollbackAvailable,
 			"requested_at_ms":     st.RequestedAtMs,
 			"download_file":       strings.TrimSpace(st.DownloadFile),
 			"download_dir":        strings.TrimSpace(st.DownloadDir),
@@ -1159,6 +1164,7 @@ func (uc *SelfUpdate) ReportPendingResult(ctx context.Context) error {
 		Source:    "pending_state",
 	}
 	reportMeta := uc.buildUpdateRuntimeEvidence(artifact, opts, st.LauncherExitCode)
+	addUpdateRollbackEvidence(reportMeta, st)
 	reconnectMeta := copyUpdateEvidence(reportMeta)
 	addUpdateStageEvidence(reconnectMeta, "reconnect", "")
 	if err := uc.reportStatus(
@@ -1284,15 +1290,17 @@ func (uc *SelfUpdate) savePendingState(rootDir, targetVersion, fromVersion strin
 		return err
 	}
 	data := pendingUpdateState{
-		TargetVersion:   strings.TrimSpace(targetVersion),
-		FromVersion:     strings.TrimSpace(fromVersion),
-		RequestedAtMs:   time.Now().UnixMilli(),
-		DownloadFile:    strings.TrimSpace(artifact.FilePath),
-		DownloadDir:     strings.TrimSpace(artifact.DirPath),
-		DownloadSHA256:  normalizeSHA256(artifact.SHA256),
-		DownloadSize:    artifact.SizeBytes,
-		LauncherCommand: strings.TrimSpace(opts.command),
-		LauncherWorkDir: strings.TrimSpace(opts.workDir),
+		TargetVersion:     strings.TrimSpace(targetVersion),
+		FromVersion:       strings.TrimSpace(fromVersion),
+		RollbackVersion:   strings.TrimSpace(fromVersion),
+		RollbackAvailable: strings.TrimSpace(fromVersion) != "" && strings.TrimSpace(fromVersion) != strings.TrimSpace(targetVersion),
+		RequestedAtMs:     time.Now().UnixMilli(),
+		DownloadFile:      strings.TrimSpace(artifact.FilePath),
+		DownloadDir:       strings.TrimSpace(artifact.DirPath),
+		DownloadSHA256:    normalizeSHA256(artifact.SHA256),
+		DownloadSize:      artifact.SizeBytes,
+		LauncherCommand:   strings.TrimSpace(opts.command),
+		LauncherWorkDir:   strings.TrimSpace(opts.workDir),
 	}
 	raw, err := json.Marshal(data)
 	if err != nil {
@@ -1381,6 +1389,38 @@ func (uc *SelfUpdate) clearUpdateCooldown(rootDir string) error {
 	return nil
 }
 
+func (uc *SelfUpdate) cleanupOldUpdateStaging(rootDir, keepVersion string, retention time.Duration) {
+	dir := strings.TrimSpace(rootDir)
+	if dir == "" {
+		dir = "./data/updates"
+	}
+	if retention <= 0 {
+		retention = 7 * 24 * time.Hour
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().Add(-retention)
+	keep := sanitizePathSegment(keepVersion)
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == keep || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		info, err := entry.Info()
+		if err != nil || info.ModTime().After(cutoff) {
+			continue
+		}
+		if err := os.RemoveAll(path); err != nil {
+			uc.log.Error(logger.KV("self update staging cleanup failed",
+				"path", path,
+				"err", err,
+			))
+		}
+	}
+}
+
 func (uc *SelfUpdate) updatePendingLauncherExitCode(rootDir string, exitCode int) error {
 	st, err := uc.loadPendingState(rootDir)
 	if err != nil || st == nil {
@@ -1438,6 +1478,16 @@ func (uc *SelfUpdate) buildUpdateRuntimeEvidence(artifact downloadedArtifact, op
 		out["launcher_exit_code"] = *launcherExitCode
 	}
 	return out
+}
+
+func addUpdateRollbackEvidence(meta map[string]any, state *pendingUpdateState) {
+	if meta == nil || state == nil {
+		return
+	}
+	meta["rollback_available"] = state.RollbackAvailable
+	if rollbackVersion := strings.TrimSpace(state.RollbackVersion); rollbackVersion != "" {
+		meta["rollback_version"] = rollbackVersion
+	}
 }
 
 func (uc *SelfUpdate) autoUpdateTrustRequired() bool {

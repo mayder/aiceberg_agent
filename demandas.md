@@ -98,11 +98,11 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 ## [PKG-84] Agente/Web — update resiliente e diagnosticável do agente
 
-**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.25` adiciona cooldown persistido por versão/erro, fingerprint de falha, fingerprint idempotente do report, metadados de tentativa, preflight local e status `rolled_back` quando a versão alvo não confirma após restart no `update-report`. A versão `0.8.27` reforça o preflight com espaço livre de staging, escrita no diretório de instalação, gerenciador de serviço e sinalização de lock/binário por SO. A versão `0.8.28` preserva `.part`, retoma download com `Range` quando possível, valida SHA256 após retomada e registra evidência de retomada. Fechamento completo depende de piloto real Windows/Linux com falha induzida/conhecida.
+**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.25` adiciona cooldown persistido por versão/erro, fingerprint de falha, fingerprint idempotente do report, metadados de tentativa, preflight local e status `rolled_back` quando a versão alvo não confirma após restart no `update-report`. A versão `0.8.27` reforça o preflight com espaço livre de staging, escrita no diretório de instalação, gerenciador de serviço e sinalização de lock/binário por SO. A versão `0.8.28` preserva `.part`, retoma download com `Range` quando possível, valida SHA256 após retomada e registra evidência de retomada. A versão `0.8.29` expõe `rollback_available`/`rollback_version` no estado pendente e nos reports de reconexão/rollback e limpa staging antigo com retenção segura. Fechamento completo depende de piloto real Windows/Linux com falha induzida/conhecida.
 
 **Escopo no agente** — impedir loop quente de update após restart, preservar diagnóstico de falha e enviar evidência objetiva para o web sem novo endpoint.
 
-**Contrato** — `update-report` pode conter `report_fingerprint`, `update.report_fingerprint`, `update.attempt_count`, `update.cooldown_until`, `update.cooldown_until_unix`, `update.last_error_fingerprint`, `update.last_reason_code`, `update.failure_class`, `update.download_file` e `update.download_sha256`.
+**Contrato** — `update-report` pode conter `report_fingerprint`, `update.report_fingerprint`, `update.attempt_count`, `update.cooldown_until`, `update.cooldown_until_unix`, `update.last_error_fingerprint`, `update.last_reason_code`, `update.failure_class`, `update.download_file`, `update.download_sha256`, `update.rollback_available` e `update.rollback_version`.
 
 ### Lotes
 
@@ -117,6 +117,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
    - [x] anexar `report_fingerprint` estável por versão, status, SHA, estágio e fingerprint de erro;
    - [x] preservar `failure_class`, arquivo, SHA e estágio já existentes;
    - [x] reportar `rolled_back` quando a reconexão mantém a versão anterior após tentativa de apply;
+   - [x] reportar `rollback_available` e `rollback_version` no estado pendente e nos reports de reconexão/rollback;
    - [x] cobrir contrato em `go test ./internal/domain/usecase -run 'SelfUpdate|Update'`.
 
 3) **Preflight local**
@@ -130,7 +131,12 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
    - [x] reiniciar download limpo quando o servidor responder `200 OK` sem suportar retomada;
    - [x] validar SHA256 do arquivo completo antes de finalizar e expor `download_resumed`/`download_resume_offset` no report.
 
-5) **Fechamento**
+5) **Staging e retenção**
+   - [x] preservar metadados de rollback do update pendente sem expor segredo;
+   - [x] limpar diretórios antigos de staging após validação do artefato, preservando versão atual, diretórios recentes e arquivos de estado `.pending_update.json`/`.update_cooldown.json`;
+   - [x] cobrir limpeza por teste unitário sem apagar estado operacional.
+
+6) **Fechamento**
    - [x] rodar `./check.sh`;
    - [x] publicar pacote coordenado com o web;
    - [x] validar piloto real Windows/Linux de update bem-sucedido no cliente InspectApp em 24/06/2026: agentes `1`, `4`, `18`, `19`, `70` Linux AMD64 e agente `71` Windows AMD64 confirmaram `0.8.24`;
