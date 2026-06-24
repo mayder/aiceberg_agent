@@ -100,6 +100,39 @@ func TestBuildPerformanceProfileReportsGapsWhenCollectorsDisabled(t *testing.T) 
 	}
 }
 
+func TestBoundedContextUsesShorterCollectorDeadline(t *testing.T) {
+	parent, cancelParent := context.WithTimeout(context.Background(), time.Minute)
+	defer cancelParent()
+
+	ctx, cancel := boundedContext(parent, 20*time.Millisecond)
+	defer cancel()
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatalf("expected bounded deadline")
+	}
+	if remaining := time.Until(deadline); remaining > time.Second {
+		t.Fatalf("expected short bounded deadline, remaining=%s", remaining)
+	}
+}
+
+func TestBoundedContextKeepsShorterParentDeadline(t *testing.T) {
+	parent, cancelParent := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancelParent()
+
+	ctx, cancel := boundedContext(parent, time.Minute)
+	defer cancel()
+
+	parentDeadline, _ := parent.Deadline()
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatalf("expected parent deadline")
+	}
+	if !deadline.Equal(parentDeadline) {
+		t.Fatalf("expected parent deadline preserved, got %s want %s", deadline, parentDeadline)
+	}
+}
+
 func TestBuildPerformanceProfileSanitizesProcessCommand(t *testing.T) {
 	mem := &memSnapshot{Total: 1000}
 	profile := buildPerformanceProfile(snapshot{

@@ -164,6 +164,12 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 		return errors.New("missing update payload")
 	}
 	opts := uc.effectiveOptions()
+	if err := uc.clearCurrentVersionPendingState(opts.dir); err != nil {
+		uc.log.Error(logger.KV("self update stale pending state cleanup failed",
+			"version", version.Version,
+			"err", err,
+		))
+	}
 	if !opts.enabled {
 		uc.log.Info(logger.KV("self update ignored",
 			"version", payload.Version,
@@ -1361,6 +1367,23 @@ func (uc *SelfUpdate) clearPendingState(rootDir string) error {
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
+	return nil
+}
+
+func (uc *SelfUpdate) clearCurrentVersionPendingState(rootDir string) error {
+	state, err := uc.loadPendingState(rootDir)
+	if err != nil || state == nil {
+		return err
+	}
+	if strings.TrimSpace(state.TargetVersion) != version.Version {
+		return nil
+	}
+	if err := uc.clearPendingState(rootDir); err != nil {
+		return err
+	}
+	uc.log.Info(logger.KV("self update stale pending state cleared",
+		"version", version.Version,
+	))
 	return nil
 }
 

@@ -1055,6 +1055,47 @@ func TestSelfUpdate_SnapshotIncludesPendingStateMetadata(t *testing.T) {
 	}
 }
 
+func TestSelfUpdate_ClearsCurrentVersionPendingStateBeforeNewUpdate(t *testing.T) {
+	pkg := []byte("next package")
+	sum := sha256.Sum256(pkg)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(pkg)
+	}))
+	defer srv.Close()
+
+	cfg := config.Config{
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     t.TempDir(),
+		AutoUpdateTimeout: 2 * time.Second,
+		AutoUpdateMaxMB:   5,
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	opts := uc.effectiveOptions()
+	staleArtifact := downloadedArtifact{
+		FilePath:  filepath.Join(cfg.AutoUpdateDir, version.Version, "old.bin"),
+		DirPath:   filepath.Join(cfg.AutoUpdateDir, version.Version),
+		SHA256:    strings.Repeat("a", 64),
+		SizeBytes: 12,
+		Source:    "pending_state",
+	}
+	if err := uc.savePendingState(opts.dir, version.Version, "0.8.previous", staleArtifact, opts); err != nil {
+		t.Fatalf("savePendingState failed: %v", err)
+	}
+
+	payload := &UpdatePayload{
+		Version: testUpdateVersion(),
+		URL:     srv.URL + "/pkg.bin",
+		SHA256:  hex.EncodeToString(sum[:]),
+	}
+	if err := uc.Execute(context.Background(), payload); err != nil {
+		t.Fatalf("expected update to continue after stale pending cleanup, got %v", err)
+	}
+	if pending, err := uc.loadPendingState(cfg.AutoUpdateDir); err != nil || pending != nil {
+		t.Fatalf("expected current-version pending state cleared, pending=%#v err=%v", pending, err)
+	}
+}
+
 func TestSelfUpdate_ReportPendingResultConfirmsVersionAfterReconnect(t *testing.T) {
 	var received []map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

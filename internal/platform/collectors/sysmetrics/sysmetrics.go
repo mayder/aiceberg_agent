@@ -49,6 +49,12 @@ type AgentRuntimeStats struct {
 	LastFlushBatch int64
 }
 
+const (
+	linuxInventoryTimeout      = 5 * time.Second
+	linuxPackageCommandTimeout = 3 * time.Second
+	linuxRepoCommandTimeout    = 2 * time.Second
+)
+
 func New(queueStats func() (int, int64), prefsProvider func() config.CollectPrefs, runtimeStatsProvider ...func() AgentRuntimeStats) ports.Collector {
 	var runtimeStats func() AgentRuntimeStats
 	if len(runtimeStatsProvider) > 0 {
@@ -2183,10 +2189,12 @@ func collectInventory(ctx context.Context) inventorySnap {
 	var inv inventorySnap
 	switch runtime.GOOS {
 	case "linux":
-		inv.LinuxRPMPackages = listLinuxPackages(ctx)
+		linuxCtx, cancel := boundedContext(ctx, linuxInventoryTimeout)
+		defer cancel()
+		inv.LinuxRPMPackages = listLinuxPackages(linuxCtx)
 		inv.OSRelease = readOSRelease()
-		inv.Kernel = collectKernelInfo(ctx)
-		inv.Repos = collectLinuxRepos(ctx)
+		inv.Kernel = collectKernelInfo(linuxCtx, inv.LinuxRPMPackages)
+		inv.Repos = collectLinuxRepos(linuxCtx)
 	case "windows":
 		inv.WinHotfixes = collectWindowsHotfixes(ctx)
 		inv.WinApps = collectWindowsApps(ctx)
@@ -2209,8 +2217,10 @@ func listLinuxPackages(ctx context.Context) []rpmPkg {
 	var pkgs []rpmPkg
 
 	if path, err := exec.LookPath("dpkg"); err == nil {
-		cmd := exec.CommandContext(ctx, path, "-l")
+		cmdCtx, cancel := boundedContext(ctx, linuxPackageCommandTimeout)
+		cmd := exec.CommandContext(cmdCtx, path, "-l")
 		raw, err := cmd.Output()
+		cancel()
 		if err == nil {
 			sc := bufio.NewScanner(bytes.NewReader(raw))
 			for sc.Scan() {
@@ -2228,8 +2238,10 @@ func listLinuxPackages(ctx context.Context) []rpmPkg {
 	}
 
 	if path, err := exec.LookPath("rpm"); err == nil {
-		cmd := exec.CommandContext(ctx, path, "-qa", "--qf", "%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{VENDOR}\n")
+		cmdCtx, cancel := boundedContext(ctx, linuxPackageCommandTimeout)
+		cmd := exec.CommandContext(cmdCtx, path, "-qa", "--qf", "%{NAME}\t%{EPOCHNUM}\t%{VERSION}\t%{RELEASE}\t%{ARCH}\t%{VENDOR}\n")
 		raw, err := cmd.Output()
+		cancel()
 		if err == nil {
 			sc := bufio.NewScanner(bytes.NewReader(raw))
 			for sc.Scan() {
@@ -2253,6 +2265,22 @@ func listLinuxPackages(ctx context.Context) []rpmPkg {
 	return pkgs
 }
 
+func boundedContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	if timeout <= 0 {
+		return context.WithCancel(parent)
+	}
+	if deadline, ok := parent.Deadline(); ok {
+		remaining := time.Until(deadline)
+		if remaining > 0 && remaining < timeout {
+			return context.WithCancel(parent)
+		}
+	}
+	return context.WithTimeout(parent, timeout)
+}
+
 func safeIdx(parts []string, idx int) string {
 	if idx < len(parts) {
 		return parts[idx]
@@ -2260,13 +2288,13 @@ func safeIdx(parts []string, idx int) string {
 	return ""
 }
 
-func collectKernelInfo(ctx context.Context) kernelInfo {
+func collectKernelInfo(ctx context.Context, packages []rpmPkg) kernelInfo {
 	k := kernelInfo{}
 	if hi, err := host.InfoWithContext(ctx); err == nil {
 		k.Running = hi.KernelVersion
 	}
 	// filtra pacotes kernel*
-	for _, pkg := range listLinuxPackages(ctx) {
+	for _, pkg := range packages {
 		if strings.HasPrefix(pkg.Name, "kernel") {
 			k.Installed = append(k.Installed, pkg)
 		}
@@ -2311,7 +2339,9 @@ func collectLinuxRepos(ctx context.Context) repoSnap {
 	if err != nil {
 		return rs
 	}
-	cmd := exec.CommandContext(ctx, path, "repolist", "-v")
+	cmdCtx, cancel := boundedContext(ctx, linuxRepoCommandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(cmdCtx, path, "repolist", "-v")
 	raw, err := cmd.Output()
 	if err != nil {
 		return rs
