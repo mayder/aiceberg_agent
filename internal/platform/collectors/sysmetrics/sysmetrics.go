@@ -62,25 +62,26 @@ func (c *collector) Name() string { return "sysmetrics" }
 func (c *collector) Interval() time.Duration { return 10 * time.Second }
 
 type snapshot struct {
-	Capabilities map[string]bool `json:"capabilities,omitempty"`
-	CPU          *cpuSnapshot    `json:"cpu,omitempty"`
-	Memory       *memSnapshot    `json:"memory,omitempty"`
-	Disk         *diskSnapshot   `json:"disk,omitempty"`
-	Network      *netSnapshot    `json:"network,omitempty"`
-	Host         *hostSnapshot   `json:"host,omitempty"`
-	Sensors      *sensorsSnap    `json:"sensors,omitempty"`
-	NetActive    *netActive      `json:"net_active,omitempty"`
-	Power        *powerSnapshot  `json:"power,omitempty"`
-	Sanity       *sanitySnapshot `json:"sanity,omitempty"`
-	GPU          []gpuSnapshot   `json:"gpu,omitempty"`
-	Services     []serviceSnap   `json:"services,omitempty"`
-	TimeSync     *timeSyncSnap   `json:"time_sync,omitempty"`
-	Vulns        *vulnsSnap      `json:"vulns,omitempty"`
-	Inventory    *inventorySnap  `json:"inventory,omitempty"`
-	Logs         []logFileSnap   `json:"logs,omitempty"`
-	Updates      []updatesSnap   `json:"updates,omitempty"`
-	Agent        *agentSnap      `json:"agent,omitempty"`
-	Processes    []procSnapshot  `json:"processes,omitempty"`
+	Capabilities map[string]bool     `json:"capabilities,omitempty"`
+	CPU          *cpuSnapshot        `json:"cpu,omitempty"`
+	Memory       *memSnapshot        `json:"memory,omitempty"`
+	Disk         *diskSnapshot       `json:"disk,omitempty"`
+	Network      *netSnapshot        `json:"network,omitempty"`
+	Host         *hostSnapshot       `json:"host,omitempty"`
+	Sensors      *sensorsSnap        `json:"sensors,omitempty"`
+	NetActive    *netActive          `json:"net_active,omitempty"`
+	Power        *powerSnapshot      `json:"power,omitempty"`
+	Sanity       *sanitySnapshot     `json:"sanity,omitempty"`
+	GPU          []gpuSnapshot       `json:"gpu,omitempty"`
+	Services     []serviceSnap       `json:"services,omitempty"`
+	TimeSync     *timeSyncSnap       `json:"time_sync,omitempty"`
+	Vulns        *vulnsSnap          `json:"vulns,omitempty"`
+	Inventory    *inventorySnap      `json:"inventory,omitempty"`
+	Logs         []logFileSnap       `json:"logs,omitempty"`
+	Updates      []updatesSnap       `json:"updates,omitempty"`
+	Agent        *agentSnap          `json:"agent,omitempty"`
+	Processes    []procSnapshot      `json:"processes,omitempty"`
+	Performance  *performanceProfile `json:"performance_profile,omitempty"`
 }
 
 type cpuSnapshot struct {
@@ -401,6 +402,44 @@ type procSnapshot struct {
 	CreateTimeUnix int64   `json:"create_time_unix,omitempty"`
 	Status         string  `json:"status,omitempty"`
 	Cmdline        string  `json:"cmdline,omitempty"`
+}
+
+type performanceProfile struct {
+	SchemaVersion int                  `json:"schema_version"`
+	WindowSec     int                  `json:"window_sec"`
+	Source        string               `json:"source"`
+	Resources     performanceResources `json:"resources"`
+	Processes     []performanceProcess `json:"processes,omitempty"`
+	Checks        []performanceCheck   `json:"checks,omitempty"`
+	Gaps          []string             `json:"gaps,omitempty"`
+}
+
+type performanceResources struct {
+	CPUPercent         *float64 `json:"cpu_percent,omitempty"`
+	MemUsedPercent     *float64 `json:"mem_used_percent,omitempty"`
+	DiskUsedPercentMax *float64 `json:"disk_used_percent_max,omitempty"`
+	IOWaitPercent      *float64 `json:"io_wait_percent,omitempty"`
+	NetRXBytesSec      *uint64  `json:"net_rx_bytes_sec,omitempty"`
+	NetTXBytesSec      *uint64  `json:"net_tx_bytes_sec,omitempty"`
+}
+
+type performanceProcess struct {
+	PID             int32   `json:"pid"`
+	Name            string  `json:"name,omitempty"`
+	Role            string  `json:"role,omitempty"`
+	CPUPercent      float64 `json:"cpu_percent,omitempty"`
+	MemPercent      float64 `json:"mem_percent,omitempty"`
+	IOReadBytesSec  uint64  `json:"io_read_bytes_sec,omitempty"`
+	IOWriteBytesSec uint64  `json:"io_write_bytes_sec,omitempty"`
+	Cmdline         string  `json:"cmdline,omitempty"`
+}
+
+type performanceCheck struct {
+	Kind       string  `json:"kind"`
+	Target     string  `json:"target,omitempty"`
+	OK         bool    `json:"ok"`
+	DurationMs float64 `json:"duration_ms,omitempty"`
+	Error      string  `json:"error,omitempty"`
 }
 
 func (c *collector) Collect(ctx context.Context) ([]byte, error) {
@@ -800,6 +839,8 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	} else {
 		s.Capabilities["processes"] = false
 	}
+	s.Performance = buildPerformanceProfile(s, p)
+	s.Capabilities["performance_profile"] = s.Performance != nil
 
 	return json.Marshal(s)
 }
@@ -1405,6 +1446,232 @@ func isListeningPort(c gnet.ConnectionStat) bool {
 		return true
 	}
 	return false
+}
+
+func buildPerformanceProfile(s snapshot, p config.CollectPrefs) *performanceProfile {
+	profile := &performanceProfile{
+		SchemaVersion: 1,
+		WindowSec:     int((10 * time.Second).Seconds()),
+		Source:        "sysmetrics",
+		Resources:     performanceResources{},
+	}
+
+	var gaps []string
+	if s.CPU != nil {
+		cpuPercent := roundFloat(s.CPU.PercentTotal, 2)
+		profile.Resources.CPUPercent = &cpuPercent
+	} else if !p.CPU {
+		gaps = append(gaps, "cpu_disabled")
+	} else {
+		gaps = append(gaps, "cpu_unavailable")
+	}
+
+	if s.Memory != nil {
+		memPercent := roundFloat(s.Memory.UsedPercent, 2)
+		profile.Resources.MemUsedPercent = &memPercent
+	} else if !p.Memory {
+		gaps = append(gaps, "memory_disabled")
+	} else {
+		gaps = append(gaps, "memory_unavailable")
+	}
+
+	if s.Disk != nil && len(s.Disk.Filesystems) > 0 {
+		diskMax := maxDiskUsage(s.Disk.Filesystems)
+		profile.Resources.DiskUsedPercentMax = &diskMax
+	} else if !p.Disk {
+		gaps = append(gaps, "disk_disabled")
+	}
+
+	if s.Network != nil && len(s.Network.Interfaces) > 0 {
+		rx, tx := totalNetworkBytes(s.Network.Interfaces)
+		profile.Resources.NetRXBytesSec = &rx
+		profile.Resources.NetTXBytesSec = &tx
+	} else if !p.Network {
+		gaps = append(gaps, "network_disabled")
+	}
+
+	if p.Processes && len(s.Processes) > 0 {
+		profile.Processes = buildPerformanceProcesses(s.Processes, s.Memory)
+	} else if !p.Processes {
+		gaps = append(gaps, "processes_disabled")
+	} else {
+		gaps = append(gaps, "processes_unavailable")
+	}
+
+	profile.Checks = buildPerformanceChecks(s)
+	profile.Gaps = limitStrings(gaps, 12)
+	if len(profile.Processes) == 0 && len(profile.Checks) == 0 && len(profile.Gaps) == 0 {
+		return nil
+	}
+	return profile
+}
+
+func buildPerformanceProcesses(processes []procSnapshot, memory *memSnapshot) []performanceProcess {
+	memTotal := uint64(0)
+	if memory != nil {
+		memTotal = memory.Total
+	}
+	limit := len(processes)
+	if limit > 10 {
+		limit = 10
+	}
+	out := make([]performanceProcess, 0, limit)
+	for i := 0; i < limit; i++ {
+		proc := processes[i]
+		memPercent := 0.0
+		if memTotal > 0 {
+			memPercent = roundFloat((float64(proc.RSSBytes)/float64(memTotal))*100, 2)
+		}
+		out = append(out, performanceProcess{
+			PID:             proc.PID,
+			Name:            safePerfText(proc.Name, 80),
+			Role:            processRole(proc.Name),
+			CPUPercent:      roundFloat(proc.CPUPercent, 2),
+			MemPercent:      memPercent,
+			IOReadBytesSec:  proc.IOReadBytes,
+			IOWriteBytesSec: proc.IOWriteBytes,
+			Cmdline:         sanitizePerfCommand(proc.Cmdline),
+		})
+	}
+	return out
+}
+
+func buildPerformanceChecks(s snapshot) []performanceCheck {
+	var checks []performanceCheck
+	if s.Sanity != nil {
+		for _, check := range s.Sanity.Ping {
+			checks = append(checks, performanceCheck{
+				Kind:       "tcp",
+				Target:     safePerfText(check.Target, 120),
+				OK:         check.Success,
+				DurationMs: float64(check.DurationMs),
+				Error:      safePerfText(check.Error, 180),
+			})
+		}
+		for _, check := range s.Sanity.DNS {
+			checks = append(checks, performanceCheck{
+				Kind:       "dns",
+				Target:     safePerfText(check.Target, 120),
+				OK:         check.Success,
+				DurationMs: float64(check.DurationMs),
+				Error:      safePerfText(check.Error, 180),
+			})
+		}
+	}
+	if s.Agent != nil {
+		checks = append(checks, performanceCheck{
+			Kind:       "agent_flush",
+			Target:     "/v1/ingest/metrics",
+			OK:         s.Agent.LastFlushMs <= 30000,
+			DurationMs: float64(s.Agent.LastFlushMs),
+			Error:      agentFlushError(s.Agent),
+		})
+	}
+	return limitPerformanceChecks(checks, 20)
+}
+
+func maxDiskUsage(filesystems []diskFS) float64 {
+	maxValue := 0.0
+	for _, fs := range filesystems {
+		if fs.UsedPercent > maxValue {
+			maxValue = fs.UsedPercent
+		}
+	}
+	return roundFloat(maxValue, 2)
+}
+
+func totalNetworkBytes(interfaces []netIf) (uint64, uint64) {
+	var rx uint64
+	var tx uint64
+	for _, item := range interfaces {
+		if !item.IsUp {
+			continue
+		}
+		rx += item.BytesRecv
+		tx += item.BytesSent
+	}
+	return rx, tx
+}
+
+func processRole(name string) string {
+	norm := strings.ToLower(name)
+	switch {
+	case strings.Contains(norm, "aiceberg"):
+		return "agent"
+	case strings.Contains(norm, "mysql"), strings.Contains(norm, "mariadb"), strings.Contains(norm, "postgres"), strings.Contains(norm, "redis"), strings.Contains(norm, "mongod"):
+		return "database"
+	case strings.Contains(norm, "nginx"), strings.Contains(norm, "apache"), strings.Contains(norm, "httpd"), strings.Contains(norm, "php-fpm"), strings.Contains(norm, "iis"), strings.Contains(norm, "w3wp"):
+		return "web"
+	case strings.Contains(norm, "java"), strings.Contains(norm, "node"), strings.Contains(norm, "python"), strings.Contains(norm, "dotnet"):
+		return "application"
+	default:
+		return "process"
+	}
+}
+
+func sanitizePerfCommand(value string) string {
+	text := safePerfText(value, 220)
+	secretPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(authorization=)(bearer\s+)?[^\s&]+`),
+		regexp.MustCompile(`(?i)(token|password|passwd|secret|authorization|api[_-]?key)=([^\s&]+)`),
+		regexp.MustCompile(`(?i)(bearer\s+)[a-z0-9._\-]+`),
+	}
+	for _, pattern := range secretPatterns {
+		text = pattern.ReplaceAllString(text, `${1}[redacted]`)
+	}
+	return text
+}
+
+func safePerfText(value string, limit int) string {
+	text := strings.TrimSpace(value)
+	text = strings.ReplaceAll(text, "\n", " ")
+	text = strings.ReplaceAll(text, "\r", " ")
+	text = strings.Join(strings.Fields(text), " ")
+	if limit > 0 && len(text) > limit {
+		return text[:limit]
+	}
+	return text
+}
+
+func agentFlushError(agent *agentSnap) string {
+	if agent == nil {
+		return ""
+	}
+	if agent.LastFlushMs > 30000 {
+		return "last_flush_slow"
+	}
+	if agent.FlushErrTotal > 0 && agent.FlushOKTotal == 0 {
+		return "flush_errors_without_success"
+	}
+	return ""
+}
+
+func limitStrings(items []string, limit int) []string {
+	if len(items) <= limit {
+		return items
+	}
+	return items[:limit]
+}
+
+func limitPerformanceChecks(items []performanceCheck, limit int) []performanceCheck {
+	if len(items) <= limit {
+		return items
+	}
+	return items[:limit]
+}
+
+func roundFloat(value float64, precision int) float64 {
+	if precision <= 0 {
+		return value
+	}
+	factor := 1.0
+	for i := 0; i < precision; i++ {
+		factor *= 10
+	}
+	if value >= 0 {
+		return float64(int(value*factor+0.5)) / factor
+	}
+	return float64(int(value*factor-0.5)) / factor
 }
 
 func topProcesses(ctx context.Context, topCPU, topMem int) []procSnapshot {

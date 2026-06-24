@@ -1412,7 +1412,7 @@ func metricsKeys() map[string]struct{} {
 	return setOf(
 		"capabilities", "cpu", "memory", "disk", "network", "net_active",
 		"sanity", "services", "processes", "agent", "gpu", "power",
-		"sensors", "time_sync",
+		"sensors", "time_sync", "performance_profile",
 	)
 }
 

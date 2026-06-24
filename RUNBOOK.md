@@ -115,6 +115,29 @@ Antes de implementar PKG-59 a PKG-72:
 
 Nao declarar superioridade sobre Datadog sem benchmark, evidencia funcional e comparacao objetiva registrada na matriz.
 
+## Perfil local de performance
+
+O coletor `sysmetrics` envia `performance_profile` em `/v1/ingest/metrics` quando houver evidência mínima ou lacuna útil.
+
+Campos principais:
+
+- `resources`: CPU, memória, maior uso de disco e bytes de rede acumulados por interfaces ativas;
+- `processes`: top processos já coletados, com papel provável, CPU, memória, IO acumulado e command line sanitizado;
+- `checks`: DNS/TCP de sanity e flush do agente;
+- `gaps`: coletores desativados ou indisponíveis.
+
+Segurança:
+
+- command line do perfil mascara `token`, `password`, `passwd`, `secret`, `authorization`, `api_key` e `Bearer`;
+- o contrato é aditivo e não cria endpoint novo;
+- rollback: remover `performance_profile` de `metricsKeys` ou publicar a versão anterior do agente.
+
+Validação focada:
+
+```bash
+go test ./internal/platform/collectors/sysmetrics
+```
+
 ### PKG-59 - Runtime Collector/Forwarder
 
 Contrato tecnico: `docs/pkg59_runtime_architecture.md`.

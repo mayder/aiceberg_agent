@@ -183,6 +183,13 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Unitario focado: `go test ./internal/domain/runtime ./internal/domain/usecase ./internal/interfaces/health ./internal/bootstrap`.
 - Contrato: validar que `CollectAndBuffer` preserva o corpo original e adiciona apenas `schema_version`, `agent_pipeline_version`, `collector_name` e `ingest_endpoint`.
 - Diagnostico: validar que `/health` e `inspect_runtime_config` expõem `agent_pipeline_version` sem segredo.
+
+## PKG-82 - Perfil local de performance
+
+- Unitario focado: `go test ./internal/platform/collectors/sysmetrics`.
+- Contrato: validar `performance_profile` aditivo em `sysmetrics`, com `resources`, `processes`, `checks` e `gaps`.
+- Segurança: validar redaction de command line para token, senha, secret, authorization, api key e bearer.
+- Fechamento coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`.
 - Fechamento: rodar `./check.sh`.
 - Validacao real fechada pelo PKG-69 aceito em 2026-06-19: Windows, Linux, container, perda de rede, API indisponivel, disco cheio/outbox preservada, proxy/TLS e agente instalado anteriormente.
 

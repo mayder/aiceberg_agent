@@ -11,8 +11,45 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 - `PKG-73` Agente/SOC — taxonomia canônica de origem, campos SOC e roteamento seguro para PKG-54
 - `PKG-74` Agente/Web — descoberta automática de fontes de logs, aplicações e dependências locais
 - `PKG-75` Logs/IA — sinais do agente para triagem recorrente e deduplicação segura
+- `PKG-82` Agente/Web — perfil local de performance e evidência de host
 
 ---
+
+## [PKG-82] Agente/Web — perfil local de performance e evidência de host
+
+**Status** — implementado no agente em 24/06/2026 como payload aditivo `performance_profile` dentro de `sysmetrics`, coordenado com o `aiceberg_web`.
+
+**Escopo no agente** — emitir evidência local de CPU, memória, disco, rede, top processos, checks de conectividade e lacunas de coleta sem endpoint novo e sem profiler invasivo.
+
+**Contrato** — `performance_profile` contém `schema_version`, `window_sec`, `source`, `resources`, `processes`, `checks` e `gaps`. O payload é opcional e compatível com agentes/web legados.
+
+### Lotes
+
+1) **Payload aditivo**
+   - [x] emitir `performance_profile` no snapshot de métricas;
+   - [x] adicionar `performance_profile` à allowlist de `metricsKeys`;
+   - [x] preservar endpoint `/v1/ingest/metrics` e contrato legado.
+
+2) **Evidência local**
+   - [x] derivar recursos de CPU, memória, disco e rede a partir de `sysmetrics`;
+   - [x] derivar top processos a partir de `processes`;
+   - [x] classificar papel provável do processo (`agent`, `database`, `web`, `application`, `process`);
+   - [x] incluir checks de DNS/TCP e flush do agente quando disponíveis.
+
+3) **Segurança e lacunas**
+   - [x] sanitizar command line do perfil para token, senha, secret, authorization e bearer;
+   - [x] reportar lacunas quando CPU, memória, disco, rede ou processos estiverem desativados/indisponíveis;
+   - [x] limitar quantidade de processos, checks e tamanho de texto.
+
+4) **Validação**
+   - [x] cobrir contrato e redaction em `go test ./internal/platform/collectors/sysmetrics`;
+   - [ ] rodar `./check.sh` no fechamento;
+   - [ ] validar publicação e ingestão real coordenada com o web.
+
+### Rollback
+
+- Remover `performance_profile` de `metricsKeys` e publicar versão anterior do agente.
+- O web deve continuar aceitando payload sem `performance_profile`.
 
 ## [PKG-32] Canal operacional bidirecional com agentes
 

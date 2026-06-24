@@ -42,6 +42,17 @@ Referências:
 
 ## Decisões
 
+### DEC-20260624-01 - Perfil local de performance como seção aditiva do sysmetrics
+
+- Status: aceita
+- Contexto: o web precisa correlacionar lentidão da aplicação com evidência local do host sem criar endpoint novo nem quebrar agentes legados.
+- Decisao: emitir `performance_profile` dentro do payload `sysmetrics` enviado a `/v1/ingest/metrics`, derivado de CPU, memória, disco, rede, processos, sanity e agente. O contrato é opcional e inclui lacunas quando uma fonte estiver desativada ou indisponível.
+- Alternativas consideradas: criar endpoint dedicado ou coletor paralelo para performance.
+- Consequencias: menor risco de rollout e compatibilidade preservada; o perfil usa métricas acumuladas quando não houver amostragem por janela.
+- Impacto em testes: `go test ./internal/platform/collectors/sysmetrics` cobre contrato e redaction.
+- Impacto em rollback: remover `performance_profile` da allowlist de métricas ou publicar versão anterior do agente.
+- Como reverter: reverter alterações em `sysmetrics` e `metricsKeys`.
+
 ### DEC-20260618-01 - Matriz evidencial para evolucao Datadog-like do agente
 
 - Status: aceita
