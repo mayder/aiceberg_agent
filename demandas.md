@@ -17,7 +17,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 ## [PKG-82] Agente/Web — perfil local de performance e evidência de host
 
-**Status** — implementado no agente em 24/06/2026 como payload aditivo `performance_profile` dentro de `sysmetrics`, coordenado com o `aiceberg_web`.
+**Status** — implementado no agente em 24/06/2026 como payload aditivo `performance_profile` dentro de `sysmetrics`, coordenado com o `aiceberg_web` e publicado como versão `0.8.21` para evitar reuso silencioso do pacote `0.8.20`.
 
 **Escopo no agente** — emitir evidência local de CPU, memória, disco, rede, top processos, checks de conectividade e lacunas de coleta sem endpoint novo e sem profiler invasivo.
 
@@ -43,8 +43,8 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 4) **Validação**
    - [x] cobrir contrato e redaction em `go test ./internal/platform/collectors/sysmetrics`;
-   - [ ] rodar `./check.sh` no fechamento;
-   - [ ] validar publicação e ingestão real coordenada com o web.
+   - [x] rodar `./check.sh` no fechamento;
+   - [x] validar publicação do pacote coordenada com o web.
 
 ### Rollback
 
