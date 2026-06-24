@@ -133,6 +133,18 @@ func TestBoundedContextKeepsShorterParentDeadline(t *testing.T) {
 	}
 }
 
+func TestLinuxSecurityUpdatesSkipsDnfByDefault(t *testing.T) {
+	t.Setenv("AICEBERG_AGENT_ENABLE_DNF_UPDATEINFO", "")
+
+	got := linuxSecurityUpdates(time.Second)
+	if got.Source != "dnf" {
+		t.Fatalf("unexpected source: %#v", got)
+	}
+	if !strings.Contains(got.Error, "skipped") {
+		t.Fatalf("expected dnf skipped by default, got %#v", got)
+	}
+}
+
 func TestBuildPerformanceProfileSanitizesProcessCommand(t *testing.T) {
 	mem := &memSnapshot{Total: 1000}
 	profile := buildPerformanceProfile(snapshot{

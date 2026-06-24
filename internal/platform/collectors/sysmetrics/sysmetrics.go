@@ -52,7 +52,6 @@ type AgentRuntimeStats struct {
 const (
 	linuxInventoryTimeout      = 5 * time.Second
 	linuxPackageCommandTimeout = 3 * time.Second
-	linuxRepoCommandTimeout    = 2 * time.Second
 )
 
 func New(queueStats func() (int, int64), prefsProvider func() config.CollectPrefs, runtimeStatsProvider ...func() AgentRuntimeStats) ports.Collector {
@@ -1146,6 +1145,9 @@ func linuxSecurityUpdates(timeout time.Duration) updatesSnap {
 	// se existir apt, mantém comportamento antigo
 	if _, err := exec.LookPath("apt-get"); err == nil {
 		return aptUpdates(timeout)
+	}
+	if strings.TrimSpace(os.Getenv("AICEBERG_AGENT_ENABLE_DNF_UPDATEINFO")) != "true" {
+		return updatesSnap{Source: "dnf", Error: "dnf updateinfo skipped in hot path"}
 	}
 	path, err := exec.LookPath("dnf")
 	if err != nil {
@@ -2332,31 +2334,45 @@ func readOSRelease() osRelease {
 
 func collectLinuxRepos(ctx context.Context) repoSnap {
 	var rs repoSnap
-	path, err := exec.LookPath("dnf")
-	if err != nil {
-		path, err = exec.LookPath("yum")
-	}
-	if err != nil {
+	files, err := filepath.Glob("/etc/yum.repos.d/*.repo")
+	if err != nil || len(files) == 0 {
 		return rs
 	}
-	cmdCtx, cancel := boundedContext(ctx, linuxRepoCommandTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(cmdCtx, path, "repolist", "-v")
-	raw, err := cmd.Output()
-	if err != nil {
-		return rs
-	}
-	rs.Raw = string(raw)
-	sc := bufio.NewScanner(bytes.NewBuffer(raw))
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if strings.HasPrefix(strings.ToLower(line), "repo-id") {
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				rs.Enabled = append(rs.Enabled, parts[1])
+	for _, file := range files {
+		if ctx.Err() != nil {
+			return rs
+		}
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			continue
+		}
+		current := ""
+		enabled := true
+		sc := bufio.NewScanner(bytes.NewReader(raw))
+		for sc.Scan() {
+			line := strings.TrimSpace(sc.Text())
+			if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+				continue
+			}
+			if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+				if current != "" && enabled {
+					rs.Enabled = append(rs.Enabled, current)
+				}
+				current = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, "["), "]"))
+				enabled = true
+				continue
+			}
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[0]), "enabled") {
+				enabled = strings.TrimSpace(parts[1]) != "0"
 			}
 		}
+		if current != "" && enabled {
+			rs.Enabled = append(rs.Enabled, current)
+		}
+		rs.Raw += filepath.Base(file) + "\n"
 	}
+	sort.Strings(rs.Enabled)
 	return rs
 }
 
