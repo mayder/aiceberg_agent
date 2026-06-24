@@ -44,6 +44,8 @@ type SelfUpdate struct {
 
 var currentExecutablePath = os.Executable
 
+var errUpdateRangeNotSatisfiable = errors.New("update partial range not satisfiable")
+
 type updateDownloadSource struct {
 	URL     string
 	Name    string
@@ -590,122 +592,134 @@ func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts
 	var errs []string
 
 	for _, source := range sources {
-		partialSize := partialFileSize(tmpPath)
-		if partialSize > maxBytes {
-			if err := os.Remove(tmpPath); err != nil && !os.IsNotExist(err) {
-				return downloadedArtifact{}, fmt.Errorf("cleanup oversized partial update file: %w", err)
-			}
-			partialSize = 0
-		}
-
-		req, err := http.NewRequestWithContext(dlCtx, http.MethodGet, source.URL, nil)
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s request: %v", source.Name, err))
-			continue
-		}
-		if partialSize > 0 {
-			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", partialSize))
-		}
-		if source.UseAuth {
-			httpx.SetAuth(req, uc.cfg)
-		}
-
-		resp, err := uc.cl.Do(req)
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s download: %v", source.Name, err))
-			continue
-		}
-
-		resumed := false
-		resumeOffset := int64(0)
-		downloadErr := func() error {
-			defer resp.Body.Close()
-			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				return fmt.Errorf("status %s", resp.Status)
-			}
-			appendPartial := partialSize > 0 && resp.StatusCode == http.StatusPartialContent
-			resumed = appendPartial
-			if appendPartial {
-				resumeOffset = partialSize
+		for attempt := 0; attempt < 2; attempt++ {
+			partialSize := partialFileSize(tmpPath)
+			if partialSize > maxBytes {
+				if err := os.Remove(tmpPath); err != nil && !os.IsNotExist(err) {
+					return downloadedArtifact{}, fmt.Errorf("cleanup oversized partial update file: %w", err)
+				}
+				partialSize = 0
 			}
 
-			flag := os.O_CREATE | os.O_WRONLY
-			if appendPartial {
-				flag |= os.O_APPEND
-			} else {
-				flag |= os.O_TRUNC
-			}
-			f, err := os.OpenFile(tmpPath, flag, 0o644)
+			req, err := http.NewRequestWithContext(dlCtx, http.MethodGet, source.URL, nil)
 			if err != nil {
-				return fmt.Errorf("create temp update file: %w", err)
+				errs = append(errs, fmt.Sprintf("%s request: %v", source.Name, err))
+				break
 			}
-			defer func() { _ = f.Close() }()
-
-			limit := maxBytes + 1
-			if appendPartial {
-				limit = maxBytes - partialSize + 1
+			if partialSize > 0 {
+				req.Header.Set("Range", fmt.Sprintf("bytes=%d-", partialSize))
 			}
-			limited := io.LimitReader(resp.Body, limit)
-			written, copyErr := io.Copy(f, limited)
-			if copyErr != nil {
-				return fmt.Errorf("download body: %w", copyErr)
-			}
-			totalWritten := written
-			if appendPartial {
-				totalWritten += partialSize
-			}
-			if totalWritten > maxBytes {
-				return fmt.Errorf("update package too large: %d bytes (limit %d)", totalWritten, maxBytes)
-			}
-			if closeErr := f.Close(); closeErr != nil {
-				return fmt.Errorf("flush update file: %w", closeErr)
+			if source.UseAuth {
+				httpx.SetAuth(req, uc.cfg)
 			}
 
-			got, hashErr := fileSHA256(tmpPath)
-			if hashErr != nil {
-				return fmt.Errorf("compute temp sha256: %w", hashErr)
+			resp, err := uc.cl.Do(req)
+			if err != nil {
+				errs = append(errs, fmt.Sprintf("%s download: %v", source.Name, err))
+				break
 			}
-			if expectedSHA != "" {
-				if got != expectedSHA {
-					return fmt.Errorf("sha256 mismatch: got=%s expected=%s", got, expectedSHA)
+
+			resumed := false
+			resumeOffset := int64(0)
+			downloadErr := func() error {
+				defer resp.Body.Close()
+				if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable && partialSize > 0 {
+					return errUpdateRangeNotSatisfiable
 				}
-			}
+				if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+					return fmt.Errorf("status %s", resp.Status)
+				}
+				appendPartial := partialSize > 0 && resp.StatusCode == http.StatusPartialContent
+				resumed = appendPartial
+				if appendPartial {
+					resumeOffset = partialSize
+				}
 
-			if err := os.Rename(tmpPath, finalPath); err != nil {
-				return fmt.Errorf("finalize update file: %w", err)
-			}
-			return nil
-		}()
+				flag := os.O_CREATE | os.O_WRONLY
+				if appendPartial {
+					flag |= os.O_APPEND
+				} else {
+					flag |= os.O_TRUNC
+				}
+				f, err := os.OpenFile(tmpPath, flag, 0o644)
+				if err != nil {
+					return fmt.Errorf("create temp update file: %w", err)
+				}
+				defer func() { _ = f.Close() }()
 
-		if downloadErr == nil {
-			gotSHA := normalizeSHA256(expectedSHA)
-			if gotSHA == "" {
-				hashRaw, hashErr := fileSHA256(finalPath)
+				limit := maxBytes + 1
+				if appendPartial {
+					limit = maxBytes - partialSize + 1
+				}
+				limited := io.LimitReader(resp.Body, limit)
+				written, copyErr := io.Copy(f, limited)
+				if copyErr != nil {
+					return fmt.Errorf("download body: %w", copyErr)
+				}
+				totalWritten := written
+				if appendPartial {
+					totalWritten += partialSize
+				}
+				if totalWritten > maxBytes {
+					return fmt.Errorf("update package too large: %d bytes (limit %d)", totalWritten, maxBytes)
+				}
+				if closeErr := f.Close(); closeErr != nil {
+					return fmt.Errorf("flush update file: %w", closeErr)
+				}
+
+				got, hashErr := fileSHA256(tmpPath)
 				if hashErr != nil {
-					errs = append(errs, fmt.Sprintf("%s compute sha: %v", source.Name, hashErr))
-					continue
+					return fmt.Errorf("compute temp sha256: %w", hashErr)
 				}
-				gotSHA = normalizeSHA256(hashRaw)
+				if expectedSHA != "" {
+					if got != expectedSHA {
+						return fmt.Errorf("sha256 mismatch: got=%s expected=%s", got, expectedSHA)
+					}
+				}
+
+				if err := os.Rename(tmpPath, finalPath); err != nil {
+					return fmt.Errorf("finalize update file: %w", err)
+				}
+				return nil
+			}()
+
+			if downloadErr == nil {
+				gotSHA := normalizeSHA256(expectedSHA)
+				if gotSHA == "" {
+					hashRaw, hashErr := fileSHA256(finalPath)
+					if hashErr != nil {
+						errs = append(errs, fmt.Sprintf("%s compute sha: %v", source.Name, hashErr))
+						break
+					}
+					gotSHA = normalizeSHA256(hashRaw)
+				}
+				info, statErr := os.Stat(finalPath)
+				if statErr != nil {
+					errs = append(errs, fmt.Sprintf("%s stat file: %v", source.Name, statErr))
+					break
+				}
+				uc.log.Info(logger.KV("self update download source",
+					"source", source.Name,
+				))
+				return downloadedArtifact{
+					FilePath:     finalPath,
+					DirPath:      filepath.Dir(finalPath),
+					SHA256:       gotSHA,
+					SizeBytes:    info.Size(),
+					Source:       source.Name,
+					Resumed:      resumed,
+					ResumeOffset: resumeOffset,
+				}, nil
 			}
-			info, statErr := os.Stat(finalPath)
-			if statErr != nil {
-				errs = append(errs, fmt.Sprintf("%s stat file: %v", source.Name, statErr))
+			if errors.Is(downloadErr, errUpdateRangeNotSatisfiable) {
+				if err := os.Remove(tmpPath); err != nil && !os.IsNotExist(err) {
+					return downloadedArtifact{}, fmt.Errorf("cleanup rejected partial update file: %w", err)
+				}
 				continue
 			}
-			uc.log.Info(logger.KV("self update download source",
-				"source", source.Name,
-			))
-			return downloadedArtifact{
-				FilePath:     finalPath,
-				DirPath:      filepath.Dir(finalPath),
-				SHA256:       gotSHA,
-				SizeBytes:    info.Size(),
-				Source:       source.Name,
-				Resumed:      resumed,
-				ResumeOffset: resumeOffset,
-			}, nil
+			errs = append(errs, fmt.Sprintf("%s %v", source.Name, downloadErr))
+			break
 		}
-		errs = append(errs, fmt.Sprintf("%s %v", source.Name, downloadErr))
 	}
 
 	if len(errs) == 0 {

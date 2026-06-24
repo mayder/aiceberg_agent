@@ -488,6 +488,74 @@ func TestSelfUpdate_DownloadResumesPartialFileWithRange(t *testing.T) {
 	}
 }
 
+func TestSelfUpdate_DownloadRestartsWhenPartialRangeIsNotSatisfiable(t *testing.T) {
+	pkg := []byte("fresh package after invalid partial")
+	sum := sha256.Sum256(pkg)
+	var calls int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		call := atomic.AddInt32(&calls, 1)
+		if call == 1 {
+			if got := r.Header.Get("Range"); got == "" {
+				t.Errorf("expected first request to try Range resume")
+			}
+			http.Error(w, "range not satisfiable", http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
+		if got := r.Header.Get("Range"); got != "" {
+			t.Errorf("expected retry without Range, got %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(pkg)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	targetVersion := testUpdateVersion()
+	targetDir := filepath.Join(dir, targetVersion)
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		t.Fatalf("create target dir: %v", err)
+	}
+	tmpPath := filepath.Join(targetDir, "pkg.bin.part")
+	if err := os.WriteFile(tmpPath, []byte("stale partial content larger than remote"), 0o644); err != nil {
+		t.Fatalf("write stale partial: %v", err)
+	}
+
+	cfg := config.Config{
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     dir,
+		AutoUpdateTimeout: 2 * time.Second,
+		AutoUpdateMaxMB:   5,
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{})
+	payload := &UpdatePayload{
+		Version: targetVersion,
+		URL:     srv.URL + "/pkg.bin",
+		SHA256:  hex.EncodeToString(sum[:]),
+	}
+
+	artifact, err := uc.download(context.Background(), payload, uc.effectiveOptions())
+	if err != nil {
+		t.Fatalf("expected clean retry after 416 to succeed: %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 2 {
+		t.Fatalf("expected 2 calls, got %d", got)
+	}
+	if artifact.Resumed || artifact.ResumeOffset != 0 {
+		t.Fatalf("expected clean download after rejected range, got %#v", artifact)
+	}
+	raw, err := os.ReadFile(artifact.FilePath)
+	if err != nil {
+		t.Fatalf("read final artifact: %v", err)
+	}
+	if string(raw) != string(pkg) {
+		t.Fatalf("unexpected final artifact content: %q", string(raw))
+	}
+	if _, err := os.Stat(tmpPath); !os.IsNotExist(err) {
+		t.Fatalf("expected stale partial to be removed/finalized, got %v", err)
+	}
+}
+
 func TestSelfUpdate_ApplyRemoteConfigResetsOverridesWhenPayloadIsEmpty(t *testing.T) {
 	cfg := config.Config{
 		AutoUpdateEnabled: true,
