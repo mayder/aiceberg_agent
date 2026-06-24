@@ -79,6 +79,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	if c.startErr != nil {
 		return nil, c.startErr
 	}
+	c.addValidationSample(time.Now().UTC())
 	snapshot := c.aggregator.flush()
 	if len(snapshot.Series) == 0 && snapshot.DroppedCount == 0 {
 		return nil, nil
@@ -98,6 +99,33 @@ func (c *collector) enabled() bool {
 		return c.baseEnabled
 	}
 	return p.CustomMetricsEnabled
+}
+
+func (c *collector) validationSampleEnabled() bool {
+	if c.prefs == nil {
+		return false
+	}
+	p := c.prefs()
+	return strings.TrimSpace(p.Version) != "" && p.CustomMetricsValidationSample
+}
+
+func (c *collector) addValidationSample(now time.Time) {
+	if !c.validationSampleEnabled() {
+		return
+	}
+	c.aggregator.add(customMetric{
+		Name:      "aiceberg.validation.custom_metrics",
+		Type:      "count",
+		Value:     1,
+		Tags:      []string{"aiceberg.validation_sample:true", "source:agent_controlled_sample", "service:aiceberg-agent-validation"},
+		Service:   "aiceberg-agent-validation",
+		Env:       "controlled-validation",
+		Source:    "agent_controlled_sample",
+		Timestamp: now.Format(time.RFC3339Nano),
+		Meta: map[string]string{
+			"purpose": "pipeline_validation",
+		},
+	})
 }
 
 func (c *collector) start(ctx context.Context) error {

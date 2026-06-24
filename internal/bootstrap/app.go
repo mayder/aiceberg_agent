@@ -207,7 +207,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	flushOptions := usecase.FlushOutboxOptions{BatchSize: cfg.OutboxFlushBatch}
 	flushUC := usecase.NewFlushOutboxWithOptions(outboxRepo, tx, log, authHeader, onIngestConfig, flushOptions)
 	pingUC := usecase.NewPingBackend(cfg, log)
-	selfUpdateUC := usecase.NewSelfUpdate(cfg, log)
+	selfUpdateUC := usecase.NewSelfUpdate(cfg, log, prefStore.Get)
 	controlClient := agentlessremote.NewAgentControlClient(cfg)
 	var errorReportMu sync.Mutex
 	lastErrorReportAt := make(map[string]time.Time)

@@ -540,8 +540,10 @@ Próximo ajuste:
 
 Ativação:
 
-- `EDR_SAFE=true` ou `AICEBERG_EDR_SAFE=true`.
-- `EDR_SAFE_PROFILE=conservative|standard|crowdstrike|darktrace|defender`.
+- Caminho principal: receber da web/API o bloco `edr_ndr` no `GET /v1/agent/config`.
+- O agente persiste em prefs: modo seguro, perfil, exigência de assinatura da config remota, exigência de assinatura do auto-update e exigência de prova de identidade.
+- Fallback local: `EDR_SAFE=true` ou `AICEBERG_EDR_SAFE=true`.
+- Perfil fallback: `EDR_SAFE_PROFILE=conservative|standard|crowdstrike|darktrace|defender`.
 
 Comportamento esperado:
 
@@ -561,7 +563,32 @@ Rollback:
 
 - Remover `EDR_SAFE`/`AICEBERG_EDR_SAFE`.
 - Reverter configuração remota para perfil padrão.
+- Remover o bloco `edr_ndr` ou desligar as flags na web.
 - Publicar versão anterior do agente se o modo seguro afetar coleta essencial.
+
+## Observabilidade controlada
+
+Ativação:
+
+- Receber da web/API `custom_metrics.validation_samples_enabled=true` e `otlp.validation_samples_enabled=true`.
+- `custom_metrics.enabled` e `otlp.enabled` também precisam estar ativos.
+
+Comportamento esperado:
+
+- `custommetrics` emite uma métrica por ciclo com nome `aiceberg.validation.custom_metrics`, serviço `aiceberg-agent-validation` e origem `agent_controlled_sample`.
+- `otlp_traces` emite um span por ciclo com atributo `aiceberg.validation_sample=true`.
+- Nenhum shell remoto é executado e nenhum arquivo local do cliente é lido para gerar essa amostra.
+
+Validação:
+
+```bash
+go test ./internal/domain/usecase ./internal/platform/collectors/custommetrics ./internal/platform/collectors/otlp
+```
+
+Rollback:
+
+- Desligar as flags `validation_samples_enabled` na configuração remota.
+- Aguardar novo ciclo de configuração e snapshot.
 
 ## Adaptacao deste projeto
 

@@ -186,6 +186,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	if !c.receiver.enabled() {
 		return nil, nil
 	}
+	c.receiver.addValidationSample(c.kind, time.Now().UTC())
 	snap := c.receiver.store.flush(c.kind)
 	if len(snap.Items) == 0 && snap.DroppedCount == 0 {
 		return nil, nil
@@ -242,6 +243,10 @@ func (r *Receiver) sampleTraceItems(items []map[string]any) ([]map[string]any, i
 	out := make([]map[string]any, 0, len(items))
 	dropped := 0
 	for _, item := range items {
+		if stringValue(item["sampling_reason"]) == "validation_sample" {
+			out = append(out, item)
+			continue
+		}
 		if preserveErrors && isTraceError(item) {
 			item["sampling_reason"] = "error"
 			out = append(out, item)
@@ -260,6 +265,47 @@ func (r *Receiver) sampleTraceItems(items []map[string]any) ([]map[string]any, i
 		dropped++
 	}
 	return out, dropped
+}
+
+func (r *Receiver) validationSampleEnabled() bool {
+	if r.prefs == nil {
+		return false
+	}
+	p := r.prefs()
+	return strings.TrimSpace(p.Version) != "" && p.OTLPValidationSample
+}
+
+func (r *Receiver) addValidationSample(kind string, now time.Time) {
+	if kind != "traces" || !r.validationSampleEnabled() {
+		return
+	}
+	start := now.Add(-75 * time.Millisecond)
+	traceSeed := strconv.FormatInt(now.UnixNano(), 16)
+	r.store.add("traces", []map[string]any{{
+		"trace_id":             leftPadHex(traceSeed, 32),
+		"span_id":              leftPadHex(traceSeed, 16),
+		"name":                 "Aiceberg controlled observability validation",
+		"service":              "aiceberg-agent-validation",
+		"env":                  "controlled-validation",
+		"start_time_unix_nano": strconv.FormatInt(start.UnixNano(), 10),
+		"end_time_unix_nano":   strconv.FormatInt(now.UnixNano(), 10),
+		"duration_ms":          75,
+		"status":               "ok",
+		"attributes": map[string]any{
+			"aiceberg.validation_sample": true,
+			"source":                     "agent_controlled_sample",
+			"purpose":                    "pipeline_validation",
+		},
+		"sampling_reason": "validation_sample",
+	}})
+}
+
+func leftPadHex(value string, size int) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	if len(value) >= size {
+		return value[len(value)-size:]
+	}
+	return strings.Repeat("0", size-len(value)) + value
 }
 
 func (r *Receiver) traceSamplingSettings() (float64, int, bool) {

@@ -103,6 +103,7 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 
 	mux.HandleFunc("/v1/ingest", ingestHandler)
 	mux.HandleFunc("/v1/ingest/", ingestHandler)
+	mux.HandleFunc("/v1/logs/raw", ingestHandler)
 
 	mux.HandleFunc("/v1/agent/config", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

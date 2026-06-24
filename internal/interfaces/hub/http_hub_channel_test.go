@@ -142,6 +142,36 @@ func TestHubIngestPreservesRelayIdentityHeader(t *testing.T) {
 	}
 }
 
+func TestHubRawLogsPreservesRelayIdentityHeader(t *testing.T) {
+	outbox := &testHubOutbox{}
+	handler := NewHandler(config.Config{}, outbox, testHubLogger{}, nil)
+
+	body := `[{"envelope_id":"env-log-1","agent_id":"relay-node","schema_version":1,"kind":"log","sub":"oslogs","ts_unix_ms":1,"body":{"events":[]}}]`
+	req := httptest.NewRequest(http.MethodPost, "/v1/logs/raw", strings.NewReader(body))
+	req.Header.Set("Authorization", "Token relay-token")
+	req.Header.Set("X-Agent-Identity", "relay-identity")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected status 202, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(outbox.batch) != 1 {
+		t.Fatalf("expected 1 buffered envelope, got %d", len(outbox.batch))
+	}
+	env := outbox.batch[0]
+	if env.Endpoint != "/v1/logs/raw" {
+		t.Fatalf("expected raw logs endpoint preserved, got %q", env.Endpoint)
+	}
+	if env.AuthHeader != "Token relay-token" {
+		t.Fatalf("expected auth preserved, got %q", env.AuthHeader)
+	}
+	if env.IdentityHeader != "relay-identity" {
+		t.Fatalf("expected identity preserved, got %q", env.IdentityHeader)
+	}
+}
+
 func TestHubProxyPreservesIdentityForBootstrapConfigAndPing(t *testing.T) {
 	var seen []string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
