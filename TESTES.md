@@ -189,6 +189,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Unitario focado: `go test ./internal/platform/collectors/sysmetrics`.
 - Contrato: validar `performance_profile` aditivo em `sysmetrics`, com `resources`, `processes`, `checks` e `gaps`.
 - Segurança: validar redaction de command line para token, senha, secret, authorization, api key e bearer.
+- Validacao produtiva complementar em 24/06/2026: agentes InspectApp `1`, `4`, `18`, `19`, `70` e `71` enviaram `performance_profile` recente em `/v1/ingest/metrics`, com `resources=yes`, 10 processos e 5 checks por host.
 - Fechamento coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`.
 - Fechamento: rodar `./check.sh`.
 - Validacao real fechada pelo PKG-69 aceito em 2026-06-19: Windows, Linux, container, perda de rede, API indisponivel, disco cheio/outbox preservada, proxy/TLS e agente instalado anteriormente.
@@ -199,6 +200,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Build Windows do coletor em host nao Windows: `GOOS=windows GOARCH=amd64 go test -c -o /tmp/aiceberg_oslogs_windows.test.exe ./internal/platform/collectors/oslogs`.
 - Cobrir health por fonte, `no_new_events`, `channel_missing`, `dropped_by_severity`, sinais SSH, mail/SASL, sudo/PAM, nginx/apache, Windows Security 4625 e Sysmon.
 - Cobrir POSIX com tail de arquivo, truncate/rotação, permissão negada, arquivo inexistente e cursor desalinhado sem reter conteúdo descartado.
+- Validacao produtiva complementar em 24/06/2026: agentes InspectApp `1`, `4`, `18`, `19`, `70` e `71` enviaram `log_source_health` recente em `/v1/logs/raw`, cobrindo os estados `delivering`, `dropped_by_severity`, `file_missing`, `permission_denied`, `channel_missing` e `no_new_events`.
 - Fechamento coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`.
 
 ## PKG-84 - Update resiliente e diagnosticavel
@@ -207,6 +209,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Download resiliente: `go test ./internal/domain/usecase -run 'TestSelfUpdate_DownloadResumesPartialFileWithRange|TestSelfUpdate_DownloadTimeoutDoesNotFinalizePartialFile|TestSelfUpdate_ReportIncludesDownloadMetadata' -count=1 -v`.
 - Preflight: validar executavel atual, staging gravavel, espaco livre do staging, gerenciador de servico, shell/PowerShell, workdir e lacunas de lock/EDR/SELinux-AppArmor sem executar acao destrutiva.
 - Rollback/staging: `go test ./internal/domain/usecase -run 'TestSelfUpdate_(SnapshotIncludesPendingStateMetadata|ReportPendingResultMarksVersionMismatchAfterRollback|CleanupOldUpdateStagingKeepsCurrentAndMetadata|ReportIncludesDownloadMetadata|PreflightFailsWhenStagingIsNotWritable|PreflightFailsWhenStagingHasLowSpace|ApplyFailureReportsExitCodeCooldownAndClearsPending|PersistsCooldownAcrossInstances|DownloadResumesPartialFileWithRange|DownloadTimeoutDoesNotFinalizePartialFile|ChecksumMismatch|RejectsInvalidTrustedArtifactSignature)' -count=1 -v` passou em 24/06/2026 e cobre hash inválido, assinatura inválida, timeout sem finalização, retomada por `Range`, metadados de download, preflight sem staging gravável, staging sem espaço em simulação controlada, falha de apply com exit code/cooldown/limpeza de pendência, cooldown persistido, `rollback_available`/`rollback_version` em estado/report e limpeza de staging antigo preservando estado.
+- Validacao produtiva complementar em 24/06/2026: agentes InspectApp `1`, `4`, `18`, `19`, `70` e `71` permaneceram em `0.8.29`, `version_confirmed`, sem `pending_update_payload` e com `send_configuration=0`; Nginx registrou `last5m_update_report=0`, sem loop quente de update.
 - Fechamento coordenado com web: rodar `./check.sh`, gerar instaladores, publicar artefatos versionados e validar update real nos agentes InspectApp.
 
 ## PKG-60 - Pipeline seguro de logs
