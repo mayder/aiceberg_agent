@@ -26,7 +26,8 @@ $args = @(
   "-UpdateFile", ('"{0}"' -f $updateFile),
   "-ServiceName", ('"{0}"' -f $ServiceName),
   "-BinPath", ('"{0}"' -f $BinPath),
-  "-LogPath", ('"{0}"' -f $logPath)
+  "-LogPath", ('"{0}"' -f $logPath),
+  "-HealthUrl", ('"{0}"' -f $env:AICEBERG_AGENT_HEALTH_URL)
 )
 
 $proc = Start-Process -FilePath "powershell.exe" -ArgumentList $args -WindowStyle Hidden -PassThru

@@ -4,6 +4,7 @@ param(
   [string]$ServiceName = "AIcebergAgent",
   [string]$BinPath = "C:\Program Files\AIceberg\agent\agent.exe",
   [string]$LogPath = "C:\ProgramData\AIceberg\logs\self-update.log",
+  [string]$HealthUrl = $env:AICEBERG_AGENT_HEALTH_URL,
   [int]$StopTimeoutSec = 60,
   [int]$StartTimeoutSec = 60
 )
@@ -54,6 +55,46 @@ function Copy-WithRetry {
   }
 }
 
+function Test-HealthUrl {
+  param(
+    [string]$Url,
+    [int]$TimeoutSec
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Url)) {
+    return $true
+  }
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSec)
+  while ((Get-Date) -lt $deadline) {
+    try {
+      $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 3
+      if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
+        return $true
+      }
+    } catch {
+      Start-Sleep -Seconds 1
+      continue
+    }
+    Start-Sleep -Seconds 1
+  }
+  return $false
+}
+
+function Start-ServiceAndWaitHealthy {
+  param(
+    [string]$Name,
+    [string]$Url,
+    [int]$TimeoutSec
+  )
+
+  sc.exe start $Name | Out-Null
+  if (-not (Wait-ServiceStatus -Name $Name -ExpectedStatus "Running" -TimeoutSec $TimeoutSec)) {
+    return $false
+  }
+  return (Test-HealthUrl -Url $Url -TimeoutSec $TimeoutSec)
+}
+
 $logDir = Split-Path -Parent $LogPath
 if (-not [string]::IsNullOrWhiteSpace($logDir)) {
   New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -101,9 +142,8 @@ try {
   Copy-WithRetry -Source $newBin.FullName -Destination $BinPath
   Write-Log ("binary replaced path={0}" -f $BinPath)
 
-  sc.exe start $ServiceName | Out-Null
-  if (-not (Wait-ServiceStatus -Name $ServiceName -ExpectedStatus "Running" -TimeoutSec $StartTimeoutSec)) {
-    throw "Timeout ao iniciar serviço $ServiceName após update"
+  if (-not (Start-ServiceAndWaitHealthy -Name $ServiceName -Url $HealthUrl -TimeoutSec $StartTimeoutSec)) {
+    throw "Timeout ao iniciar serviço saudável $ServiceName após update"
   }
 
   Write-Log "update completed successfully"
@@ -113,7 +153,9 @@ try {
     try {
       Copy-Item -LiteralPath $backupPath -Destination $BinPath -Force
       Write-Log "rollback binary restored"
-      sc.exe start $ServiceName | Out-Null
+      if (-not (Start-ServiceAndWaitHealthy -Name $ServiceName -Url $HealthUrl -TimeoutSec $StartTimeoutSec)) {
+        Write-Log "rollback service did not become healthy"
+      }
     } catch {
       Write-Log ("rollback failed: {0}" -f $_.Exception.Message)
     }
