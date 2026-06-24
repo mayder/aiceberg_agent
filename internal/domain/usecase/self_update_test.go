@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -708,5 +709,31 @@ func TestSelfUpdate_ReportPendingResultMarksVersionMismatchAfterRollback(t *test
 	}
 	if pending, err := uc.loadPendingState(opts.dir); err != nil || pending != nil {
 		t.Fatalf("expected pending state cleared after mismatch report, pending=%#v err=%v", pending, err)
+	}
+}
+
+func TestSelfUpdate_PersistsCooldownAcrossInstances(t *testing.T) {
+	dir := t.TempDir()
+	opts := effectiveAutoUpdateOptions{
+		dir:   dir,
+		retry: time.Hour,
+	}
+	first := NewSelfUpdate(config.Config{}, &fakeLogger{})
+	state := first.recordUpdateCooldown(opts, "0.9.0", "download_failed", errors.New("download timeout token=secret"))
+
+	if state.AttemptCount != 1 || state.CooldownUntilUnix <= time.Now().Unix() {
+		t.Fatalf("unexpected cooldown state: %#v", state)
+	}
+	if state.LastErrorFingerprint == "" || strings.Contains(state.LastErrorFingerprint, "secret") {
+		t.Fatalf("unexpected error fingerprint: %#v", state)
+	}
+
+	second := NewSelfUpdate(config.Config{}, &fakeLogger{})
+	skipped, loaded := second.shouldSkip("0.9.0", opts)
+	if !skipped {
+		t.Fatalf("expected persisted cooldown to skip update")
+	}
+	if loaded.AttemptCount != 1 || loaded.LastReasonCode != "download_failed" {
+		t.Fatalf("unexpected loaded cooldown: %#v", loaded)
 	}
 }

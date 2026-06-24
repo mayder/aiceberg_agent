@@ -3,6 +3,8 @@ package sysmetrics
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -126,6 +128,44 @@ func TestBuildPerformanceProfileSanitizesProcessCommand(t *testing.T) {
 	}
 	if proc.Cmdline == "" || containsAny(proc.Cmdline, []string{"abc123", "secret", "aaa.bbb"}) {
 		t.Fatalf("command line was not sanitized: %q", proc.Cmdline)
+	}
+	if profile.AgentRuntime == nil || profile.AgentRuntime.Version == "" {
+		t.Fatalf("expected agent runtime telemetry: %#v", profile.AgentRuntime)
+	}
+}
+
+func TestAgentRuntimeProfileReportsOwnFootprint(t *testing.T) {
+	dir := t.TempDir()
+	outbox := filepath.Join(dir, "outbox.db")
+	if err := os.WriteFile(outbox, []byte("payload"), 0o600); err != nil {
+		t.Fatalf("write outbox: %v", err)
+	}
+	t.Setenv("OUTBOX_PATH", outbox)
+	t.Setenv("OUTBOX_MAX_MB", "1")
+	t.Setenv("AGENT_MODE", "relay")
+
+	profile := buildAgentRuntimeProfile(snapshot{Memory: &memSnapshot{Total: 1024}}, config.CollectPrefs{Memory: true})
+
+	if profile == nil {
+		t.Fatalf("expected runtime profile")
+	}
+	if profile.PID <= 0 || profile.Version == "" || profile.Mode != "relay" {
+		t.Fatalf("unexpected runtime identity: %#v", profile)
+	}
+	foundOutbox := false
+	for _, location := range profile.StorageLocations {
+		if location.Kind == "outbox" {
+			foundOutbox = true
+			if !location.Exists || location.SizeBytes != 7 || location.Status != "ok" {
+				t.Fatalf("unexpected outbox footprint: %#v", location)
+			}
+		}
+		if strings.Contains(location.Path, os.Getenv("HOME")) {
+			t.Fatalf("path was not sanitized: %#v", location)
+		}
+	}
+	if !foundOutbox {
+		t.Fatalf("expected outbox footprint in %#v", profile.StorageLocations)
 	}
 }
 

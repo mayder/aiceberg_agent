@@ -123,8 +123,9 @@ type logEvent struct {
 }
 
 type payload struct {
-	Events       []logEvent `json:"events"`
-	DroppedCount int        `json:"dropped_count,omitempty"`
+	Events          []logEvent        `json:"events"`
+	DroppedCount    int               `json:"dropped_count,omitempty"`
+	LogSourceHealth []logSourceHealth `json:"log_source_health,omitempty"`
 }
 
 func (c *collector) Collect(ctx context.Context) ([]byte, error) {
@@ -172,36 +173,55 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	hostname, _ := os.Hostname()
 	c.errors = c.errors[:0]
 	var events []logEvent
+	var health []logSourceHealth
 	droppedCount := 0
 	if len(c.files) > 0 {
 		for _, path := range c.files {
-			evs := c.readFile(path, hostname)
+			evs, sourceHealth := c.readFile(path, hostname)
+			sourceHealth.ReadLines = len(evs)
 			for _, ev := range evs {
 				processed, keep := processLogEvent(ev, c.processors)
 				if !keep || shouldDropLogEvent(processed, c.include, c.exclude, c.minSeverity) {
 					droppedCount++
+					sourceHealth.DroppedEvents++
+					sourceHealth.DropReason = "severity_or_processor"
 					continue
 				}
 				events = append(events, processed)
+				sourceHealth.AcceptedEvents++
 				if len(events) >= c.batchLines {
 					break
 				}
 			}
+			sourceHealth.LastEventAt = lastEventTimestamp(evs)
+			health = append(health, finalizeLogSourceHealth(sourceHealth))
 			if len(events) >= c.batchLines {
 				break
 			}
 		}
 	}
-	for _, ev := range c.journald.read(ctx, c.cursor, hostname, c.batchLines-len(events), c.maxBytes) {
-		processed, keep := processLogEvent(ev, c.processors)
-		if !keep || shouldDropLogEvent(processed, c.include, c.exclude, c.minSeverity) {
-			droppedCount++
-			continue
+	if c.journald.enabled {
+		journalHealth := newLogSourceHealth("journald", "journald")
+		journalEvents := c.journald.read(ctx, c.cursor, hostname, c.batchLines-len(events), c.maxBytes)
+		journalHealth.PermissionStatus = "ok"
+		journalHealth.LastReadAt = time.Now().UTC().Format(time.RFC3339Nano)
+		journalHealth.ReadLines = len(journalEvents)
+		for _, ev := range journalEvents {
+			processed, keep := processLogEvent(ev, c.processors)
+			if !keep || shouldDropLogEvent(processed, c.include, c.exclude, c.minSeverity) {
+				droppedCount++
+				journalHealth.DroppedEvents++
+				journalHealth.DropReason = "severity_or_processor"
+				continue
+			}
+			events = append(events, processed)
+			journalHealth.AcceptedEvents++
+			if len(events) >= c.batchLines {
+				break
+			}
 		}
-		events = append(events, processed)
-		if len(events) >= c.batchLines {
-			break
-		}
+		journalHealth.LastEventAt = lastEventTimestamp(journalEvents)
+		health = append(health, finalizeLogSourceHealth(journalHealth))
 	}
 	for _, ev := range c.readLocal(hostname) {
 		processed, keep := processLogEvent(ev, c.processors)
@@ -218,10 +238,12 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 		if c.diag && len(c.errors) > 0 {
 			return nil, formatDiagError(c.errors)
 		}
-		return nil, nil
+		if len(health) == 0 {
+			return nil, nil
+		}
 	}
 	_ = saveCursor(c.cursorPath, c.cursor)
-	return json.Marshal(payload{Events: events, DroppedCount: droppedCount})
+	return json.Marshal(payload{Events: events, DroppedCount: droppedCount, LogSourceHealth: health})
 }
 
 func (c *collector) ensureLocalReceiver(udpAddr, tcpAddr string) {
@@ -247,29 +269,44 @@ func (c *collector) readLocal(hostname string) []logEvent {
 	return events
 }
 
-func (c *collector) readFile(path, hostname string) []logEvent {
+func (c *collector) readFile(path, hostname string) ([]logEvent, logSourceHealth) {
 	var out []logEvent
+	health := newLogSourceHealth("file", path)
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsPermission(err) {
 			c.errors = append(c.errors, "permissao negada em "+path)
+			health.PermissionStatus = "permission_denied"
+			health.LastError = "permission_denied"
+			health.Gaps = appendUniqueHealthGap(health.Gaps, "permission_denied")
 		} else if os.IsNotExist(err) {
 			c.errors = append(c.errors, "arquivo inexistente "+path)
+			health.PermissionStatus = "missing"
+			health.LastError = "file_missing"
+			health.Gaps = appendUniqueHealthGap(health.Gaps, "file_missing")
 		} else {
 			c.errors = append(c.errors, "erro ao abrir "+path+": "+err.Error())
+			health.PermissionStatus = "error"
+			health.LastError = safeHealthText(err.Error(), 160)
+			health.Gaps = appendUniqueHealthGap(health.Gaps, "read_error")
 		}
-		return out
+		return out, finalizeLogSourceHealth(health)
 	}
 	defer f.Close()
+	health.PermissionStatus = "ok"
+	health.LastReadAt = time.Now().UTC().Format(time.RFC3339Nano)
 	offset := c.cursor[path]
 	if info, err := f.Stat(); err == nil {
 		currentFileID := fileIdentity(info)
+		applyFileStatHealth(&health, info, currentFileID)
 		storedFileID := c.cursor[fileIdentityCursorKey(path)]
 		if offset > info.Size() || (offset > 0 && storedFileID != 0 && currentFileID != 0 && storedFileID != currentFileID) {
 			offset = 0
+			health.Gaps = appendUniqueHealthGap(health.Gaps, "cursor_reset")
 		}
 		if offset > 0 && !cursorAtLineBoundary(f, offset) {
 			offset = 0
+			health.Gaps = appendUniqueHealthGap(health.Gaps, "cursor_not_line_boundary")
 		}
 		if currentFileID != 0 {
 			c.cursor[fileIdentityCursorKey(path)] = currentFileID
@@ -308,8 +345,9 @@ func (c *collector) readFile(path, hostname string) []logEvent {
 	}
 	if pos, err := f.Seek(0, 1); err == nil {
 		c.cursor[path] = pos
+		health.Cursor = strconv.FormatInt(pos, 10)
 	}
-	return out
+	return out, health
 }
 
 func fileIdentityCursorKey(path string) string {
@@ -357,6 +395,10 @@ func (c *collector) buildEvent(path, hostname, line string) logEvent {
 	}
 	if lvl == "" {
 		lvl = levelFromAttributes(attributes)
+		severity = lvl
+	}
+	if lvl == "" {
+		lvl = securitySignalSeverity(msg)
 		severity = lvl
 	}
 	service := app

@@ -409,6 +409,7 @@ type performanceProfile struct {
 	WindowSec     int                  `json:"window_sec"`
 	Source        string               `json:"source"`
 	Resources     performanceResources `json:"resources"`
+	AgentRuntime  *agentRuntimeProfile `json:"agent_runtime,omitempty"`
 	Processes     []performanceProcess `json:"processes,omitempty"`
 	Checks        []performanceCheck   `json:"checks,omitempty"`
 	Gaps          []string             `json:"gaps,omitempty"`
@@ -440,6 +441,38 @@ type performanceCheck struct {
 	OK         bool    `json:"ok"`
 	DurationMs float64 `json:"duration_ms,omitempty"`
 	Error      string  `json:"error,omitempty"`
+}
+
+type agentRuntimeProfile struct {
+	PID              int32                `json:"pid,omitempty"`
+	Version          string               `json:"version,omitempty"`
+	Mode             string               `json:"mode,omitempty"`
+	User             string               `json:"user,omitempty"`
+	Executable       string               `json:"executable,omitempty"`
+	WorkingDir       string               `json:"working_dir,omitempty"`
+	UptimeSec        int64                `json:"uptime_sec,omitempty"`
+	CPUPercent       float64              `json:"cpu_percent,omitempty"`
+	MemPercent       float64              `json:"mem_percent,omitempty"`
+	RSSBytes         uint64               `json:"rss_bytes,omitempty"`
+	IOReadBytes      uint64               `json:"io_read_bytes,omitempty"`
+	IOWriteBytes     uint64               `json:"io_write_bytes,omitempty"`
+	StorageLocations []agentStorageStatus `json:"storage_locations,omitempty"`
+	Gaps             []string             `json:"gaps,omitempty"`
+	Status           string               `json:"status,omitempty"`
+}
+
+type agentStorageStatus struct {
+	Kind           string `json:"kind"`
+	Path           string `json:"path,omitempty"`
+	Exists         bool   `json:"exists"`
+	SizeBytes      int64  `json:"size_bytes,omitempty"`
+	LimitBytes     int64  `json:"limit_bytes,omitempty"`
+	FileCount      int    `json:"file_count,omitempty"`
+	LastModifiedAt string `json:"last_modified_at,omitempty"`
+	LastCleanupAt  string `json:"last_cleanup_at,omitempty"`
+	Status         string `json:"status"`
+	Trend          string `json:"trend,omitempty"`
+	Error          string `json:"error,omitempty"`
 }
 
 func (c *collector) Collect(ctx context.Context) ([]byte, error) {
@@ -1490,6 +1523,7 @@ func buildPerformanceProfile(s snapshot, p config.CollectPrefs) *performanceProf
 		gaps = append(gaps, "network_disabled")
 	}
 
+	profile.AgentRuntime = buildAgentRuntimeProfile(s, p)
 	if p.Processes && len(s.Processes) > 0 {
 		profile.Processes = buildPerformanceProcesses(s.Processes, s.Memory)
 	} else if !p.Processes {
@@ -1500,10 +1534,272 @@ func buildPerformanceProfile(s snapshot, p config.CollectPrefs) *performanceProf
 
 	profile.Checks = buildPerformanceChecks(s)
 	profile.Gaps = limitStrings(gaps, 12)
-	if len(profile.Processes) == 0 && len(profile.Checks) == 0 && len(profile.Gaps) == 0 {
+	if profile.AgentRuntime == nil && len(profile.Processes) == 0 && len(profile.Checks) == 0 && len(profile.Gaps) == 0 {
 		return nil
 	}
 	return profile
+}
+
+func buildAgentRuntimeProfile(s snapshot, p config.CollectPrefs) *agentRuntimeProfile {
+	profile := &agentRuntimeProfile{
+		PID:     int32(os.Getpid()),
+		Version: version.Version,
+		Mode:    safePerfText(strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_MODE"))), 40),
+		User:    sanitizeAgentUser(),
+		Status:  "ok",
+	}
+	if profile.Mode == "" {
+		profile.Mode = "direct"
+	}
+	if exe, err := os.Executable(); err == nil {
+		profile.Executable = safeAgentPath(exe)
+	} else {
+		profile.Gaps = append(profile.Gaps, "executable_unavailable")
+	}
+	if wd, err := os.Getwd(); err == nil {
+		profile.WorkingDir = safeAgentPath(wd)
+	} else {
+		profile.Gaps = append(profile.Gaps, "working_dir_unavailable")
+	}
+
+	if proc, err := process.NewProcess(profile.PID); err == nil {
+		if cpuPct, err := proc.CPUPercent(); err == nil {
+			profile.CPUPercent = roundFloat(cpuPct, 2)
+		} else {
+			profile.Gaps = append(profile.Gaps, "agent_cpu_unavailable")
+		}
+		if memPct, err := proc.MemoryPercent(); err == nil {
+			profile.MemPercent = roundFloat(float64(memPct), 2)
+		} else if s.Memory == nil || !p.Memory {
+			profile.Gaps = append(profile.Gaps, "agent_memory_unavailable")
+		}
+		if memInfo, err := proc.MemoryInfo(); err == nil && memInfo != nil {
+			profile.RSSBytes = memInfo.RSS
+		}
+		if ct, err := proc.CreateTime(); err == nil && ct > 0 {
+			profile.UptimeSec = time.Now().Unix() - (ct / 1000)
+		} else {
+			profile.Gaps = append(profile.Gaps, "agent_uptime_unavailable")
+		}
+		if io, err := proc.IOCounters(); err == nil && io != nil {
+			profile.IOReadBytes = io.ReadBytes
+			profile.IOWriteBytes = io.WriteBytes
+		} else {
+			profile.Gaps = append(profile.Gaps, "agent_io_unavailable")
+		}
+	} else {
+		profile.Gaps = append(profile.Gaps, "agent_process_unavailable")
+		profile.Status = "degraded"
+	}
+
+	profile.StorageLocations = buildAgentStorageStatuses()
+	for _, item := range profile.StorageLocations {
+		if item.Status == "risk" || item.Status == "error" {
+			profile.Status = "risk"
+			break
+		}
+		if item.Status == "missing" && profile.Status == "ok" {
+			profile.Status = "degraded"
+		}
+	}
+	if len(profile.Gaps) > 0 && profile.Status == "ok" {
+		profile.Status = "degraded"
+	}
+	profile.Gaps = limitStrings(profile.Gaps, 12)
+	return profile
+}
+
+func buildAgentStorageStatuses() []agentStorageStatus {
+	candidates := []struct {
+		kind       string
+		path       string
+		limitBytes int64
+	}{
+		{kind: "outbox", path: getenvDefault("OUTBOX_PATH", "./data/outbox.db"), limitBytes: mbToBytes(intEnvLocal("OUTBOX_MAX_MB", 0))},
+		{kind: "agentless_outbox", path: getenvDefault("AGENTLESS_OUTBOX_PATH", "./data/agentless_outbox.db"), limitBytes: mbToBytes(intEnvLocal("AGENTLESS_OUTBOX_MAX_MB", 50))},
+		{kind: "prefs", path: getenvDefault("PREFS_PATH", "./data/prefs.json")},
+		{kind: "mode_override", path: os.Getenv("AGENT_MODE_OVERRIDE_PATH")},
+		{kind: "config_env", path: getenvDefault("AGENT_ENV_FILE", "./configs/agent.env")},
+		{kind: "data_dir", path: "./data"},
+		{kind: "logs_dir", path: "./logs"},
+		{kind: "temp_dir", path: os.TempDir()},
+	}
+	if cacheDir, err := os.UserCacheDir(); err == nil && cacheDir != "" {
+		candidates = append(candidates, struct {
+			kind       string
+			path       string
+			limitBytes int64
+		}{kind: "cache_dir", path: filepath.Join(cacheDir, "aiceberg_agent")})
+	}
+	if configDir, err := os.UserConfigDir(); err == nil && configDir != "" {
+		candidates = append(candidates, struct {
+			kind       string
+			path       string
+			limitBytes int64
+		}{kind: "config_dir", path: filepath.Join(configDir, "aiceberg_agent")})
+	}
+
+	out := make([]agentStorageStatus, 0, len(candidates))
+	seen := map[string]struct{}{}
+	for _, candidate := range candidates {
+		path := strings.TrimSpace(candidate.path)
+		if path == "" {
+			continue
+		}
+		abs, err := filepath.Abs(path)
+		if err == nil {
+			path = abs
+		}
+		key := candidate.kind + "|" + path
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, inspectAgentStorage(candidate.kind, path, candidate.limitBytes))
+		if len(out) >= 10 {
+			break
+		}
+	}
+	return out
+}
+
+func inspectAgentStorage(kind, path string, limitBytes int64) agentStorageStatus {
+	status := agentStorageStatus{
+		Kind:       safePerfText(kind, 60),
+		Path:       safeAgentPath(path),
+		LimitBytes: limitBytes,
+		Status:     "ok",
+		Trend:      "current_snapshot_only",
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		status.Exists = false
+		if os.IsNotExist(err) {
+			status.Status = "missing"
+		} else {
+			status.Status = "error"
+			status.Error = safePerfText(err.Error(), 160)
+		}
+		return status
+	}
+	status.Exists = true
+	status.LastModifiedAt = info.ModTime().UTC().Format(time.RFC3339)
+	if !info.IsDir() {
+		status.SizeBytes = info.Size()
+		status.FileCount = 1
+		status.Status = storageRiskStatus(status.SizeBytes, limitBytes)
+		return status
+	}
+	size, files, newest, walkErr := boundedDirFootprint(path, 300)
+	status.SizeBytes = size
+	status.FileCount = files
+	if !newest.IsZero() {
+		status.LastModifiedAt = newest.UTC().Format(time.RFC3339)
+	}
+	if walkErr != "" {
+		status.Status = "degraded"
+		status.Error = walkErr
+	} else {
+		status.Status = storageRiskStatus(status.SizeBytes, limitBytes)
+	}
+	return status
+}
+
+func boundedDirFootprint(root string, maxFiles int) (int64, int, time.Time, string) {
+	var total int64
+	var files int
+	var newest time.Time
+	var walkErr string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			walkErr = safePerfText(err.Error(), 160)
+			return filepath.SkipDir
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		files++
+		if info, statErr := entry.Info(); statErr == nil {
+			total += info.Size()
+			if info.ModTime().After(newest) {
+				newest = info.ModTime()
+			}
+		}
+		if files >= maxFiles {
+			walkErr = "footprint_truncated"
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	if err != nil && walkErr == "" {
+		walkErr = safePerfText(err.Error(), 160)
+	}
+	return total, files, newest, walkErr
+}
+
+func storageRiskStatus(sizeBytes, limitBytes int64) string {
+	if limitBytes <= 0 {
+		return "ok"
+	}
+	if sizeBytes >= limitBytes {
+		return "risk"
+	}
+	if float64(sizeBytes)/float64(limitBytes) >= 0.8 {
+		return "warning"
+	}
+	return "ok"
+}
+
+func sanitizeAgentUser() string {
+	for _, key := range []string{"USERNAME", "USER"} {
+		if value := safePerfText(os.Getenv(key), 80); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func safeAgentPath(value string) string {
+	path := safePerfText(value, 220)
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		home = filepath.Clean(home)
+		cleaned := filepath.Clean(path)
+		if cleaned == home {
+			return "~"
+		}
+		prefix := home + string(os.PathSeparator)
+		if strings.HasPrefix(cleaned, prefix) {
+			return "~" + string(os.PathSeparator) + strings.TrimPrefix(cleaned, prefix)
+		}
+	}
+	return path
+}
+
+func getenvDefault(key, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func intEnvLocal(key string, fallback int) int {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func mbToBytes(value int) int64 {
+	if value <= 0 {
+		return 0
+	}
+	return int64(value) * 1024 * 1024
 }
 
 func buildPerformanceProcesses(processes []procSnapshot, memory *memSnapshot) []performanceProcess {

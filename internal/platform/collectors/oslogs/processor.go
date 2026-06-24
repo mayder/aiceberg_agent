@@ -80,7 +80,11 @@ func jsonAttributes(message string) map[string]any {
 
 func shouldDropLogEvent(ev logEvent, includeRegex, excludeRegex, minSeverity string) bool {
 	target := logEventTarget(ev)
-	if minSeverity != "" && !severityAllowed(ev.Level, minSeverity) {
+	level := ev.Level
+	if level == "" {
+		level = securitySignalSeverity(target)
+	}
+	if minSeverity != "" && !severityAllowed(level, minSeverity) {
 		return true
 	}
 	if includeRegex != "" {

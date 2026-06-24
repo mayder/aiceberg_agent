@@ -90,8 +90,9 @@ type logEvent struct {
 }
 
 type payload struct {
-	Events       []logEvent `json:"events"`
-	DroppedCount int        `json:"dropped_count,omitempty"`
+	Events          []logEvent        `json:"events"`
+	DroppedCount    int               `json:"dropped_count,omitempty"`
+	LogSourceHealth []logSourceHealth `json:"log_source_health,omitempty"`
 }
 
 func New(cfg config.Config, prefsProvider func() config.CollectPrefs) ports.Collector {
@@ -163,27 +164,46 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 	hostname, _ := os.Hostname()
 	c.errors = c.errors[:0]
 	var out []logEvent
+	var health []logSourceHealth
 	droppedCount := 0
 
 	for _, ch := range c.channels {
 		if len(out) >= c.batchLines {
 			break
 		}
+		sourceHealth := newLogSourceHealth("windows_eventlog", ch)
+		sourceHealth.PermissionStatus = "ok"
+		sourceHealth.LastReadAt = time.Now().UTC().Format(time.RFC3339Nano)
+		errorsBefore := len(c.errors)
 		last := c.cursor[ch]
 		events := c.fetchChannel(ctx, ch, last, c.batchLines-len(out), hostname)
+		sourceHealth.ReadLines = len(events)
+		sourceHealth.Cursor = strconv.FormatUint(last, 10)
+		if len(c.errors) > errorsBefore {
+			sourceHealth.PermissionStatus = "missing"
+			sourceHealth.LastError = safeHealthText(c.errors[len(c.errors)-1], 160)
+			sourceHealth.Gaps = appendUniqueHealthGap(sourceHealth.Gaps, "channel_or_permission_error")
+		}
 		if len(events) > 0 {
 			if c.detect {
 				for i := range events {
 					events[i].Category = windowsCategory(events[i].EventID, events[i].Message)
+					if events[i].Level == "" && events[i].Category == "auth_fail" {
+						events[i].Level = "error"
+						events[i].Severity = "error"
+					}
 				}
 			}
 			for _, ev := range events {
 				processed, keep := processLogEvent(ev, c.processors)
 				if !keep || shouldDropLogEvent(processed, c.include, c.exclude, c.minSeverity) {
 					droppedCount++
+					sourceHealth.DroppedEvents++
+					sourceHealth.DropReason = "severity_or_processor"
 					continue
 				}
 				out = append(out, processed)
+				sourceHealth.AcceptedEvents++
 				if len(out) >= c.batchLines {
 					break
 				}
@@ -195,17 +215,22 @@ func (c *winCollector) Collect(ctx context.Context) ([]byte, error) {
 				}
 			}
 			c.cursor[ch] = maxRec
+			sourceHealth.Cursor = strconv.FormatUint(maxRec, 10)
 		}
+		sourceHealth.LastEventAt = lastEventTimestamp(events)
+		health = append(health, finalizeLogSourceHealth(sourceHealth))
 	}
 
 	if len(out) == 0 && droppedCount == 0 {
 		if c.diag && len(c.errors) > 0 {
 			return nil, formatDiagError(c.errors)
 		}
-		return nil, nil
+		if len(health) == 0 {
+			return nil, nil
+		}
 	}
 	_ = saveCursorWin(c.cursorPath, c.cursor)
-	return json.Marshal(payload{Events: out, DroppedCount: droppedCount})
+	return json.Marshal(payload{Events: out, DroppedCount: droppedCount, LogSourceHealth: health})
 }
 
 func (c *winCollector) fetchChannel(ctx context.Context, channel string, lastRecord uint64, limit int, hostname string) []logEvent {
@@ -215,9 +240,7 @@ func (c *winCollector) fetchChannel(ctx context.Context, channel string, lastRec
 	cmd := exec.CommandContext(ctx, "wevtutil", args...)
 	raw, err := cmd.Output()
 	if err != nil {
-		if c.diag {
-			c.errors = append(c.errors, "falha wevtutil "+channel+": "+err.Error())
-		}
+		c.errors = append(c.errors, "falha wevtutil "+channel+": "+err.Error())
 		return events
 	}
 	blocks := splitEventXML(raw)

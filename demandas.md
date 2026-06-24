@@ -12,16 +12,18 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 - `PKG-74` Agente/Web — descoberta automática de fontes de logs, aplicações e dependências locais
 - `PKG-75` Logs/IA — sinais do agente para triagem recorrente e deduplicação segura
 - `PKG-82` Agente/Web — perfil local de performance e evidência de host
+- `PKG-83` Agente/Web — garantia de cobertura, integridade e segurança da coleta de logs locais
+- `PKG-84` Agente/Web — update resiliente e diagnosticável do agente
 
 ---
 
 ## [PKG-82] Agente/Web — perfil local de performance e evidência de host
 
-**Status** — implementado no agente em 24/06/2026 como payload aditivo `performance_profile` dentro de `sysmetrics`, coordenado com o `aiceberg_web` e publicado como versão `0.8.21` para evitar reuso silencioso do pacote `0.8.20`.
+**Status** — implementado no agente em 24/06/2026 como payload aditivo `performance_profile` dentro de `sysmetrics`, coordenado com o `aiceberg_web`. A versão `0.8.22` adiciona `agent_runtime` para separar o consumo do próprio agente do consumo do host.
 
 **Escopo no agente** — emitir evidência local de CPU, memória, disco, rede, top processos, checks de conectividade e lacunas de coleta sem endpoint novo e sem profiler invasivo.
 
-**Contrato** — `performance_profile` contém `schema_version`, `window_sec`, `source`, `resources`, `processes`, `checks` e `gaps`. O payload é opcional e compatível com agentes/web legados.
+**Contrato** — `performance_profile` contém `schema_version`, `window_sec`, `source`, `resources`, `agent_runtime`, `processes`, `checks` e `gaps`. O payload é opcional e compatível com agentes/web legados.
 
 ### Lotes
 
@@ -41,7 +43,13 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
    - [x] reportar lacunas quando CPU, memória, disco, rede ou processos estiverem desativados/indisponíveis;
    - [x] limitar quantidade de processos, checks e tamanho de texto.
 
-4) **Validação**
+4) **Runtime e footprint do agente**
+   - [x] reportar PID, versão, modo, usuário sanitizado, executável, diretório de trabalho e uptime do próprio agente;
+   - [x] reportar CPU, memória RSS/percentual e IO do processo do agente;
+   - [x] reportar footprint local de outbox, agentless outbox, prefs, config, logs, cache e temporários com status de risco;
+   - [x] manter path sanitizado e varredura bounded para não gerar IO pesado.
+
+5) **Validação**
    - [x] cobrir contrato e redaction em `go test ./internal/platform/collectors/sysmetrics`;
    - [x] rodar `./check.sh` no fechamento;
    - [x] validar publicação do pacote coordenada com o web.
@@ -50,6 +58,70 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 - Remover `performance_profile` de `metricsKeys` e publicar versão anterior do agente.
 - O web deve continuar aceitando payload sem `performance_profile`.
+
+## [PKG-83] Agente/Web — garantia de cobertura, integridade e segurança da coleta de logs locais
+
+**Status** — implementado no agente em 24/06/2026 como payload aditivo `log_source_health` dentro de `/v1/logs/raw`, gerado como versão `0.8.22`.
+
+**Escopo no agente** — reportar health por fonte local de log sem enviar conteúdo bruto: arquivo/canal, cursor, tamanho, mtime, identidade, contadores de linhas lidas, eventos aceitos, eventos descartados, erro, permissão, estado canônico e lacunas.
+
+**Contrato** — cada item de `log_source_health` contém `schema_version`, `source_fingerprint`, `path` ou `channel`, `kind`, `product`, `approved`, `enabled`, `last_scan_at`, `last_read_at`, `last_event_at`, `last_sent_at`, `cursor`, `file_size`, `file_mtime`, `file_identity`, `read_lines`, `accepted_events`, `dropped_events`, `drop_reason`, `last_error`, `permission_status`, `status`, `confidence` e `gaps`.
+
+### Lotes
+
+1) **Health por fonte**
+   - [x] reportar health para `OSLOG_FILES`;
+   - [x] reportar health para journald quando habilitado;
+   - [x] reportar health para `OSLOG_WIN_CHANNELS`;
+   - [x] diferenciar `delivering`, `no_new_events`, `permission_denied`, `file_missing`, `channel_missing`, `dropped_by_severity` e `unknown`.
+
+2) **Integridade e segurança**
+   - [x] manter prova por fingerprint/contadores sem linha bruta;
+   - [x] registrar cursor, mtime, tamanho e identidade de arquivo quando disponível;
+   - [x] promover sinais de segurança sem severidade explícita para passar pelo filtro mínimo `error`;
+   - [x] manter redaction existente do conteúdo enviado.
+
+3) **Validação**
+   - [x] cobrir POSIX com `go test ./internal/platform/collectors/oslogs`;
+   - [x] validar build cruzado Windows com `GOOS=windows GOARCH=amd64 go test -c`;
+   - [x] rodar `./check.sh` no fechamento;
+   - [ ] publicar pacote coordenado com o web.
+
+### Rollback
+
+- Publicar versão anterior do agente ou ignorar `log_source_health` no backend.
+- A coleta de logs atual continua compatível, pois o payload é aditivo.
+
+## [PKG-84] Agente/Web — update resiliente e diagnosticável do agente
+
+**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.22` adiciona cooldown persistido por versão/erro, fingerprint de falha e metadados de tentativa no `update-report`. Fechamento completo depende de piloto real Windows/Linux e publicação coordenada com o web.
+
+**Escopo no agente** — impedir loop quente de update após restart, preservar diagnóstico de falha e enviar evidência objetiva para o web sem novo endpoint.
+
+**Contrato** — `update-report` pode conter `update.attempt_count`, `update.cooldown_until`, `update.cooldown_until_unix`, `update.last_error_fingerprint`, `update.last_reason_code`, `update.failure_class`, `update.download_file` e `update.download_sha256`.
+
+### Lotes
+
+1) **Cooldown persistido**
+   - [x] persistir `.update_cooldown.json` no diretório de update;
+   - [x] bloquear nova tentativa da mesma versão durante cooldown mesmo após restart;
+   - [x] registrar tentativa, motivo, fingerprint sanitizado e prazo de próximo retry;
+   - [x] limpar cooldown após download sem comando de apply ou apply despachado com sucesso.
+
+2) **Diagnóstico no report**
+   - [x] anexar `attempt_count`, `cooldown_until`, `last_error_fingerprint` e `last_reason_code` em falhas/cooldown;
+   - [x] preservar `failure_class`, arquivo, SHA e estágio já existentes;
+   - [x] cobrir contrato em `go test ./internal/domain/usecase -run 'SelfUpdate|Update'`.
+
+3) **Fechamento**
+   - [ ] rodar `./check.sh`;
+   - [ ] publicar pacote coordenado com o web;
+   - [ ] validar piloto real Windows/Linux.
+
+### Rollback
+
+- Apagar `.update_cooldown.json` somente após diagnóstico aprovado ou publicar versão anterior do agente.
+- O web pode ignorar os campos aditivos de update-report sem quebrar o fluxo atual.
 
 ## [PKG-32] Canal operacional bidirecional com agentes
 

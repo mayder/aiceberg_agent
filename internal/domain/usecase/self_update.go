@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -89,6 +90,15 @@ type pendingUpdateState struct {
 	LauncherExitCode *int   `json:"launcher_exit_code,omitempty"`
 }
 
+type updateCooldownState struct {
+	TargetVersion        string `json:"target_version"`
+	AttemptCount         int    `json:"attempt_count"`
+	CooldownUntilUnix    int64  `json:"cooldown_until_unix,omitempty"`
+	LastErrorFingerprint string `json:"last_error_fingerprint,omitempty"`
+	LastReasonCode       string `json:"last_reason_code,omitempty"`
+	UpdatedAtUnix        int64  `json:"updated_at_unix,omitempty"`
+}
+
 type downloadedArtifact struct {
 	FilePath  string
 	DirPath   string
@@ -149,12 +159,14 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 		uc.reportStatusBestEffort(ctx, payload, "skipped", "already_current", "", version.Version, updateStageEvidence("precheck", ""))
 		return nil
 	}
-	if uc.shouldSkip(payload.Version, opts.retry) {
+	if skipped, cooldown := uc.shouldSkip(payload.Version, opts); skipped {
 		uc.log.Info(logger.KV("self update skipped",
 			"version", payload.Version,
 			"reason", "cooldown",
 		))
-		uc.reportStatusBestEffort(ctx, payload, "skipped", "cooldown", "", version.Version, updateStageEvidence("precheck", ""))
+		meta := updateStageEvidence("precheck", "")
+		addUpdateCooldownEvidence(meta, cooldown)
+		uc.reportStatusBestEffort(ctx, payload, "skipped", "cooldown", "", version.Version, meta)
 		return nil
 	}
 
@@ -163,12 +175,15 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 
 	artifact, err := uc.download(ctx, payload, opts)
 	if err != nil {
-		uc.reportStatusBestEffort(ctx, payload, "download_failed", "download_failed", err.Error(), version.Version, updateStageEvidence("download", classifyUpdateFailure("download", "download_failed", err)))
+		meta := updateStageEvidence("download", classifyUpdateFailure("download", "download_failed", err))
+		addUpdateCooldownEvidence(meta, uc.recordUpdateCooldown(opts, payload.Version, "download_failed", err))
+		uc.reportStatusBestEffort(ctx, payload, "download_failed", "download_failed", err.Error(), version.Version, meta)
 		return err
 	}
 	if err := uc.validateArtifactTrust(payload, artifact); err != nil {
 		meta := uc.buildUpdateRuntimeEvidence(artifact, opts, nil)
 		addUpdateStageEvidence(meta, "validation", "trust_chain")
+		addUpdateCooldownEvidence(meta, uc.recordUpdateCooldown(opts, payload.Version, "trust_chain", err))
 		uc.reportStatusBestEffort(ctx, payload, "validation_failed", "trust_chain", err.Error(), version.Version, meta)
 		return err
 	}
@@ -194,6 +209,7 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 			version.Version,
 			downloadMeta,
 		)
+		_ = uc.clearUpdateCooldown(opts.dir)
 		return nil
 	}
 
@@ -223,6 +239,8 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 	if err != nil {
 		_ = uc.clearPendingState(opts.dir)
 		failureClass := classifyUpdateFailure("apply", "command_failed", err)
+		meta := withUpdateStage(uc.buildUpdateRuntimeEvidence(artifact, opts, launcherExitCode), "apply", failureClass)
+		addUpdateCooldownEvidence(meta, uc.recordUpdateCooldown(opts, payload.Version, updateFailureReasonCode("command_failed", failureClass), err))
 		uc.reportStatusBestEffort(
 			ctx,
 			payload,
@@ -230,7 +248,7 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 			updateFailureReasonCode("command_failed", failureClass),
 			err.Error(),
 			version.Version,
-			withUpdateStage(uc.buildUpdateRuntimeEvidence(artifact, opts, launcherExitCode), "apply", failureClass),
+			meta,
 		)
 		return err
 	}
@@ -256,10 +274,12 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 		version.Version,
 		withUpdateStage(uc.buildUpdateRuntimeEvidence(artifact, opts, launcherExitCode), "restart", ""),
 	)
+	_ = uc.clearUpdateCooldown(opts.dir)
 	return nil
 }
 
-func (uc *SelfUpdate) shouldSkip(targetVersion string, retry time.Duration) bool {
+func (uc *SelfUpdate) shouldSkip(targetVersion string, opts effectiveAutoUpdateOptions) (bool, updateCooldownState) {
+	retry := opts.retry
 	if retry <= 0 {
 		retry = 30 * time.Minute
 	}
@@ -268,11 +288,19 @@ func (uc *SelfUpdate) shouldSkip(targetVersion string, retry time.Duration) bool
 	defer uc.mu.Unlock()
 
 	if uc.lastVersion == targetVersion && now.Sub(uc.lastAttempt) < retry {
-		return true
+		return true, updateCooldownState{
+			TargetVersion:     targetVersion,
+			AttemptCount:      1,
+			CooldownUntilUnix: uc.lastAttempt.Add(retry).Unix(),
+			UpdatedAtUnix:     now.Unix(),
+		}
+	}
+	if cooldown, ok := uc.loadUpdateCooldown(opts.dir); ok && cooldown.TargetVersion == targetVersion && cooldown.CooldownUntilUnix > now.Unix() {
+		return true, cooldown
 	}
 	uc.lastVersion = targetVersion
 	uc.lastAttempt = now
-	return false
+	return false, updateCooldownState{}
 }
 
 func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts effectiveAutoUpdateOptions) (downloadedArtifact, error) {
@@ -1026,6 +1054,59 @@ func (uc *SelfUpdate) clearPendingState(rootDir string) error {
 	return nil
 }
 
+func (uc *SelfUpdate) cooldownStatePath(rootDir string) string {
+	dir := strings.TrimSpace(rootDir)
+	if dir == "" {
+		dir = "./data/updates"
+	}
+	return filepath.Join(dir, ".update_cooldown.json")
+}
+
+func (uc *SelfUpdate) loadUpdateCooldown(rootDir string) (updateCooldownState, bool) {
+	path := uc.cooldownStatePath(rootDir)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return updateCooldownState{}, false
+	}
+	var out updateCooldownState
+	if err := json.Unmarshal(raw, &out); err != nil || strings.TrimSpace(out.TargetVersion) == "" {
+		return updateCooldownState{}, false
+	}
+	return out, true
+}
+
+func (uc *SelfUpdate) recordUpdateCooldown(opts effectiveAutoUpdateOptions, targetVersion, reasonCode string, err error) updateCooldownState {
+	retry := opts.retry
+	if retry <= 0 {
+		retry = 30 * time.Minute
+	}
+	now := time.Now()
+	state, ok := uc.loadUpdateCooldown(opts.dir)
+	if !ok || state.TargetVersion != targetVersion {
+		state = updateCooldownState{TargetVersion: strings.TrimSpace(targetVersion)}
+	}
+	state.AttemptCount++
+	state.CooldownUntilUnix = now.Add(retry).Unix()
+	state.LastReasonCode = strings.TrimSpace(reasonCode)
+	state.LastErrorFingerprint = updateErrorFingerprint(reasonCode, err)
+	state.UpdatedAtUnix = now.Unix()
+	path := uc.cooldownStatePath(opts.dir)
+	if mkErr := os.MkdirAll(filepath.Dir(path), 0o755); mkErr == nil {
+		if raw, marshalErr := json.Marshal(state); marshalErr == nil {
+			_ = os.WriteFile(path, raw, 0o644)
+		}
+	}
+	return state
+}
+
+func (uc *SelfUpdate) clearUpdateCooldown(rootDir string) error {
+	path := uc.cooldownStatePath(rootDir)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 func (uc *SelfUpdate) updatePendingLauncherExitCode(rootDir string, exitCode int) error {
 	st, err := uc.loadPendingState(rootDir)
 	if err != nil || st == nil {
@@ -1118,12 +1199,55 @@ func addUpdateStageEvidence(meta map[string]any, stage, failureClass string) {
 	}
 }
 
+func addUpdateCooldownEvidence(meta map[string]any, state updateCooldownState) {
+	if meta == nil || strings.TrimSpace(state.TargetVersion) == "" {
+		return
+	}
+	if state.AttemptCount > 0 {
+		meta["attempt_count"] = state.AttemptCount
+	}
+	if state.CooldownUntilUnix > 0 {
+		meta["cooldown_until_unix"] = state.CooldownUntilUnix
+		meta["cooldown_until"] = time.Unix(state.CooldownUntilUnix, 0).UTC().Format(time.RFC3339)
+	}
+	if state.LastErrorFingerprint != "" {
+		meta["last_error_fingerprint"] = state.LastErrorFingerprint
+	}
+	if state.LastReasonCode != "" {
+		meta["last_reason_code"] = state.LastReasonCode
+	}
+}
+
 func copyUpdateEvidence(meta map[string]any) map[string]any {
 	out := make(map[string]any, len(meta))
 	for k, v := range meta {
 		out[k] = v
 	}
 	return out
+}
+
+func updateErrorFingerprint(reasonCode string, err error) string {
+	text := strings.ToLower(strings.TrimSpace(reasonCode))
+	if err != nil {
+		text += "|" + strings.ToLower(strings.TrimSpace(err.Error()))
+	}
+	text = sanitizeUpdateErrorFingerprint(text)
+	if text == "" {
+		text = "unknown"
+	}
+	sum := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(sum[:12])
+}
+
+func sanitizeUpdateErrorFingerprint(value string) string {
+	text := regexp.MustCompile(`https?://[^\s]+`).ReplaceAllString(value, "url")
+	text = regexp.MustCompile(`[a-f0-9]{64}`).ReplaceAllString(text, "sha256")
+	text = regexp.MustCompile(`(?i)(token|password|secret|authorization)=([^\s&]+)`).ReplaceAllString(text, "$1=[redacted]")
+	text = strings.Join(strings.Fields(text), " ")
+	if len(text) > 240 {
+		return text[:240]
+	}
+	return text
 }
 
 func classifyUpdateFailure(stage, reasonCode string, err error) string {

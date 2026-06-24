@@ -75,8 +75,18 @@ func TestCollectorDiagNoNewEventsDoesNotReturnError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no diagnostic error for no new events, got %v", err)
 	}
-	if second != nil {
-		t.Fatalf("expected nil payload for no new events, got %s", string(second))
+	var secondPayload struct {
+		Events          []map[string]any `json:"events"`
+		LogSourceHealth []map[string]any `json:"log_source_health"`
+	}
+	if err := json.Unmarshal(second, &secondPayload); err != nil {
+		t.Fatalf("invalid second payload: %v", err)
+	}
+	if len(secondPayload.Events) != 0 || len(secondPayload.LogSourceHealth) != 1 {
+		t.Fatalf("expected only source health for no new events, got %s", string(second))
+	}
+	if secondPayload.LogSourceHealth[0]["status"] != "no_new_events" {
+		t.Fatalf("expected no_new_events health, got %#v", secondPayload.LogSourceHealth[0])
 	}
 }
 
@@ -107,6 +117,9 @@ func TestSeverityFilterDropsUnknownWhenMinimumConfigured(t *testing.T) {
 	}
 	if shouldDropLogEvent(logEvent{Level: "error", Message: "failed login"}, "", "", "error") {
 		t.Fatalf("expected error level to pass min severity filter")
+	}
+	if shouldDropLogEvent(logEvent{Message: "Invalid user admin from 10.0.0.1"}, "", "", "error") {
+		t.Fatalf("expected security signal without explicit level to pass min severity filter")
 	}
 }
 
@@ -139,8 +152,9 @@ func TestCollectorMinSeverityUsesJSONSeverity(t *testing.T) {
 		t.Fatalf("collect: %v", err)
 	}
 	var payload struct {
-		Events       []map[string]any `json:"events"`
-		DroppedCount int              `json:"dropped_count"`
+		Events          []map[string]any `json:"events"`
+		DroppedCount    int              `json:"dropped_count"`
+		LogSourceHealth []map[string]any `json:"log_source_health"`
 	}
 	if err := json.Unmarshal(data, &payload); err != nil {
 		t.Fatalf("invalid payload: %v", err)
@@ -153,6 +167,12 @@ func TestCollectorMinSeverityUsesJSONSeverity(t *testing.T) {
 	}
 	if payload.DroppedCount != 2 {
 		t.Fatalf("expected 2 dropped events, got %d", payload.DroppedCount)
+	}
+	if len(payload.LogSourceHealth) != 1 {
+		t.Fatalf("expected source health, got %#v", payload.LogSourceHealth)
+	}
+	if payload.LogSourceHealth[0]["status"] != "delivering" || payload.LogSourceHealth[0]["accepted_events"] != float64(1) {
+		t.Fatalf("unexpected source health %#v", payload.LogSourceHealth[0])
 	}
 }
 
@@ -605,8 +625,12 @@ func TestCollectorPersistsCursorAcrossRestartAndHandlesRotation(t *testing.T) {
 	}
 
 	restartedCollector := New(cfg, prefs)
-	if data, err := restartedCollector.Collect(context.Background()); err != nil || len(data) != 0 {
-		t.Fatalf("expected restart without duplicate, data=%s err=%v", string(data), err)
+	restartPayload := collectLogPayload(t, restartedCollector)
+	if len(restartPayload.Events) != 0 || len(restartPayload.LogSourceHealth) != 1 {
+		t.Fatalf("expected restart without duplicate and with source health, got %#v", restartPayload)
+	}
+	if restartPayload.LogSourceHealth[0].Status != "no_new_events" {
+		t.Fatalf("expected no_new_events after restart, got %#v", restartPayload.LogSourceHealth[0])
 	}
 
 	if err := os.Truncate(logFile, 0); err != nil {
