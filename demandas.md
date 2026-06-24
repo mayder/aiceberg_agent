@@ -94,7 +94,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 ## [PKG-84] Agente/Web — update resiliente e diagnosticável do agente
 
-**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.22` adiciona cooldown persistido por versão/erro, fingerprint de falha e metadados de tentativa no `update-report`. Fechamento completo depende de piloto real Windows/Linux e publicação coordenada com o web.
+**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.23` adiciona cooldown persistido por versão/erro, fingerprint de falha, metadados de tentativa e preflight local no `update-report`. Fechamento completo depende de piloto real Windows/Linux e publicação coordenada com o web.
 
 **Escopo no agente** — impedir loop quente de update após restart, preservar diagnóstico de falha e enviar evidência objetiva para o web sem novo endpoint.
 
@@ -113,8 +113,13 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
    - [x] preservar `failure_class`, arquivo, SHA e estágio já existentes;
    - [x] cobrir contrato em `go test ./internal/domain/usecase -run 'SelfUpdate|Update'`.
 
-3) **Fechamento**
-   - [ ] rodar `./check.sh`;
+3) **Preflight local**
+   - [x] validar executável atual, diretório de instalação, staging gravável e shell/PowerShell antes do download/apply;
+   - [x] reportar `preflight_failed` com `failure_code`, recomendação, checks e lacunas por SO;
+   - [x] manter lacunas explícitas para restart real, lock de binário, EDR/antivírus e SELinux/AppArmor quando só podem ser provadas no apply real.
+
+4) **Fechamento**
+   - [x] rodar `./check.sh`;
    - [ ] publicar pacote coordenado com o web;
    - [ ] validar piloto real Windows/Linux.
 

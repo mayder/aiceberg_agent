@@ -538,6 +538,66 @@ func TestSelfUpdate_ReportIncludesDownloadMetadata(t *testing.T) {
 	}
 }
 
+func TestSelfUpdate_PreflightFailsWhenStagingIsNotWritable(t *testing.T) {
+	var received []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/agent/update-report" {
+			http.NotFound(w, r)
+			return
+		}
+		raw, _ := io.ReadAll(r.Body)
+		payload := map[string]any{}
+		_ = json.Unmarshal(raw, &payload)
+		received = append(received, payload)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	blockingFile := filepath.Join(dir, "not-a-dir")
+	if err := os.WriteFile(blockingFile, []byte("x"), 0o600); err != nil {
+		t.Fatalf("write blocking file: %v", err)
+	}
+
+	uc := NewSelfUpdate(config.Config{
+		Agent:             config.AgentCfg{Token: "agent-token"},
+		APIBaseURL:        srv.URL,
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     filepath.Join(blockingFile, "updates"),
+		AutoUpdateTimeout: time.Second,
+	}, &fakeLogger{})
+
+	err := uc.Execute(context.Background(), &UpdatePayload{
+		Version: "0.9.0",
+		URL:     srv.URL + "/pkg.bin",
+	})
+	if err == nil {
+		t.Fatalf("expected preflight error")
+	}
+	if len(received) != 1 {
+		t.Fatalf("expected one preflight report, got %d", len(received))
+	}
+	report := received[0]
+	if status, _ := report["status"].(string); status != "preflight_failed" {
+		t.Fatalf("expected preflight_failed, got %v", report["status"])
+	}
+	update, ok := report["update"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected update metadata")
+	}
+	preflight, ok := update["preflight"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected preflight metadata: %#v", update)
+	}
+	if okValue, _ := preflight["ok"].(bool); okValue {
+		t.Fatalf("expected preflight ok=false: %#v", preflight)
+	}
+	if code, _ := preflight["failure_code"].(string); code != "staging_not_writable" {
+		t.Fatalf("expected staging_not_writable, got %v", preflight["failure_code"])
+	}
+}
+
 func TestSelfUpdate_SnapshotIncludesPendingStateMetadata(t *testing.T) {
 	cfg := config.Config{
 		AutoUpdateEnabled: true,

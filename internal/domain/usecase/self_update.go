@@ -99,6 +99,22 @@ type updateCooldownState struct {
 	UpdatedAtUnix        int64  `json:"updated_at_unix,omitempty"`
 }
 
+type updatePreflightResult struct {
+	OK             bool              `json:"ok"`
+	OS             string            `json:"os"`
+	Arch           string            `json:"arch"`
+	User           string            `json:"user,omitempty"`
+	Executable     string            `json:"executable,omitempty"`
+	InstallDir     string            `json:"install_dir,omitempty"`
+	StagingDir     string            `json:"staging_dir,omitempty"`
+	WorkDir        string            `json:"workdir,omitempty"`
+	Command        string            `json:"command,omitempty"`
+	Checks         map[string]string `json:"checks,omitempty"`
+	Gaps           []string          `json:"gaps,omitempty"`
+	FailureCode    string            `json:"failure_code,omitempty"`
+	Recommendation string            `json:"recommendation,omitempty"`
+}
+
 type downloadedArtifact struct {
 	FilePath  string
 	DirPath   string
@@ -170,7 +186,16 @@ func (uc *SelfUpdate) Execute(ctx context.Context, payload *UpdatePayload) error
 		return nil
 	}
 
-	uc.reportStatusBestEffort(ctx, payload, "precheck_ok", "", "", version.Version, updateStageEvidence("precheck", ""))
+	preflight := uc.preflightUpdate(opts)
+	preflightMeta := updateStageEvidence("precheck", "")
+	preflightMeta["preflight"] = preflight
+	if !preflight.OK {
+		addUpdateStageEvidence(preflightMeta, "precheck", preflight.FailureCode)
+		uc.reportStatusBestEffort(ctx, payload, "preflight_failed", preflight.FailureCode, preflight.Recommendation, version.Version, preflightMeta)
+		return fmt.Errorf("update preflight failed: %s", preflight.FailureCode)
+	}
+
+	uc.reportStatusBestEffort(ctx, payload, "precheck_ok", "", "", version.Version, preflightMeta)
 	uc.reportStatusBestEffort(ctx, payload, "download_started", "", "", version.Version, updateStageEvidence("download", ""))
 
 	artifact, err := uc.download(ctx, payload, opts)
@@ -301,6 +326,146 @@ func (uc *SelfUpdate) shouldSkip(targetVersion string, opts effectiveAutoUpdateO
 	uc.lastVersion = targetVersion
 	uc.lastAttempt = now
 	return false, updateCooldownState{}
+}
+
+func (uc *SelfUpdate) preflightUpdate(opts effectiveAutoUpdateOptions) updatePreflightResult {
+	result := updatePreflightResult{
+		OK:     true,
+		OS:     runtime.GOOS,
+		Arch:   runtime.GOARCH,
+		Checks: map[string]string{},
+	}
+	if user := strings.TrimSpace(os.Getenv("USERNAME")); user != "" {
+		result.User = user
+	} else {
+		result.User = strings.TrimSpace(os.Getenv("USER"))
+	}
+
+	exe, exeErr := os.Executable()
+	if exeErr != nil || strings.TrimSpace(exe) == "" {
+		result.fail("executable_unavailable", "Validar instalação do agente e executar o update manual oficial para o sistema operacional.")
+	} else {
+		result.Executable = exe
+		result.InstallDir = filepath.Dir(exe)
+		if info, err := os.Stat(exe); err != nil || info.IsDir() {
+			result.fail("executable_unavailable", "Validar caminho do binário atual do agente antes de aplicar update.")
+		} else {
+			result.Checks["executable"] = "ok"
+		}
+	}
+
+	stagingDir := strings.TrimSpace(opts.dir)
+	if stagingDir == "" {
+		stagingDir = "./data/updates"
+	}
+	result.StagingDir = stagingDir
+	if err := ensureWritableDir(stagingDir); err != nil {
+		result.fail("staging_not_writable", "Corrigir permissão ou espaço do diretório de staging do auto-update.")
+		result.Checks["staging_dir"] = safeUpdateText(err.Error(), 160)
+	} else {
+		result.Checks["staging_dir"] = "ok"
+	}
+
+	if strings.TrimSpace(opts.command) != "" {
+		result.Command = sanitizeUpdateCommand(opts.command)
+		if runtime.GOOS == "windows" {
+			if _, err := exec.LookPath("powershell"); err != nil {
+				result.fail("powershell_unavailable", "Validar PowerShell no host ou usar o comando manual oficial do pacote.")
+				result.Checks["command_shell"] = safeUpdateText(err.Error(), 160)
+			} else {
+				result.Checks["command_shell"] = "ok"
+			}
+		} else {
+			if _, err := os.Stat("/bin/sh"); err != nil {
+				result.fail("shell_unavailable", "Validar shell local do serviço ou usar o comando manual oficial do pacote.")
+				result.Checks["command_shell"] = safeUpdateText(err.Error(), 160)
+			} else {
+				result.Checks["command_shell"] = "ok"
+			}
+		}
+	}
+
+	workDir := strings.TrimSpace(opts.workDir)
+	if workDir != "" {
+		result.WorkDir = workDir
+		if info, err := os.Stat(workDir); err != nil || !info.IsDir() {
+			result.fail("workdir_unavailable", "Corrigir diretório de execução do comando de update.")
+			if err != nil {
+				result.Checks["workdir"] = safeUpdateText(err.Error(), 160)
+			} else {
+				result.Checks["workdir"] = "not_directory"
+			}
+		} else {
+			result.Checks["workdir"] = "ok"
+		}
+	}
+
+	result.Gaps = updatePreflightGaps()
+	if result.Recommendation == "" {
+		result.Recommendation = "Preflight local aprovado; seguir com download e validação de hash/assinatura."
+	}
+	return result
+}
+
+func (r *updatePreflightResult) fail(code, recommendation string) {
+	r.OK = false
+	if r.FailureCode == "" {
+		r.FailureCode = code
+	}
+	if r.Recommendation == "" {
+		r.Recommendation = recommendation
+	}
+}
+
+func ensureWritableDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	probe, err := os.CreateTemp(dir, ".aiceberg-update-preflight-*")
+	if err != nil {
+		return err
+	}
+	name := probe.Name()
+	if _, err := probe.Write([]byte("ok")); err != nil {
+		_ = probe.Close()
+		_ = os.Remove(name)
+		return err
+	}
+	if err := probe.Close(); err != nil {
+		_ = os.Remove(name)
+		return err
+	}
+	return os.Remove(name)
+}
+
+func updatePreflightGaps() []string {
+	if runtime.GOOS == "windows" {
+		return []string{
+			"windows_service_restart_permission_requires_runtime_apply",
+			"binary_lock_requires_runtime_apply",
+			"edr_antivirus_block_requires_runtime_apply",
+		}
+	}
+	return []string{
+		"systemd_restart_permission_requires_runtime_apply",
+		"selinux_apparmor_block_requires_runtime_apply",
+		"filesystem_readonly_detected_by_staging_probe_only",
+	}
+}
+
+func sanitizeUpdateCommand(value string) string {
+	return safeUpdateText(regexp.MustCompile(`(?i)(token|password|secret|authorization)=([^\s&]+)`).ReplaceAllString(value, "$1=[redacted]"), 220)
+}
+
+func safeUpdateText(value string, limit int) string {
+	text := strings.TrimSpace(value)
+	text = strings.ReplaceAll(text, "\n", " ")
+	text = strings.ReplaceAll(text, "\r", " ")
+	text = strings.Join(strings.Fields(text), " ")
+	if limit > 0 && len(text) > limit {
+		return text[:limit]
+	}
+	return text
 }
 
 func (uc *SelfUpdate) download(ctx context.Context, payload *UpdatePayload, opts effectiveAutoUpdateOptions) (downloadedArtifact, error) {
