@@ -700,6 +700,77 @@ func TestCollectorPersistsCursorAcrossRestartAndHandlesRotation(t *testing.T) {
 	}
 }
 
+func TestCollectorReportsMissingAndPermissionDeniedHealth(t *testing.T) {
+	tmp := t.TempDir()
+	missingFile := filepath.Join(tmp, "missing.log")
+	protectedFile := filepath.Join(tmp, "protected.log")
+	if err := os.WriteFile(protectedFile, []byte("Jan  1 00:00:01 host app[123]: hidden error\n"), 0o600); err != nil {
+		t.Fatalf("write protected log: %v", err)
+	}
+	if err := os.Chmod(protectedFile, 0); err != nil {
+		t.Fatalf("chmod protected log: %v", err)
+	}
+	defer func() { _ = os.Chmod(protectedFile, 0o600) }()
+
+	cfg := config.Config{
+		OSLogFiles:      []string{missingFile, protectedFile},
+		OSLogCursorPath: filepath.Join(tmp, "cursor.json"),
+		OSLogBatchLines: 10,
+		OSLogMaxBytes:   1024,
+		OSLogInterval:   time.Second,
+	}
+	prefs := func() config.CollectPrefs {
+		return config.CollectPrefs{OSLogFiles: true}
+	}
+
+	got := collectLogPayload(t, New(cfg, prefs))
+	if len(got.Events) != 0 || len(got.LogSourceHealth) != 2 {
+		t.Fatalf("expected only health for inaccessible sources, got %#v", got)
+	}
+	byPath := healthByPath(got.LogSourceHealth)
+	if health := byPath[missingFile]; health.Status != "file_missing" || health.LastError != "file_missing" {
+		t.Fatalf("expected file_missing health, got %#v", health)
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root can still read chmod 000 files")
+	}
+	if health := byPath[protectedFile]; health.Status != "permission_denied" || health.LastError != "permission_denied" {
+		t.Fatalf("expected permission_denied health, got %#v", health)
+	}
+}
+
+func TestCollectorResetsMisalignedCursor(t *testing.T) {
+	tmp := t.TempDir()
+	logFile := filepath.Join(tmp, "app.log")
+	cursorPath := filepath.Join(tmp, "cursor.json")
+	content := "Jan  1 00:00:01 host app[123]: first error\nJan  1 00:00:02 host app[123]: second error\n"
+	if err := os.WriteFile(logFile, []byte(content), 0o644); err != nil {
+		t.Fatalf("write log file: %v", err)
+	}
+	cursor := map[string]int64{logFile: 5}
+	if err := saveCursor(cursorPath, cursor); err != nil {
+		t.Fatalf("save cursor: %v", err)
+	}
+	cfg := config.Config{
+		OSLogFiles:      []string{logFile},
+		OSLogCursorPath: cursorPath,
+		OSLogBatchLines: 10,
+		OSLogMaxBytes:   1024,
+		OSLogInterval:   time.Second,
+	}
+	prefs := func() config.CollectPrefs {
+		return config.CollectPrefs{OSLogFiles: true}
+	}
+
+	got := collectLogPayload(t, New(cfg, prefs))
+	if len(got.Events) != 2 {
+		t.Fatalf("expected cursor reset to reread full file, got %#v", got.Events)
+	}
+	if len(got.LogSourceHealth) != 1 || !hasHealthGap(got.LogSourceHealth[0], "cursor_not_line_boundary") {
+		t.Fatalf("expected cursor_not_line_boundary health gap, got %#v", got.LogSourceHealth)
+	}
+}
+
 func TestCollectorAppliesFiltersWithoutPersistingDroppedContent(t *testing.T) {
 	tmp := t.TempDir()
 	logFile := filepath.Join(tmp, "app.log")
@@ -769,6 +840,23 @@ func eventMessages(events []logEvent) []string {
 		messages = append(messages, event.Message)
 	}
 	return messages
+}
+
+func healthByPath(rows []logSourceHealth) map[string]logSourceHealth {
+	out := make(map[string]logSourceHealth, len(rows))
+	for _, row := range rows {
+		out[row.Path] = row
+	}
+	return out
+}
+
+func hasHealthGap(row logSourceHealth, gap string) bool {
+	for _, current := range row.Gaps {
+		if current == gap {
+			return true
+		}
+	}
+	return false
 }
 
 func containsAny(s string, needles ...string) bool {

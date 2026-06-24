@@ -63,6 +63,8 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 **Status** — implementado no agente em 24/06/2026 como payload aditivo `log_source_health` dentro de `/v1/logs/raw`, gerado originalmente como versão `0.8.22`. A versão `0.8.26` reforça a promoção determinística de sinais de segurança/erro operacional e cobre fixtures de fechamento do PKG-83.
 
+**Atualização 24/06/2026** — validação automatizada POSIX ampliada para tail, truncate/rotação, permissão negada, arquivo inexistente e cursor desalinhado; validação de canal Windows inexistente permanece coberta pela normalização de `channel_missing`.
+
 **Escopo no agente** — reportar health por fonte local de log sem enviar conteúdo bruto: arquivo/canal, cursor, tamanho, mtime, identidade, contadores de linhas lidas, eventos aceitos, eventos descartados, erro, permissão, estado canônico e lacunas.
 
 **Contrato** — cada item de `log_source_health` contém `schema_version`, `source_fingerprint`, `path` ou `channel`, `kind`, `product`, `approved`, `enabled`, `last_scan_at`, `last_read_at`, `last_event_at`, `last_sent_at`, `cursor`, `file_size`, `file_mtime`, `file_identity`, `read_lines`, `accepted_events`, `dropped_events`, `drop_reason`, `last_error`, `permission_status`, `status`, `confidence` e `gaps`.
@@ -85,6 +87,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
    - [x] cobrir POSIX com `go test ./internal/platform/collectors/oslogs`;
    - [x] validar build cruzado Windows com `GOOS=windows GOARCH=amd64 go test -c`;
    - [x] cobrir fixtures de SSH, mail/SASL, sudo/PAM, nginx/apache, Windows Security 4625, Sysmon e canal Windows inexistente;
+   - [x] cobrir tail de arquivo, truncate/rotação, permissão negada, arquivo inexistente e cursor desalinhado;
    - [x] rodar `./check.sh` no fechamento;
    - [x] publicar pacote `0.8.26` coordenado com o web.
 

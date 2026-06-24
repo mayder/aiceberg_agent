@@ -198,6 +198,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Unitario focado: `go test ./internal/platform/collectors/oslogs`.
 - Build Windows do coletor em host nao Windows: `GOOS=windows GOARCH=amd64 go test -c -o /tmp/aiceberg_oslogs_windows.test.exe ./internal/platform/collectors/oslogs`.
 - Cobrir health por fonte, `no_new_events`, `channel_missing`, `dropped_by_severity`, sinais SSH, mail/SASL, sudo/PAM, nginx/apache, Windows Security 4625 e Sysmon.
+- Cobrir POSIX com tail de arquivo, truncate/rotação, permissão negada, arquivo inexistente e cursor desalinhado sem reter conteúdo descartado.
 - Fechamento coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`.
 
 ## PKG-84 - Update resiliente e diagnosticavel
