@@ -124,6 +124,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
    - [x] rodar `./check.sh`;
    - [x] publicar pacote coordenado com o web;
    - [x] validar piloto real Windows/Linux de update bem-sucedido no cliente InspectApp em 24/06/2026: agentes `1`, `4`, `18`, `19`, `70` Linux AMD64 e agente `71` Windows AMD64 confirmaram `0.8.24`;
+   - [x] validar piloto real complementar `0.8.25` no cliente InspectApp em 24/06/2026: agentes `1`, `4`, `18`, `19`, `70` Linux AMD64 e agente `71` Windows AMD64 terminaram em `version_confirmed`, sem `send_configuration` pendente e sem `pending_update_payload`; o agente `4` confirmou após reenvio controlado do manifest;
    - [ ] validar piloto real Windows/Linux com falhas induzidas/conhecidas de permissão, lock, EDR/AV, restart e rollback.
 
 ### Rollback
