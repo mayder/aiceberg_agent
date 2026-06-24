@@ -120,7 +120,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 4) **Fechamento**
    - [x] rodar `./check.sh`;
-   - [ ] publicar pacote coordenado com o web;
+   - [x] publicar pacote coordenado com o web;
    - [ ] validar piloto real Windows/Linux.
 
 ### Rollback
