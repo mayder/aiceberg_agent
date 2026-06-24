@@ -135,20 +135,22 @@ type ConfigPayload struct {
 		DualShip     []string                    `json:"dual_ship_endpoints,omitempty"`
 	} `json:"logs"`
 	CustomMetrics struct {
-		Enabled   *bool  `json:"enabled,omitempty"`
-		UDPAddr   string `json:"udp_addr,omitempty"`
-		HTTPAddr  string `json:"http_addr,omitempty"`
-		UDSPath   string `json:"uds_path,omitempty"`
-		Interval  int    `json:"interval,omitempty"`
-		MaxSeries int    `json:"max_series,omitempty"`
-		MaxBytes  int    `json:"max_bytes,omitempty"`
+		Enabled                  *bool  `json:"enabled,omitempty"`
+		UDPAddr                  string `json:"udp_addr,omitempty"`
+		HTTPAddr                 string `json:"http_addr,omitempty"`
+		UDSPath                  string `json:"uds_path,omitempty"`
+		Interval                 int    `json:"interval,omitempty"`
+		MaxSeries                int    `json:"max_series,omitempty"`
+		MaxBytes                 int    `json:"max_bytes,omitempty"`
+		ValidationSamplesEnabled *bool  `json:"validation_samples_enabled,omitempty"`
 	} `json:"custom_metrics,omitempty"`
 	OTLP struct {
-		Enabled  *bool  `json:"enabled,omitempty"`
-		HTTPAddr string `json:"http_addr,omitempty"`
-		Interval int    `json:"interval,omitempty"`
-		MaxItems int    `json:"max_items,omitempty"`
-		MaxBytes int    `json:"max_bytes,omitempty"`
+		Enabled                  *bool  `json:"enabled,omitempty"`
+		HTTPAddr                 string `json:"http_addr,omitempty"`
+		Interval                 int    `json:"interval,omitempty"`
+		MaxItems                 int    `json:"max_items,omitempty"`
+		MaxBytes                 int    `json:"max_bytes,omitempty"`
+		ValidationSamplesEnabled *bool  `json:"validation_samples_enabled,omitempty"`
 	} `json:"otlp,omitempty"`
 	APM struct {
 		TraceSampleRate      *float64 `json:"trace_sample_rate,omitempty"`
@@ -198,6 +200,7 @@ type ConfigPayload struct {
 	CollectNow    *[]string             `json:"collect_now,omitempty"`
 	Update        *UpdatePayload        `json:"update,omitempty"`
 	AutoUpdate    *AutoUpdatePayload    `json:"auto_update,omitempty"`
+	EDRNDR        *EDRNDRPayload        `json:"edr_ndr,omitempty"`
 	TokenRotation *TokenRotationPayload `json:"token_rotation,omitempty"`
 	Agentless     struct {
 		Enabled    *bool `json:"enabled,omitempty"`
@@ -207,6 +210,17 @@ type ConfigPayload struct {
 		LockSec    int   `json:"lock_sec,omitempty"`
 		FlushBatch int   `json:"flush_batch,omitempty"`
 	} `json:"agentless,omitempty"`
+}
+
+type EDRNDRPayload struct {
+	SafeModeEnabled *bool  `json:"safe_mode_enabled,omitempty"`
+	Profile         string `json:"profile,omitempty"`
+	Policy          struct {
+		SensitiveConfigSignatureRequired *bool  `json:"sensitive_config_signature_required,omitempty"`
+		AutoUpdateSignatureRequired      *bool  `json:"auto_update_signature_required,omitempty"`
+		AgentIdentitySecretRequired      *bool  `json:"agent_identity_secret_required,omitempty"`
+		LogMinSeverity                   string `json:"log_min_severity,omitempty"`
+	} `json:"policy,omitempty"`
 }
 
 func ApplyConfigPayload(log logger.Logger, store *prefs.Store, commands chan<- ControlCommand, payload ConfigPayload) (string, bool, error) {
@@ -287,6 +301,9 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	if payload.CustomMetrics.MaxBytes > 0 {
 		collect.CustomMetricsMaxBytes = payload.CustomMetrics.MaxBytes
 	}
+	if payload.CustomMetrics.ValidationSamplesEnabled != nil {
+		collect.CustomMetricsValidationSample = *payload.CustomMetrics.ValidationSamplesEnabled
+	}
 	if payload.OTLP.Enabled != nil {
 		collect.OTLPEnabled = *payload.OTLP.Enabled
 	}
@@ -301,6 +318,9 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	}
 	if payload.OTLP.MaxBytes > 0 {
 		collect.OTLPMaxBytes = payload.OTLP.MaxBytes
+	}
+	if payload.OTLP.ValidationSamplesEnabled != nil {
+		collect.OTLPValidationSample = *payload.OTLP.ValidationSamplesEnabled
 	}
 	if payload.APM.TraceSampleRate != nil {
 		collect.APMTraceSampleRate = *payload.APM.TraceSampleRate
@@ -431,6 +451,26 @@ func ApplyConfigPayloadWithSecurity(log logger.Logger, store *prefs.Store, comma
 	if payload.Agentless.FlushBatch > 0 {
 		collect.AgentlessFlushBatch = payload.Agentless.FlushBatch
 	}
+	if payload.EDRNDR != nil {
+		if payload.EDRNDR.SafeModeEnabled != nil {
+			collect.EDRSafe = *payload.EDRNDR.SafeModeEnabled
+		}
+		if strings.TrimSpace(payload.EDRNDR.Profile) != "" {
+			collect.EDRSafeProfile = strings.TrimSpace(payload.EDRNDR.Profile)
+		}
+		if payload.EDRNDR.Policy.SensitiveConfigSignatureRequired != nil {
+			collect.RemoteConfigSignatureRequired = *payload.EDRNDR.Policy.SensitiveConfigSignatureRequired
+		}
+		if payload.EDRNDR.Policy.AutoUpdateSignatureRequired != nil {
+			collect.AutoUpdateTrustRequired = *payload.EDRNDR.Policy.AutoUpdateSignatureRequired
+		}
+		if payload.EDRNDR.Policy.AgentIdentitySecretRequired != nil {
+			collect.AgentIdentitySecretRequired = *payload.EDRNDR.Policy.AgentIdentitySecretRequired
+		}
+		if strings.TrimSpace(payload.EDRNDR.Policy.LogMinSeverity) != "" {
+			collect.OSLogMinSeverity = strings.TrimSpace(payload.EDRNDR.Policy.LogMinSeverity)
+		}
+	}
 	config.ApplyEDRSafeCollectPrefs(&collect)
 
 	collectNow := collect.CollectNow
@@ -556,6 +596,7 @@ func SignConfigPayload(payload ConfigPayload, secret string) (string, error) {
 func payloadHasSensitiveConfig(payload ConfigPayload) bool {
 	return payload.Update != nil ||
 		payload.AutoUpdate != nil ||
+		payload.EDRNDR != nil ||
 		payload.TokenRotation != nil ||
 		payload.CollectNow != nil ||
 		payload.LocalChecks.Checks != nil ||

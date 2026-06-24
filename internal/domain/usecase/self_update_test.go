@@ -129,6 +129,37 @@ func TestSelfUpdate_VerifiesTrustedArtifactSignature(t *testing.T) {
 	}
 }
 
+func TestSelfUpdate_RequiresSignatureFromRemotePolicyPrefs(t *testing.T) {
+	pkg := []byte("unsigned package")
+	sum := sha256.Sum256(pkg)
+	versionTarget := testUpdateVersion()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(pkg)
+	}))
+	defer srv.Close()
+
+	cfg := config.Config{
+		AutoUpdateEnabled: true,
+		AutoUpdateDir:     t.TempDir(),
+		AutoUpdateTimeout: 2 * time.Second,
+		AutoUpdateMaxMB:   5,
+	}
+	uc := NewSelfUpdate(cfg, &fakeLogger{}, func() config.CollectPrefs {
+		return config.CollectPrefs{AutoUpdateTrustRequired: true}
+	})
+	payload := &UpdatePayload{
+		Version: versionTarget,
+		URL:     srv.URL + "/pkg.bin",
+		SHA256:  hex.EncodeToString(sum[:]),
+	}
+
+	err := uc.Execute(context.Background(), payload)
+	if err == nil || !strings.Contains(err.Error(), "artifact trust public key missing") {
+		t.Fatalf("expected trust failure from remote policy, got %v", err)
+	}
+}
+
 func TestSelfUpdate_RejectsInvalidTrustedArtifactSignature(t *testing.T) {
 	pkg := []byte("trusted package")
 	sum := sha256.Sum256(pkg)

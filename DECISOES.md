@@ -347,6 +347,22 @@ Referências:
 - Impacto: o web consegue mostrar readiness por agente e o operador pode registrar validação, sem o agente tentar burlar ferramenta de segurança ou declarar compatibilidade com fornecedor sem evidência real.
 - Rollback: desligar `EDR_SAFE`, voltar ao perfil padrão ou publicar versão anterior do agente.
 
+### DEC-20260623-01 - Política EDR/NDR remota prevalece sobre fallback local
+
+- Status: aceita
+- Contexto: a web precisa resolver lacunas de readiness sem exigir edição manual no host, mas o agente só aplicava modo seguro EDR/NDR por env ou campos legados dentro de `collect`.
+- Decisao: aceitar o bloco `edr_ndr` da configuração remota, persistir a política em prefs e usar essa política efetiva no snapshot `edr_ndr_readiness`. Variáveis `EDR_SAFE` seguem como fallback local.
+- Impacto: a web consegue ativar modo seguro e remover lacunas de assinatura de config/update por configuração publicada; segredo de identidade ainda exige provisionamento local seguro, sem enviar segredo bruto pela config.
+- Rollback: remover `edr_ndr` do payload ou desligar as flags na web; agentes antigos ignoram o bloco desconhecido.
+
+### DEC-20260623-02 - Amostra controlada de observabilidade prova pipeline
+
+- Status: aceita
+- Contexto: custom metrics e APM/traces dependem de aplicações locais emitindo DogStatsD/HTTP ou OpenTelemetry. Em cliente sem app instrumentada, os blocos ficam vazios mesmo com o agente funcionando.
+- Decisao: aceitar `validation_samples_enabled` em `custom_metrics` e `otlp`, persistir a preferência remota e emitir uma métrica e um span mínimos com origem `agent_controlled_sample`.
+- Impacto: o operador consegue provar agente -> API -> persistência -> painel sem executar shell remoto e sem coletar dados de aplicação do cliente.
+- Rollback: desligar a flag na web/config; o agente deixa de emitir amostras no próximo ciclo.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

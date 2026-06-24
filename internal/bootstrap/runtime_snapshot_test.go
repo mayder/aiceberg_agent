@@ -328,6 +328,37 @@ func TestBuildEDRNDRReadinessSnapshotReadyWhenSafeAndSigned(t *testing.T) {
 	}
 }
 
+func TestBuildEDRNDRReadinessSnapshotUsesRemotePolicyPrefs(t *testing.T) {
+	cfg := config.Config{
+		APIBaseURL:          "https://api.aiceberg.com.br",
+		OutboxPath:          filepath.Join(t.TempDir(), "outbox.db"),
+		AgentIdentitySecret: "identity",
+	}
+	prefs := config.CollectPrefs{
+		EDRSafe:                       true,
+		EDRSafeProfile:                "darktrace",
+		OSLogMinSeverity:              "error",
+		RemoteConfigSignatureRequired: true,
+		AutoUpdateTrustRequired:       true,
+	}
+
+	readiness := buildEDRNDRReadinessSnapshot(cfg, "hub", prefs)
+	if readiness["status"] != "ready" {
+		t.Fatalf("expected ready readiness from remote policy, got %#v", readiness)
+	}
+	gaps, ok := readiness["gaps"].([]string)
+	if !ok || len(gaps) != 0 {
+		t.Fatalf("expected remote policy to clear signature gaps, got %#v", readiness["gaps"])
+	}
+	policy, ok := readiness["policy"].(map[string]any)
+	if !ok {
+		t.Fatalf("policy missing: %#v", readiness)
+	}
+	if policy["sensitive_config_signed_required"] != true || policy["auto_update_signature_required"] != true {
+		t.Fatalf("expected signed policy from prefs, got %#v", policy)
+	}
+}
+
 func TestBuildOfflineFirstEvidenceRelayKeepsHubOnlyTopology(t *testing.T) {
 	t.Helper()
 

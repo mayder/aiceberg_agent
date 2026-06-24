@@ -79,6 +79,48 @@ func TestReceiverAcceptsOTLPHTTPJSONSignals(t *testing.T) {
 	}
 }
 
+func TestReceiverEmitsControlledValidationTrace(t *testing.T) {
+	addr := freeTCPAddr(t)
+	receiver := NewReceiver(config.Config{
+		OTLPEnabled:        true,
+		OTLPHTTPAddr:       addr,
+		OTLPInterval:       time.Second,
+		OTLPMaxItems:       10,
+		OTLPMaxBytes:       4096,
+		APMTraceSampleRate: 0,
+	}, func() config.CollectPrefs {
+		return config.CollectPrefs{
+			Version:              "remote",
+			OTLPEnabled:          true,
+			OTLPValidationSample: true,
+		}
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tracesRaw, err := receiver.TracesCollector().Collect(ctx)
+	if err != nil {
+		t.Fatalf("collect traces: %v", err)
+	}
+	var payload struct {
+		OTLP snapshot `json:"otlp"`
+	}
+	if err := json.Unmarshal(tracesRaw, &payload); err != nil {
+		t.Fatalf("invalid traces payload: %v", err)
+	}
+	if payload.OTLP.Kind != "traces" || len(payload.OTLP.Items) != 1 {
+		t.Fatalf("unexpected traces payload %#v", payload.OTLP)
+	}
+	trace := payload.OTLP.Items[0]
+	if trace["service"] != "aiceberg-agent-validation" || trace["sampling_reason"] != "validation_sample" {
+		t.Fatalf("unexpected validation trace %#v", trace)
+	}
+	attrs, ok := trace["attributes"].(map[string]any)
+	if !ok || attrs["aiceberg.validation_sample"] != true || attrs["source"] != "agent_controlled_sample" {
+		t.Fatalf("unexpected validation trace attributes %#v", trace["attributes"])
+	}
+}
+
 func TestReceiverRedactsAndFiltersOTLPLogs(t *testing.T) {
 	addr := freeTCPAddr(t)
 	receiver := NewReceiver(config.Config{

@@ -371,6 +371,8 @@ func buildSecurityRuntimeSnapshot(cfg config.Config) map[string]any {
 
 func buildEDRNDRReadinessSnapshot(cfg config.Config, mode string, prefs config.CollectPrefs) map[string]any {
 	enabled := cfg.EDRSafe || prefs.EDRSafe
+	remoteConfigSignatureRequired := cfg.RemoteConfigSignatureRequired || prefs.RemoteConfigSignatureRequired
+	autoUpdateTrustRequired := cfg.AutoUpdateTrustRequired || prefs.AutoUpdateTrustRequired
 	profile := strings.TrimSpace(cfg.EDRSafeProfile)
 	if prefs.EDRSafeProfile != "" {
 		profile = strings.TrimSpace(prefs.EDRSafeProfile)
@@ -378,7 +380,7 @@ func buildEDRNDRReadinessSnapshot(cfg config.Config, mode string, prefs config.C
 	if profile == "" {
 		profile = "standard"
 	}
-	gaps := edrNDRGaps(cfg, enabled)
+	gaps := edrNDRGaps(cfg, prefs, enabled)
 	status := "ready"
 	if !enabled {
 		status = "limited"
@@ -393,15 +395,15 @@ func buildEDRNDRReadinessSnapshot(cfg config.Config, mode string, prefs config.C
 			"remote_shell_blocked":             true,
 			"arbitrary_execution_blocked":      true,
 			"destructive_actions_blocked":      true,
-			"sensitive_config_signed_required": cfg.RemoteConfigSignatureRequired,
+			"sensitive_config_signed_required": remoteConfigSignatureRequired,
 			"auto_update_hash_required":        true,
-			"auto_update_signature_required":   cfg.AutoUpdateTrustRequired,
+			"auto_update_signature_required":   autoUpdateTrustRequired,
 			"log_min_severity":                 effectiveOSLogSeverity(cfg, prefs),
 			"log_source_discovery_bounded":     true,
 			"credential_payload_blocked":       true,
 			"supplier_claim_without_evidence":  false,
 		},
-		"manifest": edrNDRManifest(cfg),
+		"manifest": edrNDRManifest(cfg, prefs),
 		"modules": map[string]any{
 			"core_preserved": []string{"cpu", "memory", "disk", "network", "host", "agent_health", "secure_update"},
 			"logs": map[string]any{
@@ -425,15 +427,15 @@ func buildEDRNDRReadinessSnapshot(cfg config.Config, mode string, prefs config.C
 	}
 }
 
-func edrNDRGaps(cfg config.Config, enabled bool) []string {
+func edrNDRGaps(cfg config.Config, prefs config.CollectPrefs, enabled bool) []string {
 	gaps := make([]string, 0, 8)
 	if !enabled {
 		gaps = append(gaps, "edr_safe_disabled")
 	}
-	if !cfg.RemoteConfigSignatureRequired {
+	if !(cfg.RemoteConfigSignatureRequired || prefs.RemoteConfigSignatureRequired) {
 		gaps = append(gaps, "remote_config_signature_not_required")
 	}
-	if !cfg.AutoUpdateTrustRequired {
+	if !(cfg.AutoUpdateTrustRequired || prefs.AutoUpdateTrustRequired) {
 		gaps = append(gaps, "auto_update_signature_not_required")
 	}
 	if cfg.TLSInsecureSkip {
@@ -445,7 +447,7 @@ func edrNDRGaps(cfg config.Config, enabled bool) []string {
 	return uniqueStrings(gaps, 16)
 }
 
-func edrNDRManifest(cfg config.Config) map[string]any {
+func edrNDRManifest(cfg config.Config, prefs config.CollectPrefs) map[string]any {
 	exePath, _ := os.Executable()
 	apiBase := strings.TrimRight(strings.TrimSpace(cfg.APIBaseURL), "/")
 	return map[string]any{
@@ -489,7 +491,7 @@ func edrNDRManifest(cfg config.Config) map[string]any {
 		"update_policy": map[string]any{
 			"enabled":                     cfg.AutoUpdateEnabled,
 			"hash_validation_required":    true,
-			"signature_validation":        cfg.AutoUpdateTrustRequired,
+			"signature_validation":        cfg.AutoUpdateTrustRequired || prefs.AutoUpdateTrustRequired,
 			"trust_public_key_configured": strings.TrimSpace(cfg.AutoUpdateTrustPublicKey) != "",
 			"max_mb":                      cfg.AutoUpdateMaxMB,
 			"rollback_directory":          cfg.AutoUpdateDir,
@@ -659,9 +661,11 @@ func sanitizePrefsSnapshot(p config.CollectPrefs) map[string]any {
 		"custom_metrics_enabled":       p.CustomMetricsEnabled,
 		"custom_metrics_interval":      p.CustomMetricsIntervalSec,
 		"custom_metrics_max_series":    p.CustomMetricsMaxSeries,
+		"custom_metrics_validation":    p.CustomMetricsValidationSample,
 		"otlp_enabled":                 p.OTLPEnabled,
 		"otlp_interval":                p.OTLPIntervalSec,
 		"otlp_max_items":               p.OTLPMaxItems,
+		"otlp_validation":              p.OTLPValidationSample,
 		"container_enabled":            p.ContainerEnabled,
 		"container_runtime":            strings.TrimSpace(p.ContainerRuntime),
 		"container_interval":           p.ContainerIntervalSec,

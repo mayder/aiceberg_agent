@@ -194,6 +194,38 @@ func TestApplyConfigPayloadAppliesLogLocalTransportAddresses(t *testing.T) {
 	}
 }
 
+func TestApplyConfigPayloadAppliesObservabilityValidationSamples(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+	enabled := true
+
+	payload := ConfigPayload{
+		Version: "cfg-observability-samples",
+		Collect: config.CollectPrefs{
+			CPU: true,
+		},
+	}
+	payload.CustomMetrics.Enabled = &enabled
+	payload.CustomMetrics.ValidationSamplesEnabled = &enabled
+	payload.OTLP.Enabled = &enabled
+	payload.OTLP.ValidationSamplesEnabled = &enabled
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+	got := store.Get()
+	if !got.CustomMetricsEnabled || !got.CustomMetricsValidationSample {
+		t.Fatalf("expected custom metrics validation samples enabled, got %#v", got)
+	}
+	if !got.OTLPEnabled || !got.OTLPValidationSample {
+		t.Fatalf("expected otlp validation samples enabled, got %#v", got)
+	}
+}
+
 func TestApplyConfigPayloadKeepsEDRSafeCapsFromRemoteConfig(t *testing.T) {
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
 	log := &fakeLogger{}
@@ -243,6 +275,46 @@ func TestApplyConfigPayloadKeepsEDRSafeCapsFromRemoteConfig(t *testing.T) {
 	}
 	if got.LocalChecksMaxChecks > 50 || got.OTLPMaxItems > 500 || got.OTLPMaxBytes > 512*1024 {
 		t.Fatalf("expected local/otlp caps, got local=%d otlp_items=%d otlp_bytes=%d", got.LocalChecksMaxChecks, got.OTLPMaxItems, got.OTLPMaxBytes)
+	}
+}
+
+func TestApplyConfigPayloadAppliesEDRNDRPolicyBlock(t *testing.T) {
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	log := &fakeLogger{}
+	enabled := true
+
+	payload := ConfigPayload{
+		Version: "cfg-edr-policy",
+		Collect: config.CollectPrefs{
+			CPU: true,
+		},
+		EDRNDR: &EDRNDRPayload{
+			SafeModeEnabled: &enabled,
+			Profile:         "darktrace",
+		},
+	}
+	payload.EDRNDR.Policy.SensitiveConfigSignatureRequired = &enabled
+	payload.EDRNDR.Policy.AutoUpdateSignatureRequired = &enabled
+	payload.EDRNDR.Policy.AgentIdentitySecretRequired = &enabled
+	payload.EDRNDR.Policy.LogMinSeverity = "info"
+
+	_, applied, err := ApplyConfigPayload(log, store, nil, payload)
+	if err != nil {
+		t.Fatalf("apply payload: %v", err)
+	}
+	if !applied {
+		t.Fatalf("expected applied")
+	}
+
+	got := store.Get()
+	if !got.EDRSafe || got.EDRSafeProfile != "darktrace" {
+		t.Fatalf("expected EDR policy persisted, got safe=%v profile=%q", got.EDRSafe, got.EDRSafeProfile)
+	}
+	if !got.RemoteConfigSignatureRequired || !got.AutoUpdateTrustRequired || !got.AgentIdentitySecretRequired {
+		t.Fatalf("expected secure policy persisted, got remote=%v update=%v identity=%v", got.RemoteConfigSignatureRequired, got.AutoUpdateTrustRequired, got.AgentIdentitySecretRequired)
+	}
+	if got.OSLogMinSeverity != "error" {
+		t.Fatalf("expected EDR safe to cap log severity to error, got %q", got.OSLogMinSeverity)
 	}
 }
 

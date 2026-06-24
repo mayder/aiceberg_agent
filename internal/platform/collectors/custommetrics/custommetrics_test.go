@@ -64,6 +64,40 @@ func TestCollectorAggregatesAndDropsExcessCardinality(t *testing.T) {
 	}
 }
 
+func TestCollectorEmitsControlledValidationSample(t *testing.T) {
+	cfg := config.Config{
+		CustomMetricsEnabled:   true,
+		CustomMetricsInterval:  time.Second,
+		CustomMetricsMaxSeries: 10,
+		CustomMetricsMaxBytes:  4096,
+	}
+	c := New(cfg, func() config.CollectPrefs {
+		return config.CollectPrefs{
+			Version:                       "remote",
+			CustomMetricsEnabled:          true,
+			CustomMetricsValidationSample: true,
+		}
+	}).(*collector)
+
+	raw, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	var payload struct {
+		CustomMetrics snapshot `json:"custom_metrics"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("invalid payload: %v", err)
+	}
+	if len(payload.CustomMetrics.Series) != 1 {
+		t.Fatalf("expected validation sample, got %#v", payload.CustomMetrics.Series)
+	}
+	series := payload.CustomMetrics.Series[0]
+	if series.Name != "aiceberg.validation.custom_metrics" || series.Source != "agent_controlled_sample" {
+		t.Fatalf("unexpected validation sample %#v", series)
+	}
+}
+
 func TestCollectorBoundsHighVolumeCardinalityBurst(t *testing.T) {
 	const maxSeries = 25
 	const totalSeries = 250

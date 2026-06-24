@@ -27,9 +27,10 @@ import (
 )
 
 type SelfUpdate struct {
-	cfg config.Config
-	log logger.Logger
-	cl  *http.Client
+	cfg           config.Config
+	log           logger.Logger
+	cl            *http.Client
+	prefsProvider func() config.CollectPrefs
 
 	mu          sync.Mutex
 	lastVersion string
@@ -106,15 +107,20 @@ var updateHandshakeSteps = []string{
 	"version_confirmed",
 }
 
-func NewSelfUpdate(cfg config.Config, log logger.Logger) *SelfUpdate {
+func NewSelfUpdate(cfg config.Config, log logger.Logger, prefsProvider ...func() config.CollectPrefs) *SelfUpdate {
 	timeout := cfg.AutoUpdateTimeout
 	if timeout <= 0 {
 		timeout = 5 * time.Minute
 	}
+	var prefsFn func() config.CollectPrefs
+	if len(prefsProvider) > 0 {
+		prefsFn = prefsProvider[0]
+	}
 	return &SelfUpdate{
-		cfg: cfg,
-		log: log,
-		cl:  httpx.NewClient(cfg, timeout),
+		cfg:           cfg,
+		log:           log,
+		cl:            httpx.NewClient(cfg, timeout),
+		prefsProvider: prefsFn,
 	}
 }
 
@@ -405,7 +411,7 @@ func (uc *SelfUpdate) validateArtifactTrust(payload *UpdatePayload, artifact dow
 		return errors.New("missing update payload")
 	}
 	publicKeyRaw := strings.TrimSpace(uc.cfg.AutoUpdateTrustPublicKey)
-	trustRequired := uc.cfg.AutoUpdateTrustRequired || publicKeyRaw != ""
+	trustRequired := uc.autoUpdateTrustRequired() || publicKeyRaw != ""
 	if !trustRequired && strings.TrimSpace(payload.Signature) == "" && strings.TrimSpace(payload.SigningKeyID) == "" {
 		return nil
 	}
@@ -1055,8 +1061,8 @@ func (uc *SelfUpdate) buildUpdateRuntimeEvidence(artifact downloadedArtifact, op
 	if sha := normalizeSHA256(artifact.SHA256); sha != "" {
 		out["download_sha256"] = sha
 	}
-	if uc.cfg.AutoUpdateTrustRequired || strings.TrimSpace(uc.cfg.AutoUpdateTrustPublicKey) != "" {
-		out["artifact_trust_required"] = uc.cfg.AutoUpdateTrustRequired
+	if uc.autoUpdateTrustRequired() || strings.TrimSpace(uc.cfg.AutoUpdateTrustPublicKey) != "" {
+		out["artifact_trust_required"] = uc.autoUpdateTrustRequired()
 		out["artifact_trust_public_key_configured"] = strings.TrimSpace(uc.cfg.AutoUpdateTrustPublicKey) != ""
 		out["artifact_signature_algorithm"] = "ed25519-sha256"
 	}
@@ -1073,6 +1079,19 @@ func (uc *SelfUpdate) buildUpdateRuntimeEvidence(artifact downloadedArtifact, op
 		out["launcher_exit_code"] = *launcherExitCode
 	}
 	return out
+}
+
+func (uc *SelfUpdate) autoUpdateTrustRequired() bool {
+	if uc == nil {
+		return false
+	}
+	if uc.cfg.AutoUpdateTrustRequired {
+		return true
+	}
+	if uc.prefsProvider == nil {
+		return false
+	}
+	return uc.prefsProvider().AutoUpdateTrustRequired
 }
 
 func updateStageEvidence(stage, failureClass string) map[string]any {

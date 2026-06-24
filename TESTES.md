@@ -549,7 +549,14 @@ Evidência 2026-06-20:
 ### PKG-76 - Readiness EDR/NDR seguro
 
 - Unitario focado: `go test ./internal/bootstrap ./internal/common/config ./internal/domain/usecase ./internal/platform/collectors/logdiscovery ./internal/platform/collectors/oslogs`.
-- Cobertura: `EDR_SAFE`, perfil seguro, caps remotos, logs `error+`, manifesto `edr_ndr_readiness`, EventLog/journald, discovery bounded e compatibilidade com configuração remota.
+- Cobertura: bloco remoto `edr_ndr`, `EDR_SAFE` fallback, perfil seguro, caps remotos, logs `error+`, manifesto `edr_ndr_readiness`, EventLog/journald, discovery bounded, assinatura de config, assinatura de update e compatibilidade com configuração remota.
 - Fechamento: rodar `./check.sh`, gerar artefatos oficiais com `./scripts/build_installers.sh`, copiar para o diretório versionado do web e validar SHA256.
 - Artefatos `0.8.18`: `./scripts/build_installers.sh` gerou os compactados oficiais; `SHA256SUMS` validou `linux-amd64=29bd698d9694906f5d48309ba23e0eb1ba590f7445ed20083a6e1935dfa63ffe` e `windows-amd64=f3b9ec0e16b9b23cdecbfe1643a71c13cf0a2ea570d69d5c4c24e6702db7c908`.
+- Artefatos `0.8.20`: `./scripts/build_installers.sh` gerou os compactados oficiais; `SHA256SUMS` validou `linux-amd64=50c45fe3c1e2b01e3173df78ee5a29a0967043fb2999d7e17a5f3f888b7c0dd2` e `windows-amd64=1c89c27a360f941097571c7c0b3a8ebb168f3d87191da3a3f952cfa737185f7d`.
 - Homologação de fornecedor real: CrowdStrike/Darktrace exigem ambiente real, janela aprovada, evidência do console do fornecedor e ação operacional registrada no web.
+
+### Observabilidade controlada
+
+- Unitário focado: `go test ./internal/domain/usecase ./internal/platform/collectors/custommetrics ./internal/platform/collectors/otlp`.
+- Cobertura: `validation_samples_enabled` remoto persiste em prefs, `custommetrics` emite série `aiceberg.validation.custom_metrics` e `otlp_traces` emite span `aiceberg-agent-validation` com `aiceberg.validation_sample=true`.
+- Limite: isso prova o pipeline técnico. Telemetria real de aplicação exige DogStatsD/HTTP local ou OpenTelemetry emitido pela aplicação do cliente.
