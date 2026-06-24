@@ -764,8 +764,8 @@ func TestSelfUpdate_ReportPendingResultMarksVersionMismatchAfterRollback(t *test
 		t.Fatalf("expected reconnected status, got %v", received[0]["status"])
 	}
 	failed := received[1]
-	if status, _ := failed["status"].(string); status != "apply_failed" {
-		t.Fatalf("expected apply_failed status, got %v", failed["status"])
+	if status, _ := failed["status"].(string); status != "rolled_back" {
+		t.Fatalf("expected rolled_back status, got %v", failed["status"])
 	}
 	if code, _ := failed["reason_code"].(string); code != "version_mismatch_after_restart" {
 		t.Fatalf("expected version_mismatch_after_restart, got %v", failed["reason_code"])
@@ -774,8 +774,8 @@ func TestSelfUpdate_ReportPendingResultMarksVersionMismatchAfterRollback(t *test
 	if !ok {
 		t.Fatalf("expected update metadata")
 	}
-	if stage, _ := update["stage"].(string); stage != "version_confirmed" {
-		t.Fatalf("expected version_confirmed stage, got %v", update["stage"])
+	if stage, _ := update["stage"].(string); stage != "rolled_back" {
+		t.Fatalf("expected rolled_back stage, got %v", update["stage"])
 	}
 	if failureClass, _ := update["failure_class"].(string); failureClass != "reconexao" {
 		t.Fatalf("expected reconexao failure class, got %v", update["failure_class"])

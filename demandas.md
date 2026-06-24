@@ -94,7 +94,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 ## [PKG-84] Agente/Web — update resiliente e diagnosticável do agente
 
-**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.24` adiciona cooldown persistido por versão/erro, fingerprint de falha, fingerprint idempotente do report, metadados de tentativa e preflight local no `update-report`. Fechamento completo depende de piloto real Windows/Linux e publicação coordenada com o web.
+**Status** — implementado parcialmente no agente em 24/06/2026 como complemento do self-update existente. A versão `0.8.25` adiciona cooldown persistido por versão/erro, fingerprint de falha, fingerprint idempotente do report, metadados de tentativa, preflight local e status `rolled_back` quando a versão alvo não confirma após restart no `update-report`. Fechamento completo depende de piloto real Windows/Linux com falha induzida/conhecida.
 
 **Escopo no agente** — impedir loop quente de update após restart, preservar diagnóstico de falha e enviar evidência objetiva para o web sem novo endpoint.
 
@@ -112,6 +112,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
    - [x] anexar `attempt_count`, `cooldown_until`, `last_error_fingerprint` e `last_reason_code` em falhas/cooldown;
    - [x] anexar `report_fingerprint` estável por versão, status, SHA, estágio e fingerprint de erro;
    - [x] preservar `failure_class`, arquivo, SHA e estágio já existentes;
+   - [x] reportar `rolled_back` quando a reconexão mantém a versão anterior após tentativa de apply;
    - [x] cobrir contrato em `go test ./internal/domain/usecase -run 'SelfUpdate|Update'`.
 
 3) **Preflight local**

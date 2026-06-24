@@ -1087,11 +1087,11 @@ func (uc *SelfUpdate) ReportPendingResult(ctx context.Context) error {
 	if err := uc.reportStatus(
 		ctx,
 		payload,
-		"apply_failed",
+		"rolled_back",
 		"version_mismatch_after_restart",
 		fmt.Sprintf("expected target=%s current=%s", st.TargetVersion, version.Version),
 		version.Version,
-		withUpdateStage(reportMeta, "version_confirmed", "reconexao"),
+		withUpdateStage(reportMeta, "rolled_back", "reconexao"),
 	); err != nil {
 		return err
 	}
