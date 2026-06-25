@@ -210,7 +210,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	selfUpdateUC := usecase.NewSelfUpdate(cfg, log, prefStore.Get)
 	controlClient := agentlessremote.NewAgentControlClient(cfg)
 	var errorReportMu sync.Mutex
-	lastErrorReportAt := make(map[string]time.Time)
+	lastErrorReportState := make(map[string]workerErrorReportState)
 	reportWorkerError := func(ctx context.Context, errorType, severity, recovery string, err error, metadata map[string]any) {
 		if controlClient == nil {
 			return
@@ -225,16 +225,26 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		if recovery == "" {
 			recovery = "open"
 		}
-		fingerprint := workerErrorFingerprint(errorType, mode, summary)
+		if metadata == nil {
+			metadata = map[string]any{}
+		}
+		fingerprint := workerErrorFingerprint(errorType, mode, metadata)
 		now := time.Now()
+		minInterval := 30 * time.Minute
+		if recovery == "recovered" {
+			minInterval = 5 * time.Minute
+		}
 
 		errorReportMu.Lock()
-		lastAt := lastErrorReportAt[fingerprint]
-		if !lastAt.IsZero() && now.Sub(lastAt) < 60*time.Second {
+		state := lastErrorReportState[fingerprint]
+		if state.recovery == recovery && !state.reportedAt.IsZero() && now.Sub(state.reportedAt) < minInterval {
 			errorReportMu.Unlock()
 			return
 		}
-		lastErrorReportAt[fingerprint] = now
+		lastErrorReportState[fingerprint] = workerErrorReportState{
+			reportedAt: now,
+			recovery:   recovery,
+		}
 		errorReportMu.Unlock()
 
 		event := entities.WorkerErrorEvent{
@@ -248,10 +258,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			Metadata:       metadata,
 			OccurredAt:     now.UTC().Format(time.RFC3339),
 		}
-		if event.Metadata == nil {
-			event.Metadata = map[string]any{}
-		}
 		event.Metadata["agent_mode"] = mode
+		event.Metadata["fingerprint_scope"] = "error_type_mode_context"
 		if reportErr := controlClient.ReportWorkerErrors(ctx, []entities.WorkerErrorEvent{event}); reportErr != nil {
 			log.Error(logger.KV("worker error report failed",
 				"route", "/v1/agent/error-report",
@@ -259,6 +267,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				"err", reportErr,
 			))
 		}
+	}
+	reportWorkerRecovered := func(ctx context.Context, errorType string, metadata map[string]any) {
+		reportWorkerError(ctx, errorType, "info", "recovered", nil, metadata)
 	}
 
 	if err := selfUpdateUC.ReportPendingResult(ctx); err != nil {
@@ -776,11 +787,15 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			if err := containersUC.Execute(ctx); err != nil {
 				counters.collectErr.Add(1)
 				reportWorkerError(ctx, "collect_containers_failed", "warning", "open", err, map[string]any{"route": metricsEndpoint})
+			} else {
+				reportWorkerRecovered(ctx, "collect_containers_failed", map[string]any{"route": metricsEndpoint})
 			}
 		case <-readTick(tKubernetes):
 			if err := kubernetesUC.Execute(ctx); err != nil {
 				counters.collectErr.Add(1)
 				reportWorkerError(ctx, "collect_kubernetes_failed", "warning", "open", err, map[string]any{"route": metricsEndpoint})
+			} else {
+				reportWorkerRecovered(ctx, "collect_kubernetes_failed", map[string]any{"route": metricsEndpoint})
 			}
 		case <-readTick(tLocalChecks):
 			if err := localChecksUC.Execute(ctx); err != nil {
@@ -816,6 +831,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			} else {
 				counters.flushOK.Add(1)
 				counters.lastFlushBatch.Store(int64(n))
+				reportWorkerRecovered(ctx, "flush_outbox_failed", map[string]any{
+					"route": "/v1/ingest",
+				})
 			}
 			counters.lastFlushMs.Store(time.Since(start).Milliseconds())
 			if osLogFlushUC != nil {
@@ -828,6 +846,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				} else {
 					counters.flushOK.Add(1)
 					counters.lastFlushBatch.Store(int64(n))
+					reportWorkerRecovered(ctx, "flush_oslogs_failed", map[string]any{
+						"route": "/v1/logs/raw",
+					})
 				}
 				counters.lastFlushMs.Store(time.Since(start).Milliseconds())
 			}
@@ -836,10 +857,18 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				reportWorkerError(ctx, "api_connectivity_ping_failed", "warning", "open", err, map[string]any{
 					"route": "/v1/agent/ping",
 				})
+			} else {
+				reportWorkerRecovered(ctx, "api_connectivity_ping_failed", map[string]any{
+					"route": "/v1/agent/ping",
+				})
 			}
 		case <-readTick(tCfgSync):
 			if err := configSyncUC.Execute(ctx); err != nil {
 				reportWorkerError(ctx, "config_sync_failed", "warning", "open", err, map[string]any{
+					"route": "/v1/agent/config",
+				})
+			} else {
+				reportWorkerRecovered(ctx, "config_sync_failed", map[string]any{
 					"route": "/v1/agent/config",
 				})
 			}
@@ -1016,6 +1045,10 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 					reportWorkerError(ctx, "collect_oslogs_failed", "warning", "open", err, map[string]any{
 						"route": "/v1/logs/raw",
 					})
+				} else {
+					reportWorkerRecovered(ctx, "collect_oslogs_failed", map[string]any{
+						"route": "/v1/logs/raw",
+					})
 				}
 			}
 		case <-readTick(tAgentlessTick):
@@ -1069,6 +1102,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				})
 				break
 			}
+			reportWorkerRecovered(ctx, "selfheal_commands_pull_failed", map[string]any{
+				"route": "/v1/agent/selfheal-commands",
+			})
 			if len(commands) > 0 {
 				log.Info(logger.KV("selfheal commands fetched",
 					"count", len(commands),
@@ -1296,6 +1332,11 @@ type obsCounters struct {
 	lastCollectMs  atomic.Int64
 	lastFlushMs    atomic.Int64
 	lastFlushBatch atomic.Int64
+}
+
+type workerErrorReportState struct {
+	reportedAt time.Time
+	recovery   string
 }
 
 func processHandle() *ps.Process {
@@ -1700,8 +1741,13 @@ func truncateTextForErrorReport(text string, maxLen int) string {
 	return strings.TrimSpace(trimmed[:maxLen])
 }
 
-func workerErrorFingerprint(errorType, mode, summary string) string {
-	seed := strings.TrimSpace(errorType) + "|" + strings.TrimSpace(mode) + "|" + strings.TrimSpace(summary)
+func workerErrorFingerprint(errorType, mode string, metadata map[string]any) string {
+	seed := strings.TrimSpace(errorType) + "|" + strings.TrimSpace(mode)
+	for _, key := range []string{"route", "source", "name", "command_code"} {
+		if value := strings.TrimSpace(fmt.Sprint(metadata[key])); value != "" && value != "<nil>" {
+			seed += "|" + key + "=" + value
+		}
+	}
 	hash := sha1.Sum([]byte(seed))
 	return fmt.Sprintf("%x", hash)
 }

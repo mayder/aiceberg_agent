@@ -43,6 +43,46 @@ Registro oficial de bugs conhecidos, reprodução, impacto, correção e reteste
 
 ## Organização
 
+## [BUG-20260624-02] Falhas recorrentes do worker eram reabertas indefinidamente
+
+Status: corrigido
+Severidade: Alta
+Área: Observabilidade do agente
+Módulo: `internal/bootstrap/app.go`
+Pacote relacionado: observabilidade operacional
+Tela relacionada: Detalhe do agente
+Data: 2026-06-24
+
+Reprodução:
+- Agente com falha recorrente em oslogs, containers, kubernetes, flush, ping, config ou self-healing.
+- A cada janela de coleta, o agente reportava `recovery_status=open` novamente.
+- A web acumulava milhares de ocorrências abertas.
+
+Esperado:
+- Fingerprint estável por tipo/modo/contexto operacional.
+- Falha repetida deve ter throttle maior.
+- Sucesso posterior deve reportar `recovered` para fechar o estado aberto.
+
+Observado:
+- Fingerprint incluía texto do erro, que pode variar.
+- Throttle era curto.
+- Ciclo com sucesso não emitia recuperação para os tipos recorrentes.
+
+Causa provável:
+- O reportador local registrava falhas, mas não modelava estado de recuperação.
+
+Hipóteses alternativas:
+- Falhas reais de backend ou permissão devem continuar aparecendo, mas sem multiplicar indefinidamente o estado aberto.
+
+Correção:
+- Fingerprint usa `error_type`, modo e contexto estável (`route`, `source`, `name`, `command_code`).
+- Repetição do mesmo estado fica limitada a 30 minutos para `open` e 5 minutos para `recovered`.
+- Ciclos bem-sucedidos de containers, Kubernetes, flush, ping, config, oslogs e self-healing reportam `recovered`.
+
+Critério de fechamento:
+- `go test ./internal/bootstrap ./internal/data/remote` passa.
+- O agente não infla indefinidamente o contador de ocorrências abertas para a mesma falha recorrente.
+
 ## [BUG-20260620-01] Coleta vazia de oslogs era tratada como erro e podia virar log bruto
 
 Status: corrigido
