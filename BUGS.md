@@ -43,6 +43,45 @@ Registro oficial de bugs conhecidos, reprodução, impacto, correção e reteste
 
 ## Organização
 
+## [BUG-20260701-01] Amostra de CPU Windows podia reportar 100% falso
+
+Status: corrigido
+Severidade: Alta
+Área: Métricas do agente
+Módulo: `internal/platform/collectors/sysmetrics`
+Pacote relacionado: observabilidade operacional do agente
+Tela relacionada: Detalhe do agente / alertas de threshold
+Data: 2026-07-01
+
+Reprodução:
+- Agente Windows `0.8.37` coletando `sysmetrics`.
+- Backend recebia `cpu.percent_total=100` enquanto `percent_per_cpu` vinha baixo ou em padrão binário `0/100`.
+- Windows Task Manager/Resource Monitor mostravam uso real próximo de 1%.
+
+Esperado:
+- A CPU total deve representar a média real da janela de coleta.
+- Amostra incoerente deve ser omitida para não abrir alerta falso.
+
+Observado:
+- `cpu.PercentWithContext(ctx, 0, false)` seguido de `cpu.PercentWithContext(ctx, 0, true)` gerava amostra instantânea incoerente no Windows.
+
+Causa provável:
+- Uso de intervalo `0` no gopsutil em duas leituras sequenciais de CPU no Windows.
+
+Hipóteses alternativas:
+- Saturação real de poucos núcleos deve continuar visível, mas não pode virar CPU total 100% sem média coerente.
+
+Correção:
+- Coleta de CPU passa a usar janela curta de amostragem.
+- CPU total passa a ser derivada da média por núcleo quando a amostra por núcleo é coerente.
+- Padrão binário `0/100` no Windows é descartado na amostra atual.
+- Versão do agente elevada para `0.8.38`.
+
+Critério de fechamento:
+- `go test ./internal/platform/collectors/sysmetrics` passa.
+- `./check.sh` passa.
+- Artefatos `0.8.38` são gerados por `./scripts/build_installers.sh` e publicados no web.
+
 ## [BUG-20260624-02] Falhas recorrentes do worker eram reabertas indefinidamente
 
 Status: corrigido

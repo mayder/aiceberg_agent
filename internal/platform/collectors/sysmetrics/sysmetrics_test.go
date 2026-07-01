@@ -3,6 +3,7 @@ package sysmetrics
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,7 +157,7 @@ func TestListLinuxPackagesSkipsFullInventoryByDefault(t *testing.T) {
 func TestBuildPerformanceProfileSanitizesProcessCommand(t *testing.T) {
 	mem := &memSnapshot{Total: 1000}
 	profile := buildPerformanceProfile(snapshot{
-		CPU:    &cpuSnapshot{PercentTotal: 91.234},
+		CPU:    &cpuSnapshot{PercentTotal: float64Ptr(91.234)},
 		Memory: mem,
 		Processes: []procSnapshot{
 			{
@@ -184,6 +185,28 @@ func TestBuildPerformanceProfileSanitizesProcessCommand(t *testing.T) {
 	}
 	if profile.AgentRuntime == nil || profile.AgentRuntime.Version == "" {
 		t.Fatalf("expected agent runtime telemetry: %#v", profile.AgentRuntime)
+	}
+}
+
+func TestAverageCPUPercentNormalizesSamples(t *testing.T) {
+	got := averageCPUPercent(normalizeCPUPercentList([]float64{10.0, 20.0, 150.0, -1.0}))
+
+	if math.Abs(got-43.333333333333336) > 0.000001 {
+		t.Fatalf("unexpected average: %v", got)
+	}
+}
+
+func TestLooksLikeBinaryCPUArtifactOnlyForWindows(t *testing.T) {
+	sample := []float64{100, 0, 0, 100, 0, 0, 100, 100}
+
+	if !looksLikeBinaryCPUArtifact("windows", sample) {
+		t.Fatalf("expected windows binary artifact")
+	}
+	if looksLikeBinaryCPUArtifact("linux", sample) {
+		t.Fatalf("did not expect linux binary artifact")
+	}
+	if looksLikeBinaryCPUArtifact("windows", []float64{92, 94, 95, 93, 96, 97, 91, 90}) {
+		t.Fatalf("did not expect real high CPU sample to be treated as binary artifact")
 	}
 }
 
@@ -220,6 +243,10 @@ func TestAgentRuntimeProfileReportsOwnFootprint(t *testing.T) {
 	if !foundOutbox {
 		t.Fatalf("expected outbox footprint in %#v", profile.StorageLocations)
 	}
+}
+
+func float64Ptr(value float64) *float64 {
+	return &value
 }
 
 func containsAny(text string, needles []string) bool {
