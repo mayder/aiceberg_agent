@@ -190,6 +190,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Contrato: validar `performance_profile` aditivo em `sysmetrics`, com `resources`, `processes`, `checks` e `gaps`.
 - Segurança: validar redaction de command line para token, senha, secret, authorization, api key e bearer.
 - Validacao produtiva complementar em 24/06/2026: agentes InspectApp `1`, `4`, `18`, `19`, `70` e `71` enviaram `performance_profile` recente em `/v1/ingest/metrics`, com `resources=yes`, 10 processos e 5 checks por host.
+- Hotfix Windows CPU `0.8.38`: `go test ./internal/platform/collectors/sysmetrics` e `./check.sh` passaram em 01/07/2026; a coleta deixa de usar amostra `0s` e descarta padrão Windows binário `0/100`.
 - Fechamento coordenado com web: rodar `./check.sh` neste repo e no `aiceberg_web`.
 - Fechamento: rodar `./check.sh`.
 - Validacao real fechada pelo PKG-69 aceito em 2026-06-19: Windows, Linux, container, perda de rede, API indisponivel, disco cheio/outbox preservada, proxy/TLS e agente instalado anteriormente.
@@ -218,6 +219,7 @@ Regra principal: teste não pode depender de dado real instável, estado manual 
 - Inventário Linux `0.8.36`: `go test ./internal/platform/collectors/sysmetrics -run 'TestListLinuxPackagesSkipsFullInventoryByDefault|TestLinuxSecurityUpdatesSkipsDnfByDefault|TestBoundedContext|TestCollect_RespectsPrefs' -count=1 -v` passou em 24/06/2026 cobrindo que `rpm/dpkg` ficam fora do hot path por padrão.
 - Fechamento PKG-84 em 24/06/2026: `go test ./internal/domain/usecase -run 'TestSelfUpdate_(ReportIncludesDownloadMetadata|PreflightFailsWhenStagingIsNotWritable|PreflightFailsWhenStagingHasLowSpace|PreflightFailsWhenInstallDirIsNotWritable|ApplyFailureReportsExitCodeCooldownAndClearsPending|PersistsCooldownAcrossInstances|DownloadResumesPartialFileWithRange|DownloadRestartsWhenPartialRangeIsNotSatisfiable|DownloadTimeoutDoesNotFinalizePartialFile|ChecksumMismatch|RejectsInvalidTrustedArtifactSignature|ReportPendingResultMarksVersionMismatchAfterRollback|ReportPendingResultConfirmsVersionAfterReconnect|SnapshotIncludesPendingStateMetadata|CleanupOldUpdateStagingKeepsCurrentAndMetadata)' -count=1 -v` passou cobrindo preflight, staging, espaço, permissão, hash, assinatura, download lento/parcial, `416`, falha de apply, cooldown, confirmação de versão, rollback por mismatch/reconexão e retenção segura de staging. Produção confirmou agentes InspectApp `1`, `4`, `18`, `19`, `70`, `71` em `0.8.36`, `version_confirmed`, sem pendência.
 - Fechamento coordenado com web: rodar `./check.sh`, gerar instaladores, publicar artefatos versionados e validar update real nos agentes InspectApp.
+- Artefatos agente `0.8.38`: gerados no `aiceberg_agent` por `./scripts/build_installers.sh`, copiados para `aiceberg_web/cliente/web/downloads/agent/0.8.38/` e acompanhados de `SHA256SUMS` (`linux-amd64=b7960ed8acbd2be261e93df47049199c205ae9d72c7b395653cadec97bc2a94d`, `windows-amd64=6dd988870184f0c8c6224b7104b32cbb1fc754b6cbedfb16ca317f1c20ceb4f5`). O pacote corrige amostragem de CPU Windows para evitar alertas falsos de 100%.
 
 ## PKG-60 - Pipeline seguro de logs
 

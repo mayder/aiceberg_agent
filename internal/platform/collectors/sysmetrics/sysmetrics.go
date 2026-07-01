@@ -52,6 +52,7 @@ type AgentRuntimeStats struct {
 const (
 	linuxInventoryTimeout      = 5 * time.Second
 	linuxPackageCommandTimeout = 3 * time.Second
+	cpuPercentSampleInterval   = 250 * time.Millisecond
 	processSnapshotTimeout     = 2 * time.Second
 	processSnapshotScanLimit   = 200
 )
@@ -67,6 +68,76 @@ func New(queueStats func() (int, int64), prefsProvider func() config.CollectPref
 func (c *collector) Name() string { return "sysmetrics" }
 
 func (c *collector) Interval() time.Duration { return 10 * time.Second }
+
+func collectCPUUsage(ctx context.Context) (float64, []float64, bool) {
+	if perCPU, err := cpu.PercentWithContext(ctx, cpuPercentSampleInterval, true); err == nil {
+		perCPU = normalizeCPUPercentList(perCPU)
+		if len(perCPU) > 0 {
+			if looksLikeBinaryCPUArtifact(runtime.GOOS, perCPU) {
+				return 0, nil, false
+			}
+			return averageCPUPercent(perCPU), perCPU, true
+		}
+	}
+
+	if totals, err := cpu.PercentWithContext(ctx, cpuPercentSampleInterval, false); err == nil && len(totals) > 0 {
+		if total, ok := normalizeCPUPercent(totals[0]); ok {
+			return total, nil, true
+		}
+	}
+
+	return 0, nil, false
+}
+
+func normalizeCPUPercentList(values []float64) []float64 {
+	out := make([]float64, 0, len(values))
+	for _, value := range values {
+		if normalized, ok := normalizeCPUPercent(value); ok {
+			out = append(out, normalized)
+		}
+	}
+	return out
+}
+
+func normalizeCPUPercent(value float64) (float64, bool) {
+	if value != value || value < 0 {
+		return 0, false
+	}
+	if value > 100 {
+		return 100, true
+	}
+	return value, true
+}
+
+func averageCPUPercent(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	total := 0.0
+	for _, value := range values {
+		total += value
+	}
+	return total / float64(len(values))
+}
+
+func looksLikeBinaryCPUArtifact(goos string, values []float64) bool {
+	if goos != "windows" || len(values) < 8 {
+		return false
+	}
+
+	zeroish := 0
+	hundredish := 0
+	for _, value := range values {
+		if value <= 0.01 {
+			zeroish++
+		} else if value >= 99.99 {
+			hundredish++
+		}
+	}
+
+	binaryRatio := float64(zeroish+hundredish) / float64(len(values))
+	return zeroish > 0 && hundredish > 0 && binaryRatio >= 0.80
+}
 
 type snapshot struct {
 	Capabilities map[string]bool     `json:"capabilities,omitempty"`
@@ -92,7 +163,7 @@ type snapshot struct {
 }
 
 type cpuSnapshot struct {
-	PercentTotal   float64   `json:"percent_total"`
+	PercentTotal   *float64  `json:"percent_total,omitempty"`
 	PercentPerCPU  []float64 `json:"percent_per_cpu,omitempty"`
 	Load1          float64   `json:"load1,omitempty"`
 	Load5          float64   `json:"load5,omitempty"`
@@ -497,11 +568,8 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	if p.CPU {
 		cpuOk := false
 		cpuSnap := &cpuSnapshot{}
-		if totals, err := cpu.PercentWithContext(ctx, 0, false); err == nil && len(totals) > 0 {
-			cpuSnap.PercentTotal = totals[0]
-			cpuOk = true
-		}
-		if perCPU, err := cpu.PercentWithContext(ctx, 0, true); err == nil {
+		if total, perCPU, ok := collectCPUUsage(ctx); ok {
+			cpuSnap.PercentTotal = &total
 			cpuSnap.PercentPerCPU = perCPU
 			cpuOk = true
 		}
@@ -1502,8 +1570,8 @@ func buildPerformanceProfile(s snapshot, p config.CollectPrefs) *performanceProf
 	}
 
 	var gaps []string
-	if s.CPU != nil {
-		cpuPercent := roundFloat(s.CPU.PercentTotal, 2)
+	if s.CPU != nil && s.CPU.PercentTotal != nil {
+		cpuPercent := roundFloat(*s.CPU.PercentTotal, 2)
 		profile.Resources.CPUPercent = &cpuPercent
 	} else if !p.CPU {
 		gaps = append(gaps, "cpu_disabled")
