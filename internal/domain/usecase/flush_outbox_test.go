@@ -144,6 +144,52 @@ func TestFlushOutbox_TransportError(t *testing.T) {
 	}
 }
 
+func TestFlushOutbox_RetainsBatchWhenIngestDidNotPersist(t *testing.T) {
+	outbox := &fakeOutbox{batch: []entities.Envelope{
+		{ID: "network-1", AuthHeader: "Token a", Endpoint: "/v1/ingest/network_capture", AgentID: "a"},
+	}}
+	log := &fakeLogger{}
+	tx := &fakeTransport{body: []byte(`{"received":0,"skipped":1,"status":"ok","errors_by_reason":{"persist_failed":1}}`)}
+	uc := NewFlushOutbox(outbox, tx, log, "Token default", nil)
+
+	n, err := uc.Execute(context.Background())
+	if err == nil {
+		t.Fatalf("expected ingest ack error")
+	}
+	if n != 0 {
+		t.Fatalf("expected no acked envelopes, got %d", n)
+	}
+	if len(outbox.acked) != 0 {
+		t.Fatalf("expected no outbox ack, got %#v", outbox.acked)
+	}
+	snap := uc.Snapshot()
+	if snap.LastErrorRoute != "/v1/ingest/network_capture" || snap.LastRetained != 1 {
+		t.Fatalf("expected retained network capture snapshot, got %#v", snap)
+	}
+	if len(log.err) == 0 {
+		t.Fatalf("expected error log for retained ingest batch")
+	}
+}
+
+func TestFlushOutbox_AcksDuplicateEnvelopeSkip(t *testing.T) {
+	outbox := &fakeOutbox{batch: []entities.Envelope{
+		{ID: "network-dup", AuthHeader: "Token a", Endpoint: "/v1/ingest/network_capture", AgentID: "a"},
+	}}
+	tx := &fakeTransport{body: []byte(`{"received":0,"skipped":1,"status":"ok","errors_by_reason":{"duplicate_envelope_id":1}}`)}
+	uc := NewFlushOutbox(outbox, tx, &fakeLogger{}, "Token default", nil)
+
+	n, err := uc.Execute(context.Background())
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("expected duplicate envelope to be acked, got %d", n)
+	}
+	if len(outbox.acked) != 1 || !equalStrings(outbox.acked[0], []string{"network-dup"}) {
+		t.Fatalf("expected duplicate ack, got %#v", outbox.acked)
+	}
+}
+
 func TestFlushOutbox_PartialAckWhenMetricsTimeout(t *testing.T) {
 	outbox := &fakeOutbox{}
 	log := &fakeLogger{}

@@ -19,6 +19,20 @@ if [[ ! -x "$APPLY_SCRIPT" ]]; then
   fail "Script de apply não encontrado/executável: $APPLY_SCRIPT"
 fi
 
+resolve_bin_dst() {
+  if [[ -n "${AICEBERG_UPDATE_BIN_DST:-}" ]]; then
+    printf '%s' "$AICEBERG_UPDATE_BIN_DST"
+    return
+  fi
+  if [[ -n "${AICEBERG_AGENT_BIN:-}" ]]; then
+    printf '%s' "$AICEBERG_AGENT_BIN"
+    return
+  fi
+  printf '%s' "/usr/local/bin/aiceberg_agent"
+}
+
+UPDATE_BIN_DST="$(resolve_bin_dst)"
+
 run_as_root() {
   if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
     "$@"
@@ -52,7 +66,7 @@ run_systemd_unit() {
       --setenv=AICEBERG_AGENT_HEALTH_URL="${AICEBERG_AGENT_HEALTH_URL:-}" \
       --setenv=AICEBERG_UPDATE_RESTART_COMMAND="${AICEBERG_UPDATE_RESTART_COMMAND:-}" \
       --setenv=AICEBERG_UPDATE_SERVICE="${AICEBERG_UPDATE_SERVICE:-aiceberg-agent}" \
-      --setenv=AICEBERG_UPDATE_BIN_DST="${AICEBERG_UPDATE_BIN_DST:-/usr/local/bin/aiceberg_agent}" \
+      --setenv=AICEBERG_UPDATE_BIN_DST="${UPDATE_BIN_DST}" \
       "$APPLY_SCRIPT" >/dev/null
   log "update enfileirado em unidade transitória: $unit"
 }
@@ -75,7 +89,7 @@ run_fallback_bg() {
       AICEBERG_AGENT_HEALTH_URL="${AICEBERG_AGENT_HEALTH_URL:-}" \
       AICEBERG_UPDATE_RESTART_COMMAND="${AICEBERG_UPDATE_RESTART_COMMAND:-}" \
       AICEBERG_UPDATE_SERVICE="${AICEBERG_UPDATE_SERVICE:-aiceberg-agent}" \
-      AICEBERG_UPDATE_BIN_DST="${AICEBERG_UPDATE_BIN_DST:-/usr/local/bin/aiceberg_agent}" \
+      AICEBERG_UPDATE_BIN_DST="${UPDATE_BIN_DST}" \
       "$APPLY_SCRIPT" >>"$log_file" 2>&1 < /dev/null &
   elif command -v sudo >/dev/null 2>&1; then
     nohup sudo -n env \
@@ -92,7 +106,7 @@ run_fallback_bg() {
       AICEBERG_AGENT_HEALTH_URL="${AICEBERG_AGENT_HEALTH_URL:-}" \
       AICEBERG_UPDATE_RESTART_COMMAND="${AICEBERG_UPDATE_RESTART_COMMAND:-}" \
       AICEBERG_UPDATE_SERVICE="${AICEBERG_UPDATE_SERVICE:-aiceberg-agent}" \
-      AICEBERG_UPDATE_BIN_DST="${AICEBERG_UPDATE_BIN_DST:-/usr/local/bin/aiceberg_agent}" \
+      AICEBERG_UPDATE_BIN_DST="${UPDATE_BIN_DST}" \
       "$APPLY_SCRIPT" >>"$log_file" 2>&1 < /dev/null &
   else
     fail "não foi possível elevar privilégio para iniciar apply em background."

@@ -208,9 +208,9 @@ func TestSelfUpdate_RunCommand(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	command := `test -f "$AICEBERG_UPDATE_FILE"`
+	command := `test -f "$AICEBERG_UPDATE_FILE" && test -n "$AICEBERG_AGENT_BIN" && test "$AICEBERG_UPDATE_BIN_DST" = "$AICEBERG_AGENT_BIN"`
 	if runtime.GOOS == "windows" {
-		command = `if (!(Test-Path $env:AICEBERG_UPDATE_FILE)) { exit 1 }`
+		command = `if (!(Test-Path $env:AICEBERG_UPDATE_FILE)) { exit 1 }; if ([string]::IsNullOrWhiteSpace($env:AICEBERG_AGENT_BIN)) { exit 1 }; if ($env:AICEBERG_UPDATE_BIN_DST -ne $env:AICEBERG_AGENT_BIN) { exit 1 }`
 	}
 
 	cfg := config.Config{

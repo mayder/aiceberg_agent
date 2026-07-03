@@ -42,6 +42,17 @@ Referências:
 
 ## Decisões
 
+### DEC-20260703-01 - Destino do self-update Linux segue o binario em execucao
+
+- Status: aceita
+- Contexto: hosts Linux podem executar o agente fora de `/usr/local/bin`, como `/opt/aiceberg/bin/aiceberg_agent`; o launcher antigo podia aplicar o pacote no destino default e reiniciar o serviço ainda apontando para outro binário.
+- Decisao: o agente exporta `AICEBERG_UPDATE_BIN_DST` igual ao executável em uso. O launcher/apply Linux resolvem destino por prioridade: `AICEBERG_UPDATE_BIN_DST`, `AICEBERG_AGENT_BIN`, `/usr/local/bin/aiceberg_agent`.
+- Alternativas consideradas: exigir ajuste manual de `AUTO_UPDATE_COMMAND` por cliente ou manter apenas fallback no script.
+- Consequencias: instalações em caminho alternativo atualizam o binário correto; instalações legadas em `/usr/local/bin` continuam compatíveis.
+- Impacto em testes: `TestSelfUpdate_RunCommand` valida `AICEBERG_UPDATE_BIN_DST == AICEBERG_AGENT_BIN`; `bash -n` cobre sintaxe dos scripts Linux.
+- Impacto em rollback: publicar versão anterior do agente ou definir `AICEBERG_UPDATE_BIN_DST` explicitamente no comando manual.
+- Como reverter: remover a exportação de `AICEBERG_UPDATE_BIN_DST` e voltar o default rígido do launcher/apply.
+
 ### DEC-20260624-01 - Perfil local de performance como seção aditiva do sysmetrics
 
 - Status: aceita

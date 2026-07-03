@@ -175,6 +175,37 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 			}
 		}
 		uc.applyBackpressure(key, group.endpoint, respBody)
+		ackResult, err := parseIngestAckResult(respBody)
+		if err != nil {
+			retained += len(list)
+			uc.recordIngestAckFailure(group.endpoint, len(list), err)
+			uc.log.Error(logger.KV("ingest response parse failed",
+				"route", group.endpoint,
+				"batch_size", len(list),
+				"err", err,
+			))
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if !ingestAckIsSafe(ackResult, len(list)) {
+			retained += len(list)
+			err := errors.New("ingest response did not acknowledge batch")
+			uc.recordIngestAckFailure(group.endpoint, len(list), err)
+			uc.log.Error(logger.KV("ingest batch retained",
+				"route", group.endpoint,
+				"batch_size", len(list),
+				"received", ackResult.Received,
+				"skipped", ackResult.Skipped,
+				"errors_by_reason", ackResult.ErrorsByReason,
+				"err", err,
+			))
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
 		ids := envelopeIDs(list)
 		if err := uc.outbox.Ack(ids); err != nil {
 			uc.log.Error(logger.KV("ack failed",
@@ -272,6 +303,14 @@ func (uc *FlushOutbox) resetBackoff(key string) {
 	uc.mu.Lock()
 	defer uc.mu.Unlock()
 	delete(uc.backoff, key)
+}
+
+func (uc *FlushOutbox) recordIngestAckFailure(endpoint string, batchSize int, err error) {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+	uc.snapshot.LastError = err.Error()
+	uc.snapshot.LastErrorRoute = endpoint
+	uc.snapshot.LastErrorBatch = batchSize
 }
 
 func (uc *FlushOutbox) recordAck(endpoint string, batchSize int) {

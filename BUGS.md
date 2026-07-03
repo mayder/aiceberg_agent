@@ -43,6 +43,87 @@ Registro oficial de bugs conhecidos, reprodução, impacto, correção e reteste
 
 ## Organização
 
+## [BUG-20260703-01] Update Linux podia instalar em binário diferente do serviço
+
+Status: corrigido
+Severidade: Alta
+Área: Auto-update do agente
+Módulo: `internal/domain/usecase`, `scripts/linux`
+Pacote relacionado: PKG-84
+Tela relacionada: Detalhe do agente / update remoto
+Data: 2026-07-03
+
+Reprodução:
+- Host Linux executava o serviço a partir de `/opt/aiceberg/bin/aiceberg_agent`.
+- O launcher recebia `AICEBERG_AGENT_BIN=/opt/aiceberg/bin/aiceberg_agent`, mas não recebia `AICEBERG_UPDATE_BIN_DST`.
+- O apply Linux usava fallback rígido para `/usr/local/bin/aiceberg_agent`.
+- Após restart, o update podia confirmar ou retornar `version_mismatch_after_restart` contra o binário errado.
+
+Esperado:
+- O update deve substituir o mesmo binário que o serviço está executando.
+- `version_confirmed` só deve ocorrer quando o processo ativo corresponde ao alvo instalado.
+
+Observado:
+- O update podia concluir com `bin=/usr/local/bin/aiceberg_agent` mesmo quando o agente ativo era `/opt/aiceberg/bin/aiceberg_agent`.
+
+Causa provável:
+- O agente exportava `AICEBERG_AGENT_BIN`, mas não exportava `AICEBERG_UPDATE_BIN_DST`.
+- O launcher/apply Linux priorizava o destino default em vez do binário em execução.
+
+Hipóteses alternativas:
+- Instalações antigas em `/usr/local/bin/aiceberg_agent` devem continuar funcionando pelo fallback legado.
+
+Correção:
+- O agente passa `AICEBERG_UPDATE_BIN_DST` igual ao binário em execução.
+- O launcher Linux resolve destino por prioridade: `AICEBERG_UPDATE_BIN_DST`, `AICEBERG_AGENT_BIN`, `/usr/local/bin/aiceberg_agent`.
+- O apply Linux usa o mesmo fallback.
+- Versão do agente elevada para `0.8.40`.
+
+Critério de fechamento:
+- `go test ./internal/domain/usecase -run 'TestSelfUpdate_(RunCommand|ReportPendingResultMarksVersionMismatchAfterRollback|ReportPendingResultConfirmsVersionAfterReconnect|ApplyFailureReportsExitCodeCooldownAndClearsPending|SnapshotIncludesPendingStateMetadata)' -count=1 -v` passa.
+- `bash -n scripts/linux/aiceberg-agent-update-launcher.sh scripts/linux/aiceberg-agent-apply-update.sh` passa.
+- `./check.sh` passa.
+- Artefatos `0.8.40` são gerados por `./scripts/build_installers.sh` e publicados no web.
+
+## [BUG-20260702-01] Flush podia ACKar ingestão não persistida
+
+Status: corrigido
+Severidade: Alta
+Área: Forwarder/outbox do agente
+Módulo: `internal/domain/usecase`
+Pacote relacionado: mapa de rede e ingestão resiliente
+Tela relacionada: Mapa de rede
+Data: 2026-07-02
+
+Reprodução:
+- Agente Linux executava coleta sob demanda `network_capture`.
+- Backend respondia HTTP 200 com `received=0`, `skipped=1` e motivo não idempotente, como `persist_failed`.
+- O agente registrava `flushed ... acked=...` e removia o envelope da outbox.
+
+Esperado:
+- HTTP 200 só deve remover o lote da outbox quando o corpo confirmar persistência ou skip seguro/idempotente.
+- Falha de persistência deve manter o envelope para retry e diagnóstico.
+
+Observado:
+- O flush considerava qualquer HTTP 2xx como ACK definitivo, mesmo sem snapshot persistido no backend.
+
+Causa provável:
+- O contrato do `FlushOutbox` validava apenas status HTTP, sem interpretar `received`, `skipped` e `errors_by_reason`.
+
+Hipóteses alternativas:
+- Duplicidade real por `envelope_id` deve continuar sendo ACK seguro para não reter lote já aceito.
+
+Correção:
+- O flush passa a interpretar o corpo de resposta da ingestão.
+- `duplicate_envelope_id` e `invalid_envelope` continuam ACK seguros.
+- `persist_failed`, falhas de autenticação/identidade e demais skips não idempotentes retêm o lote e registram erro operacional.
+- Versão do agente elevada para `0.8.39`.
+
+Critério de fechamento:
+- `go test ./internal/domain/usecase -run 'TestFlushOutbox_(RetainsBatchWhenIngestDidNotPersist|AcksDuplicateEnvelopeSkip)' -count=1 -v` passa.
+- `./check.sh` passa.
+- Artefatos `0.8.39` são gerados por `./scripts/build_installers.sh` e publicados no web.
+
 ## [BUG-20260701-01] Amostra de CPU Windows podia reportar 100% falso
 
 Status: corrigido

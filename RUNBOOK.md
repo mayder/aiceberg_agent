@@ -365,6 +365,7 @@ Operacao segura:
 - download valida SHA256 e assinatura antes do apply;
 - arquivo `.part` pode ser retomado com `Range` quando o servidor suporta `206 Partial Content`;
 - scripts oficiais Linux fazem backup do binario atual antes da troca e tentam rollback se o restart falhar;
+- em Linux, o destino do update deve ser o mesmo binario em execucao (`AICEBERG_UPDATE_BIN_DST`, fallback `AICEBERG_AGENT_BIN`, fallback legado `/usr/local/bin/aiceberg_agent`);
 - falha repetida deve respeitar `.update_cooldown.json`, evitando loop quente apos restart.
 
 Rollback:
