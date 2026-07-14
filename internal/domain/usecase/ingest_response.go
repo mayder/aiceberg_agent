@@ -17,6 +17,14 @@ type IngestBackpressure struct {
 	ErrorsByReason     map[string]int
 }
 
+type IngestAckResult struct {
+	Received       int
+	Skipped        int
+	Status         string
+	ErrorsByReason map[string]int
+	HasAckFields   bool
+}
+
 type IngestConfigHandler func(authHeader string, cfg IngestConfig)
 
 func parseIngestConfig(body []byte) (*IngestConfig, error) {
@@ -65,4 +73,87 @@ func parseIngestBackpressure(body []byte) (*IngestBackpressure, error) {
 		DegradedEndpoint:   wrapper.DegradedEndpoint,
 		ErrorsByReason:     wrapper.ErrorsByReason,
 	}, nil
+}
+
+func parseIngestAckResult(body []byte) (*IngestAckResult, error) {
+	if len(bytes.TrimSpace(body)) == 0 {
+		return nil, nil
+	}
+	var wrapper struct {
+		Received       *int           `json:"received,omitempty"`
+		Skipped        *int           `json:"skipped,omitempty"`
+		Status         string         `json:"status,omitempty"`
+		ErrorsByReason map[string]int `json:"errors_by_reason,omitempty"`
+	}
+	if err := json.Unmarshal(body, &wrapper); err != nil {
+		return nil, err
+	}
+	hasAckFields := wrapper.Received != nil || wrapper.Skipped != nil || len(wrapper.ErrorsByReason) > 0
+	if !hasAckFields {
+		return nil, nil
+	}
+	result := &IngestAckResult{
+		Status:         wrapper.Status,
+		ErrorsByReason: wrapper.ErrorsByReason,
+		HasAckFields:   hasAckFields,
+	}
+	if wrapper.Received != nil {
+		result.Received = *wrapper.Received
+	}
+	if wrapper.Skipped != nil {
+		result.Skipped = *wrapper.Skipped
+	}
+	return result, nil
+}
+
+func ingestAckIsSafe(result *IngestAckResult, batchSize int) bool {
+	if result == nil || !result.HasAckFields || batchSize <= 0 {
+		return true
+	}
+	if result.Received >= batchSize {
+		return true
+	}
+	if result.Received < 0 || result.Skipped < 0 {
+		return false
+	}
+	if result.Received+result.Skipped < batchSize {
+		return false
+	}
+	for reason, count := range result.ErrorsByReason {
+		if count <= 0 {
+			continue
+		}
+		if !isSafeIngestSkipReason(reason) {
+			return false
+		}
+	}
+	return result.Received+safeSkippedCount(result) >= batchSize
+}
+
+func safeSkippedCount(result *IngestAckResult) int {
+	if result == nil || result.Skipped <= 0 {
+		return 0
+	}
+	if len(result.ErrorsByReason) == 0 {
+		return 0
+	}
+	total := 0
+	for reason, count := range result.ErrorsByReason {
+		if count > 0 && isSafeIngestSkipReason(reason) {
+			total += count
+		}
+	}
+	if total > result.Skipped {
+		return result.Skipped
+	}
+	return total
+}
+
+func isSafeIngestSkipReason(reason string) bool {
+	switch reason {
+	case "duplicate_envelope_id", "invalid_envelope":
+		return true
+	default:
+		return false
+	}
 }

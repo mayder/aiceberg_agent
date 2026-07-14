@@ -43,6 +43,45 @@ Registro oficial de bugs conhecidos, reprodução, impacto, correção e reteste
 
 ## Organização
 
+## [BUG-20260702-01] Flush podia ACKar ingestão não persistida
+
+Status: corrigido
+Severidade: Alta
+Área: Forwarder/outbox do agente
+Módulo: `internal/domain/usecase`
+Pacote relacionado: mapa de rede e ingestão resiliente
+Tela relacionada: Mapa de rede
+Data: 2026-07-02
+
+Reprodução:
+- Agente Linux executava coleta sob demanda `network_capture`.
+- Backend respondia HTTP 200 com `received=0`, `skipped=1` e motivo não idempotente, como `persist_failed`.
+- O agente registrava `flushed ... acked=...` e removia o envelope da outbox.
+
+Esperado:
+- HTTP 200 só deve remover o lote da outbox quando o corpo confirmar persistência ou skip seguro/idempotente.
+- Falha de persistência deve manter o envelope para retry e diagnóstico.
+
+Observado:
+- O flush considerava qualquer HTTP 2xx como ACK definitivo, mesmo sem snapshot persistido no backend.
+
+Causa provável:
+- O contrato do `FlushOutbox` validava apenas status HTTP, sem interpretar `received`, `skipped` e `errors_by_reason`.
+
+Hipóteses alternativas:
+- Duplicidade real por `envelope_id` deve continuar sendo ACK seguro para não reter lote já aceito.
+
+Correção:
+- O flush passa a interpretar o corpo de resposta da ingestão.
+- `duplicate_envelope_id` e `invalid_envelope` continuam ACK seguros.
+- `persist_failed`, falhas de autenticação/identidade e demais skips não idempotentes retêm o lote e registram erro operacional.
+- Versão do agente elevada para `0.8.39`.
+
+Critério de fechamento:
+- `go test ./internal/domain/usecase -run 'TestFlushOutbox_(RetainsBatchWhenIngestDidNotPersist|AcksDuplicateEnvelopeSkip)' -count=1 -v` passa.
+- `./check.sh` passa.
+- Artefatos `0.8.39` são gerados por `./scripts/build_installers.sh` e publicados no web.
+
 ## [BUG-20260701-01] Amostra de CPU Windows podia reportar 100% falso
 
 Status: corrigido

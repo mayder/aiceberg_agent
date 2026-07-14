@@ -872,6 +872,7 @@ func (uc *SelfUpdate) runCommand(ctx context.Context, payload *UpdatePayload, fi
 		"AICEBERG_UPDATE_DIR="+filepath.Dir(filePath),
 		"AICEBERG_AGENT_VERSION_CURRENT="+version.Version,
 		"AICEBERG_AGENT_BIN="+exePath,
+		"AICEBERG_UPDATE_BIN_DST="+exePath,
 		"AICEBERG_AGENT_PID_FILE="+pidFile,
 		"AICEBERG_AGENT_STDOUT_LOG="+inferAgentRestartLogFile(pidFile),
 		"AICEBERG_AGENT_HEALTH_URL="+uc.localHealthURL(),
