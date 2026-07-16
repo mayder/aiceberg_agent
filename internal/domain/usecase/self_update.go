@@ -1297,6 +1297,9 @@ func (uc *SelfUpdate) reportStatus(ctx context.Context, payload *UpdatePayload, 
 		}
 		req.Header.Set("Content-Type", "application/json")
 		httpx.SetAuth(req, uc.cfg)
+		if identityHeader := uc.cfg.AgentIdentityHeader(""); identityHeader != "" {
+			req.Header.Set("X-Agent-Identity", identityHeader)
+		}
 		resp, err := uc.cl.Do(req)
 		if err != nil {
 			errs = append(errs, err.Error())

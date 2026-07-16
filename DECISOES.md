@@ -389,7 +389,7 @@ Referências:
 
 - Status: aceita
 - Contexto: agentes long-running calculavam `X-Agent-Identity` uma vez no start e persistiam essa claim nos envelopes da outbox. Como o backend valida `issued_at`, coletas e replay podiam ser rejeitados por `identity_claim_expired_or_invalid_issued_at` até restart/update.
-- Decisao: coletores passam a usar provider cacheado de identidade e o flush renova credenciais de envelopes locais antes do envio. Envelopes encaminhados por HUB, marcados com `meta.via=hub`, preservam `Authorization` e `X-Agent-Identity` originais.
+- Decisao: coletores passam a usar provider cacheado de identidade, o flush renova credenciais de envelopes locais antes do envio, e `update-report` envia `X-Agent-Identity` atual por request. Envelopes encaminhados por HUB, marcados com `meta.via=hub`, preservam `Authorization` e `X-Agent-Identity` originais.
 - Alternativas consideradas: aumentar a janela de validade no backend ou reiniciar agentes periodicamente. A primeira enfraquece o controle de identidade; a segunda cria dependência operacional e não corrige envelopes já retidos.
 - Impacto: agentes podem rodar indefinidamente sem expirar a identidade de ingest, e a outbox local consegue se recuperar sem restart manual.
 - Rollback: publicar versão anterior do agente; em emergência operacional, reiniciar o agente recria a identidade, mas não substitui a correção runtime.

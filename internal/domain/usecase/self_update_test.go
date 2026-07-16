@@ -597,10 +597,11 @@ func TestSelfUpdate_ReportIncludesDownloadMetadata(t *testing.T) {
 	pkg := []byte("pkg-report-metadata")
 	sum := sha256.Sum256(pkg)
 	var (
-		mu        sync.Mutex
-		received  []map[string]any
-		reqCount  int
-		targetURL string
+		mu                 sync.Mutex
+		received           []map[string]any
+		reportIdentitySeen []string
+		reqCount           int
+		targetURL          string
 	)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -611,6 +612,7 @@ func TestSelfUpdate_ReportIncludesDownloadMetadata(t *testing.T) {
 			return
 		case "/v1/agent/update-report":
 			reqCount++
+			reportIdentitySeen = append(reportIdentitySeen, r.Header.Get("X-Agent-Identity"))
 			raw, _ := io.ReadAll(r.Body)
 			payload := map[string]any{}
 			_ = json.Unmarshal(raw, &payload)
@@ -628,12 +630,15 @@ func TestSelfUpdate_ReportIncludesDownloadMetadata(t *testing.T) {
 	targetURL = srv.URL + "/pkg.bin"
 
 	cfg := config.Config{
-		Agent:             config.AgentCfg{Token: "agent-token"},
-		APIBaseURL:        srv.URL,
-		AutoUpdateEnabled: true,
-		AutoUpdateDir:     t.TempDir(),
-		AutoUpdateTimeout: 2 * time.Second,
-		AutoUpdateMaxMB:   5,
+		Agent:               config.AgentCfg{Token: "agent-token"},
+		APIBaseURL:          srv.URL,
+		AgentClientID:       77,
+		AgentID:             88,
+		AgentIdentitySecret: "identity-secret",
+		AutoUpdateEnabled:   true,
+		AutoUpdateDir:       t.TempDir(),
+		AutoUpdateTimeout:   2 * time.Second,
+		AutoUpdateMaxMB:     5,
 	}
 	uc := NewSelfUpdate(cfg, &fakeLogger{})
 	payload := &UpdatePayload{
@@ -648,6 +653,11 @@ func TestSelfUpdate_ReportIncludesDownloadMetadata(t *testing.T) {
 
 	if reqCount == 0 {
 		t.Fatalf("expected update-report request")
+	}
+	for i, identity := range reportIdentitySeen {
+		if strings.TrimSpace(identity) == "" {
+			t.Fatalf("expected identity header on update-report request %d", i)
+		}
 	}
 	mu.Lock()
 	defer mu.Unlock()

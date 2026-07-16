@@ -80,12 +80,13 @@ Correção:
 - Coletores passam a receber um provider de identidade cacheado e renovável, em vez de uma string fixa.
 - O flush da outbox renova `Authorization` e `X-Agent-Identity` para envelopes locais antes de agrupar/enviar.
 - Envelopes com `meta.via=hub` preservam credenciais originais.
-- Versão do agente elevada para `0.8.41`.
+- `update-report` passa a enviar `X-Agent-Identity` atual, evitando 401 quando a política exige identidade também nos reports do auto-update.
+- Versão do agente elevada para `0.8.42`.
 
 Critério de fechamento:
 - `go test ./internal/domain/usecase -run 'Test(CollectAndBuffer|CachedIdentityHeaderProvider|FlushOutbox)' -count=1 -v` passa.
 - `./check.sh` passa.
-- Artefatos `0.8.41` são gerados e publicados antes do rollout.
+- Artefatos `0.8.42` são gerados e publicados antes do rollout.
 - Validação produtiva: agente com outbox retida por `identity_claim_expired_or_invalid_issued_at` deve voltar a persistir `/v1/ingest/network_capture` sem restart manual.
 
 ## [BUG-20260703-01] Update Linux podia instalar em binário diferente do serviço
