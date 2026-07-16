@@ -43,6 +43,51 @@ Registro oficial de bugs conhecidos, reprodução, impacto, correção e reteste
 
 ## Organização
 
+## [BUG-20260715-01] Identidade do ingest expirava em agente long-running
+
+Status: corrigido
+Severidade: Crítica
+Área: Ingestão/outbox do agente
+Módulo: `internal/bootstrap`, `internal/domain/usecase`
+Pacote relacionado: mapa de rede e ingestão resiliente
+Tela relacionada: Mapa de rede
+Data: 2026-07-15
+
+Reprodução:
+- Agente fica rodando por mais de 7 dias sem restart.
+- O backend exige identidade confiável e valida `issued_at` da claim `X-Agent-Identity`.
+- Auto-coleta de mapa de rede dispara `network_capture` e o agente registra coleta concluída.
+- No flush, o backend responde HTTP 200 com `received=0`, `skipped=1` e `errors_by_reason.identity_rejected`.
+
+Esperado:
+- Identidade operacional usada em ingest deve ser renovada pelo próprio agente antes de expirar.
+- Envelopes antigos retidos na outbox devem ser reenviados com credencial/identidade atual quando pertencem ao agente local.
+- Envelopes encaminhados por HUB devem preservar a credencial e identidade do agente de origem.
+
+Observado:
+- `CollectAndBuffer` criava envelopes com `identityHeader` calculado uma vez no start do processo.
+- A outbox persistia o header antigo; após expiração da janela de 7 dias, replay e novas coletas podiam continuar sendo rejeitados até restart/update.
+
+Causa provável:
+- O bootstrap calculava `cfg.AgentIdentityHeader("")` uma vez e injetava a string fixa nos coletores.
+- O flush reaproveitava a identidade persistida no envelope, sem renovar credenciais locais antes do envio.
+
+Hipóteses alternativas:
+- Relógio local com desvio maior que a janela aceita ainda pode gerar claim inválida; isso deve aparecer como problema de clock no runtime.
+- Envelopes de outro agente via HUB não podem ter identidade recriada pelo HUB sem quebrar a cadeia de confiança.
+
+Correção:
+- Coletores passam a receber um provider de identidade cacheado e renovável, em vez de uma string fixa.
+- O flush da outbox renova `Authorization` e `X-Agent-Identity` para envelopes locais antes de agrupar/enviar.
+- Envelopes com `meta.via=hub` preservam credenciais originais.
+- Versão do agente elevada para `0.8.41`.
+
+Critério de fechamento:
+- `go test ./internal/domain/usecase -run 'Test(CollectAndBuffer|CachedIdentityHeaderProvider|FlushOutbox)' -count=1 -v` passa.
+- `./check.sh` passa.
+- Artefatos `0.8.41` são gerados e publicados antes do rollout.
+- Validação produtiva: agente com outbox retida por `identity_claim_expired_or_invalid_issued_at` deve voltar a persistir `/v1/ingest/network_capture` sem restart manual.
+
 ## [BUG-20260703-01] Update Linux podia instalar em binário diferente do serviço
 
 Status: corrigido

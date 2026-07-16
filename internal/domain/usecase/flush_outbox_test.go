@@ -73,6 +73,39 @@ func TestFlushOutbox_GroupsByIdentityHeader(t *testing.T) {
 	}
 }
 
+func TestFlushOutbox_RefreshesLocalCredentialsBeforeSend(t *testing.T) {
+	outbox := &fakeOutbox{batch: []entities.Envelope{
+		{ID: "local-1", AuthHeader: "Token stale", IdentityHeader: "expired", Endpoint: "/v1/ingest/metrics", AgentID: "local"},
+		{ID: "local-2", AuthHeader: "", IdentityHeader: "expired", Endpoint: "/v1/ingest/network_capture", AgentID: "local"},
+		{ID: "hub-1", AuthHeader: "Token downstream", IdentityHeader: "downstream-identity", Endpoint: "/v1/ingest/metrics", AgentID: "remote", Meta: map[string]string{"via": "hub"}},
+	}}
+	tx := &fakeTransport{}
+	uc := NewFlushOutboxWithOptions(outbox, tx, &fakeLogger{}, "Token current", nil, FlushOutboxOptions{
+		IdentityHeaderProvider: func() string { return "fresh-identity" },
+		RefreshCredentialsForEnvelope: func(env entities.Envelope) bool {
+			return env.Meta == nil || env.Meta["via"] != "hub"
+		},
+	})
+
+	n, err := uc.Execute(context.Background())
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if n != 3 {
+		t.Fatalf("expected 3 acked, got %d", n)
+	}
+	seen := map[string]int{}
+	for _, call := range tx.calls {
+		seen[call.auth+"|"+call.identity] += call.size
+	}
+	if seen["Token current|fresh-identity"] != 2 {
+		t.Fatalf("expected refreshed local credentials for 2 envelopes, got %#v", seen)
+	}
+	if seen["Token downstream|downstream-identity"] != 1 {
+		t.Fatalf("expected hub credentials preserved, got %#v", seen)
+	}
+}
+
 func TestFlushOutbox_GroupAndAck(t *testing.T) {
 	outbox := &fakeOutbox{}
 	log := &fakeLogger{}

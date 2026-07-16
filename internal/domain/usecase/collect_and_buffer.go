@@ -14,13 +14,14 @@ import (
 )
 
 type CollectAndBuffer struct {
-	collector      ports.Collector
-	outbox         ports.OutboxRepo
-	log            logger.Logger
-	authHeader     string
-	identityHeader string
-	endpoint       string
-	extraEndpoints func() []string
+	collector              ports.Collector
+	outbox                 ports.OutboxRepo
+	log                    logger.Logger
+	authHeader             string
+	identityHeader         string
+	identityHeaderProvider func() string
+	endpoint               string
+	extraEndpoints         func() []string
 }
 
 type BufferedCollectResult struct {
@@ -40,9 +41,19 @@ func NewCollectAndBufferWithIdentity(c ports.Collector, o ports.OutboxRepo, l lo
 	return &CollectAndBuffer{collector: c, outbox: o, log: l, authHeader: authHeader, identityHeader: identityHeader, endpoint: endpoint}
 }
 
+func NewCollectAndBufferWithIdentityProvider(c ports.Collector, o ports.OutboxRepo, l logger.Logger, authHeader string, identityHeaderProvider func() string, endpoint string) *CollectAndBuffer {
+	return &CollectAndBuffer{collector: c, outbox: o, log: l, authHeader: authHeader, identityHeaderProvider: identityHeaderProvider, endpoint: endpoint}
+}
+
 func NewCollectAndBufferWithIdentityAndExtraEndpoints(c ports.Collector, o ports.OutboxRepo, l logger.Logger, authHeader string, identityHeader string, endpoint string, extraEndpoints []string) *CollectAndBuffer {
 	uc := NewCollectAndBufferWithIdentity(c, o, l, authHeader, identityHeader, endpoint)
 	uc.extraEndpoints = func() []string { return extraEndpoints }
+	return uc
+}
+
+func NewCollectAndBufferWithIdentityProviderAndExtraEndpointsProvider(c ports.Collector, o ports.OutboxRepo, l logger.Logger, authHeader string, identityHeaderProvider func() string, endpoint string, extraEndpoints func() []string) *CollectAndBuffer {
+	uc := NewCollectAndBufferWithIdentityProvider(c, o, l, authHeader, identityHeaderProvider, endpoint)
+	uc.extraEndpoints = extraEndpoints
 	return uc
 }
 
@@ -93,7 +104,7 @@ func (uc *CollectAndBuffer) ExecuteDetailed(ctx context.Context) (*BufferedColle
 		TSUnixMs:       time.Now().UnixMilli(),
 		Body:           json.RawMessage(data), // mantém como JSON bruto
 		AuthHeader:     uc.authHeader,
-		IdentityHeader: uc.identityHeader,
+		IdentityHeader: uc.currentIdentityHeader(),
 		Endpoint:       uc.endpoint,
 	}
 
@@ -148,6 +159,15 @@ func (uc *CollectAndBuffer) currentExtraEndpoints() []string {
 		return nil
 	}
 	return uc.extraEndpoints()
+}
+
+func (uc *CollectAndBuffer) currentIdentityHeader() string {
+	if uc.identityHeaderProvider != nil {
+		if header := strings.TrimSpace(uc.identityHeaderProvider()); header != "" {
+			return header
+		}
+	}
+	return uc.identityHeader
 }
 
 func sanitizeExtraEndpoints(primary string, endpoints []string) []string {

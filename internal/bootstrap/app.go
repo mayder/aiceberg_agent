@@ -108,7 +108,15 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	} else if cfg.APIKey != "" {
 		authHeader = "Bearer " + cfg.APIKey
 	}
-	identityHeader := cfg.AgentIdentityHeader("")
+	identityHeaderProvider := usecase.NewCachedIdentityHeaderProvider(time.Hour, func() string {
+		return cfg.AgentIdentityHeader("")
+	})
+	refreshLocalEnvelopeCredentials := func(env entities.Envelope) bool {
+		if env.Meta != nil && env.Meta["via"] == "hub" {
+			return false
+		}
+		return true
+	}
 
 	var tx ports.Transport
 	if mode == "relay" {
@@ -135,19 +143,19 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	bootstrapEndpoint := "/v1/ingest/bootstrap"
 	networkCaptureEndpoint := "/v1/ingest/network_capture"
 
-	metricsUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics", metricsEndpoint, cfg.MetricsInterval, metricsKeys()), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
-	healthUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_health", healthEndpoint, 10*time.Minute, healthKeys()), outboxRepo, log, authHeader, identityHeader, healthEndpoint)
-	inventoryUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_inventory", inventoryEndpoint, 8*time.Hour, inventoryKeys()), outboxRepo, log, authHeader, identityHeader, inventoryEndpoint)
-	bootstrapUC := usecase.NewCollectAndBufferWithIdentity(newFilteredCollector(collector, "sysmetrics_bootstrap", bootstrapEndpoint, 24*time.Hour, bootstrapKeys()), outboxRepo, log, authHeader, identityHeader, bootstrapEndpoint)
-	networkCaptureUC := usecase.NewCollectAndBufferWithIdentity(networkcapture.New(prefStore.Get), outboxRepo, log, authHeader, identityHeader, networkCaptureEndpoint)
-	customMetricsUC := usecase.NewCollectAndBufferWithIdentity(custommetrics.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
-	containersUC := usecase.NewCollectAndBufferWithIdentity(containers.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
-	kubernetesUC := usecase.NewCollectAndBufferWithIdentity(kubernetes.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
-	localChecksUC := usecase.NewCollectAndBufferWithIdentity(localchecks.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
-	logDiscoveryUC := usecase.NewCollectAndBufferWithIdentity(logdiscovery.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
+	metricsUC := usecase.NewCollectAndBufferWithIdentityProvider(newFilteredCollector(collector, "sysmetrics", metricsEndpoint, cfg.MetricsInterval, metricsKeys()), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
+	healthUC := usecase.NewCollectAndBufferWithIdentityProvider(newFilteredCollector(collector, "sysmetrics_health", healthEndpoint, 10*time.Minute, healthKeys()), outboxRepo, log, authHeader, identityHeaderProvider, healthEndpoint)
+	inventoryUC := usecase.NewCollectAndBufferWithIdentityProvider(newFilteredCollector(collector, "sysmetrics_inventory", inventoryEndpoint, 8*time.Hour, inventoryKeys()), outboxRepo, log, authHeader, identityHeaderProvider, inventoryEndpoint)
+	bootstrapUC := usecase.NewCollectAndBufferWithIdentityProvider(newFilteredCollector(collector, "sysmetrics_bootstrap", bootstrapEndpoint, 24*time.Hour, bootstrapKeys()), outboxRepo, log, authHeader, identityHeaderProvider, bootstrapEndpoint)
+	networkCaptureUC := usecase.NewCollectAndBufferWithIdentityProvider(networkcapture.New(prefStore.Get), outboxRepo, log, authHeader, identityHeaderProvider, networkCaptureEndpoint)
+	customMetricsUC := usecase.NewCollectAndBufferWithIdentityProvider(custommetrics.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
+	containersUC := usecase.NewCollectAndBufferWithIdentityProvider(containers.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
+	kubernetesUC := usecase.NewCollectAndBufferWithIdentityProvider(kubernetes.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
+	localChecksUC := usecase.NewCollectAndBufferWithIdentityProvider(localchecks.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
+	logDiscoveryUC := usecase.NewCollectAndBufferWithIdentityProvider(logdiscovery.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
 	otlpReceiver := otlp.NewReceiver(cfg, prefStore.Get)
-	otlpMetricsUC := usecase.NewCollectAndBufferWithIdentity(otlpReceiver.MetricsCollector(), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
-	otlpTracesUC := usecase.NewCollectAndBufferWithIdentity(otlpReceiver.TracesCollector(), outboxRepo, log, authHeader, identityHeader, metricsEndpoint)
+	otlpMetricsUC := usecase.NewCollectAndBufferWithIdentityProvider(otlpReceiver.MetricsCollector(), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
+	otlpTracesUC := usecase.NewCollectAndBufferWithIdentityProvider(otlpReceiver.TracesCollector(), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
 
 	commandChan := make(chan usecase.ControlCommand, 10)
 	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore, commandChan)
@@ -204,7 +212,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		}
 	}
 
-	flushOptions := usecase.FlushOutboxOptions{BatchSize: cfg.OutboxFlushBatch}
+	flushOptions := usecase.FlushOutboxOptions{
+		BatchSize:                     cfg.OutboxFlushBatch,
+		IdentityHeaderProvider:        identityHeaderProvider,
+		RefreshCredentialsForEnvelope: refreshLocalEnvelopeCredentials,
+	}
 	flushUC := usecase.NewFlushOutboxWithOptions(outboxRepo, tx, log, authHeader, onIngestConfig, flushOptions)
 	pingUC := usecase.NewPingBackend(cfg, log)
 	selfUpdateUC := usecase.NewSelfUpdate(cfg, log, prefStore.Get)
@@ -294,14 +306,14 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	osRepo := repositories.NewOutboxRepository(osStore)
 	osLogRepo = osRepo
 	osCollector := oslogs.New(cfg, prefStore.Get)
-	osLogCollectUC = usecase.NewCollectAndBufferWithIdentityAndExtraEndpointsProvider(osCollector, osRepo, log, authHeader, identityHeader, "/v1/logs/raw", func() []string {
+	osLogCollectUC = usecase.NewCollectAndBufferWithIdentityProviderAndExtraEndpointsProvider(osCollector, osRepo, log, authHeader, identityHeaderProvider, "/v1/logs/raw", func() []string {
 		prefs := prefStore.Get()
 		if len(prefs.OSLogDualShipEndpoints) > 0 {
 			return prefs.OSLogDualShipEndpoints
 		}
 		return cfg.OSLogDualShipEndpoints
 	})
-	otlpLogsUC = usecase.NewCollectAndBufferWithIdentity(otlpReceiver.LogsCollector(), osRepo, log, authHeader, identityHeader, "/v1/logs/raw")
+	otlpLogsUC = usecase.NewCollectAndBufferWithIdentityProvider(otlpReceiver.LogsCollector(), osRepo, log, authHeader, identityHeaderProvider, "/v1/logs/raw")
 	var osTx ports.Transport
 	if mode == "relay" {
 		osTx = transport.NewHubClient(cfg)

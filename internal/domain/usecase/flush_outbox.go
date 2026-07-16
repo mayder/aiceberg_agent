@@ -14,20 +14,24 @@ import (
 )
 
 type FlushOutbox struct {
-	outbox      ports.OutboxRepo
-	tx          ports.Transport
-	log         logger.Logger
-	defaultAuth string
-	onConfig    IngestConfigHandler
-	batchSize   int
-	now         func() time.Time
-	mu          sync.Mutex
-	backoff     map[string]backoffState
-	snapshot    FlushOutboxSnapshot
+	outbox                        ports.OutboxRepo
+	tx                            ports.Transport
+	log                           logger.Logger
+	defaultAuth                   string
+	onConfig                      IngestConfigHandler
+	batchSize                     int
+	identityHeaderProvider        func() string
+	refreshCredentialsForEnvelope func(entities.Envelope) bool
+	now                           func() time.Time
+	mu                            sync.Mutex
+	backoff                       map[string]backoffState
+	snapshot                      FlushOutboxSnapshot
 }
 
 type FlushOutboxOptions struct {
-	BatchSize int
+	BatchSize                     int
+	IdentityHeaderProvider        func() string
+	RefreshCredentialsForEnvelope func(entities.Envelope) bool
 }
 
 type FlushOutboxSnapshot struct {
@@ -68,14 +72,16 @@ func NewFlushOutboxWithOptions(o ports.OutboxRepo, t ports.Transport, l logger.L
 		batchSize = 50
 	}
 	return &FlushOutbox{
-		outbox:      o,
-		tx:          t,
-		log:         l,
-		defaultAuth: defaultAuth,
-		onConfig:    onConfig,
-		batchSize:   batchSize,
-		now:         time.Now,
-		backoff:     make(map[string]backoffState),
+		outbox:                        o,
+		tx:                            t,
+		log:                           l,
+		defaultAuth:                   defaultAuth,
+		onConfig:                      onConfig,
+		batchSize:                     batchSize,
+		identityHeaderProvider:        opts.IdentityHeaderProvider,
+		refreshCredentialsForEnvelope: opts.RefreshCredentialsForEnvelope,
+		now:                           time.Now,
+		backoff:                       make(map[string]backoffState),
 	}
 }
 
@@ -87,6 +93,7 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 	}
 
 	start := time.Now()
+	freshIdentityHeader := ""
 	grouped := make(map[flushGroupKey][]entities.Envelope)
 	invalidIDs := make([]string, 0, 1)
 	for _, e := range batch {
@@ -94,6 +101,19 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 			HandleInvalidEnvelope(uc.log, e, "missing_envelope_id")
 			invalidIDs = append(invalidIDs, e.ID)
 			continue
+		}
+		if uc.shouldRefreshEnvelopeCredentials(e) {
+			if uc.defaultAuth != "" {
+				e.AuthHeader = uc.defaultAuth
+			}
+			if uc.identityHeaderProvider != nil {
+				if freshIdentityHeader == "" {
+					freshIdentityHeader = strings.TrimSpace(uc.identityHeaderProvider())
+				}
+				if freshIdentityHeader != "" {
+					e.IdentityHeader = freshIdentityHeader
+				}
+			}
 		}
 		h := e.AuthHeader
 		if h == "" {
@@ -231,6 +251,13 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 	))
 	uc.recordSummary(durationMs, retained)
 	return acked, firstErr
+}
+
+func (uc *FlushOutbox) shouldRefreshEnvelopeCredentials(env entities.Envelope) bool {
+	if uc.refreshCredentialsForEnvelope == nil {
+		return false
+	}
+	return uc.refreshCredentialsForEnvelope(env)
 }
 
 func (uc *FlushOutbox) logTransportFailure(endpoint string, batchSize int, err error) {
