@@ -600,3 +600,12 @@ Evidência 2026-06-20:
 - Unitário focado: `go test ./internal/domain/usecase ./internal/platform/collectors/custommetrics ./internal/platform/collectors/otlp`.
 - Cobertura: `validation_samples_enabled` remoto persiste em prefs, `custommetrics` emite série `aiceberg.validation.custom_metrics` e `otlp_traces` emite span `aiceberg-agent-validation` com `aiceberg.validation_sample=true`.
 - Limite: isso prova o pipeline técnico. Telemetria real de aplicação exige DogStatsD/HTTP local ou OpenTelemetry emitido pela aplicação do cliente.
+
+### WordPress SOC em Nginx access
+
+- Unitário focado: `go test ./internal/platform/collectors/oslogs`.
+- Positivo: três REST batch, login POST com redirect, upload de plugin e tentativa executável produzem eventos estruturados com timestamp UTC, IP e ação.
+- Privacidade: payload não contém valores de query; somente nomes limitados das chaves.
+- Negativo: rota WordPress comum é descartada e batch isolada é coletada sem o agente declarar comprometimento.
+- Fechamento coordenado: `./check.sh` no agente e no web, artefato 0.8.43 com SHA-256 e validação da configuração aplicada no agente 70.
+- Artefatos 0.8.43: `linux-amd64=a0efdad5ce9d59d95918ad4d2f6368ef2fbb0f188c7dda68845d68542c34a388` e `windows-amd64=38c119fc98ccd0427cf11579922a83313061924fe57071f2afcb74ab7ad7911b`.

@@ -139,6 +139,87 @@ func TestSecuritySignalsPassMinimumSeverityWithoutExplicitLevel(t *testing.T) {
 	}
 }
 
+func TestCollectorNormalizesWordPressAttackChainWithoutSensitiveQueryValues(t *testing.T) {
+	tmp := t.TempDir()
+	logFile := filepath.Join(tmp, "inspectapp-wordpress.access.log")
+	content := strings.Join([]string{
+		`136.108.4.202 - - [19/Jul/2026:01:28:37 -0300] "POST /wp-json/batch/v1 HTTP/1.1" 207 703 "-" "Mozilla/5.0 attack-test"`,
+		`136.108.4.202 - - [19/Jul/2026:01:28:53 -0300] "POST /wp-login.php HTTP/1.1" 302 5 "-" "Mozilla/5.0 attack-test"`,
+		`136.108.4.202 - - [19/Jul/2026:01:29:01 -0300] "POST /wp-admin/update.php?action=upload-plugin HTTP/1.1" 200 192281 "-" "Mozilla/5.0 attack-test"`,
+		`136.108.4.202 - - [19/Jul/2026:01:29:02 -0300] "GET /wp-content/plugins/example/example.php?c=id%20%26%26%20uname%20-a&token=secret HTTP/1.1" 404 146 "-" "Mozilla/5.0 attack-test"`,
+		`127.0.0.1 - - [19/Jul/2026:01:30:00 -0300] "GET /wp-json/wp/v2/posts HTTP/1.1" 200 10 "-" "Mozilla/5.0 benign-test"`,
+		"",
+	}, "\n")
+	if err := os.WriteFile(logFile, []byte(content), 0o644); err != nil {
+		t.Fatalf("write WordPress access log: %v", err)
+	}
+	cfg := config.Config{
+		OSLogFiles:       []string{logFile},
+		OSLogCursorPath:  filepath.Join(tmp, "cursor.json"),
+		OSLogBatchLines:  20,
+		OSLogMaxBytes:    4096,
+		OSLogInterval:    time.Second,
+		OSLogMinSeverity: "error",
+		OSLogEnrich:      true,
+		OSLogDetections:  true,
+	}
+	prefs := func() config.CollectPrefs {
+		return config.CollectPrefs{OSLogFiles: true}
+	}
+
+	data, err := New(cfg, prefs).Collect(context.Background())
+	if err != nil {
+		t.Fatalf("collect WordPress access log: %v", err)
+	}
+	var got struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	if len(got.Events) != 4 {
+		t.Fatalf("expected four security events and benign request dropped, got %d: %s", len(got.Events), string(data))
+	}
+
+	expectedActions := []string{
+		"wordpress_rest_batch",
+		"wordpress_login_success_inferred",
+		"wordpress_plugin_upload",
+		"wordpress_webshell_request",
+	}
+	for index, action := range expectedActions {
+		if got.Events[index]["action"] != action {
+			t.Fatalf("expected action %q, got %#v", action, got.Events[index]["action"])
+		}
+		if got.Events[index]["product"] != "wordpress" || got.Events[index]["src_ip"] != "136.108.4.202" {
+			t.Fatalf("expected structured WordPress context, got %#v", got.Events[index])
+		}
+		if got.Events[index]["aiceberg_soc_eligible"] != "yes" {
+			t.Fatalf("expected SOC eligible signal, got %#v", got.Events[index])
+		}
+	}
+	encoded := string(data)
+	for _, forbidden := range []string{"uname", "secret", "token=secret", "c=id"} {
+		if strings.Contains(encoded, forbidden) {
+			t.Fatalf("sensitive query value leaked in payload: %q", forbidden)
+		}
+	}
+	if got.Events[0]["timestamp_utc"] != "2026-07-19T04:28:37Z" {
+		t.Fatalf("expected source timestamp converted to UTC, got %#v", got.Events[0]["timestamp_utc"])
+	}
+}
+
+func TestWordPressIsolatedLegitimateBatchIsCollectedButNotDeclaredCompromiseByAgent(t *testing.T) {
+	line := `203.0.113.10 - - [19/Jul/2026:10:00:00 -0300] "POST /wp-json/batch/v1 HTTP/2.0" 207 120 "-" "legitimate-client"`
+	signal, ok := parseWordPressAccessSignal(line)
+	if !ok {
+		t.Fatal("expected batch route to be collected for backend correlation")
+	}
+	if signal.action != "wordpress_rest_batch" || signal.level != "error" {
+		t.Fatalf("unexpected isolated batch classification: %#v", signal)
+	}
+}
+
 func TestHealthStatusForMissingWindowsChannelAndDroppedEvents(t *testing.T) {
 	channelHealth := newLogSourceHealth("windows_eventlog", "Microsoft-Windows-Sysmon/Operational")
 	channelHealth.PermissionStatus = "missing"

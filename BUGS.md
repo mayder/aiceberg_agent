@@ -338,3 +338,32 @@ Validação executada:
 - Tipo: Agente Go
 - Stack detectada: Go agent/CLI, gopsutil, NTP, SNMP
 - Regra: adaptar comandos, camadas, testes, fixtures e limites conforme a realidade deste modulo Go.
+## [BUG-20260728-01] Access log WordPress era descartado antes da correlação SOC
+
+Status: corrigido em código; implantação pendente
+Severidade: P1
+Área: coleta de logs Linux
+Data: 2026-07-28
+
+Resultado observado:
+
+- o agente 0.8.42 estava ativo durante o incidente do InspectApp;
+- o access log Nginx não estava configurado e o usuário do agente não possuía leitura via `adm`;
+- mesmo configurada, uma linha de access log sem nível reconhecido era descartada pela política `error+`;
+- linhas IP-prefixed também não eram reconhecidas como novo evento multiline.
+
+Correção aplicada:
+
+- parser específico para sinais de segurança WordPress em Nginx combined access;
+- timestamp da fonte convertido para UTC e campos HTTP/IP/ação estruturados;
+- valores de query removidos antes do envio;
+- eventos relevantes recebem severidade suficiente para a política `error+`;
+- requisições WordPress comuns continuam descartadas localmente.
+
+Validação/reteste:
+
+- `go test ./internal/platform/collectors/oslogs`;
+- fixture positiva com batch, login inferido, upload e tentativa de webshell;
+- fixture negativa com requisição WordPress comum e batch isolada sem veredito local.
+
+Rollback: instalar o binário 0.8.42 e retirar o access log da configuração remota.

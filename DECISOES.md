@@ -394,6 +394,15 @@ Referências:
 - Impacto: agentes podem rodar indefinidamente sem expirar a identidade de ingest, e a outbox local consegue se recuperar sem restart manual.
 - Rollback: publicar versão anterior do agente; em emergência operacional, reiniciar o agente recria a identidade, mas não substitui a correção runtime.
 
+### DEC-20260728-01 - Agente extrai sinais WordPress, backend decide a correlação
+
+- Status: aceita
+- Contexto: a política local `error+` eliminava access logs sem nível antes que o backend pudesse correlacioná-los.
+- Decisão: o agente reconhece um conjunto limitado de ações WordPress de segurança, envia campos sanitizados e não declara comprometimento. O backend mantém a janela, a relação por IP, CVE, severidade e criação do caso.
+- Segurança: valores de query nunca são enviados; apenas nomes de chaves limitados. Requisições comuns continuam fora da coleta para limitar volume e privacidade.
+- Impacto: preserva o modelo reutilizável entre tenants sem acoplar o agente ao incidente do InspectApp.
+- Rollback: voltar ao binário 0.8.42 e retirar o path da configuração.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`
