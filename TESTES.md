@@ -111,6 +111,14 @@ critical_min_lines = 80
 command = "comando de cobertura do projeto"
 ```
 
+## Reteste de lote de ingestão por bytes
+
+- BUG-20260807-01: `FlushOutbox` deve limitar o JSON serializado de cada requisição a 8 MiB, abaixo dos 10 MB da API.
+- Validar múltiplos sublotes, ACK granular e preservação de endpoint, autorização e identidade.
+- Envelope individual acima do limite deve permanecer na outbox sem chegar ao transporte e sem ser confirmado.
+- Comando focado: `go test ./internal/domain/usecase -run 'TestFlushOutbox_(SplitsRequestBySerializedSize|RetainsSingleEnvelopeAboveRequestLimit|RetainsBatchWhenIngestDidNotPersist|AcksDuplicateEnvelopeSkip)' -count=1 -v`.
+- Piloto: medir fila antes/depois, tamanho das requisições, último ACK, erros HTTP e ausência de perda.
+
 ## Dados de teste e fixtures
 
 Regra principal: teste não pode depender de dado real instável, estado manual ou ordem implícita de execução.

@@ -2,7 +2,9 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -13,21 +15,25 @@ import (
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
 
+const defaultMaxFlushBatchBytes = 8 * 1024 * 1024
+
 type FlushOutbox struct {
-	outbox      ports.OutboxRepo
-	tx          ports.Transport
-	log         logger.Logger
-	defaultAuth string
-	onConfig    IngestConfigHandler
-	batchSize   int
-	now         func() time.Time
-	mu          sync.Mutex
-	backoff     map[string]backoffState
-	snapshot    FlushOutboxSnapshot
+	outbox        ports.OutboxRepo
+	tx            ports.Transport
+	log           logger.Logger
+	defaultAuth   string
+	onConfig      IngestConfigHandler
+	batchSize     int
+	maxBatchBytes int
+	now           func() time.Time
+	mu            sync.Mutex
+	backoff       map[string]backoffState
+	snapshot      FlushOutboxSnapshot
 }
 
 type FlushOutboxOptions struct {
-	BatchSize int
+	BatchSize     int
+	MaxBatchBytes int
 }
 
 type FlushOutboxSnapshot struct {
@@ -67,15 +73,20 @@ func NewFlushOutboxWithOptions(o ports.OutboxRepo, t ports.Transport, l logger.L
 	if batchSize <= 0 {
 		batchSize = 50
 	}
+	maxBatchBytes := opts.MaxBatchBytes
+	if maxBatchBytes <= 0 {
+		maxBatchBytes = defaultMaxFlushBatchBytes
+	}
 	return &FlushOutbox{
-		outbox:      o,
-		tx:          t,
-		log:         l,
-		defaultAuth: defaultAuth,
-		onConfig:    onConfig,
-		batchSize:   batchSize,
-		now:         time.Now,
-		backoff:     make(map[string]backoffState),
+		outbox:        o,
+		tx:            t,
+		log:           l,
+		defaultAuth:   defaultAuth,
+		onConfig:      onConfig,
+		batchSize:     batchSize,
+		maxBatchBytes: maxBatchBytes,
+		now:           time.Now,
+		backoff:       make(map[string]backoffState),
 	}
 }
 
@@ -87,25 +98,7 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 	}
 
 	start := time.Now()
-	grouped := make(map[flushGroupKey][]entities.Envelope)
-	invalidIDs := make([]string, 0, 1)
-	for _, e := range batch {
-		if e.ID == "" {
-			HandleInvalidEnvelope(uc.log, e, "missing_envelope_id")
-			invalidIDs = append(invalidIDs, e.ID)
-			continue
-		}
-		h := e.AuthHeader
-		if h == "" {
-			h = uc.defaultAuth
-		}
-		end := e.Endpoint
-		if end == "" {
-			end = "/v1/ingest"
-		}
-		key := flushGroupKey{auth: h, identity: e.IdentityHeader, endpoint: end}
-		grouped[key] = append(grouped[key], e)
-	}
+	grouped, invalidIDs := uc.groupFlushBatch(batch)
 	uc.updatePendingSnapshot(batch)
 
 	if len(invalidIDs) > 0 {
@@ -119,108 +112,7 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	var firstErr error
-	acked := 0
-	retained := 0
-	for group, list := range grouped {
-		key := group.auth + "|" + group.identity + "|" + group.endpoint
-		if until, ok := uc.backoffUntil(key); ok {
-			retained += len(list)
-			uc.log.Info(logger.KV("transport backoff active",
-				"route", group.endpoint,
-				"batch_size", len(list),
-				"retry_after_ms", time.Until(until).Milliseconds(),
-			))
-			if firstErr == nil {
-				firstErr = errors.New("transport backoff active")
-			}
-			continue
-		}
-		respBody, err := uc.tx.SendWithAuth(list, group.auth, group.endpoint)
-		if err != nil {
-			retained += len(list)
-			uc.logTransportFailure(group.endpoint, len(list), err)
-			if delay, ok := uc.registerFailure(key, group.endpoint, len(list), err); ok {
-				uc.log.Info(logger.KV("transport backoff scheduled",
-					"route", group.endpoint,
-					"batch_size", len(list),
-					"err_kind", retry.ErrorKindTransient,
-					"retry_after_ms", delay.Milliseconds(),
-				))
-			} else {
-				uc.log.Error(logger.KV("transport permanent failure cooldown",
-					"route", group.endpoint,
-					"batch_size", len(list),
-					"err_kind", retry.ClassifyError(err),
-					"retry_after_ms", retry.DefaultMaxBackoff.Milliseconds(),
-					"err", err,
-				))
-			}
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		uc.resetBackoff(key)
-		if uc.onConfig != nil {
-			cfg, err := parseIngestConfig(respBody)
-			if err != nil {
-				uc.log.Error(logger.KV("ingest config parse failed",
-					"route", group.endpoint,
-					"err", err,
-				))
-			}
-			if cfg != nil {
-				uc.onConfig(group.auth, *cfg)
-			}
-		}
-		uc.applyBackpressure(key, group.endpoint, respBody)
-		ackResult, err := parseIngestAckResult(respBody)
-		if err != nil {
-			retained += len(list)
-			uc.recordIngestAckFailure(group.endpoint, len(list), err)
-			uc.log.Error(logger.KV("ingest response parse failed",
-				"route", group.endpoint,
-				"batch_size", len(list),
-				"err", err,
-			))
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		if !ingestAckIsSafe(ackResult, len(list)) {
-			retained += len(list)
-			err := errors.New("ingest response did not acknowledge batch")
-			uc.recordIngestAckFailure(group.endpoint, len(list), err)
-			uc.log.Error(logger.KV("ingest batch retained",
-				"route", group.endpoint,
-				"batch_size", len(list),
-				"received", ackResult.Received,
-				"skipped", ackResult.Skipped,
-				"errors_by_reason", ackResult.ErrorsByReason,
-				"err", err,
-			))
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		ids := envelopeIDs(list)
-		if err := uc.outbox.Ack(ids); err != nil {
-			uc.log.Error(logger.KV("ack failed",
-				"route", group.endpoint,
-				"batch_size", len(ids),
-				"err", err,
-			))
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		acked += len(ids)
-		uc.recordAck(group.endpoint, len(ids))
-	}
+	acked, retained, firstErr := uc.flushGroups(grouped)
 
 	durationMs := time.Since(start).Milliseconds()
 	uc.log.Info(logger.KV("flushed",
@@ -231,6 +123,174 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 	))
 	uc.recordSummary(durationMs, retained)
 	return acked, firstErr
+}
+
+func (uc *FlushOutbox) flushGroups(grouped map[flushGroupKey][]entities.Envelope) (int, int, error) {
+	var firstErr error
+	acked, retained := 0, 0
+	for group, list := range grouped {
+		key := group.auth + "|" + group.identity + "|" + group.endpoint
+		if until, ok := uc.backoffUntil(key); ok {
+			retained += len(list)
+			firstErr = firstError(firstErr, errors.New("transport backoff active"))
+			uc.log.Info(logger.KV("transport backoff active", "route", group.endpoint,
+				"batch_size", len(list), "retry_after_ms", time.Until(until).Milliseconds()))
+			continue
+		}
+		chunks, err := splitFlushBatchByJSONSize(list, uc.maxBatchBytes)
+		if err != nil {
+			retained += len(list)
+			uc.recordIngestAckFailure(group.endpoint, len(list), err)
+			uc.registerFailure(key, group.endpoint, len(list), err)
+			uc.log.Error(logger.KV("ingest batch exceeds safe request size",
+				"route", group.endpoint,
+				"batch_size", len(list),
+				"max_batch_bytes", uc.maxBatchBytes,
+				"err", err,
+			))
+			firstErr = firstError(firstErr, err)
+			continue
+		}
+		for _, chunk := range chunks {
+			chunkAcked, chunkRetained, err := uc.flushChunk(group, chunk)
+			acked += chunkAcked
+			retained += chunkRetained
+			firstErr = firstError(firstErr, err)
+		}
+	}
+	return acked, retained, firstErr
+}
+
+func (uc *FlushOutbox) groupFlushBatch(batch []entities.Envelope) (map[flushGroupKey][]entities.Envelope, []string) {
+	grouped := make(map[flushGroupKey][]entities.Envelope)
+	invalidIDs := make([]string, 0, 1)
+	for _, envelope := range batch {
+		if envelope.ID == "" {
+			HandleInvalidEnvelope(uc.log, envelope, "missing_envelope_id")
+			invalidIDs = append(invalidIDs, envelope.ID)
+			continue
+		}
+		auth := envelope.AuthHeader
+		if auth == "" {
+			auth = uc.defaultAuth
+		}
+		endpoint := envelope.Endpoint
+		if endpoint == "" {
+			endpoint = "/v1/ingest"
+		}
+		key := flushGroupKey{auth: auth, identity: envelope.IdentityHeader, endpoint: endpoint}
+		grouped[key] = append(grouped[key], envelope)
+	}
+	return grouped, invalidIDs
+}
+
+func firstError(current, candidate error) error {
+	if current != nil {
+		return current
+	}
+	return candidate
+}
+
+func (uc *FlushOutbox) flushChunk(group flushGroupKey, list []entities.Envelope) (int, int, error) {
+	key := group.auth + "|" + group.identity + "|" + group.endpoint
+	if until, ok := uc.backoffUntil(key); ok {
+		uc.log.Info(logger.KV("transport backoff active",
+			"route", group.endpoint, "batch_size", len(list),
+			"retry_after_ms", time.Until(until).Milliseconds(),
+		))
+		return 0, len(list), errors.New("transport backoff active")
+	}
+	respBody, err := uc.tx.SendWithAuth(list, group.auth, group.endpoint)
+	if err != nil {
+		uc.recordTransportFailure(key, group.endpoint, len(list), err)
+		return 0, len(list), err
+	}
+	uc.resetBackoff(key)
+	uc.handleIngestConfig(group.auth, group.endpoint, respBody)
+	uc.applyBackpressure(key, group.endpoint, respBody)
+	if err := uc.validateIngestAck(group.endpoint, list, respBody); err != nil {
+		return 0, len(list), err
+	}
+	ids := envelopeIDs(list)
+	if err := uc.outbox.Ack(ids); err != nil {
+		uc.log.Error(logger.KV("ack failed", "route", group.endpoint, "batch_size", len(ids), "err", err))
+		return 0, len(list), err
+	}
+	uc.recordAck(group.endpoint, len(ids))
+	return len(ids), 0, nil
+}
+
+func (uc *FlushOutbox) recordTransportFailure(key, endpoint string, batchSize int, err error) {
+	uc.logTransportFailure(endpoint, batchSize, err)
+	if delay, ok := uc.registerFailure(key, endpoint, batchSize, err); ok {
+		uc.log.Info(logger.KV("transport backoff scheduled", "route", endpoint, "batch_size", batchSize,
+			"err_kind", retry.ErrorKindTransient, "retry_after_ms", delay.Milliseconds()))
+		return
+	}
+	uc.log.Error(logger.KV("transport permanent failure cooldown", "route", endpoint, "batch_size", batchSize,
+		"err_kind", retry.ClassifyError(err), "retry_after_ms", retry.DefaultMaxBackoff.Milliseconds(), "err", err))
+}
+
+func (uc *FlushOutbox) handleIngestConfig(auth, endpoint string, respBody []byte) {
+	if uc.onConfig == nil {
+		return
+	}
+	cfg, err := parseIngestConfig(respBody)
+	if err != nil {
+		uc.log.Error(logger.KV("ingest config parse failed", "route", endpoint, "err", err))
+	}
+	if cfg != nil {
+		uc.onConfig(auth, *cfg)
+	}
+}
+
+func (uc *FlushOutbox) validateIngestAck(endpoint string, list []entities.Envelope, respBody []byte) error {
+	ackResult, err := parseIngestAckResult(respBody)
+	if err != nil {
+		uc.recordIngestAckFailure(endpoint, len(list), err)
+		uc.log.Error(logger.KV("ingest response parse failed", "route", endpoint, "batch_size", len(list), "err", err))
+		return err
+	}
+	if ingestAckIsSafe(ackResult, len(list)) {
+		return nil
+	}
+	err = errors.New("ingest response did not acknowledge batch")
+	uc.recordIngestAckFailure(endpoint, len(list), err)
+	uc.log.Error(logger.KV("ingest batch retained", "route", endpoint, "batch_size", len(list),
+		"received", ackResult.Received, "skipped", ackResult.Skipped,
+		"errors_by_reason", ackResult.ErrorsByReason, "err", err))
+	return err
+}
+
+func splitFlushBatchByJSONSize(batch []entities.Envelope, maxBytes int) ([][]entities.Envelope, error) {
+	chunks := make([][]entities.Envelope, 0, 1)
+	current := make([]entities.Envelope, 0, len(batch))
+	currentBytes := 2
+	for _, envelope := range batch {
+		raw, err := json.Marshal(envelope)
+		if err != nil {
+			return nil, fmt.Errorf("marshal envelope %q: %w", envelope.ID, err)
+		}
+		if len(raw)+2 > maxBytes {
+			return nil, fmt.Errorf("envelope %q has %d bytes; limit is %d", envelope.ID, len(raw)+2, maxBytes)
+		}
+		separatorBytes := 0
+		if len(current) > 0 {
+			separatorBytes = 1
+		}
+		if currentBytes+separatorBytes+len(raw) > maxBytes {
+			chunks = append(chunks, current)
+			current = make([]entities.Envelope, 0, len(batch)-len(current))
+			currentBytes = 2
+			separatorBytes = 0
+		}
+		current = append(current, envelope)
+		currentBytes += separatorBytes + len(raw)
+	}
+	if len(current) > 0 {
+		chunks = append(chunks, current)
+	}
+	return chunks, nil
 }
 
 func (uc *FlushOutbox) logTransportFailure(endpoint string, batchSize int, err error) {

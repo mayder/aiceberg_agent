@@ -533,6 +533,8 @@ Rollback: desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*
 5. Rodar smoke test.
 6. Monitorar logs.
 
+Para ingestão, o agente `0.8.41+` divide grupos da outbox em requisições JSON de até 8 MiB. Após rollout, conferir `last_flush_batch`, fila por endpoint e ausência de HTTP 400/413. Envelope individual acima do limite permanece retido; diagnosticar o coletor de origem antes de qualquer descarte. Rollback é publicar `0.8.40` e, se necessário, reduzir temporariamente `OUTBOX_FLUSH_BATCH` sem apagar a outbox.
+
 ## Smoke test mínimo
 
 - Health/readiness ou página principal responde.

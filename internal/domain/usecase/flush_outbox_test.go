@@ -2,9 +2,11 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +19,7 @@ type transportCall struct {
 	identity string
 	endpoint string
 	size     int
+	bytes    int
 }
 
 type fakeTransport struct {
@@ -36,7 +39,8 @@ func (f *fakeTransport) SendWithAuth(batch []entities.Envelope, authHeader strin
 	if len(batch) > 0 {
 		identity = batch[0].IdentityHeader
 	}
-	f.calls = append(f.calls, transportCall{auth: authHeader, identity: identity, endpoint: endpoint, size: len(batch)})
+	raw, _ := json.Marshal(batch)
+	f.calls = append(f.calls, transportCall{auth: authHeader, identity: identity, endpoint: endpoint, size: len(batch), bytes: len(raw)})
 	if f.errByEndpoint != nil && f.errByEndpoint[endpoint] != nil {
 		return nil, f.errByEndpoint[endpoint]
 	}
@@ -44,6 +48,51 @@ func (f *fakeTransport) SendWithAuth(batch []entities.Envelope, authHeader strin
 		return nil, f.err
 	}
 	return f.body, nil
+}
+
+func TestFlushOutbox_SplitsRequestBySerializedSize(t *testing.T) {
+	body := json.RawMessage(`{"payload":"` + strings.Repeat("x", 80) + `"}`)
+	outbox := &fakeOutbox{batch: []entities.Envelope{
+		{ID: "1", AuthHeader: "Token a", Endpoint: "/v1/ingest/metrics", Body: body},
+		{ID: "2", AuthHeader: "Token a", Endpoint: "/v1/ingest/metrics", Body: body},
+		{ID: "3", AuthHeader: "Token a", Endpoint: "/v1/ingest/metrics", Body: body},
+	}}
+	tx := &fakeTransport{body: []byte(`{"received":1,"skipped":0,"status":"ok"}`)}
+	uc := NewFlushOutboxWithOptions(outbox, tx, &fakeLogger{}, "Token default", nil, FlushOutboxOptions{
+		BatchSize: 3, MaxBatchBytes: 260,
+	})
+
+	n, err := uc.Execute(context.Background())
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if n != 3 || len(tx.calls) != 3 {
+		t.Fatalf("expected three safe requests and acks, got acked=%d calls=%#v", n, tx.calls)
+	}
+	for _, call := range tx.calls {
+		if call.bytes > 260 {
+			t.Fatalf("request exceeded byte limit: %#v", call)
+		}
+	}
+}
+
+func TestFlushOutbox_RetainsSingleEnvelopeAboveRequestLimit(t *testing.T) {
+	outbox := &fakeOutbox{batch: []entities.Envelope{{
+		ID: "oversized", Endpoint: "/v1/logs/raw",
+		Body: json.RawMessage(`{"payload":"` + strings.Repeat("x", 300) + `"}`),
+	}}}
+	tx := &fakeTransport{}
+	uc := NewFlushOutboxWithOptions(outbox, tx, &fakeLogger{}, "Token default", nil, FlushOutboxOptions{
+		BatchSize: 1, MaxBatchBytes: 200,
+	})
+
+	n, err := uc.Execute(context.Background())
+	if err == nil || n != 0 {
+		t.Fatalf("expected retained oversized envelope, got acked=%d err=%v", n, err)
+	}
+	if len(tx.calls) != 0 || len(outbox.acked) != 0 {
+		t.Fatalf("oversized envelope must not reach transport or be acked")
+	}
 }
 
 func TestFlushOutbox_GroupsByIdentityHeader(t *testing.T) {

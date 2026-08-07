@@ -43,6 +43,41 @@ Registro oficial de bugs conhecidos, reprodução, impacto, correção e reteste
 
 ## Organização
 
+## [BUG-20260807-01] Lote da outbox podia ultrapassar o limite da API
+
+Status: corrigido em código; publicação e rollout pendentes
+Severidade: Alta
+Área: Forwarder/outbox do agente
+Módulo: `internal/domain/usecase`
+Pacote relacionado: PKG-33
+Data: 2026-08-07
+
+Reprodução:
+- Acumular envelopes grandes de métricas ou logs na outbox.
+- O flush agrupava até 50 envelopes apenas por identidade, autorização e endpoint.
+- O JSON agregado podia ultrapassar os 10 MB aceitos pela API e entrar em retry HTTP 400.
+
+Esperado:
+- Cada requisição deve permanecer abaixo do limite da API sem perder envelopes.
+- ACK deve ocorrer por sublote efetivamente persistido.
+
+Observado:
+- Produção registrou dois payloads de aproximadamente 24 MB e milhares de retries de lotes incompletos durante a saturação da API.
+
+Causa provável:
+- `FlushOutbox` limitava somente quantidade de envelopes, sem considerar os bytes do JSON serializado.
+
+Correção:
+- O flush divide cada grupo em sublotes de no máximo 8 MiB antes do transporte.
+- ACK, retry, backoff, configuração recebida e validação da resposta continuam independentes por sublote.
+- Envelope individual acima do limite é retido e diagnosticado sem ser enviado nem descartado.
+- Versão do agente elevada para `0.8.41`.
+
+Critério de fechamento:
+- Testes cobrem divisão por bytes, ACK dos sublotes e retenção de envelope individual excessivo.
+- `./check.sh` passa.
+- Artefatos `0.8.41` são publicados e um piloto real confirma drenagem sem novos HTTP 400/413.
+
 ## [BUG-20260703-01] Update Linux podia instalar em binário diferente do serviço
 
 Status: corrigido
