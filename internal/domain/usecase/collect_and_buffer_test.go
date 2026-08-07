@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -135,6 +136,33 @@ func TestCollectAndBuffer_AppendsEnvelope(t *testing.T) {
 	}
 }
 
+func TestCollectAndBuffer_UsesIdentityProviderPerCollect(t *testing.T) {
+	outbox := &fakeOutbox{}
+	log := &fakeLogger{}
+	collector := &fakeCollector{
+		name: "sysmetrics",
+		data: []byte(`{"ok":true}`),
+	}
+	calls := 0
+	uc := NewCollectAndBufferWithIdentityProvider(collector, outbox, log, "Token test", func() string {
+		calls++
+		return "identity-" + strconv.Itoa(calls)
+	}, "/v1/ingest/metrics")
+
+	if err := uc.Execute(context.Background()); err != nil {
+		t.Fatalf("first execute: %v", err)
+	}
+	if err := uc.Execute(context.Background()); err != nil {
+		t.Fatalf("second execute: %v", err)
+	}
+	if len(outbox.batch) != 2 {
+		t.Fatalf("expected 2 envelopes, got %d", len(outbox.batch))
+	}
+	if outbox.batch[0].IdentityHeader != "identity-1" || outbox.batch[1].IdentityHeader != "identity-2" {
+		t.Fatalf("expected refreshed identity headers, got %q and %q", outbox.batch[0].IdentityHeader, outbox.batch[1].IdentityHeader)
+	}
+}
+
 func TestCollectAndBuffer_AppendsControlledExtraLogEndpoints(t *testing.T) {
 	outbox := &fakeOutbox{}
 	log := &fakeLogger{}
@@ -228,6 +256,23 @@ func TestCollectAndBuffer_CollectError(t *testing.T) {
 	}
 	if len(outbox.batch) != 0 {
 		t.Fatalf("expected no envelope appended")
+	}
+}
+
+func TestCachedIdentityHeaderProviderReusesHeaderWithinTTL(t *testing.T) {
+	calls := 0
+	provider := NewCachedIdentityHeaderProvider(time.Hour, func() string {
+		calls++
+		return "identity-" + strconv.Itoa(calls)
+	})
+
+	first := provider()
+	second := provider()
+	if first != "identity-1" || second != "identity-1" {
+		t.Fatalf("expected cached identity, got %q and %q", first, second)
+	}
+	if calls != 1 {
+		t.Fatalf("expected provider called once, got %d", calls)
 	}
 }
 

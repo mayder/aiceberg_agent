@@ -20,6 +20,10 @@ var sensitivePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\b(password|passwd|pwd|token|secret|api[_-]?key|cookie)\s*:\s*("[^"]+"|'[^']+'|[^\s,}]+)`),
 }
 
+var nginxCombinedAccessPattern = regexp.MustCompile(
+	`^(\S+)\s+-\s+(\S+)\s+\[([^\]]+)\]\s+"([A-Z]+)\s+(\S+)\s+HTTP/[^"]+"\s+(\d{3})\s+(\d+|-)\s+"([^"]*)"\s+"([^"]*)"$`,
+)
+
 func redactMessage(message string) (string, string) {
 	redacted := message
 	for _, pattern := range sensitivePatterns {
@@ -475,6 +479,9 @@ func looksLikeNewLogEntry(line string) bool {
 	trimmed := strings.TrimSpace(line)
 	if trimmed == "" {
 		return false
+	}
+	if nginxCombinedAccessPattern.MatchString(trimmed) {
+		return true
 	}
 	if strings.HasPrefix(trimmed, "{") {
 		return true

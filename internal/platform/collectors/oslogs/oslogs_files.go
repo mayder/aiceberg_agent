@@ -412,7 +412,7 @@ func (c *collector) buildEvent(path, hostname, line string) logEvent {
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	cursor := strconv.FormatInt(c.cursor[path], 10)
-	return enrichSOCEvent(logEvent{
+	event := logEvent{
 		SchemaVersion:   logSchemaVersion,
 		Timestamp:       now,
 		TimestampUTC:    now,
@@ -434,7 +434,11 @@ func (c *collector) buildEvent(path, hostname, line string) logEvent {
 		Transport:       "agent_file",
 		SourceTool:      sourceTool,
 		SourceCategory:  sourceCategoryForUnix(path, facility),
-	})
+	}
+	if signal, ok := parseWordPressAccessSignal(line); ok {
+		return applyWordPressAccessSignal(event, signal)
+	}
+	return enrichSOCEvent(event)
 }
 
 func (c *collector) buildLocalEvent(hostname string, item localLogEntry) logEvent {

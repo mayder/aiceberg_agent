@@ -533,7 +533,7 @@ Rollback: desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*
 5. Rodar smoke test.
 6. Monitorar logs.
 
-Para ingestão, o agente `0.8.41+` divide grupos da outbox em requisições JSON de até 8 MiB. Após rollout, conferir `last_flush_batch`, fila por endpoint e ausência de HTTP 400/413. Envelope individual acima do limite permanece retido; diagnosticar o coletor de origem antes de qualquer descarte. Rollback é publicar `0.8.40` e, se necessário, reduzir temporariamente `OUTBOX_FLUSH_BATCH` sem apagar a outbox.
+Para ingestão, o agente `0.8.44+` divide grupos da outbox em requisições JSON de até 8 MiB. Após rollout, conferir `last_flush_batch`, fila por endpoint e ausência de HTTP 400/413. Envelope individual acima do limite permanece retido; diagnosticar o coletor de origem antes de qualquer descarte. Rollback é retornar à versão `0.8.43` e, se necessário, reduzir temporariamente `OUTBOX_FLUSH_BATCH` sem apagar a outbox.
 
 ## Smoke test mínimo
 
@@ -637,6 +637,16 @@ Rollback:
 
 - Desligar as flags `validation_samples_enabled` na configuração remota.
 - Aguardar novo ciclo de configuração e snapshot.
+
+## Coleta de segurança WordPress por access log
+
+- Requer arquivo Nginx no formato combined e permissão somente leitura para o usuário do agente.
+- Adicione o usuário ao grupo proprietário do log; não relaxe o modo do arquivo e não execute o agente como root.
+- Em fonte nova com histórico já reconstruído, pare somente o agente, faça backup do cursor, grave identidade e EOF atuais, instale a versão nova e reinicie somente o agente.
+- Configure o path pela configuração remota. Confirme versão aplicada, cursor avançando e ausência de valores de query no payload.
+- O agente coleta REST batch, criação REST de usuário, login inferido por redirect, upload/ativação de plugin e requisição executável com chave de comando. Ele não cria caso; a correlação pertence ao backend.
+
+Rollback: retirar o path remoto, restaurar cursor/binário anteriores e remover o grupo adicional do usuário do agente.
 
 ## Adaptacao deste projeto
 
