@@ -934,6 +934,54 @@ func TestSelfUpdate_PreflightFailsWhenInstallDirIsNotWritable(t *testing.T) {
 	}
 }
 
+func TestSelfUpdate_PreflightAcceptsAuthorizedPrivilegedLauncher(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sudo launcher is POSIX-only")
+	}
+	root := t.TempDir()
+	installDir := filepath.Join(root, "install")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("create install dir: %v", err)
+	}
+	exePath := filepath.Join(installDir, "aiceberg-agent")
+	if err := os.WriteFile(exePath, []byte("agent"), 0o755); err != nil {
+		t.Fatalf("write fake executable: %v", err)
+	}
+	launcher := filepath.Join(root, "aiceberg-agent-update-launcher.sh")
+	if err := os.WriteFile(launcher, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write fake launcher: %v", err)
+	}
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("create fake bin dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "sudo"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write fake sudo: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	oldExecutablePath := currentExecutablePath
+	currentExecutablePath = func() (string, error) { return exePath, nil }
+	t.Cleanup(func() { currentExecutablePath = oldExecutablePath })
+	oldInstallDirWriteProbe := installDirWriteProbe
+	installDirWriteProbe = func(string) error { return errors.New("permission denied") }
+	t.Cleanup(func() { installDirWriteProbe = oldInstallDirWriteProbe })
+
+	uc := NewSelfUpdate(config.Config{}, &fakeLogger{})
+	result := uc.preflightUpdate(effectiveAutoUpdateOptions{
+		dir:     filepath.Join(root, "staging"),
+		maxMB:   1,
+		command: "sudo -n " + launcher,
+	})
+
+	if !result.OK {
+		t.Fatalf("expected privileged launcher preflight to pass: %#v", result)
+	}
+	if got := result.Checks["install_dir_writable"]; got != "delegated_to_privileged_launcher" {
+		t.Fatalf("expected delegated install write, got %q", got)
+	}
+}
+
 func TestSelfUpdate_ApplyFailureReportsExitCodeCooldownAndClearsPending(t *testing.T) {
 	pkg := []byte("payload")
 	sum := sha256.Sum256(pkg)

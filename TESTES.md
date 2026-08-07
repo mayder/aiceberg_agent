@@ -617,3 +617,9 @@ Evidência 2026-06-20:
 - Negativo: rota WordPress comum é descartada e batch isolada é coletada sem o agente declarar comprometimento.
 - Fechamento coordenado: `./check.sh` no agente e no web, artefato 0.8.43 com SHA-256 e validação da configuração aplicada no agente 70.
 - Artefatos 0.8.43: `linux-amd64=a0efdad5ce9d59d95918ad4d2f6368ef2fbb0f188c7dda68845d68542c34a388` e `windows-amd64=38c119fc98ccd0427cf11579922a83313061924fe57071f2afcb74ab7ad7911b`.
+
+### Auto-update com launcher Linux privilegiado
+
+- Unitário focado: `go test ./internal/domain/usecase -run 'TestSelfUpdate_Preflight(AcceptsAuthorizedPrivilegedLauncher|FailsWhenInstallDirIsNotWritable)' -count=1 -v`.
+- O preflight só pode delegar a escrita do diretório de instalação quando o comando usa `sudo -n`, o launcher é absoluto/executável e `sudo -n -l` confirma a autorização; sem qualquer desses requisitos, deve retornar `install_dir_not_writable`.
+- Piloto `0.8.45`: confirmar `precheck_ok`, download/hash, `apply_dispatched`, restart, reconexão, `version_confirmed`, serviço ativo e outbox drenando.

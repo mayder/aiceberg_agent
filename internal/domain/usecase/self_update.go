@@ -43,6 +43,7 @@ type SelfUpdate struct {
 }
 
 var currentExecutablePath = os.Executable
+var installDirWriteProbe = probeWritableDir
 
 var errUpdateRangeNotSatisfiable = errors.New("update partial range not satisfiable")
 
@@ -441,9 +442,13 @@ func (uc *SelfUpdate) enrichPreflightFilesystemChecks(result *updatePreflightRes
 			result.Checks["install_dir"] = "ok"
 			result.Checks["install_dir_mode"] = info.Mode().Perm().String()
 		}
-		if err := probeWritableDir(result.InstallDir); err != nil {
-			result.fail("install_dir_not_writable", "Corrigir permissão do diretório de instalação ou usar o comando manual oficial com privilégio adequado.")
-			result.Checks["install_dir_writable"] = safeUpdateText(err.Error(), 160)
+		if err := installDirWriteProbe(result.InstallDir); err != nil {
+			if privilegedUpdateLauncherAvailable(opts.command) {
+				result.Checks["install_dir_writable"] = "delegated_to_privileged_launcher"
+			} else {
+				result.fail("install_dir_not_writable", "Corrigir permissão do diretório de instalação ou usar o comando manual oficial com privilégio adequado.")
+				result.Checks["install_dir_writable"] = safeUpdateText(err.Error(), 160)
+			}
 		} else {
 			result.Checks["install_dir_writable"] = "ok"
 		}
@@ -527,6 +532,36 @@ func probeWritableDir(dir string) error {
 		return err
 	}
 	return os.Remove(name)
+}
+
+func privilegedUpdateLauncherAvailable(command string) bool {
+	if runtime.GOOS == "windows" {
+		return false
+	}
+	fields := strings.Fields(strings.TrimSpace(command))
+	if len(fields) < 3 || fields[0] != "sudo" {
+		return false
+	}
+	nonInteractive := false
+	launcherIndex := 1
+	for launcherIndex < len(fields) && strings.HasPrefix(fields[launcherIndex], "-") {
+		if fields[launcherIndex] == "-n" {
+			nonInteractive = true
+		}
+		launcherIndex++
+	}
+	if !nonInteractive || launcherIndex >= len(fields) {
+		return false
+	}
+	launcher := fields[launcherIndex]
+	if !filepath.IsAbs(launcher) {
+		return false
+	}
+	info, err := os.Stat(launcher)
+	if err != nil || info.IsDir() || info.Mode().Perm()&0o111 == 0 {
+		return false
+	}
+	return exec.Command("sudo", "-n", "-l", launcher).Run() == nil
 }
 
 func updatePreflightGaps() []string {

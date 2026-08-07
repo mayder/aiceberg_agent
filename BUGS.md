@@ -43,6 +43,38 @@ Registro oficial de bugs conhecidos, reprodução, impacto, correção e reteste
 
 ## Organização
 
+## [BUG-20260807-02] Preflight bloqueava launcher Linux autorizado
+
+Status: corrigido em código; publicação e rollout pendentes
+Severidade: Alta
+Área: Auto-update do agente
+Módulo: `internal/domain/usecase`
+Data: 2026-08-07
+
+Reprodução:
+- Executar o agente como usuário dedicado sem escrita em `/usr/local/bin`.
+- Configurar o launcher oficial `sudo -n /usr/local/sbin/aiceberg-agent-update-launcher.sh`, autorizado explicitamente no sudoers.
+- Agendar atualização remota.
+
+Esperado:
+- O usuário do serviço grava apenas no staging; a troca do binário é delegada ao launcher autorizado e executada com privilégio mínimo.
+
+Observado:
+- O preflight exigia escrita direta do usuário do agente no diretório do binário e encerrava com `install_dir_not_writable` antes de chamar o launcher.
+
+Causa provável:
+- A validação não distinguia instalação direta de instalação delegada a um comando não interativo já autorizado no sudoers.
+
+Correção:
+- Quando a escrita direta falha, o preflight aceita somente launcher absoluto e executável iniciado por `sudo -n` cuja autorização é confirmada por `sudo -n -l`.
+- Comando comum, caminho relativo, launcher inexistente ou sudo sem autorização continuam bloqueados.
+- Versão do agente elevada para `0.8.45`.
+
+Critério de fechamento:
+- Testes cobrem bloqueio sem privilégio e aceite estrito do launcher autorizado.
+- `./check.sh` passa.
+- Artefatos `0.8.45` são publicados e o agente 73 confirma download, apply, restart e `version_confirmed` sem ampliar permissões do diretório de instalação.
+
 ## [BUG-20260807-01] Lote da outbox podia ultrapassar o limite da API
 
 Status: corrigido em código; publicação e rollout pendentes
