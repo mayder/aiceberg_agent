@@ -398,7 +398,7 @@ Critério de fechamento:
 
 ## [BUG-20260808-01] Política de update exigia assinatura sem chave pública provisionada
 
-Status: corrigido em código; validação positiva final do piloto em `0.8.49`
+Status: corrigido, publicado e validado em produção com `0.8.49`
 Severidade: Alta
 Área: auto-update e cadeia de confiança
 Módulos: `cmd/update-signer`, `internal/common/updatetrust`, instaladores Linux/Windows
@@ -416,7 +416,7 @@ Correção aplicada:
 - signer reproduzível gera e verifica `UPDATE_SIGNATURES.json` para todos os artefatos;
 - build de release falha quando assinatura é obrigatória e a chave privada não foi informada;
 - instaladores provisionam `AUTO_UPDATE_TRUST_REQUIRED=true` e a chave pública oficial;
-- versão atualizada para `0.8.48`;
+- versão atualizada para `0.8.49`;
 - chave pública oficial e exigência de assinatura definidas também como defaults compilados, cobrindo instalações legadas sem `agent.env`.
 
 Validação/reteste:
@@ -433,7 +433,9 @@ Resultado do primeiro piloto:
 - a política obrigatória foi restaurada imediatamente;
 - a evidência de runtime confirmou que o Windows legado não possui `agent.env`, motivando o default compilado de `0.8.48`.
 - em `0.8.48`, o agente 2 rejeitou pacote cuja assinatura pertencia a outra versão com `validation_failed/trust_chain`, sem trocar o binário;
-- `0.8.49` foi reservado como próximo alvo assinado para validar o caminho positivo entre versões distintas.
+- o update assinado de `0.8.48` para `0.8.49` concluiu com `version_confirmed`, binário oficial e política obrigatória restaurada;
+- a expansão confirmou `0.8.49` em 11 agentes Windows ativos do InspectApp, sem pendência e com `auto_update_signature_required=1`;
+- agentes legados permaneceram no binário anterior, com proteção ativa, quando o host não ofereceu PowerShell no `PATH`, sudo sem senha ou launcher capaz de trocar a versão.
 
 Rollback: publicar a versão anterior e restaurar o arquivo de ambiente do serviço. A chave pública pode permanecer instalada; ela não é secreta e não concede capacidade de assinatura.
 

@@ -596,7 +596,8 @@ Evidência 2026-06-20:
 - Release assinada: `AICEBERG_UPDATE_SIGNING_REQUIRED=true AICEBERG_UPDATE_SIGNING_PRIVATE_KEY=<private.pem> ./scripts/build_installers.sh` deve gerar `SHA256SUMS` e `UPDATE_SIGNATURES.json` para cinco artefatos.
 - Verificação independente: `go run ./cmd/update-signer verify -manifest dist/UPDATE_SIGNATURES.json -public-key <public.pem> -artifact-dir dist` deve confirmar versão, chave e cinco assinaturas.
 - Piloto produtivo deve manter `AUTO_UPDATE_TRUST_REQUIRED=true`, confirmar a chave pública presente, rejeitar uma assinatura inválida sem substituir binário e concluir o pacote oficial com `version_confirmed`.
-- Evidência do piloto agente 2: `0.8.48` reportou chave pública configurada e confiança obrigatória; alvo de teste com assinatura válida para outra versão foi rejeitado como `validation_failed/trust_chain`. O caminho positivo usa `0.8.49` assinado para evitar reconciliação de mesma versão.
+- Evidência do piloto agente 2: `0.8.48` reportou chave pública configurada e confiança obrigatória; alvo de teste com assinatura válida para outra versão foi rejeitado como `validation_failed/trust_chain`; o pacote oficial `0.8.49` foi aceito e confirmado sem remover a proteção.
+- Evidência da expansão: 11 agentes Windows ativos do InspectApp reportaram `0.8.49`, `version_confirmed`, nenhuma pendência e assinatura obrigatória. Hosts legados que falharam por PowerShell ausente, sudo ou launcher sem troca de versão conservaram o binário anterior e a política obrigatória.
 
 - Unitário: validar regra de negocio, casos de erro e limites sem depender de rede, banco real ou UI.
 - Integracao: validar contratos entre camadas, banco local/controlado, API e adapters.
