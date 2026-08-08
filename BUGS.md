@@ -398,7 +398,7 @@ Critério de fechamento:
 
 ## [BUG-20260808-01] Política de update exigia assinatura sem chave pública provisionada
 
-Status: corrigido em código; piloto produtivo pendente
+Status: corrigido em código; validação positiva final do piloto em `0.8.49`
 Severidade: Alta
 Área: auto-update e cadeia de confiança
 Módulos: `cmd/update-signer`, `internal/common/updatetrust`, instaladores Linux/Windows
@@ -432,6 +432,8 @@ Resultado do primeiro piloto:
 - a ponte `0.8.47` foi encerrada sem alterar o binário do agente 2;
 - a política obrigatória foi restaurada imediatamente;
 - a evidência de runtime confirmou que o Windows legado não possui `agent.env`, motivando o default compilado de `0.8.48`.
+- em `0.8.48`, o agente 2 rejeitou pacote cuja assinatura pertencia a outra versão com `validation_failed/trust_chain`, sem trocar o binário;
+- `0.8.49` foi reservado como próximo alvo assinado para validar o caminho positivo entre versões distintas.
 
 Rollback: publicar a versão anterior e restaurar o arquivo de ambiente do serviço. A chave pública pode permanecer instalada; ela não é secreta e não concede capacidade de assinatura.
 
