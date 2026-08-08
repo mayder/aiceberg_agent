@@ -43,6 +43,42 @@ Registro oficial de bugs conhecidos, reprodução, impacto, correção e reteste
 
 ## Organização
 
+## [BUG-20260807-03] Envelope individual de logs permanecia acima do limite da API
+
+Status: corrigido em código; publicação e rollout pendentes
+Severidade: Alta
+Área: Forwarder/outbox do agente
+Módulo: `internal/domain/usecase`, `internal/data/local/outbox`
+Data: 2026-08-07
+
+Reprodução:
+- Coletar um lote de `oslogs` com muitos eventos próximos ao limite individual de 256 KiB.
+- Persistir o lote como um único envelope em `/v1/logs/raw`.
+- Executar o flush com limite de requisição de 8 MiB.
+
+Esperado:
+- O agente divide o envelope em partes menores, preserva todos os eventos e metadados e envia cada requisição abaixo de 8 MiB.
+- A substituição do envelope original é atômica e recuperável após restart.
+
+Observado:
+- A versão `0.8.45` evitava enviar o envelope excessivo, mas o mantinha indefinidamente na outbox.
+- Produção continuava recebendo HTTP 400/413 de agentes antigos com payloads de aproximadamente 28 a 43 MB.
+
+Causa provável:
+- O limite por bytes atuava somente entre envelopes; `oslogs` empacotava até 100 eventos em um único envelope.
+
+Correção:
+- `FlushOutbox` divide `body.events` de `/v1/logs/raw` em envelopes determinísticos de até 8 MiB.
+- A outbox Bolt substitui o original pelas partes em uma única transação, sem ACK ou descarte intermediário.
+- Metadados do corpo, endpoint, identidade e autorização são preservados.
+- Evento individual que não cabe no limite ou corpo sem contrato `events` continua retido e diagnosticado.
+- Versão do agente elevada para `0.8.46`.
+
+Critério de fechamento:
+- Testes cobrem divisão, ordem, metadados, limite serializado, IDs determinísticos e substituição Bolt atômica/durável.
+- `./check.sh` passa.
+- Artefatos `0.8.46` são publicados e um piloto SADA autorizado drena a fila sem novos HTTP 400/413 ou perda de eventos.
+
 ## [BUG-20260807-02] Preflight bloqueava launcher Linux autorizado
 
 Status: corrigido em código; publicação e rollout pendentes

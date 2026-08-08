@@ -32,6 +32,7 @@ type fakeOutbox struct {
 	batch         []entities.Envelope
 	acked         [][]string
 	readBatchSize int
+	replaced      map[string][]entities.Envelope
 }
 
 func (f *fakeOutbox) Append(env entities.Envelope) error {
@@ -60,6 +61,25 @@ func (f *fakeOutbox) Ack(ids []string) error {
 }
 
 func (f *fakeOutbox) Len() (int, int64) { return len(f.batch), 0 }
+
+func (f *fakeOutbox) ReplaceEnvelope(originalID string, replacements []entities.Envelope) error {
+	if f.replaced == nil {
+		f.replaced = make(map[string][]entities.Envelope)
+	}
+	f.replaced[originalID] = append([]entities.Envelope(nil), replacements...)
+	for i, envelope := range f.batch {
+		if envelope.ID != originalID {
+			continue
+		}
+		next := make([]entities.Envelope, 0, len(f.batch)-1+len(replacements))
+		next = append(next, f.batch[:i]...)
+		next = append(next, replacements...)
+		next = append(next, f.batch[i+1:]...)
+		f.batch = next
+		break
+	}
+	return nil
+}
 
 type fakeLogger struct {
 	info  []string

@@ -13,3 +13,9 @@ type OutboxRepo interface {
 	Ack(ids []string) error
 	Len() (items int, bytes int64)
 }
+
+// OutboxEnvelopeReplacer permite substituir um envelope por partes de forma
+// atomica. A operacao preserva o original quando qualquer parte falha.
+type OutboxEnvelopeReplacer interface {
+	ReplaceEnvelope(originalID string, replacements []entities.Envelope) error
+}

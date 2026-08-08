@@ -269,6 +269,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
    - [x] expor a configuração efetiva no `/health`, no comando `inspect_runtime_config` e no payload de métricas do agente;
    - [x] manter defaults compatíveis com instalações existentes.
    - [x] limitar cada requisição serializada a 8 MiB e dividir automaticamente o grupo sem depender apenas da quantidade de envelopes.
+   - [x] fracionar atomicamente envelopes individuais excessivos de `/v1/logs/raw` sem perder eventos nem metadados.
 
 2) **ACK granular e isolamento por rota**
    - [x] alterar `FlushOutbox` para confirmar ACK dos grupos enviados com sucesso mesmo se outro grupo falhar;

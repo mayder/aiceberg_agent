@@ -102,6 +102,14 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 	if err != nil || len(batch) == 0 {
 		return 0, err
 	}
+	if normalized, err := uc.normalizeOversizedLogEnvelopes(batch); err != nil {
+		return 0, err
+	} else if normalized > 0 {
+		batch, err = uc.outbox.ReadBatch(uc.batchSize)
+		if err != nil || len(batch) == 0 {
+			return 0, err
+		}
+	}
 
 	start := time.Now()
 	grouped, invalidIDs := uc.groupFlushBatch(batch)

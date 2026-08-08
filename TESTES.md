@@ -115,8 +115,10 @@ command = "comando de cobertura do projeto"
 
 - BUG-20260807-01: `FlushOutbox` deve limitar o JSON serializado de cada requisição a 8 MiB, abaixo dos 10 MB da API.
 - Validar múltiplos sublotes, ACK granular e preservação de endpoint, autorização e identidade.
-- Envelope individual acima do limite deve permanecer na outbox sem chegar ao transporte e sem ser confirmado.
-- Comando focado: `go test ./internal/domain/usecase -run 'TestFlushOutbox_(SplitsRequestBySerializedSize|RetainsSingleEnvelopeAboveRequestLimit|RetainsBatchWhenIngestDidNotPersist|AcksDuplicateEnvelopeSkip)' -count=1 -v`.
+- BUG-20260807-03: envelope individual excessivo de `/v1/logs/raw` deve ser substituído atomicamente por partes com `body.events`, preservando ordem e metadados.
+- Corpo sem `events` ou evento individual acima do limite deve permanecer na outbox sem chegar ao transporte e sem ser confirmado.
+- A outbox Bolt deve preservar o original quando a substituição falhar e persistir apenas as partes após sucesso/restart.
+- Comando focado: `go test ./internal/domain/usecase ./internal/data/local/outbox -run 'TestFlushOutbox_(SplitsRequestBySerializedSize|RetainsSingleEnvelopeAboveRequestLimit|SplitsAndFlushesOversizedRawLogEnvelope|RetainsBatchWhenIngestDidNotPersist|AcksDuplicateEnvelopeSkip)|TestBoltStoreReplaceIsAtomicAndDurable' -count=1 -v`.
 - Piloto: medir fila antes/depois, tamanho das requisições, último ACK, erros HTTP e ausência de perda.
 
 ## Dados de teste e fixtures

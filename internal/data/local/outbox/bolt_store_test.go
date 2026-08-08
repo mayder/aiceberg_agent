@@ -38,6 +38,50 @@ func TestBoltStoreRejectsOversizedEnvelopeWithoutPartialWrite(t *testing.T) {
 	}
 }
 
+func TestBoltStoreReplaceIsAtomicAndDurable(t *testing.T) {
+	path := t.TempDir() + "/outbox.db"
+	store, err := NewBoltStore(path, 1)
+	if err != nil {
+		t.Fatalf("new bolt store: %v", err)
+	}
+	original := entities.Envelope{ID: "original", AgentID: "agent-1", Body: map[string]any{"payload": strings.Repeat("x", 600_000)}}
+	if err := store.Push(original); err != nil {
+		t.Fatalf("push original: %v", err)
+	}
+
+	tooLarge := []entities.Envelope{
+		{ID: "part-a", AgentID: "agent-1", Body: map[string]any{"payload": strings.Repeat("a", 700_000)}},
+		{ID: "part-b", AgentID: "agent-1", Body: map[string]any{"payload": strings.Repeat("b", 700_000)}},
+	}
+	if err := store.Replace(original.ID, tooLarge); err == nil {
+		t.Fatalf("expected replacement above outbox limit to fail")
+	}
+	retained, err := store.Peek(10)
+	if err != nil || len(retained) != 1 || retained[0].ID != original.ID {
+		t.Fatalf("failed replacement must preserve original: %#v err=%v", retained, err)
+	}
+
+	parts := []entities.Envelope{
+		{ID: "part-a", AgentID: "agent-1", Body: map[string]any{"payload": strings.Repeat("a", 250_000)}},
+		{ID: "part-b", AgentID: "agent-1", Body: map[string]any{"payload": strings.Repeat("b", 250_000)}},
+	}
+	if err := store.Replace(original.ID, parts); err != nil {
+		t.Fatalf("replace original: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close store: %v", err)
+	}
+	reopened, err := NewBoltStore(path, 1)
+	if err != nil {
+		t.Fatalf("reopen store: %v", err)
+	}
+	defer reopened.Close()
+	replayed, err := reopened.Peek(10)
+	if err != nil || !reflect.DeepEqual(envelopeIDs(replayed), []string{"part-a", "part-b"}) {
+		t.Fatalf("replacement must persist without original: %#v err=%v", envelopeIDs(replayed), err)
+	}
+}
+
 func TestBoltStorePersistsReplayUntilIdempotentAck(t *testing.T) {
 	path := t.TempDir() + "/outbox.db"
 	store, err := NewBoltStore(path, 1)

@@ -403,6 +403,15 @@ Referências:
 - Impacto: preserva o modelo reutilizável entre tenants sem acoplar o agente ao incidente do InspectApp.
 - Rollback: voltar ao binário 0.8.42 e retirar o path da configuração.
 
+### DEC-20260807-01 - Envelope excessivo de logs é substituído atomicamente na outbox
+
+- Status: aceita
+- Contexto: um lote de até 100 eventos de `oslogs` pode formar um envelope de 28 a 43 MB. O limite de 8 MiB entre envelopes impede o envio, mas não consegue drenar esse envelope já persistido.
+- Decisao: antes do transporte, dividir somente envelopes de `/v1/logs/raw` pelo array `body.events`; gerar IDs determinísticos para as partes e substituir o original em uma única transação da outbox. Metadados do corpo e credenciais de roteamento são preservados.
+- Alternativas consideradas: reduzir apenas o lote de coleta, o que não recupera filas existentes; ou gravar partes e confirmar o original em operações separadas, o que cria janela de perda ou duplicidade em caso de crash.
+- Impacto: filas antigas podem ser recuperadas sem apagar dados; qualquer falha de serialização, evento individual excessivo ou falta de espaço mantém o envelope original intacto e diagnosticável.
+- Rollback: publicar a versão anterior. Partes já criadas usam o contrato legado de `/v1/logs/raw` e continuam drenáveis; não apagar a outbox.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

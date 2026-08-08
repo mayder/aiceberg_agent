@@ -95,6 +95,56 @@ func TestFlushOutbox_RetainsSingleEnvelopeAboveRequestLimit(t *testing.T) {
 	}
 }
 
+func TestFlushOutbox_SplitsAndFlushesOversizedRawLogEnvelope(t *testing.T) {
+	events := []map[string]any{
+		{"message": strings.Repeat("a", 140), "sequence": 1},
+		{"message": strings.Repeat("b", 140), "sequence": 2},
+		{"message": strings.Repeat("c", 140), "sequence": 3},
+	}
+	outbox := &fakeOutbox{batch: []entities.Envelope{{
+		ID: "raw-log-original", AgentID: "agent-2", Kind: "log", Sub: "oslogs",
+		Endpoint: rawLogsEndpoint, AuthHeader: "Token a", IdentityHeader: "identity-a",
+		Body: map[string]any{"events": events, "dropped_count": 7},
+	}}}
+	tx := &fakeTransport{body: []byte(`{"received":1,"skipped":0,"status":"ok"}`)}
+	uc := NewFlushOutboxWithOptions(outbox, tx, &fakeLogger{}, "Token default", nil, FlushOutboxOptions{
+		BatchSize: 10, MaxBatchBytes: 400,
+	})
+
+	acked, err := uc.Execute(context.Background())
+	if err != nil {
+		t.Fatalf("expected oversized log envelope to drain, got %v", err)
+	}
+	parts := outbox.replaced["raw-log-original"]
+	if len(parts) != 3 || acked != 3 || len(tx.calls) != 3 {
+		t.Fatalf("expected three split parts, got parts=%d acked=%d calls=%d", len(parts), acked, len(tx.calls))
+	}
+	seenIDs := make(map[string]bool, len(parts))
+	sequences := make([]int, 0, len(events))
+	for _, part := range parts {
+		if part.ID == "raw-log-original" || seenIDs[part.ID] || len(part.ID) != 36 {
+			t.Fatalf("unexpected deterministic child id %q", part.ID)
+		}
+		seenIDs[part.ID] = true
+		raw, marshalErr := json.Marshal([]entities.Envelope{part})
+		if marshalErr != nil || len(raw) > 400 {
+			t.Fatalf("split request exceeds limit: bytes=%d err=%v", len(raw), marshalErr)
+		}
+		var body struct {
+			Events       []map[string]any `json:"events"`
+			DroppedCount int              `json:"dropped_count"`
+		}
+		rawBody, _ := json.Marshal(part.Body)
+		if err := json.Unmarshal(rawBody, &body); err != nil || body.DroppedCount != 7 || len(body.Events) != 1 {
+			t.Fatalf("split body metadata/events not preserved: body=%s err=%v", rawBody, err)
+		}
+		sequences = append(sequences, int(body.Events[0]["sequence"].(float64)))
+	}
+	if len(sequences) != 3 || sequences[0] != 1 || sequences[1] != 2 || sequences[2] != 3 {
+		t.Fatalf("event order changed: %#v", sequences)
+	}
+}
+
 func TestFlushOutbox_GroupsByIdentityHeader(t *testing.T) {
 	outbox := &fakeOutbox{batch: []entities.Envelope{
 		{ID: "1", AuthHeader: "Token a", IdentityHeader: "identity-a", Endpoint: "/v1/ingest/metrics", AgentID: "a"},

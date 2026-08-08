@@ -135,6 +135,55 @@ func (b *BoltStore) Delete(ids []string) error {
 	})
 }
 
+// Replace troca um envelope pelas partes em uma unica transacao. O original
+// permanece intacto se a serializacao ou o limite da outbox falhar.
+func (b *BoltStore) Replace(originalID string, replacements []entities.Envelope) error {
+	encoded := make(map[string][]byte, len(replacements))
+	for _, env := range replacements {
+		if env.ID == "" || env.ID == originalID {
+			return errors.New("invalid replacement envelope id")
+		}
+		raw, err := json.Marshal(storedEnvelope{Env: env, AuthHeader: env.AuthHeader, IdentityHeader: env.IdentityHeader, Endpoint: env.Endpoint})
+		if err != nil {
+			return err
+		}
+		if _, exists := encoded[env.ID]; exists {
+			return errors.New("duplicate replacement envelope id")
+		}
+		encoded[env.ID] = raw
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bk := tx.Bucket(b.bucket)
+		original := bk.Get([]byte(originalID))
+		if original == nil {
+			return nil
+		}
+		_, currentBytes := bucketStats(tx, b.bucket)
+		projectedBytes := currentBytes - int64(len(original))
+		for id, raw := range encoded {
+			if existing := bk.Get([]byte(id)); existing != nil {
+				projectedBytes -= int64(len(existing))
+			}
+			projectedBytes += int64(len(raw))
+		}
+		if projectedBytes > b.maxBytes {
+			return errors.New("outbox full (max MB reached)")
+		}
+		if err := bk.Delete([]byte(originalID)); err != nil {
+			return err
+		}
+		for id, raw := range encoded {
+			if err := bk.Put([]byte(id), raw); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // Len retorna contagem de itens e bytes totais aproximados.
 func (b *BoltStore) Len() (int, int64) {
 	var count int

@@ -58,6 +58,24 @@ outer:
 	return nil
 }
 
+// Replace troca um envelope pelas partes no mesmo ponto da fila.
+func (m *MemStore) Replace(originalID string, replacements []entities.Envelope) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, env := range m.queue {
+		if env.ID != originalID {
+			continue
+		}
+		next := make([]entities.Envelope, 0, len(m.queue)-1+len(replacements))
+		next = append(next, m.queue[:i]...)
+		next = append(next, replacements...)
+		next = append(next, m.queue[i+1:]...)
+		m.queue = next
+		return nil
+	}
+	return nil
+}
+
 func (m *MemStore) Prune(opts PruneOptions) (int, error) {
 	maxPerAgent := opts.MaxPerAgent
 	maxAge := opts.MaxAge
