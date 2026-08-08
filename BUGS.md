@@ -416,7 +416,8 @@ Correção aplicada:
 - signer reproduzível gera e verifica `UPDATE_SIGNATURES.json` para todos os artefatos;
 - build de release falha quando assinatura é obrigatória e a chave privada não foi informada;
 - instaladores provisionam `AUTO_UPDATE_TRUST_REQUIRED=true` e a chave pública oficial;
-- versão atualizada para `0.8.47`.
+- versão atualizada para `0.8.48`;
+- chave pública oficial e exigência de assinatura definidas também como defaults compilados, cobrindo instalações legadas sem `agent.env`.
 
 Validação/reteste:
 
@@ -424,6 +425,13 @@ Validação/reteste:
 - alteração do artefato após assinatura é rejeitada;
 - chave privada existente não é sobrescrita pelo comando de geração;
 - SHA256 e assinaturas dos cinco pacotes oficiais são verificados antes da publicação.
+- configuração sem variáveis locais continua exigindo assinatura e usa a chave pública oficial compilada.
+
+Resultado do primeiro piloto:
+
+- a ponte `0.8.47` foi encerrada sem alterar o binário do agente 2;
+- a política obrigatória foi restaurada imediatamente;
+- a evidência de runtime confirmou que o Windows legado não possui `agent.env`, motivando o default compilado de `0.8.48`.
 
 Rollback: publicar a versão anterior e restaurar o arquivo de ambiente do serviço. A chave pública pode permanecer instalada; ela não é secreta e não concede capacidade de assinatura.
 

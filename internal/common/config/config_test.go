@@ -7,7 +7,26 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/you/aiceberg_agent/internal/common/updatetrust"
 )
+
+func TestLoadUsesOfficialUpdateTrustByDefault(t *testing.T) {
+	t.Setenv("AGENT_TOKEN", "token")
+	t.Setenv("AUTO_UPDATE_TRUST_REQUIRED", "")
+	t.Setenv("AUTO_UPDATE_TRUST_PUBLIC_KEY", "")
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if !cfg.AutoUpdateTrustRequired {
+		t.Fatalf("official artifact trust must be required by default")
+	}
+	if cfg.AutoUpdateTrustPublicKey != updatetrust.OfficialPublicKeyHex {
+		t.Fatalf("unexpected default update trust public key")
+	}
+}
 
 func TestLoadUsesAgentModeOverridePath(t *testing.T) {
 	dir := t.TempDir()

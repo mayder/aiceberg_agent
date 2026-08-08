@@ -592,6 +592,7 @@ Evidência 2026-06-20:
 ### Cadeia oficial de assinatura de update
 
 - `go test ./cmd/update-signer ./internal/common/updatetrust ./internal/domain/usecase -run 'Test(Generate|Verify|Official|SelfUpdate_(VerifiesTrustedArtifactSignature|RequiresSignatureFromRemotePolicyPrefs|RejectsInvalidTrustedArtifactSignature))'` cobre geração sem sobrescrita, assinatura válida, artefato adulterado, chave oficial válida e rejeição no limite real do self-update.
+- `go test ./internal/common/config -run TestLoadUsesOfficialUpdateTrustByDefault` cobre o bootstrap de instalações sem variáveis locais: assinatura obrigatória e chave pública oficial permanecem ativas.
 - Release assinada: `AICEBERG_UPDATE_SIGNING_REQUIRED=true AICEBERG_UPDATE_SIGNING_PRIVATE_KEY=<private.pem> ./scripts/build_installers.sh` deve gerar `SHA256SUMS` e `UPDATE_SIGNATURES.json` para cinco artefatos.
 - Verificação independente: `go run ./cmd/update-signer verify -manifest dist/UPDATE_SIGNATURES.json -public-key <public.pem> -artifact-dir dist` deve confirmar versão, chave e cinco assinaturas.
 - Piloto produtivo deve manter `AUTO_UPDATE_TRUST_REQUIRED=true`, confirmar a chave pública presente, rejeitar uma assinatura inválida sem substituir binário e concluir o pacote oficial com `version_confirmed`.

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/you/aiceberg_agent/internal/common/updatetrust"
 	"gopkg.in/yaml.v3"
 )
 
@@ -467,8 +468,8 @@ func Load(configPath string) (Config, error) {
 		AutoUpdateWorkDir:                  getenv("AUTO_UPDATE_WORKDIR", ""),
 		AutoUpdateMaxMB:                    intEnv("AUTO_UPDATE_MAX_MB", 300),
 		AutoUpdateUseAgentAuth:             strings.ToLower(getenv("AUTO_UPDATE_USE_AGENT_AUTH", "")) == "true",
-		AutoUpdateTrustRequired:            strings.ToLower(getenv("AUTO_UPDATE_TRUST_REQUIRED", "")) == "true",
-		AutoUpdateTrustPublicKey:           getenv("AUTO_UPDATE_TRUST_PUBLIC_KEY", ""),
+		AutoUpdateTrustRequired:            strings.ToLower(getenv("AUTO_UPDATE_TRUST_REQUIRED", "true")) == "true",
+		AutoUpdateTrustPublicKey:           getenv("AUTO_UPDATE_TRUST_PUBLIC_KEY", updatetrust.OfficialPublicKeyHex),
 		AgentClientID:                      intEnv("AGENT_CLIENT_ID", 0),
 		AgentID:                            intEnv("AGENT_ID", 0),
 		AgentInstallationID:                getenv("AGENT_INSTALLATION_ID", ""),

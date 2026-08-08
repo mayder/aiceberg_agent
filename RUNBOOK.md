@@ -551,7 +551,7 @@ go run ./cmd/update-signer verify \
 (cd dist && shasum -a 256 -c SHA256SUMS)
 ```
 
-Publicar juntos os cinco compactados, `SHA256SUMS` e `UPDATE_SIGNATURES.json`. O backend só deve agendar pacotes cujo manifesto, SHA256 e assinatura estejam válidos. Novas instalações recebem a chave pública pelo instalador. Em instalações existentes, provisionar a chave pública com backup do ambiente do serviço antes de manter a política obrigatória.
+Publicar juntos os cinco compactados, `SHA256SUMS` e `UPDATE_SIGNATURES.json`. O backend só deve agendar pacotes cujo manifesto, SHA256 e assinatura estejam válidos. Novas instalações recebem a chave pública pelo instalador. Desde `0.8.48`, instalações existentes sem `agent.env` usam a chave pública oficial e a exigência de assinatura compiladas no binário; a chave privada nunca é distribuída.
 
 Rotação sem indisponibilidade:
 
@@ -560,6 +560,8 @@ Rotação sem indisponibilidade:
 3. confirmar a versão intermediária na frota;
 4. assinar a versão seguinte com a chave nova;
 5. remover a chave anterior somente após a janela de rollback.
+
+A rotação da chave compilada exige uma versão intermediária assinada pela chave ainda confiável. Não substituir a constante pública e assinar o mesmo release apenas com a chave nova.
 
 Rollback: restaurar configuração e binário anteriores. Não apagar a chave antiga enquanto houver agentes ou pacotes válidos dependentes dela.
 
