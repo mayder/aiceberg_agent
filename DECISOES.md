@@ -412,6 +412,15 @@ Referências:
 - Impacto: filas antigas podem ser recuperadas sem apagar dados; qualquer falha de serialização, evento individual excessivo ou falta de espaço mantém o envelope original intacto e diagnosticável.
 - Rollback: publicar a versão anterior. Partes já criadas usam o contrato legado de `/v1/logs/raw` e continuam drenáveis; não apagar a outbox.
 
+### DEC-20260808-01 - Releases do agente usam uma raiz Ed25519 própria e sem serviço pago
+
+- Status: aceita
+- Contexto: a política remota já exigia assinatura, mas a frota não tinha chave pública provisionada e o processo de build não gerava assinaturas. Isso causava `validation_failed/trust_chain` e incentivava exceções operacionais temporárias.
+- Decisao: manter uma chave privada Ed25519 oficial fora do Git, integrar assinatura obrigatória ao build de release, publicar manifesto verificável e provisionar somente a chave pública nos instaladores. O backend aceita para update remoto apenas artefato com manifesto, SHA256 e assinatura válidos.
+- Alternativas consideradas: manter somente SHA256, desabilitar a política de assinatura ou contratar certificado/HSM. SHA256 isolado não prova autoria, desabilitar a política reduz segurança e serviço pago não é necessário para esta raiz interna.
+- Impacto: a publicação passa a falhar fechada sem chave privada; agentes e backend conseguem rejeitar pacote adulterado ou assinado por chave desconhecida. A chave pública pode ser versionada; a privada não pode sair do bundle protegido.
+- Rollback: preservar a chave anterior e os pacotes assinados durante a janela de rollback; restaurar binário/configuração anterior sem apagar a raiz pública em uso.
+
 ## Adaptacao deste projeto
 
 - Projeto: `aiceberg_agent`

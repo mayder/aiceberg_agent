@@ -8,6 +8,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST="$ROOT/dist"
 BIN_NAME="aiceberg_agent"
 LD_FLAGS="-s -w"
+VERSION="$(sed -n 's/^const Version = "\([^"]*\)"/\1/p' "$ROOT/internal/common/version/version.go")"
+SIGNING_REQUIRED="${AICEBERG_UPDATE_SIGNING_REQUIRED:-false}"
+SIGNING_PRIVATE_KEY="${AICEBERG_UPDATE_SIGNING_PRIVATE_KEY:-}"
+SIGNING_KEY_ID="${AICEBERG_UPDATE_SIGNING_KEY_ID:-aiceberg-agent-prod-v1}"
 
 rm -rf "$DIST"
 mkdir -p "$DIST"
@@ -102,6 +106,31 @@ build_unix "linux" "arm64" "tar.gz" "scripts/linux/aiceberg-agent.service"
 build_unix "darwin" "amd64" "tar.gz" ""
 build_unix "darwin" "arm64" "tar.gz" ""
 build_windows "amd64"
+
+artifacts=(
+  "$DIST/aiceberg-agent-linux-amd64.tar.gz"
+  "$DIST/aiceberg-agent-linux-arm64.tar.gz"
+  "$DIST/aiceberg-agent-darwin-amd64.tar.gz"
+  "$DIST/aiceberg-agent-darwin-arm64.tar.gz"
+  "$DIST/aiceberg-agent-windows-amd64.zip"
+)
+
+if command -v sha256sum >/dev/null 2>&1; then
+  (cd "$DIST" && sha256sum "${artifacts[@]##*/}" >SHA256SUMS)
+else
+  (cd "$DIST" && shasum -a 256 "${artifacts[@]##*/}" >SHA256SUMS)
+fi
+
+if [[ -n "$SIGNING_PRIVATE_KEY" ]]; then
+  signer_args=(sign -private-key "$SIGNING_PRIVATE_KEY" -version "$VERSION" -key-id "$SIGNING_KEY_ID" -output "$DIST/UPDATE_SIGNATURES.json")
+  for artifact in "${artifacts[@]}"; do
+    signer_args+=(-artifact "$artifact")
+  done
+  go run "$ROOT/cmd/update-signer" "${signer_args[@]}"
+elif [[ "$SIGNING_REQUIRED" == "true" ]]; then
+  echo "AICEBERG_UPDATE_SIGNING_PRIVATE_KEY é obrigatório para release assinada." >&2
+  exit 1
+fi
 
 echo "Done. Files in dist/:"
 ls -1 "$DIST"

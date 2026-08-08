@@ -94,6 +94,8 @@ if ($SkipBootstrap) { [Environment]::SetEnvironmentVariable("SKIP_BOOTSTRAP", "t
 [Environment]::SetEnvironmentVariable("AUTO_UPDATE_DIR", $updateStorageDir, "Machine")
 [Environment]::SetEnvironmentVariable("AUTO_UPDATE_TIMEOUT", "300", "Machine")
 [Environment]::SetEnvironmentVariable("AUTO_UPDATE_RETRY_INTERVAL", "30", "Machine")
+[Environment]::SetEnvironmentVariable("AUTO_UPDATE_TRUST_REQUIRED", "true", "Machine")
+[Environment]::SetEnvironmentVariable("AUTO_UPDATE_TRUST_PUBLIC_KEY", "9a74529340757946a091dff57d1d1fa721d4b129d76748b6e1c4533514c54045", "Machine")
 
 Write-Host "Registrando fonte de log no Windows Event Log..."
 if (-not [System.Diagnostics.EventLog]::SourceExists($ServiceName)) {

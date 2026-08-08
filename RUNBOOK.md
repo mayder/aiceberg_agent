@@ -533,6 +533,36 @@ Rollback: desligar logs por `OSLOG_ENABLED=false`, remover overrides `aiceberg.*
 5. Rodar smoke test.
 6. Monitorar logs.
 
+### Publicação assinada do agente
+
+A chave privada oficial fica fora do repositório e nunca deve ser copiada para pacote, agente, servidor web ou log. O build recebe apenas o caminho local por variável de ambiente:
+
+```bash
+AICEBERG_UPDATE_SIGNING_REQUIRED=true \
+AICEBERG_UPDATE_SIGNING_PRIVATE_KEY=/caminho/privado/private.pem \
+AICEBERG_UPDATE_SIGNING_KEY_ID=aiceberg-agent-prod-v1 \
+./scripts/build_installers.sh
+
+go run ./cmd/update-signer verify \
+  -manifest dist/UPDATE_SIGNATURES.json \
+  -public-key /caminho/privado/public.pem \
+  -artifact-dir dist
+
+(cd dist && shasum -a 256 -c SHA256SUMS)
+```
+
+Publicar juntos os cinco compactados, `SHA256SUMS` e `UPDATE_SIGNATURES.json`. O backend só deve agendar pacotes cujo manifesto, SHA256 e assinatura estejam válidos. Novas instalações recebem a chave pública pelo instalador. Em instalações existentes, provisionar a chave pública com backup do ambiente do serviço antes de manter a política obrigatória.
+
+Rotação sem indisponibilidade:
+
+1. gerar novo par fora do Git e preservar a chave anterior para rollback;
+2. publicar versão intermediária que confie nas chaves atual e nova;
+3. confirmar a versão intermediária na frota;
+4. assinar a versão seguinte com a chave nova;
+5. remover a chave anterior somente após a janela de rollback.
+
+Rollback: restaurar configuração e binário anteriores. Não apagar a chave antiga enquanto houver agentes ou pacotes válidos dependentes dela.
+
 Para ingestão, o agente `0.8.44+` divide grupos da outbox em requisições JSON de até 8 MiB. A partir de `0.8.46`, envelope individual excessivo de `/v1/logs/raw` também é dividido por `body.events`: a outbox substitui o original pelas partes atomicamente e preserva metadados, identidade e autorização. Evento individual que exceda o limite ou corpo sem `events` permanece retido e diagnosticado. Após rollout, conferir `last_flush_batch`, fila por endpoint, log `oversized log envelope split` e ausência de HTTP 400/413. Rollback é retornar à versão anterior; a outbox já fracionada continua válida e não deve ser apagada.
 
 ## Smoke test mínimo

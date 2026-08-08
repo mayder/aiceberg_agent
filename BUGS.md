@@ -396,6 +396,37 @@ Critério de fechamento:
 - `./check.sh` passa nos dois repositórios.
 - Agente atualizado não gera novo log bruto apenas por ausência de eventos.
 
+## [BUG-20260808-01] Política de update exigia assinatura sem chave pública provisionada
+
+Status: corrigido em código; piloto produtivo pendente
+Severidade: Alta
+Área: auto-update e cadeia de confiança
+Módulos: `cmd/update-signer`, `internal/common/updatetrust`, instaladores Linux/Windows
+Data: 2026-08-08
+
+Resultado observado:
+
+- o agente rejeitava o pacote com `validation_failed/trust_chain` e `artifact trust public key missing`;
+- a publicação gerava SHA256, mas não produzia manifesto Ed25519 consumível pelo backend;
+- instaladores existentes não provisionavam a chave pública oficial.
+
+Correção aplicada:
+
+- chave Ed25519 oficial criada fora do Git, com chave privada em modo `0600`;
+- signer reproduzível gera e verifica `UPDATE_SIGNATURES.json` para todos os artefatos;
+- build de release falha quando assinatura é obrigatória e a chave privada não foi informada;
+- instaladores provisionam `AUTO_UPDATE_TRUST_REQUIRED=true` e a chave pública oficial;
+- versão atualizada para `0.8.47`.
+
+Validação/reteste:
+
+- assinatura válida é aceita;
+- alteração do artefato após assinatura é rejeitada;
+- chave privada existente não é sobrescrita pelo comando de geração;
+- SHA256 e assinaturas dos cinco pacotes oficiais são verificados antes da publicação.
+
+Rollback: publicar a versão anterior e restaurar o arquivo de ambiente do serviço. A chave pública pode permanecer instalada; ela não é secreta e não concede capacidade de assinatura.
+
 ## Modelo para novos registros
 
 ```txt

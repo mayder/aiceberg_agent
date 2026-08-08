@@ -2,9 +2,7 @@ package usecase
 
 import (
 	"context"
-	"crypto/ed25519"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -25,6 +23,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/common/updatetrust"
 	"github.com/you/aiceberg_agent/internal/common/version"
 )
 
@@ -789,64 +788,19 @@ func (uc *SelfUpdate) validateArtifactTrust(payload *UpdatePayload, artifact dow
 	if publicKeyRaw == "" {
 		return errors.New("artifact trust public key missing")
 	}
-	publicKey, err := decodeEd25519PublicKey(publicKeyRaw)
-	if err != nil {
-		return fmt.Errorf("artifact trust public key invalid: %w", err)
-	}
-	signature, err := decodeSignature(payload.Signature)
-	if err != nil {
-		return fmt.Errorf("artifact signature invalid: %w", err)
-	}
-	algorithm := strings.TrimSpace(payload.SignatureAlgorithm)
-	if algorithm == "" {
-		algorithm = "ed25519-sha256"
-	}
-	if !strings.EqualFold(algorithm, "ed25519-sha256") {
-		return fmt.Errorf("artifact signature algorithm unsupported: %s", algorithm)
-	}
 	sha := normalizeSHA256(artifact.SHA256)
-	if sha == "" {
-		return errors.New("artifact sha256 missing for trust validation")
-	}
-	message := artifactTrustMessage(payload.Version, sha, payload.SigningKeyID)
-	if !ed25519.Verify(publicKey, []byte(message), signature) {
-		return errors.New("artifact signature verification failed")
-	}
-	return nil
-}
-
-func decodeEd25519PublicKey(value string) (ed25519.PublicKey, error) {
-	raw, err := decodeSignature(value)
-	if err != nil {
-		return nil, err
-	}
-	if len(raw) != ed25519.PublicKeySize {
-		return nil, fmt.Errorf("expected %d bytes, got %d", ed25519.PublicKeySize, len(raw))
-	}
-	return ed25519.PublicKey(raw), nil
-}
-
-func decodeSignature(value string) ([]byte, error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return nil, errors.New("empty value")
-	}
-	if raw, err := hex.DecodeString(strings.TrimPrefix(value, "hex:")); err == nil {
-		return raw, nil
-	}
-	if raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(value, "base64:")); err == nil {
-		return raw, nil
-	}
-	return nil, errors.New("expected hex or base64")
+	return updatetrust.Verify(
+		publicKeyRaw,
+		payload.Version,
+		sha,
+		payload.SignatureAlgorithm,
+		payload.Signature,
+		payload.SigningKeyID,
+	)
 }
 
 func artifactTrustMessage(targetVersion, artifactSHA256, signingKeyID string) string {
-	return strings.Join([]string{
-		"aiceberg-agent-update:v1",
-		strings.TrimSpace(targetVersion),
-		normalizeSHA256(artifactSHA256),
-		strings.TrimSpace(signingKeyID),
-	}, "\n")
+	return updatetrust.Message(targetVersion, artifactSHA256, signingKeyID)
 }
 
 func (uc *SelfUpdate) downloadSources(rawURL string, useAuth bool) []updateDownloadSource {
