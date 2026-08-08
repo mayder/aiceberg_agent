@@ -120,6 +120,7 @@ command = "comando de cobertura do projeto"
 - A outbox Bolt deve preservar o original quando a substituição falhar e persistir apenas as partes após sucesso/restart.
 - Comando focado: `go test ./internal/domain/usecase ./internal/data/local/outbox -run 'TestFlushOutbox_(SplitsRequestBySerializedSize|RetainsSingleEnvelopeAboveRequestLimit|SplitsAndFlushesOversizedRawLogEnvelope|RetainsBatchWhenIngestDidNotPersist|AcksDuplicateEnvelopeSkip)|TestBoltStoreReplaceIsAtomicAndDurable' -count=1 -v`.
 - Piloto: medir fila antes/depois, tamanho das requisições, último ACK, erros HTTP e ausência de perda.
+- Evidência de publicação em 08/08/2026: `./check.sh` verde; artefatos `0.8.46` com hashes `linux-amd64=1b6fdc13ff400061b223bac6171d022725491587e2f014329227be4c1ccb01ef` e `windows-amd64=c24b9fce65858e08987a338232fc723763df05027e593479ce5b6ee3d6a78964`; prontidão oficial e Range passaram nos dois domínios de download.
 
 ## Dados de teste e fixtures
 

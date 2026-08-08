@@ -45,7 +45,7 @@ Registro oficial de bugs conhecidos, reprodução, impacto, correção e reteste
 
 ## [BUG-20260807-03] Envelope individual de logs permanecia acima do limite da API
 
-Status: corrigido em código; publicação e rollout pendentes
+Status: corrigido e publicado; rollout SADA pendente de autorização
 Severidade: Alta
 Área: Forwarder/outbox do agente
 Módulo: `internal/domain/usecase`, `internal/data/local/outbox`
@@ -78,6 +78,11 @@ Critério de fechamento:
 - Testes cobrem divisão, ordem, metadados, limite serializado, IDs determinísticos e substituição Bolt atômica/durável.
 - `./check.sh` passa.
 - Artefatos `0.8.46` são publicados e um piloto SADA autorizado drena a fila sem novos HTTP 400/413 ou perda de eventos.
+
+Publicação:
+- Commit do agente `b603454`, integrado e enviado para `main`.
+- Cinco artefatos `0.8.46` publicados em `downloads.aiceberg.com.br` e `update.aiceberg.com.br`, com SHA-256 e HTTP Range validados.
+- Rollout permanece bloqueado até autorização explícita para o cliente SADA.
 
 ## [BUG-20260807-02] Preflight bloqueava launcher Linux autorizado
 
