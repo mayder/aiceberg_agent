@@ -648,3 +648,34 @@ func TestRunJobWithPartialsEmitsSNMPGroupObservations(t *testing.T) {
 		t.Fatalf("dedupe_key final invalida: %q", finalObs.DedupeKey)
 	}
 }
+
+func TestCustomGetMatchesWireOIDWithLeadingDot(t *testing.T) {
+	for _, prefix := range []string{"", "."} {
+		t.Run("wire-prefix-"+prefix, func(t *testing.T) {
+			job := newSNMPJob()
+			job.Config["fetch_mode"] = "get_only"
+			oid := "1.3.6.1.4.1.6486.800.1.2.1.16.1.1.1.13.0"
+			job.Config["custom_get_oids"] = []any{map[string]any{"oid": "." + oid, "canonical_key": "cpu_percent"}}
+			withFakeSNMPClient(t, &fakeSNMPClient{getFn: func(oids []string) (*gosnmp.SnmpPacket, error) {
+				vars := []gosnmp.SnmpPDU{}
+				for _, item := range oids {
+					vars = append(vars, gosnmp.SnmpPDU{Name: prefix + item, Type: gosnmp.Integer, Value: 37})
+				}
+				return &gosnmp.SnmpPacket{Variables: vars}, nil
+			}})
+			obs := RunJob(context.Background(), job)
+			custom, ok := obs.Payload["custom"].(map[string]any)
+			if !ok {
+				t.Fatalf("custom missing: status=%s", obs.Status)
+			}
+			items, ok := custom["get"].([]any)
+			if !ok || len(items) != 1 {
+				t.Fatalf("custom get: %#v", custom["get"])
+			}
+			item := items[0].(map[string]any)
+			if item["value"] != float64(37) || item["error"] != nil {
+				t.Fatalf("expected CPU 37, got %#v type=%T", item, item["value"])
+			}
+		})
+	}
+}

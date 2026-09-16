@@ -324,7 +324,7 @@ func (c *snmpCollector) collectCustom() bool {
 			values := make(map[string]any)
 			for _, variable := range snmpVariables(resp) {
 				v := snmpValueToAny(variable)
-				values[variable.Name] = v
+				values[strings.TrimPrefix(strings.TrimSpace(variable.Name), ".")] = v
 				c.payload.Scalars[variable.Name] = v
 				c.payload.OIDs[variable.Name] = v
 			}
