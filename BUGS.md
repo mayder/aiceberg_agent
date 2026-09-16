@@ -525,3 +525,8 @@ Rollback: instalar o binário 0.8.42 e retirar o access log da configuração re
 - Severidade: alta para atraso de cobertura no inventário volumoso. Reprodução: lote é executado sequencialmente; GET devolve OID com ponto inicial e lookup usa especificação normalizada sem ponto, gerando ausência de dados apesar do retorno.
 - Correção preparada: workers limitados por destino, controle de backlog/flush e normalização da chave GET. Falha de persistência passa a ser reportada ao chamador, com interrupção do lote.
 - Reteste local: concorrência/cancelamento/persistência, envio HTTP com erro sem perda, e retorno GET com/sem ponto. Publicação e coleta real no HUB ainda pendentes; não fechar como resolvido em produção.
+## Auto-update rejeitava lançador privilegiado intermediado por `env`
+
+- **Sintoma:** o preflight retornava `install_dir_not_writable` mesmo com `sudo -n` e lançador oficial autorizado.
+- **Causa:** o validador tratava `env` como o executável privilegiado e não alcançava o caminho absoluto do lançador após as variáveis.
+- **Correção:** o preflight aceita `sudo -n env VAR=valor /caminho/absoluto`, valida os nomes das variáveis e mantém a conferência da permissão sudo para o lançador final.

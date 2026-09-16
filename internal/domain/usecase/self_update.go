@@ -549,6 +549,15 @@ func privilegedUpdateLauncherAvailable(command string) bool {
 		}
 		launcherIndex++
 	}
+	if launcherIndex < len(fields) && filepath.Base(fields[launcherIndex]) == "env" {
+		launcherIndex++
+		for launcherIndex < len(fields) && strings.HasPrefix(fields[launcherIndex], "-") {
+			launcherIndex++
+		}
+		for launcherIndex < len(fields) && isEnvironmentAssignment(fields[launcherIndex]) {
+			launcherIndex++
+		}
+	}
 	if !nonInteractive || launcherIndex >= len(fields) {
 		return false
 	}
@@ -561,6 +570,19 @@ func privilegedUpdateLauncherAvailable(command string) bool {
 		return false
 	}
 	return exec.Command("sudo", "-n", "-l", launcher).Run() == nil
+}
+
+func isEnvironmentAssignment(value string) bool {
+	name, _, ok := strings.Cut(value, "=")
+	if !ok || name == "" {
+		return false
+	}
+	for i, r := range name {
+		if (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && r != '_' && (i == 0 || r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
 }
 
 func updatePreflightGaps() []string {

@@ -982,6 +982,30 @@ func TestSelfUpdate_PreflightAcceptsAuthorizedPrivilegedLauncher(t *testing.T) {
 	}
 }
 
+func TestSelfUpdate_PreflightAcceptsAuthorizedPrivilegedLauncherThroughEnv(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sudo launcher is POSIX-only")
+	}
+	root := t.TempDir()
+	launcher := filepath.Join(root, "aiceberg-agent-update-launcher.sh")
+	if err := os.WriteFile(launcher, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write fake launcher: %v", err)
+	}
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("create fake bin dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "sudo"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write fake sudo: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	command := `sudo -n env AICEBERG_UPDATE_FILE="$AICEBERG_UPDATE_FILE" AICEBERG_UPDATE_VERSION="$AICEBERG_UPDATE_VERSION" ` + launcher
+	if !privilegedUpdateLauncherAvailable(command) {
+		t.Fatalf("expected privileged launcher through env to be accepted")
+	}
+}
+
 func TestSelfUpdate_ApplyFailureReportsExitCodeCooldownAndClearsPending(t *testing.T) {
 	pkg := []byte("payload")
 	sum := sha256.Sum256(pkg)
