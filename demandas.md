@@ -544,7 +544,7 @@ Criar pacote quando houver varias demandas relacionadas, risco transversal, muda
 
 ## [PKG-110] Agentless — capacidade de coleta e correção de OIDs
 
-Status: implementação integrada na `main` e destinada à versão assinada `0.8.51`; a `0.8.50` foi publicada, mas o piloto revelou e comprovou o bloqueio do lançador privilegiado via `env`. Escopo coordenado com o Web, cliente 2/HUB 10. Não ampliar automaticamente outros agentes.
+Status: implementação integrada na `main`; `0.8.50` e `0.8.51` foram publicadas. O piloto comprovou o bloqueio do lançador privilegiado do agente antigo e deixou cooldown local para o alvo `0.8.51`; a `0.8.52` preserva a correção e cria um novo alvo para o piloto restrito. Escopo coordenado com o Web, cliente 2/HUB 10. Não ampliar automaticamente outros agentes.
 
 - [x] Implementar lote com até oito destinos em paralelo e ordem sequencial por endereço, cancelamento e propagação de falha de persistência.
 - [x] Serializar lotes e flushes concorrentes; drenar no máximo oito lotes por flush, preservando observações quando o envio falha.
@@ -552,7 +552,8 @@ Status: implementação integrada na `main` e destinada à versão assinada `0.8
 - [x] Normalizar ponto inicial no casamento de OIDs de GET customizado.
 - [x] Integrar e commitar separadamente a correção de OID (`dd2089f`) e a capacidade controlada (`f1b2f00`).
 - [x] Gerar a versão `0.8.50` assinada e publicar os artefatos oficiais.
-- [ ] Gerar a versão corretiva `0.8.51` assinada e repetir o piloto no HUB 10.
+- [x] Gerar e publicar a versão corretiva `0.8.51` assinada; o piloto automático permaneceu bloqueado no agente antigo.
+- [ ] Gerar a versão `0.8.52` assinada para repetir o piloto sem o cooldown local associado ao alvo `0.8.51`.
 - [ ] Atualizar somente o HUB piloto, validar versão/serviço, medir regularidade e só então ampliar Web e inventário.
 
 Rollback: pacote anterior assinado, política de despacho Web vazia e configuração anterior do HUB. Preservar outbox e histórico. Sem alteração de schema ou rotina nova de limpeza.
