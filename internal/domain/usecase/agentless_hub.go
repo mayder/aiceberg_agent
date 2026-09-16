@@ -24,6 +24,8 @@ type AgentlessHub struct {
 	settings func() AgentlessSettings
 	store    AgentlessTargetsStore
 	mu       sync.RWMutex
+	flushMu  sync.Mutex
+	runMu    sync.Mutex
 	targets  []entities.AgentlessJob
 }
 
@@ -60,6 +62,8 @@ func NewAgentlessHub(cfg config.Config, log logger.Logger, client *remote.Agentl
 }
 
 func (uc *AgentlessHub) PollAndRun(ctx context.Context) error {
+	uc.runMu.Lock()
+	defer uc.runMu.Unlock()
 	st := uc.getSettings()
 	if !st.Enabled {
 		return nil
@@ -68,82 +72,45 @@ func (uc *AgentlessHub) PollAndRun(ctx context.Context) error {
 	if len(jobs) == 0 {
 		return nil
 	}
-	for _, job := range jobs {
-		if uc.cfg.AgentlessDebug {
-			uc.log.Info(formatAgentlessJob("agentless job start", job))
-		}
-		obsCount := 0
-		appendObs := func(obs entities.AgentlessObservation) {
-			if err := uc.outbox.Append(obs); err != nil {
-				uc.log.Error(logger.KV("agentless outbox append failed",
-					"job_id", job.CheckID,
-					"job_type", job.Tipo,
-					"err", err,
-				))
-				return
-			}
-			obsCount++
-			if uc.cfg.AgentlessDebug {
-				uc.log.Info(formatAgentlessObs("agentless job result", job, obs))
-			}
-		}
-		obs := agentless.RunJobWithPartials(ctx, job, appendObs)
-		appendObs(obs)
-		if obsCount == 0 {
-			uc.log.Error(logger.KV("agentless outbox append failed",
-				"job_id", job.CheckID,
-				"job_type", job.Tipo,
-				"err", "nenhuma observacao enfileirada",
-			))
-		}
+	var appendMu sync.Mutex
+	err := runAgentlessBatch(ctx, jobs, agentlessBatchWorkers, func(jobCtx context.Context, job entities.AgentlessJob) error {
+		return uc.runJob(jobCtx, job, &appendMu)
+	})
+	if err != nil {
+		return err
 	}
 	metrics.AddAgentlessJobs(len(jobs))
-	uc.log.Info(logger.KV("agentless jobs executed",
-		"batch_size", len(jobs),
-	))
+	uc.log.Info(logger.KV("agentless jobs executed", "batch_size", len(jobs), "workers", agentlessBatchWorkers))
 	return nil
 }
 
-func (uc *AgentlessHub) Flush(ctx context.Context) error {
-	st := uc.getSettings()
-	batchSize := st.FlushBatch
-	if batchSize <= 0 {
-		batchSize = uc.cfg.AgentlessFlushBatch
-		if batchSize <= 0 {
-			batchSize = 50
+func (uc *AgentlessHub) runJob(ctx context.Context, job entities.AgentlessJob, appendMu *sync.Mutex) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	if uc.cfg.AgentlessDebug {
+		uc.log.Info(formatAgentlessJob("agentless job start", job))
+	}
+	var persistenceErr error
+	appendObs := func(obs entities.AgentlessObservation) {
+		if persistenceErr != nil {
+			return
+		}
+		appendMu.Lock()
+		err := uc.outbox.Append(obs)
+		appendMu.Unlock()
+		if err != nil {
+			persistenceErr = err
+			cancel()
+			uc.log.Error(logger.KV("agentless outbox append failed", "job_id", job.CheckID, "job_type", job.Tipo, "err", err))
+			return
+		}
+		if uc.cfg.AgentlessDebug {
+			uc.log.Info(formatAgentlessObs("agentless job result", job, obs))
 		}
 	}
-	batch, err := uc.outbox.ReadBatch(batchSize)
-	if err != nil || len(batch) == 0 {
-		return err
-	}
-	if err := uc.client.SendObservations(ctx, batch); err != nil {
-		uc.log.Error(logger.KV("agentless send failed",
-			"batch_size", len(batch),
-			"err", err,
-		))
-		return err
-	}
-	ids := make([]string, 0, len(batch))
-	for _, o := range batch {
-		ids = append(ids, o.ID)
-	}
-	if err := uc.outbox.Ack(ids); err != nil {
-		uc.log.Error(logger.KV("agentless outbox ack failed",
-			"batch_size", len(ids),
-			"err", err,
-		))
-		return err
-	}
-	if uc.cfg.AgentlessDebug {
-		uc.log.Info(logger.KV("agentless flushed batch",
-			"batch_size", len(ids),
-		))
-	}
-	uc.log.Info(logger.KV("agentless flushed ack",
-		"batch_size", len(ids),
-	))
-	return nil
+	obs := agentless.RunJobWithPartials(ctx, job, appendObs)
+	appendObs(obs)
+	return persistenceErr
 }
 
 func (uc *AgentlessHub) Prune(maxAge time.Duration) {
@@ -189,6 +156,15 @@ func (uc *AgentlessHub) syncTargets(ctx context.Context, opts remote.AgentlessFe
 	st := uc.getSettings()
 	if !st.Enabled {
 		return nil
+	}
+	// Drain a bounded backlog before accepting more routine work.
+	if opts.CommandID == "" && len(opts.CheckIDs) == 0 {
+		pending, _ := uc.outbox.Len()
+		if pending >= agentlessFlushBatches*uc.flushBatchSize() {
+			uc.setTargets(nil)
+			uc.log.Info(logger.KV("agentless collection backpressure", "pending", pending))
+			return nil
+		}
 	}
 	limit := st.JobsLimit
 	if limit <= 0 {

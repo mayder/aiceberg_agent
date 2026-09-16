@@ -540,3 +540,17 @@ Projeto: `aiceberg_agent`. Stack: Go agent/CLI, gopsutil, NTP, SNMP. Este arquiv
 ## Quando criar pacote
 
 Criar pacote quando houver varias demandas relacionadas, risco transversal, mudanca em mais de um modulo ou necessidade de dividir entrega em lotes. Um lote pode resolver uma ou mais demandas, mas o pacote so fecha apos check completo e review de fechamento.
+
+
+## [PKG-110] Agentless — capacidade de coleta e correção de OIDs
+
+Status: implementação preparada e validada em cópia isolada; integração na branch e publicação pendentes. Escopo coordenado com o Web, cliente 2/HUB 10. Não ampliar automaticamente outros agentes.
+
+- [x] Implementar lote com até oito destinos em paralelo e ordem sequencial por endereço, cancelamento e propagação de falha de persistência.
+- [x] Serializar lotes e flushes concorrentes; drenar no máximo oito lotes por flush, preservando observações quando o envio falha.
+- [x] Suspender novos polls de rotina quando a fila atingir oito lotes; não apagar dados nem transformar falha de gravação em sucesso.
+- [x] Normalizar ponto inicial no casamento de OIDs de GET customizado.
+- [ ] Integrar/commitar cada item no repositório autorizado, gerar nova versão assinada e publicar artefatos oficiais.
+- [ ] Atualizar somente o HUB piloto, validar versão/serviço, medir regularidade e só então ampliar Web e inventário.
+
+Rollback: pacote anterior assinado, política de despacho Web vazia e configuração anterior do HUB. Preservar outbox e histórico. Sem alteração de schema ou rotina nova de limpeza.

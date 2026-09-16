@@ -687,3 +687,12 @@ Rollback: retirar o path remoto, restaurar cursor/binário anteriores e remover 
 - Stack detectada: Go agent/CLI, gopsutil, NTP, SNMP
 - Regra: adaptar comandos, camadas, testes, fixtures e limites conforme a realidade deste modulo Go.
 - Banco de dados: nao usar migrations. Mudancas devem ser scripts `.sql` idempotentes quando possivel, com ordem e rollback.
+
+
+## Agentless — rollout de capacidade
+
+Publicar uma versão assinada inédita após check/commits. Atualizar primeiro apenas HUB 10, preservando binário/configuração para rollback. Confirmar versão reportada, serviço e fila; só depois aumentar `agentless_jobs_limit` e a política Web do mesmo cliente/HUB. Começar com lote 20 e medir tempo total frente ao lock de 600s, consumo e atraso. Reduzir/reverter se fila ou atraso crescerem. Nunca habilitar todo o inventário com base no benchmark local.
+
+O coletor usa oito workers por destino distinto e drena até oito lotes por flush. A fila pode pausar fetch de rotina para priorizar envio; falha HTTP não deve remover observações. Arquivo Bolt maior que o limite configurado não prova fila cheia: páginas livres podem ser reutilizadas, e o limite considera bytes dos registros. Não apagar outbox como correção de capacidade.
+
+Dependências externas (UDP/161, credenciais, gerência dos dispositivos) devem permanecer identificadas por ativo. A mitigação Web com WALK limitado continua válida até retestar GET na versão corrigida.

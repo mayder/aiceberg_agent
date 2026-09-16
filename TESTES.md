@@ -636,3 +636,11 @@ Evidência 2026-06-20:
 - Unitário focado: `go test ./internal/domain/usecase -run 'TestSelfUpdate_Preflight(AcceptsAuthorizedPrivilegedLauncher|FailsWhenInstallDirIsNotWritable)' -count=1 -v`.
 - O preflight só pode delegar a escrita do diretório de instalação quando o comando usa `sudo -n`, o launcher é absoluto/executável e `sudo -n -l` confirma a autorização; sem qualquer desses requisitos, deve retornar `install_dir_not_writable`.
 - Piloto `0.8.45`: confirmar `precheck_ok`, download/hash, `apply_dispatched`, restart, reconexão, `version_confirmed`, serviço ativo e outbox drenando.
+
+
+## Agentless — capacidade e OIDs (16/09/2026)
+
+- `go test -race ./internal/domain/usecase ./internal/platform/agentless`: testes focados de paralelismo limitado, não sobreposição por endereço, cancelamento, propagação de falha, persistência de 100 resultados, drenagem limitada, falha HTTP sem ACK e fila preservada. Teste de GET cobre resposta com e sem ponto inicial e OID configurado com ponto.
+- `./check.sh`: lint, vet, testes e self-tests oficiais; executar novamente no repositório de integração antes do commit. Primeira rodada na cópia isolada falhou por expectativa int64 num payload normalizado para float64; expectativa corrigida e reteste aprovado.
+- Benchmark sintético: `go test ./internal/domain/usecase -run '^$' -bench BenchmarkAgentlessBatch -benchtime=3x -count=1`; 64 destinos com espera simulada de 5ms: 356,5ms por lote sequencial e 44,4ms com oito workers na amostra local. Não representa vazão de produção nem gate de capacidade do HUB.
+- Aceite operacional pendente: confirmar versão assinada no HUB, fila sem crescimento sustentado, tempo de lote menor que lock, disponibilidade preservada, resultados úteis e recorrência.

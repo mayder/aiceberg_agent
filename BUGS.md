@@ -518,3 +518,10 @@ Validação/reteste:
 - fixture negativa com requisição WordPress comum e batch isolada sem veredito local.
 
 Rollback: instalar o binário 0.8.42 e retirar o access log da configuração remota.
+
+
+## BUG-20260916-01 — Coleta Agentless sequencial e GET proprietário sem correspondência de OID
+
+- Severidade: alta para atraso de cobertura no inventário volumoso. Reprodução: lote é executado sequencialmente; GET devolve OID com ponto inicial e lookup usa especificação normalizada sem ponto, gerando ausência de dados apesar do retorno.
+- Correção preparada: workers limitados por destino, controle de backlog/flush e normalização da chave GET. Falha de persistência passa a ser reportada ao chamador, com interrupção do lote.
+- Reteste local: concorrência/cancelamento/persistência, envio HTTP com erro sem perda, e retorno GET com/sem ponto. Publicação e coleta real no HUB ainda pendentes; não fechar como resolvido em produção.

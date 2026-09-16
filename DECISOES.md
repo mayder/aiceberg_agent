@@ -437,3 +437,12 @@ Referências:
 - Alternativas consideradas:
 - Impacto:
 - Rollback:
+
+
+## DEC-20260916-01 — Paralelismo limitado e controle de fila no Agentless
+
+- Até oito destinos em paralelo, mantendo checks do mesmo endereço sequenciais. Lotes e flushes do mesmo use case são serializados. Não paralelizar indiscriminadamente por quantidade de checks.
+- A persistência de resultados permanece serializada; erro de Append interrompe o lote e é propagado. Flush envia no máximo oito lotes e só confirma itens após envio aceito, mantendo o contrato existente. Backlog de oito lotes suspende fetch de rotina até drenar; comandos explícitos mantêm seu caminho.
+- GET customizado normaliza o ponto inicial somente na chave usada para casar resposta e especificação; payload/OIDs originais e metadados permanecem compatíveis.
+- Sem buckets/tabelas/logs persistentes novos ou limpeza adicional. Limites não substituem dimensionamento: medir bytes, tempo e recorrência no piloto.
+- Rollback: artefato assinado anterior e limite Web cinco; preservar dados. Publicação/piloto ainda pendentes.
