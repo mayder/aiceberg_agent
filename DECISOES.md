@@ -446,3 +446,14 @@ Referências:
 - GET customizado normaliza o ponto inicial somente na chave usada para casar resposta e especificação; payload/OIDs originais e metadados permanecem compatíveis.
 - Sem buckets/tabelas/logs persistentes novos ou limpeza adicional. Limites não substituem dimensionamento: medir bytes, tempo e recorrência no piloto.
 - Rollback: artefato assinado anterior e limite Web cinco; preservar dados. Publicação/piloto ainda pendentes.
+
+### DEC-20260929-01 - Checkout principal como ambiente único de trabalho
+
+- Status: aceita
+- Contexto: checkouts, worktrees e clones auxiliares aumentam o risco de trabalho exclusivo, divergência de branch, evidência esquecida e remoção prematura.
+- Decisao: usar somente o checkout principal definido em `PATHS.toml`. Worktree, clone auxiliar, checkout adicional ou nova branch no checkout principal exigem autorização explícita do usuário. Até essa autorização, o trabalho continua na branch atual. A remoção de um checkout auxiliar só pode ser concluída após inventário e prova de que alterações, arquivos novos, commits e evidências válidas estão consolidados na branch principal oficial.
+- Alternativas consideradas: permitir worktrees por padrão ou tratar checkout auxiliar limpo como descartável sem comparar commits e artefatos.
+- Consequencias: o fluxo reduz paralelismo implícito e exige uma verificação objetiva antes de qualquer saneamento. Worktrees comuns usam o mecanismo oficial do Git; worktrees gerenciados pelo Codex usam a ferramenta própria; branches não são apagadas como efeito colateral da remoção.
+- Impacto em testes: mudança operacional e documental; exige revisão de diff e `./check.sh` quando aplicada junto de saneamento ou fechamento relevante.
+- Impacto em rollback: não afeta runtime nem dados. Uma exceção futura deve ser autorizada explicitamente e registrada quando alterar permanentemente esta política.
+- Como reverter: substituir esta decisão por nova decisão aceita e atualizar `QUALITY_ROADMAP.md` de forma consistente.

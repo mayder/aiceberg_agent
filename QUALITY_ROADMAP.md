@@ -79,3 +79,12 @@ Projeto: `aiceberg_agent`. Stack: Go agent/CLI, gopsutil, NTP, SNMP. Este arquiv
 - Adaptação à arquitetura real: ao aplicar este modelo em projeto real, a IA deve inspecionar linguagem, framework, pastas, comandos, testes e convencoes antes de editar.
 - Decisoes arquiteturais devem ser registradas em `DECISOES.md` usando o formato `DEC-YYYYMMDD-01`.
 - Check adaptável por stack: `check.sh` deve chamar validacoes do modelo e os comandos reais da linguagem/framework do projeto.
+
+## Política de checkout, worktree e branch
+
+- Usar somente o checkout principal definido em `PATHS.toml` para o trabalho deste projeto.
+- Não criar worktree, clone auxiliar ou checkout adicional sem autorização explícita do usuário.
+- Antes de criar qualquer branch nova no checkout principal, solicitar autorização explícita do usuário.
+- Continuar na branch atual enquanto o usuário não autorizar outra branch.
+- Não considerar um worktree ou checkout auxiliar removido com segurança sem antes inventariar alterações rastreadas, arquivos não rastreados, commits exclusivos e evidências, consolidar todo conteúdo válido na branch principal oficial e comprovar que nada relevante permaneceu exclusivo.
+- Remover worktrees comuns somente pelo mecanismo oficial do Git; worktrees gerenciados pelo Codex devem ser arquivados pela ferramenta própria. A remoção do worktree não autoriza apagar sua branch.
