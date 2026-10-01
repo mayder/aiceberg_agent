@@ -14,8 +14,127 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 - `PKG-82` Agente/Web — perfil local de performance e evidência de host
 - `PKG-83` Agente/Web — garantia de cobertura, integridade e segurança da coleta de logs locais
 - `PKG-84` Agente/Web — update resiliente e diagnosticável do agente
+- `PKG-115` Modelo universal — contrato local de item, série e pipeline
+- `PKG-116` Coletores universais — probes locais e de borda
+- `PKG-117` Discovery local, autorregistro e protótipos
+- `PKG-120` HUB resiliente — assignment, failover e capacidade
+- `PKG-121` SDK de extensões seguras e teste pré-ativação
 
 ---
+
+## [PKG-121] SDK de extensões seguras e teste pré-ativação
+
+Status: planejado. Prioridade: P1. Coordenação: Web PKG-121 e Runtime PKG-25.
+
+### Objetivo
+
+Permitir novos coletores locais sem rebuild do núcleo, mantendo manifesto assinado, compatibilidade, permissões mínimas, budgets e isolamento.
+
+### Lotes
+
+- [ ] definir SDK/manifesto versionado, capabilities, SO/arquitetura, assinatura e revogação;
+- [ ] executar extensão em processo/sandbox isolado, nunca como shell genérico embutido;
+- [ ] limitar CPU, memória, tempo, saída, filesystem e rede por capability;
+- [ ] reutilizar o adapter produtivo em modo de teste efêmero sem persistir/ativar configuração;
+- [ ] preservar upgrade/rollback do agente sem perder configuração compatível;
+- [ ] testar extensão travada, maliciosa, incompatível, revogada e com saída excessiva.
+
+### Aceite e rollback
+
+Falha de extensão não derruba o agente nem bloqueia coletores essenciais; manifesto inválido não executa. Rollback desativa a extensão/versão por configuração assinada ou retorna ao agente anterior.
+
+## [PKG-120] HUB resiliente — assignment, failover e capacidade
+
+Status: planejado. Prioridade: P0. Coordenação: Web PKG-120 e Runtime PKG-24.
+
+### Objetivo
+
+Fazer HUBs participarem de grupos com assignment versionado, lease/fencing, capacidade e redistribuição automática sem duplicar checks.
+
+### Lotes
+
+- [ ] anunciar identidade, versão, capabilities, capacidade, carga e heartbeat do HUB;
+- [ ] aceitar assignment assinado/versionado com epoch, lease, fence e ack idempotente;
+- [ ] interromper trabalho ao perder lease/fence e preservar outbox para o novo owner;
+- [ ] suportar drain, afinidade, rebalanceamento e retomada sem recriar check;
+- [ ] expor atraso, fila, saturação, drops, último sucesso e motivo de rejeição;
+- [ ] testar queda, partição, clock skew, assignment concorrente, restart e storm de failover.
+
+### Aceite e rollback
+
+Dois HUBs nunca executam o mesmo assignment válido; queda converge dentro do SLO e preserva observações. Rollback congela rebalanceamento e restaura o assignment anterior assinado.
+
+## [PKG-117] Discovery local, autorregistro e protótipos
+
+Status: planejado. Prioridade: P1. Coordenação: Web PKG-117 e Runtime PKG-21.
+
+### Objetivo
+
+Descobrir interfaces, discos, sensores, serviços, aplicações e fontes locais com identidade estável, limites e evidência suficiente para o Runtime materializar protótipos.
+
+### Lotes
+
+- [ ] definir evento de discovery com fingerprint, fonte, confiança, freshness e tombstone;
+- [ ] implementar inventário incremental e bounded por coletor, sem comando arbitrário;
+- [ ] autorregistrar agente/HUB com identidade forte, quarentena e rotação;
+- [ ] detectar rename, desaparecimento temporário e retorno preservando identidade;
+- [ ] aplicar backpressure, jitter, cardinalidade e redaction antes do transporte;
+- [ ] cobrir Windows/Linux, privilégio insuficiente, volume alto e fonte instável.
+
+### Aceite e rollback
+
+Redescoberta não duplica; desaparecimento temporário não apaga histórico; evento sem identidade/confiança suficiente fica em quarentena. Rollback desativa o coletor por configuração.
+
+## [PKG-116] Coletores universais — probes locais e de borda
+
+Status: planejado. Prioridade: P1. Coordenação: Web PKG-116 e Runtime PKG-20.
+
+### Objetivo
+
+Executar somente os protocolos que precisam de proximidade do host/rede, com contrato uniforme e privilégio mínimo.
+
+### Cobertura
+
+- pull/passive check autenticado do agente quando a topologia permitir;
+- SNMP GET/WALK/bulk e receptor de traps no HUB;
+- JMX direto e Jolokia; Prometheus/OpenMetrics;
+- queries read-only de banco com segredo referenciado;
+- IPMI; SSH por comandos tipados; Telnet legado opt-in;
+- runner sintético/browser isolado quando implantado no ponto de presença.
+
+### Lotes
+
+- [ ] adotar contrato comum de probe/amostra/evento/erro do Runtime;
+- [ ] separar adapters por pacote interno e capability, sem `switch` monolítico;
+- [ ] implementar pools, timeout, rate limit, cancelamento, backpressure e circuit breaker;
+- [ ] impedir segredo, linha sensível ou payload completo em log/outbox;
+- [ ] entregar fixtures/simuladores e matriz real por protocolo/SO/fabricante;
+- [ ] medir footprint e pausar adapter que exceda budget sem afetar o agente.
+
+### Aceite e rollback
+
+Cada adapter falha isoladamente, respeita budget e reporta estado explícito. Rollback desabilita capability/adapter e mantém métricas essenciais e transporte.
+
+## [PKG-115] Modelo universal — contrato local de item, série e pipeline
+
+Status: planejado. Prioridade: P0. Coordenação: Web PKG-115 e Runtime PKG-19.
+
+### Objetivo
+
+Adaptar Collector/Forwarder existentes ao modelo canônico sem quebrar snapshots, permitindo fan-out e preprocessing no Runtime sem duplicar coleta.
+
+### Lotes
+
+- [ ] mapear coletores e payloads atuais para item, série, evento, fonte e schema versionados;
+- [ ] emitir identidade estável, unidade, tipo, timestamp, freshness, qualidade e lacuna;
+- [ ] separar dado bruto controlado de métricas derivadas e evitar fan-out local duplicado;
+- [ ] preservar contratos legados por adapter durante rollout e comparar payload canônico;
+- [ ] aplicar budgets/cardinalidade, batching, compressão, retry e backpressure;
+- [ ] cobrir compatibilidade com Web/Runtime antigo e rollback de versão.
+
+### Aceite e rollback
+
+Uma coleta possui identidade reproduzível e pode gerar séries dependentes no Runtime; payload legado continua aceito durante a janela. Rollback publica a versão anterior e mantém o adapter de compatibilidade servidor-side.
 
 ## [PKG-82] Agente/Web — perfil local de performance e evidência de host
 

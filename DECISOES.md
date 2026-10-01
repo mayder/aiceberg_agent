@@ -42,6 +42,18 @@ Referências:
 
 ## Decisões
 
+### DEC-20260929-02 - Agent coleta na borda e o Runtime decide no servidor
+
+- Status: aceita
+- Contexto: superar a cobertura do Zabbix exige novos protocolos, discovery, failover e extensões, enquanto o backend está migrando do Yii2 para o Runtime Go. Colocar regra global, SLA ou escalada no agente criaria múltiplas fontes de verdade.
+- Decisao: o agente executa coleta/probes locais e de borda, discovery local, transporte e runners isolados. O `aiceberg_runtime` é autoritativo para templates, macros, preprocessing global, regras, histórico, escalada, SLI/SLO, assignment e ownership. Configuração sensível chega assinada e versionada; segredo permanece por referência quando possível. Extensão nunca executa dentro do processo principal sem sandbox.
+- Alternativas consideradas: implementar as 29 capacidades no Web/PHP, decidir alertas no HUB ou permitir plugin in-process. Foram rejeitadas por duplicação, divergência e risco de estabilidade/segurança.
+- Consequencias: PKG-115/116/117/120/121 do Agent dependem dos contratos Runtime correspondentes; o agente preserva adapters legados durante a janela e reporta estado `unsupported`/`stale` em vez de OK.
+- Impacto em testes: contract tests Agent↔Runtime, budgets, falha isolada, redaction, upgrade/rollback e matriz por protocolo/SO são obrigatórios.
+- Impacto em rollback: desativar capability/configuração assinada ou voltar a versão anterior do agente; o Runtime preserva ownership e histórico.
+- Como reverter: registrar decisão substituta coordenada com Runtime/Web e migrar ownership com sombra, canário e drenagem.
+- Referências: `DEMANDAS.md` PKG-115, PKG-116, PKG-117, PKG-120 e PKG-121; `aiceberg_web/docs/architecture/programa-superioridade-zabbix.md`.
+
 ### DEC-20260703-01 - Destino do self-update Linux segue o binario em execucao
 
 - Status: aceita
