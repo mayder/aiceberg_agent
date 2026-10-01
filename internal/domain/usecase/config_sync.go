@@ -56,6 +56,11 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if currentVersion := strings.TrimSpace(uc.store.Get().Version); currentVersion != "" {
+		query := req.URL.Query()
+		query.Set("version", currentVersion)
+		req.URL.RawQuery = query.Encode()
+	}
 	httpx.SetAuth(req, uc.cfg)
 	if identityHeader := uc.cfg.AgentIdentityHeader(""); identityHeader != "" {
 		req.Header.Set("X-Agent-Identity", identityHeader)

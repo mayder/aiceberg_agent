@@ -17,6 +17,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/common/retry"
+	"github.com/you/aiceberg_agent/internal/common/schedule"
 	"github.com/you/aiceberg_agent/internal/common/version"
 	"github.com/you/aiceberg_agent/internal/domain/channel"
 )
@@ -228,14 +229,16 @@ func (c *AgentChannelClient) heartbeatLoop(ctx context.Context, sessionID, mode 
 	if interval <= 0 {
 		interval = 30 * time.Second
 	}
-	ticker := time.NewTicker(interval)
+	identity := schedule.Identity(c.cfg.AgentInstallationID, c.cfg.AgentClientID, c.cfg.AgentID, c.hostname)
+	ticker := schedule.NewPeriodicTimer(identity, "channel-heartbeat", interval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
+		case <-ticker.C():
+			ticker.Reset()
 			latencyMs, err := c.heartbeat(ctx, sessionID, mode, lastLatencyMs)
 			if err != nil {
 				return err

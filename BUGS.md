@@ -489,6 +489,16 @@ Validação executada:
 - Tipo: Agente Go
 - Stack detectada: Go agent/CLI, gopsutil, NTP, SNMP
 - Regra: adaptar comandos, camadas, testes, fixtures e limites conforme a realidade deste modulo Go.
+
+## BUG-20261001-01 — Polling sincronizado e recuperação sem transição real
+
+- Status: corrigido em código; rollout canário pendente.
+- Severidade: alta por amplificação de carga na API e falsos eventos operacionais.
+- Reprodução: agentes iniciados em conjunto repetiam `ping`, configuração, heartbeat, self-heal e flush nas mesmas fases; o `ConfigSync` não enviava a versão persistida e recebia `200`/enviava `config-report` mesmo sem mudança; ciclos saudáveis emitiam `recovered` novamente após o cooldown.
+- Causa: ausência da versão condicional no GET, cooldown usado como substituto de estado de erro e tickers iniciados sem fase estável por agente.
+- Correção: versão local enviada somente quando existente; `204` encerra sem aplicar/reportar; estado confirmado por fingerprint só muda após entrega bem-sucedida; jitter inicial determinístico preserva os intervalos nominais.
+- Reteste: testes focados e com `-race`, `./check.sh` e canário medindo `204`, reports, CPU, requisições e 5xx.
+- Rollback: reinstalar a versão assinada anterior; nenhum contrato ou dado do backend foi alterado.
 ## [BUG-20260728-01] Access log WordPress era descartado antes da correlação SOC
 
 Status: corrigido em código; implantação pendente

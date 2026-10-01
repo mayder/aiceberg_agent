@@ -698,3 +698,14 @@ A `0.8.52` preserva o código da `0.8.51` e usa um novo alvo assinado para conto
 O coletor usa oito workers por destino distinto e drena até oito lotes por flush. A fila pode pausar fetch de rotina para priorizar envio; falha HTTP não deve remover observações. Arquivo Bolt maior que o limite configurado não prova fila cheia: páginas livres podem ser reutilizadas, e o limite considera bytes dos registros. Não apagar outbox como correção de capacidade.
 
 Dependências externas (UDP/161, credenciais, gerência dos dispositivos) devem permanecer identificadas por ativo. A mitigação Web com WALK limitado continua válida até retestar GET na versão corrigida.
+
+## Canário do polling condicional e recuperação
+
+1. Registrar por host uma janela anterior equivalente: CPU, requisições por rota, 5xx e versão reportada.
+2. Atualizar um único agente Linux acessível, preservando binário/configuração anteriores para rollback; confirmar serviço, health, versão e drenagem da outbox.
+3. Após pelo menos dois ciclos de configuração, medir a proporção de `GET /v1/agent/config` com `204`; sem comando/config pendente, ela deve predominar.
+4. Confirmar redução proporcional de `POST /v1/agent/config-report` e ausência de `recovered` periódico em `POST /v1/agent/error-report`.
+5. Disparar de forma controlada `collect_now`, update e self-heal e confirmar que continuam passando pelo retorno `200` e concluindo normalmente.
+6. Comparar CPU, taxa total de requisições e erros 5xx. Só ampliar se não houver perda de coleta, comando, update, Agentless ou self-heal.
+
+Rollback: restaurar o binário assinado anterior e reiniciar somente o serviço do agente. Não apagar prefs, token, outbox ou evidências; a versão condicional e o jitter não exigem mudança no Web/Runtime.

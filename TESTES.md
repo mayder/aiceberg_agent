@@ -644,3 +644,10 @@ Evidência 2026-06-20:
 - `./check.sh`: lint, vet, testes e self-tests oficiais; executar novamente no repositório de integração antes do commit. Primeira rodada na cópia isolada falhou por expectativa int64 num payload normalizado para float64; expectativa corrigida e reteste aprovado.
 - Benchmark sintético: `go test ./internal/domain/usecase -run '^$' -bench BenchmarkAgentlessBatch -benchtime=3x -count=1`; 64 destinos com espera simulada de 5ms: 356,5ms por lote sequencial e 44,4ms com oito workers na amostra local. Não representa vazão de produção nem gate de capacidade do HUB.
 - Aceite operacional pendente: confirmar versão assinada no HUB, fila sem crescimento sustentado, tempo de lote menor que lock, disponibilidade preservada, resultados úteis e recorrência.
+
+## Polling condicional, recuperação e jitter (01/10/2026)
+
+- `go test ./internal/common/schedule ./internal/domain/usecase ./internal/bootstrap`: cobre ausência/presença da versão no GET, `204` sem aplicação nem `config-report`, `200` com configuração, `collect_now` e update, recuperação somente após `open` confirmado, cooldown e falha de entrega de `open`.
+- `go test -race ./internal/common/schedule ./internal/domain/usecase ./internal/bootstrap`: valida a proteção concorrente da máquina de estados.
+- O jitter usa relógio/hash controlados, sem espera real: mesma identidade/rotina mantém a fase, identidades/rotinas diferentes distribuem fases, o valor fica em `[0, intervalo)` e o intervalo permanente não muda.
+- Reteste canário: confirmar versão, serviço e health; comparar janela equivalente antes/depois para `GET /v1/agent/config` (`200`/`204`), `POST /v1/agent/config-report`, `POST /v1/agent/error-report`, CPU, taxa total e 5xx; executar `collect_now`, update e self-heal controlados antes de ampliar.

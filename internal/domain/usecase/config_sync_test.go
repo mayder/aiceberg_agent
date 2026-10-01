@@ -14,12 +14,20 @@ import (
 
 func TestConfigSync_NoContent(t *testing.T) {
 	var identityHeader string
+	var version string
+	var reports int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/agent/config-report" {
+			reports++
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		if r.URL.Path != "/v1/agent/config" {
 			http.NotFound(w, r)
 			return
 		}
 		identityHeader = r.Header.Get("X-Agent-Identity")
+		version = r.URL.Query().Get("version")
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
@@ -32,6 +40,11 @@ func TestConfigSync_NoContent(t *testing.T) {
 		AgentInstallationID: "install-01",
 	}
 	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	current := store.Get()
+	current.Version = "12"
+	if err := store.Update(current); err != nil {
+		t.Fatalf("seed prefs: %v", err)
+	}
 	log := &fakeLogger{}
 	uc := NewConfigSync(cfg, log, store, nil)
 	if err := uc.Execute(context.Background()); err != nil {
@@ -39,6 +52,69 @@ func TestConfigSync_NoContent(t *testing.T) {
 	}
 	if identityHeader == "" {
 		t.Fatalf("expected identity header on config sync")
+	}
+	if version != "12" {
+		t.Fatalf("expected persisted version 12, got %q", version)
+	}
+	if reports != 0 {
+		t.Fatalf("204 must not emit config-report, got %d", reports)
+	}
+	if store.Get().Version != "12" {
+		t.Fatalf("204 changed local preferences")
+	}
+}
+
+func TestConfigSync_EmptyPrefsOmitsVersion(t *testing.T) {
+	var queryVersion string
+	var hasVersion bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		values, present := r.URL.Query()["version"]
+		hasVersion = present
+		if len(values) > 0 {
+			queryVersion = values[0]
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	uc := NewConfigSync(config.Config{APIBaseURL: srv.URL, Agent: config.AgentCfg{Token: "t"}}, &fakeLogger{}, prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json")), nil)
+	if err := uc.Execute(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if hasVersion || queryVersion != "" {
+		t.Fatalf("empty prefs must omit version, got present=%v value=%q", hasVersion, queryVersion)
+	}
+}
+
+func TestConfigSync_VersionedPrefsSendVersionOnHTTP200(t *testing.T) {
+	var gotVersion string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/agent/config":
+			gotVersion = r.URL.Query().Get("version")
+			_ = json.NewEncoder(w).Encode(map[string]any{"version": "22", "collect": map[string]any{}})
+		case "/v1/agent/config-report":
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	store := prefs.NewStore(filepath.Join(t.TempDir(), "prefs.json"))
+	current := store.Get()
+	current.Version = "21"
+	if err := store.Update(current); err != nil {
+		t.Fatalf("seed prefs: %v", err)
+	}
+	uc := NewConfigSync(config.Config{APIBaseURL: srv.URL, Agent: config.AgentCfg{Token: "t"}}, &fakeLogger{}, store, nil)
+	if err := uc.Execute(context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if gotVersion != "21" {
+		t.Fatalf("expected request version 21, got %q", gotVersion)
+	}
+	if store.Get().Version != "22" {
+		t.Fatalf("expected HTTP 200 payload to remain applicable")
 	}
 }
 

@@ -16,7 +16,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/common/metrics"
+	"github.com/you/aiceberg_agent/internal/common/schedule"
 	"github.com/you/aiceberg_agent/internal/common/version"
 	agentlessstore "github.com/you/aiceberg_agent/internal/data/local/agentless"
 	"github.com/you/aiceberg_agent/internal/data/local/outbox"
@@ -221,8 +221,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	pingUC := usecase.NewPingBackend(cfg, log)
 	selfUpdateUC := usecase.NewSelfUpdate(cfg, log, prefStore.Get)
 	controlClient := agentlessremote.NewAgentControlClient(cfg)
-	var errorReportMu sync.Mutex
-	lastErrorReportState := make(map[string]workerErrorReportState)
+	errorReportState := newWorkerErrorStateMachine(time.Now)
 	reportWorkerError := func(ctx context.Context, errorType, severity, recovery string, err error, metadata map[string]any) {
 		if controlClient == nil {
 			return
@@ -241,38 +240,23 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			metadata = map[string]any{}
 		}
 		fingerprint := workerErrorFingerprint(errorType, mode, metadata)
-		now := time.Now()
-		minInterval := 30 * time.Minute
-		if recovery == "recovered" {
-			minInterval = 5 * time.Minute
-		}
-
-		errorReportMu.Lock()
-		state := lastErrorReportState[fingerprint]
-		if state.recovery == recovery && !state.reportedAt.IsZero() && now.Sub(state.reportedAt) < minInterval {
-			errorReportMu.Unlock()
-			return
-		}
-		lastErrorReportState[fingerprint] = workerErrorReportState{
-			reportedAt: now,
-			recovery:   recovery,
-		}
-		errorReportMu.Unlock()
-
-		event := entities.WorkerErrorEvent{
-			Source:         "agent",
-			ErrorType:      errorType,
-			Severity:       severity,
-			RecoveryStatus: recovery,
-			Fingerprint:    fingerprint,
-			Summary:        summary,
-			Stack:          summary,
-			Metadata:       metadata,
-			OccurredAt:     now.UTC().Format(time.RFC3339),
-		}
-		event.Metadata["agent_mode"] = mode
-		event.Metadata["fingerprint_scope"] = "error_type_mode_context"
-		if reportErr := controlClient.ReportWorkerErrors(ctx, []entities.WorkerErrorEvent{event}); reportErr != nil {
+		_, reportErr := errorReportState.report(fingerprint, recovery, func(now time.Time) error {
+			event := entities.WorkerErrorEvent{
+				Source:         "agent",
+				ErrorType:      errorType,
+				Severity:       severity,
+				RecoveryStatus: recovery,
+				Fingerprint:    fingerprint,
+				Summary:        summary,
+				Stack:          summary,
+				Metadata:       metadata,
+				OccurredAt:     now.UTC().Format(time.RFC3339),
+			}
+			event.Metadata["agent_mode"] = mode
+			event.Metadata["fingerprint_scope"] = "error_type_mode_context"
+			return controlClient.ReportWorkerErrors(ctx, []entities.WorkerErrorEvent{event})
+		})
+		if reportErr != nil {
 			log.Error(logger.KV("worker error report failed",
 				"route", "/v1/agent/error-report",
 				"error_type", errorType,
@@ -467,9 +451,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	tMetrics := time.NewTicker(cfg.MetricsInterval)
 	tHealth := time.NewTicker(10 * time.Minute)
 	tInventory := time.NewTicker(8 * time.Hour)
-	tFlush := time.NewTicker(cfg.OutboxFlushInterval)
-	var tPing *time.Ticker
-	var tCfgSync *time.Ticker
+	hostname, _ := os.Hostname()
+	periodicIdentity := schedule.Identity(cfg.AgentInstallationID, cfg.AgentClientID, cfg.AgentID, hostname)
+	tFlush := schedule.NewPeriodicTimer(periodicIdentity, "outbox-flush", cfg.OutboxFlushInterval)
+	var tPing *schedule.PeriodicTimer
+	var tCfgSync *schedule.PeriodicTimer
 	var tOsCollect *time.Ticker
 	var tCustomMetrics *time.Ticker
 	var tOTLP *time.Ticker
@@ -478,9 +464,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var tLocalChecks *time.Ticker
 	var tLogDiscovery *time.Ticker
 	var tAgentlessTick *time.Ticker
-	var tSelfHeal *time.Ticker
-	tPing = time.NewTicker(cfg.PingInterval)
-	tCfgSync = time.NewTicker(cfg.ConfigSyncInterval)
+	var tSelfHeal *schedule.PeriodicTimer
+	tPing = schedule.NewPeriodicTimer(periodicIdentity, "ping", cfg.PingInterval)
+	tCfgSync = schedule.NewPeriodicTimer(periodicIdentity, "config-sync", cfg.ConfigSyncInterval)
 	if osLogCollectUC != nil {
 		tOsCollect = time.NewTicker(cfg.OSLogInterval)
 	}
@@ -493,7 +479,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	if agentlessUC != nil {
 		tAgentlessTick = time.NewTicker(5 * time.Second)
 	}
-	tSelfHeal = time.NewTicker(cfg.SelfHealPollInterval)
+	tSelfHeal = schedule.NewPeriodicTimer(periodicIdentity, "self-heal", cfg.SelfHealPollInterval)
 	defer tMetrics.Stop()
 	defer tHealth.Stop()
 	defer tInventory.Stop()
@@ -831,7 +817,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 					"route": inventoryEndpoint,
 				})
 			}
-		case <-tFlush.C:
+		case <-tFlush.C():
+			tFlush.Reset()
 			pruneStore(store, "main")
 			pruneStore(osStore, "oslogs")
 			start := time.Now()
@@ -864,7 +851,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				}
 				counters.lastFlushMs.Store(time.Since(start).Milliseconds())
 			}
-		case <-readTick(tPing):
+		case <-tPing.C():
+			tPing.Reset()
 			if err := pingUC.Execute(ctx); err != nil {
 				reportWorkerError(ctx, "api_connectivity_ping_failed", "warning", "open", err, map[string]any{
 					"route": "/v1/agent/ping",
@@ -874,7 +862,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 					"route": "/v1/agent/ping",
 				})
 			}
-		case <-readTick(tCfgSync):
+		case <-tCfgSync.C():
+			tCfgSync.Reset()
 			if err := configSyncUC.Execute(ctx); err != nil {
 				reportWorkerError(ctx, "config_sync_failed", "warning", "open", err, map[string]any{
 					"route": "/v1/agent/config",
@@ -1106,7 +1095,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 					}(shouldPoll, shouldFlush)
 				}
 			}
-		case <-readTick(tSelfHeal):
+		case <-tSelfHeal.C():
+			tSelfHeal.Reset()
 			commands, err := controlClient.FetchSelfHealCommands(ctx)
 			if err != nil {
 				reportWorkerError(ctx, "selfheal_commands_pull_failed", "warning", "open", err, map[string]any{
@@ -1344,11 +1334,6 @@ type obsCounters struct {
 	lastCollectMs  atomic.Int64
 	lastFlushMs    atomic.Int64
 	lastFlushBatch atomic.Int64
-}
-
-type workerErrorReportState struct {
-	reportedAt time.Time
-	recovery   string
 }
 
 func processHandle() *ps.Process {
