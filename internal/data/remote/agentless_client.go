@@ -62,7 +62,7 @@ func (c *AgentlessHubClient) FetchJobsWithOptions(ctx context.Context, limit int
 	if err != nil {
 		return nil, err
 	}
-	httpx.SetAuth(req, c.cfg)
+	c.setAgentHeaders(req)
 	resp, err := c.cl.Do(req)
 	if err != nil {
 		return nil, err
@@ -147,7 +147,7 @@ func (c *AgentlessHubClient) SendObservations(ctx context.Context, list []entiti
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	httpx.SetAuth(req, c.cfg)
+	c.setAgentHeaders(req)
 	resp, err := c.cl.Do(req)
 	if err != nil {
 		return err
@@ -158,4 +158,11 @@ func (c *AgentlessHubClient) SendObservations(ctx context.Context, list []entiti
 		return fmt.Errorf("observations http %s body=%s", resp.Status, string(body))
 	}
 	return nil
+}
+
+func (c *AgentlessHubClient) setAgentHeaders(req *http.Request) {
+	httpx.SetAuth(req, c.cfg)
+	if identityHeader := c.cfg.AgentIdentityHeader(""); identityHeader != "" {
+		req.Header.Set("X-Agent-Identity", identityHeader)
+	}
 }

@@ -637,6 +637,14 @@ Evidência 2026-06-20:
 - O preflight só pode delegar a escrita do diretório de instalação quando o comando usa `sudo -n`, o launcher é absoluto/executável e `sudo -n -l` confirma a autorização; sem qualquer desses requisitos, deve retornar `install_dir_not_writable`.
 - Piloto `0.8.45`: confirmar `precheck_ok`, download/hash, `apply_dispatched`, restart, reconexão, `version_confirmed`, serviço ativo e outbox drenando.
 
+### Identidade assinada no Agentless HUB
+
+- `go test ./internal/data/remote -run 'TestAgentlessHubClient(FetchJobsWithCommandOptions|SendObservationsIncludesSegmentMeta)' -count=1 -v` valida `Authorization` e `X-Agent-Identity` em jobs e observações.
+- `./check.sh` fecha a validação do agente antes da geração do artefato assinado `0.8.54`.
+- Artefatos `0.8.54` gerados e verificados com a raiz Ed25519 oficial: `linux-amd64=d6664ba2fb8101dfe393baff9aa7d6d04c6de4f8127f1c5c14646d2e5d41d568` e `windows-amd64=27e5ad28459ab245d8ca31d35d13881a507f1bb9d412381b79fb9d9183c22e7b`; manifesto confirmou cinco assinaturas com `aiceberg-agent-prod-v1`.
+- Canário: Agente 4 deve consumir jobs via HUB sem `identity_missing`, enviar observação e manter serviço/health ativos antes da expansão.
+- Expansão: confirmar `version_confirmed` e serviço saudável em todos os agentes ativos do cliente; preservar `0.8.53` para rollback.
+
 
 ## Agentless — capacidade e OIDs (16/09/2026)
 

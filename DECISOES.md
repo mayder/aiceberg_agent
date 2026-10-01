@@ -469,3 +469,12 @@ Referências:
 - Impacto em testes: mudança operacional e documental; exige revisão de diff e `./check.sh` quando aplicada junto de saneamento ou fechamento relevante.
 - Impacto em rollback: não afeta runtime nem dados. Uma exceção futura deve ser autorizada explicitamente e registrada quando alterar permanentemente esta política.
 - Como reverter: substituir esta decisão por nova decisão aceita e atualizar `QUALITY_ROADMAP.md` de forma consistente.
+
+### DEC-20261001-01 - Agentless usa a mesma identidade efêmera dos controles do agente
+
+- Status: aceita
+- Contexto: clientes com identidade estrita rejeitam jobs e observações Agentless quando apenas o token é enviado.
+- Decisao: gerar `X-Agent-Identity` por requisição no `AgentlessHubClient`, junto com `Authorization`, seguindo o contrato já adotado pelos clientes de controle.
+- Alternativas consideradas: relaxar a política no backend ou reutilizar uma claim fixa. Ambas reduzem a segurança ou voltam a expirar em processos long-running.
+- Impacto: HUBs provisionados conseguem operar Agentless sob identidade estrita sem mudança de banco ou payload.
+- Rollback: reinstalar o artefato assinado anterior; o backend permanece compatível.

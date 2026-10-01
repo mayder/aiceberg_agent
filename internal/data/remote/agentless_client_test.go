@@ -19,6 +19,12 @@ func TestAgentlessHubClientFetchJobsWithCommandOptions(t *testing.T) {
 		if r.URL.Path != "/v1/hub-agentless/jobs" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
+		if got := r.Header.Get("Authorization"); got != "Token test-token" {
+			t.Fatalf("unexpected auth header: %q", got)
+		}
+		if got := r.Header.Get("X-Agent-Identity"); got == "" {
+			t.Fatalf("expected identity header")
+		}
 		got = r.URL.Query()
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "ok",
@@ -37,7 +43,7 @@ func TestAgentlessHubClientFetchJobsWithCommandOptions(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewAgentlessHubClient(config.Config{APIBaseURL: srv.URL})
+	client := NewAgentlessHubClient(agentlessIdentityTestConfig(srv.URL))
 	jobs, err := client.FetchJobsWithOptions(context.Background(), 25, true, 90, AgentlessFetchOptions{
 		CommandID:     " cmd-agentless ",
 		CorrelationID: " corr-agentless ",
@@ -68,6 +74,12 @@ func TestAgentlessHubClientSendObservationsIncludesSegmentMeta(t *testing.T) {
 		if r.URL.Path != "/v1/hub-agentless/observations" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
+		if got := r.Header.Get("Authorization"); got != "Token test-token" {
+			t.Fatalf("unexpected auth header: %q", got)
+		}
+		if got := r.Header.Get("X-Agent-Identity"); got == "" {
+			t.Fatalf("expected identity header")
+		}
 		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
 			t.Fatalf("decode payload: %v", err)
 		}
@@ -76,7 +88,7 @@ func TestAgentlessHubClientSendObservationsIncludesSegmentMeta(t *testing.T) {
 	defer srv.Close()
 
 	started := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	client := NewAgentlessHubClient(config.Config{APIBaseURL: srv.URL})
+	client := NewAgentlessHubClient(agentlessIdentityTestConfig(srv.URL))
 	err := client.SendObservations(context.Background(), []entities.AgentlessObservation{
 		{
 			CheckID:          77,
@@ -122,6 +134,15 @@ func TestAgentlessHubClientSendObservationsIncludesSegmentMeta(t *testing.T) {
 	}
 	if item["segment_started_at"] != "2026-04-10 12:00:00" {
 		t.Fatalf("segment_started_at inesperado: %#v", item["segment_started_at"])
+	}
+}
+
+func agentlessIdentityTestConfig(apiBaseURL string) config.Config {
+	return config.Config{
+		APIBaseURL:    apiBaseURL,
+		Agent:         config.AgentCfg{Token: "test-token"},
+		AgentClientID: 7,
+		AgentID:       42,
 	}
 }
 

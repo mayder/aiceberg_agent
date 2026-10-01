@@ -540,3 +540,13 @@ Rollback: instalar o binário 0.8.42 e retirar o access log da configuração re
 - **Sintoma:** o preflight retornava `install_dir_not_writable` mesmo com `sudo -n` e lançador oficial autorizado.
 - **Causa:** o validador tratava `env` como o executável privilegiado e não alcançava o caminho absoluto do lançador após as variáveis.
 - **Correção:** o preflight aceita `sudo -n env VAR=valor /caminho/absoluto`, valida os nomes das variáveis e mantém a conferência da permissão sudo para o lançador final.
+
+## BUG-20261001-02 — Agentless HUB não enviava identidade assinada
+
+- Status: corrigido em código; publicação produtiva pendente.
+- Severidade: alta, pois bloqueava o processamento Agentless em clientes com identidade estrita.
+- Reprodução: `GET /v1/hub-agentless/jobs` retornava `401` com `identity_missing`, mesmo com token válido e agente provisionado.
+- Causa: `AgentlessHubClient` enviava apenas `Authorization`; os endpoints de jobs e observações não recebiam `X-Agent-Identity`.
+- Correção: autenticação Agentless centralizada para enviar token e identidade efêmera assinada em cada requisição.
+- Reteste: testes HTTP dos dois endpoints exigem ambos os headers; `./check.sh` e canário produtivo no Agente 4 antes da expansão.
+- Rollback: reinstalar a versão assinada `0.8.53`; nenhuma alteração de banco ou contrato foi necessária.
