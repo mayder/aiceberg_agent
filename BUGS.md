@@ -543,10 +543,11 @@ Rollback: instalar o binário 0.8.42 e retirar o access log da configuração re
 
 ## BUG-20261001-02 — Agentless HUB não enviava identidade assinada
 
-- Status: corrigido em código; publicação produtiva pendente.
+- Status: corrigido e publicado em produção na versão `0.8.54`.
 - Severidade: alta, pois bloqueava o processamento Agentless em clientes com identidade estrita.
 - Reprodução: `GET /v1/hub-agentless/jobs` retornava `401` com `identity_missing`, mesmo com token válido e agente provisionado.
 - Causa: `AgentlessHubClient` enviava apenas `Authorization`; os endpoints de jobs e observações não recebiam `X-Agent-Identity`.
 - Correção: autenticação Agentless centralizada para enviar token e identidade efêmera assinada em cada requisição.
-- Reteste: testes HTTP dos dois endpoints exigem ambos os headers; `./check.sh` e canário produtivo no Agente 4 antes da expansão.
+- Reteste: testes HTTP dos dois endpoints exigem ambos os headers; `./check.sh` passou; o Agente 4 executou e enviou o check TCP do MySQL OCI pelo HUB sem novo 401, antes da expansão.
+- Evidência: agentes ativos `4`, `70`, `71` e `73` confirmaram `0.8.54`, sem payload pendente; o check `14453` gerou observação `source=hub`, `hub_agente_id=4`, `status=ok`.
 - Rollback: reinstalar a versão assinada `0.8.53`; nenhuma alteração de banco ou contrato foi necessária.

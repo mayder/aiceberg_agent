@@ -644,6 +644,7 @@ Evidência 2026-06-20:
 - Artefatos `0.8.54` gerados e verificados com a raiz Ed25519 oficial: `linux-amd64=d6664ba2fb8101dfe393baff9aa7d6d04c6de4f8127f1c5c14646d2e5d41d568` e `windows-amd64=27e5ad28459ab245d8ca31d35d13881a507f1bb9d412381b79fb9d9183c22e7b`; manifesto confirmou cinco assinaturas com `aiceberg-agent-prod-v1`.
 - Canário: Agente 4 deve consumir jobs via HUB sem `identity_missing`, enviar observação e manter serviço/health ativos antes da expansão.
 - Expansão: confirmar `version_confirmed` e serviço saudável em todos os agentes ativos do cliente; preservar `0.8.53` para rollback.
+- Produção: artefatos `0.8.54` publicados e validados em `downloads.aiceberg.com.br` e `update.aiceberg.com.br`; Agentes InspectApp `4`, `70`, `71` e `73` chegaram a `version_confirmed`, sem payload pendente. No canário `4`, o check TCP `14453` do MySQL OCI voltou ao HUB, persistiu observação `source=hub`/`hub_agente_id=4`/`status=ok` e não registrou novo `identity_missing` após o restart.
 
 
 ## Agentless — capacidade e OIDs (16/09/2026)
