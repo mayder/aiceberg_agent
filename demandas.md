@@ -681,9 +681,10 @@ Rollback: pacote anterior assinado, política de despacho Web vazia e configura�
 
 - [x] Diagnosticar fila cheia do HUB e confirmação incorreta de persistência no handler relay.
 - [x] Corrigir ACK em falha/parcial e disponibilizar diagnóstico finito e sanitizado da outbox pelo canal existente.
-- [ ] Validar gate completo, publicar pacote0.8.55 assinado e aplicar somente ao HUB84.
+- [x] Gate completo, pacote0.8.55 assinado e aplicação somente ao HUB84 (config25/version_confirmed).
 - [ ] Comprovar escoamento e regularidade das medições do SBC674, sem interferir no Runtime/GOS.
 
 - [x] Diagnóstico produtivo pela0.8.55 confirmou fila cheia apesar de ACKs válidos e gargalo no lote serial50.
 - [x] Implementar0.8.56: capacidade HUB400/4 limitada, identidade/retry isolados e callback de configuração serializado.
-- [ ] Publicar0.8.56 assinada, aplicar somente ao HUB84 e comprovar coleta SBC regular.
+- [x] Publicar0.8.56 assinada e aplicar somente ao HUB84 (config26/version_confirmed18:04:04UTC); commit468cb44, Web3a74351e, esteira38944283175 SUCCESS.
+- [ ] Comprovar coleta SBC regular e janela de oito minutos completa.
