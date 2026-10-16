@@ -686,3 +686,12 @@ malformada ou callback ausente. Build/teste local não comprova apply em Windows
 Validação deste candidato: gate raiz PASS; testes focados/race PASS para readiness e
 inspector; compilação Windows AMD64 e Linux ARM64 PASS. Nenhum pacote publicado,
 serviço instalado ou agente remoto modificado. macOS launchd e piloto continuam pendentes.
+
+macOS updater candidato: `python3 scripts/test_macos_updater.py` cobre8 cenários:
+sucesso com backup, health falho seguido de rollback, bootout recusado sem troca,
+SHA256 inválido, health externo recusado, caminhos maliciosos/plataforma errada no
+tar, symlink de entrada e health com versão divergente. Shell real executa sobre
+arquivos temporários; launchd e resposta health são substituídos, sem instalar serviço.
+`bash -n` e testes entram no gate raiz; plist é validado com plutil em Darwin.
+Piloto real, instalação em root, assinatura dos novos artefatos e confirmação remota
+permanecem gates separados. Nenhuma assinatura oficial é usada nos fixtures.

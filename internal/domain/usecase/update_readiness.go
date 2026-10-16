@@ -28,6 +28,10 @@ func (uc *SelfUpdate) CheckUpdateReadiness(ctx context.Context) map[string]any {
 	if ctx.Err() == nil && opts.enabled {
 		result := uc.preflightUpdate(opts)
 		checks["local_preflight"] = result.OK
+		if runtime.GOOS == "darwin" {
+			exe, _ := os.Executable()
+			checks["local_preflight"] = result.OK && exe == "/Library/AIceberg/bin/aiceberg_agent" && uc.cfg.HealthPort > 0
+		}
 		launcher, valid := officialUpdateLauncher(opts.command, runtime.GOOS)
 		checks["official_launcher"] = valid && regularUpdateFile(launcher, runtime.GOOS != "windows")
 		apply := "aiceberg-agent-apply-update.sh"
@@ -75,6 +79,9 @@ func officialUpdateLauncher(command, goos string) (string, bool) {
 		return "", false
 	}
 	launcher := "/usr/local/sbin/aiceberg-agent-update-launcher.sh"
+	if goos == "darwin" {
+		launcher = "/Library/AIceberg/sbin/aiceberg-agent-update-launcher.sh"
+	}
 	return launcher, command == launcher || command == "sudo -n "+launcher
 }
 
@@ -84,6 +91,11 @@ func regularUpdateFile(path string, executable bool) bool {
 }
 
 func updateServiceManagerAvailable(goos string) bool {
+	if goos == "darwin" {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		return exec.CommandContext(ctx, "/bin/launchctl", "print", "system/com.aiceberg.agent").Run() == nil
+	}
 	names := map[string][]string{"windows": {"sc.exe"}, "linux": {"systemctl", "service"}, "darwin": {"launchctl"}}
 	for _, name := range names[goos] {
 		if _, err := exec.LookPath(name); err == nil {

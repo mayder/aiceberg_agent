@@ -5,7 +5,7 @@ set -euo pipefail
 # Saída: dist/aiceberg-agent-<os>-<arch>.{tar.gz,zip}
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DIST="$ROOT/dist"
+DIST="${AICEBERG_INSTALLERS_OUTPUT_DIR:-$ROOT/dist}"
 BIN_NAME="aiceberg_agent"
 LD_FLAGS="-s -w"
 VERSION="$(sed -n 's/^const Version = "\([^"]*\)"/\1/p' "$ROOT/internal/common/version/version.go")"
@@ -13,7 +13,10 @@ SIGNING_REQUIRED="${AICEBERG_UPDATE_SIGNING_REQUIRED:-false}"
 SIGNING_PRIVATE_KEY="${AICEBERG_UPDATE_SIGNING_PRIVATE_KEY:-}"
 SIGNING_KEY_ID="${AICEBERG_UPDATE_SIGNING_KEY_ID:-aiceberg-agent-prod-v1}"
 
-rm -rf "$DIST"
+if [[ -e "$DIST" ]]; then
+  echo "Diretório de saída já existe; preserve os pacotes anteriores e defina AICEBERG_INSTALLERS_OUTPUT_DIR com um caminho novo." >&2
+  exit 1
+fi
 mkdir -p "$DIST"
 
 write_unix_readme() {
@@ -27,11 +30,14 @@ Conteúdo:
 
 Passos resumidos:
 1) Crie diretórios: sudo mkdir -p /usr/local/bin /var/lib/aiceberg && sudo mkdir -p /var/lib/aiceberg/data
-2) Copie o binário para /usr/local/bin ou /Library/AIceberg/agent (macOS).
+2) Linux usa /usr/local/bin. No macOS use o instalador oficial em /Library/AIceberg.
 3) Copie agent.env.example para /etc/aiceberg/agent.env e defina AGENT_TOKEN (e outras variáveis, se precisar). Garanta permissão 600.
 4) Instale o serviço:
    - Linux (systemd): sudo cp service/aiceberg-agent.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now aiceberg-agent
-   - macOS (launchd): sudo cp service/com.aiceberg.agent.plist /Library/LaunchDaemons/ && sudo launchctl load /Library/LaunchDaemons/com.aiceberg.agent.plist
+   - macOS (launchd): sudo /bin/bash ./install.sh; configuração existente é preservada.
+     Atualização remota exige AUTO_UPDATE_ENABLED=true, AUTO_UPDATE_TRUST_REQUIRED=true,
+     AUTO_UPDATE_COMMAND=/Library/AIceberg/sbin/aiceberg-agent-update-launcher.sh,
+     AUTO_UPDATE_DIR=/Library/AIceberg/data/updates e HEALTH_PORT=8081.
 5) Verifique: curl http://localhost:8081/health (se HEALTH_PORT habilitado).
 
   API de produção já é padrão: https://api.aiceberg.com.br (o agente adiciona `/v1/...`).
@@ -81,6 +87,13 @@ build_unix() {
     cp "$ROOT/scripts/linux/aiceberg-agent-apply-update.sh" "$outdir/service/aiceberg-agent-apply-update.sh"
     chmod +x "$outdir/install.sh"
     chmod +x "$outdir/service/aiceberg-agent-update-launcher.sh" "$outdir/service/aiceberg-agent-apply-update.sh"
+  fi
+  if [[ "$os" == "darwin" ]]; then
+    cp "$ROOT/scripts/macos/install.sh" "$outdir/install.sh"
+    cp "$ROOT/scripts/macos/com.aiceberg.agent.plist" "$outdir/service/"
+    cp "$ROOT/scripts/macos/aiceberg-agent-update-launcher.sh" "$outdir/service/"
+    cp "$ROOT/scripts/macos/aiceberg-agent-apply-update.sh" "$outdir/service/"
+    chmod +x "$outdir/install.sh" "$outdir/service/"*.sh
   fi
   write_unix_readme "$outdir/README_INSTALL.txt"
   (cd "$DIST" && COPYFILE_DISABLE=1 tar --no-xattrs -czf "aiceberg-agent-${os}-${arch}.${ext}" "aiceberg-agent-${os}-${arch}")

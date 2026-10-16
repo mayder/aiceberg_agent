@@ -497,3 +497,14 @@ Ausência de evidência estruturada em agentes legados não é sucesso. Precisam
 preparação pelo instalador oficial. macOS ainda precisa de scripts launchd e validação
 nativa antes de ser considerado pronto para atualizar serviços. Rollback remove o uso
 da flag na central, preserva o inspector normal e o fluxo individual existente.
+
+## DEC-20261016-02 — updater macOS por launchd com diretório dedicado
+
+O candidato usa `/Library/AIceberg` com propriedade root e daemon launchd oficial.
+Não reutiliza caminhos do Homebrew, sudo genérico, systemd nem shell remoto arbitrário.
+O updater roda em job separado para sobreviver à parada do agente; extrai apenas o
+conteúdo do binário esperado e exige hash antes de trocar. Health local confirma a
+versão alvo; falha restaura a versão anterior e mantém resultado de falha para o Web.
+Instalações antigas exigem preparação. Testes isolados não certificam apply físico.
+Rollback preserva binários anteriores, configuração e dados; política remota pode
+ser desativada sem interromper a coleta.

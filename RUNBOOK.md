@@ -539,6 +539,7 @@ A chave privada oficial fica fora do repositório e nunca deve ser copiada para 
 
 ```bash
 AICEBERG_UPDATE_SIGNING_REQUIRED=true \
+AICEBERG_INSTALLERS_OUTPUT_DIR=/caminho/novo/da/release \
 AICEBERG_UPDATE_SIGNING_PRIVATE_KEY=/caminho/privado/private.pem \
 AICEBERG_UPDATE_SIGNING_KEY_ID=aiceberg-agent-prod-v1 \
 ./scripts/build_installers.sh
@@ -552,6 +553,10 @@ go run ./cmd/update-signer verify \
 ```
 
 Publicar juntos os cinco compactados, `SHA256SUMS` e `UPDATE_SIGNATURES.json`. O backend só deve agendar pacotes cujo manifesto, SHA256 e assinatura estejam válidos. Novas instalações recebem a chave pública pelo instalador. Desde `0.8.48`, instalações existentes sem `agent.env` usam a chave pública oficial e a exigência de assinatura compiladas no binário; a chave privada nunca é distribuída.
+
+O build recusa saída já existente e não apaga pacotes anteriores. Usar o mesmo novo
+diretório nos comandos de verificação de manifesto e SHA256 acima. Candidato0.8.58
+inclui readiness e scripts macOS; versão no código não implica publicação.
 
 Rotação sem indisponibilidade:
 
@@ -732,8 +737,44 @@ conter `update_readiness.schema=aiceberg-agent-update-readiness.v1` e todos os c
 booleanos aprovados. A ausência do resultado em versão antiga exige preparação.
 O probe não baixa/aplica pacote nem reinicia serviço e preserva pendências existentes.
 
-Launchers aceitos: Unix `/usr/local/sbin/aiceberg-agent-update-launcher.sh`, direto
+Launchers aceitos: Linux `/usr/local/sbin/aiceberg-agent-update-launcher.sh`, direto
 para root ou com `sudo -n`; Windows comando PowerShell `& '<caminho-absoluto-do-launcher>'`
 para `aiceberg-agent-update-launcher.ps1`. Não receber shell arbitrário da tela.
-Pacote macOS atual ainda não instala launcher/apply; suporte launchd permanece pendente.
+No candidato macOS, o launcher é `/Library/AIceberg/sbin/aiceberg-agent-update-launcher.sh`.
 Mesmo com preflight aprovado, acompanhar reconnect e versão efetivamente confirmada.
+
+### Instalador e updater macOS (candidato, sem piloto publicado)
+
+Os dois pacotes Darwin passam a conter `install.sh`, plist e scripts launcher/apply.
+Usar `sudo /bin/bash ./install.sh` no pacote oficial assinado, previamente validado.
+O instalador usa somente `/Library/AIceberg` (bin, sbin, data e agent.env), com serviço
+`system/com.aiceberg.agent` em `/Library/LaunchDaemons/com.aiceberg.agent.plist`.
+Configuração e dados existentes são preservados; destinos simbólicos são recusados.
+Não alterar diretórios do Homebrew nem conceder sudo irrestrito. Serviço executa como root.
+
+Para instalações novas, o env configura assinatura obrigatória, staging em
+`/Library/AIceberg/data/updates`, launcher oficial e HEALTH_PORT=8081. Configuração
+preexistente deve ser revisada manualmente com esses mesmos parâmetros; token nunca
+é exibido. A pré-verificação exige binário canônico, health habilitado e daemon registrado.
+Instalação legada em outro caminho exige preparação explícita, sem troca automática.
+
+O launcher agenda job launchd independente, com ambiente mínimo, sem herdar comandos
+de restart ou destinos arbitrários. Apply exige SHA256, versão, pacote da arquitetura
+local e health HTTP em 127.0.0.1; extrai somente o conteúdo do binário oficial do tar.
+Reserva por mkdir impede concorrência. Faz backup, bootout somente do daemon oficial,
+troca binário e bootstrap. Health local precisa retornar a versão desejada; falha
+restaura backup e exige saúde da versão anterior, retornando falha mesmo após rollback.
+A confirmação final continua sendo o report autenticado e a versão no Web.
+
+Logs: `/var/log/aiceberg-agent-update.log` e `/var/log/aiceberg-agent.log`, retenção
+operacional de30 dias. Backups `.bak.*` e candidatos `.aiceberg-update.*` ficam em
+`/Library/AIceberg/bin` para diagnóstico; revisar após30 dias e remover somente mediante
+autorização, preservando binário atual e backup de rollback. Lock remanescente após
+interrupção abrupta requer inspeção de processo/job antes de liberação manual.
+Não apagar outbox nem prefs. Rollback operacional: desabilitar política de update,
+restaurar pacote assinado anterior e configuração preservada; não assumir layout legado.
+
+Validação: `python3 scripts/test_macos_updater.py`, `plutil -lint
+scripts/macos/com.aiceberg.agent.plist`, testes Go de readiness e `./check.sh`.
+O ensaio substitui apenas launchd/health em processos de teste e arquivos temporários;
+não prova instalação, privilégio, rede nem restart de serviço real em host piloto.

@@ -20,7 +20,8 @@ func TestUpdateReadinessCanonicalLaunchers(t *testing.T) {
 	}{
 		{"linux", "sudo -n /usr/local/sbin/aiceberg-agent-update-launcher.sh", true},
 		{"linux", "/usr/local/sbin/aiceberg-agent-update-launcher.sh", true},
-		{"darwin", "sudo -n /usr/local/sbin/aiceberg-agent-update-launcher.sh", true},
+		{"darwin", "/Library/AIceberg/sbin/aiceberg-agent-update-launcher.sh", true},
+		{"darwin", "sudo -n /usr/local/sbin/aiceberg-agent-update-launcher.sh", false},
 		{"windows", `& 'C:\ProgramData\AIceberg\update\aiceberg-agent-update-launcher.ps1'`, true},
 		{"windows", `& 'C:\Program Files\AIceberg\update\aiceberg-agent-update-launcher.ps1'`, true},
 		{"linux", "sudo /usr/local/sbin/aiceberg-agent-update-launcher.sh", false},

@@ -14,6 +14,15 @@ run_model_validations() {
 
 run_model_validations
 
+log_macos_checks() {
+  bash -n scripts/macos/install.sh scripts/macos/aiceberg-agent-update-launcher.sh scripts/macos/aiceberg-agent-apply-update.sh
+  PYTHONDONTWRITEBYTECODE=1 python3 scripts/test_macos_updater.py
+  if [[ "$(uname -s)" == Darwin ]]; then
+    plutil -lint scripts/macos/com.aiceberg.agent.plist
+  fi
+}
+log_macos_checks
+
 if [[ -f .env ]]; then
   set -a
   # shellcheck disable=SC1091

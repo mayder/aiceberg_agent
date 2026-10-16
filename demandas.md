@@ -701,8 +701,9 @@ Rollback: pacote anterior assinado, política de despacho Web vazia e configura�
   verificações booleanas de updater, scripts, serviço, privilégios e pendência local.
 - [x] Preservar estado pendente; não baixar pacote, aplicar, reiniciar ou coletar flare.
 - [ ] Concluir gate completo, publicar nova versão assinada e validar em hosts piloto.
-- [ ] Entregar scripts oficiais macOS/launchd: pacote atual possui apenas binário/env.
-- [ ] Integrar dispatcher/lotes no Web; resultado sem schema novo exige preparação.
+- [x] Implementar instalador, daemon launchd e updater macOS com SHA256 obrigatório, health local por versão e rollback; testes locais isolados, sem instalação de serviço.
+- [x] Integrar dispatcher/lotes no Web; resultado sem schema novo exige preparação. Candidato Web commitado, ainda não publicado.
+- [ ] Validar instalação e atualização real em macOS piloto; repetir gates e publicar artefatos assinados da nova versão antes de liberar a central.
 
 Riscos remanescentes de apply (bloqueio do binário, EDR/antivírus, políticas de sistema)
 continuam explícitos; pré-verificação não substitui confirmação pós-reinício. Runtime/GOS

@@ -208,7 +208,7 @@ Enquanto não temos instalador, use este fluxo para rodar localmente com token d
 2. Execute os comandos:
    ```bash
    chmod +x scripts/build_installers.sh
-   ./scripts/build_installers.sh
+   AICEBERG_INSTALLERS_OUTPUT_DIR=/caminho/novo/da/release ./scripts/build_installers.sh
    ls dist
    ```
 3. Os artefatos saem em `dist/` (tar.gz/zip com binário, `README_INSTALL.txt`, service/PS1 e `agent.env.example`). Publique esses arquivos no painel conforme o SO do usuário.
