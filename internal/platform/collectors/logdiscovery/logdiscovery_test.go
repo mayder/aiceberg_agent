@@ -24,7 +24,7 @@ func TestCollectEmitsContractWithDiscoveredLogFile(t *testing.T) {
 	if err := os.WriteFile(logPath, []byte("2026-06-20 error failed\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	c := newCollector(config.Config{
+	c := newFixtureCollector(config.Config{
 		LogDiscoveryEnabled:          true,
 		LogDiscoveryInterval:         time.Minute,
 		LogDiscoveryMaxCandidates:    20,
@@ -72,7 +72,7 @@ func TestCollectEmitsContractWithDiscoveredLogFile(t *testing.T) {
 }
 
 func TestCollectDisabledReturnsNil(t *testing.T) {
-	c := newCollector(config.Config{LogDiscoveryEnabled: true}, func() config.CollectPrefs {
+	c := newFixtureCollector(config.Config{LogDiscoveryEnabled: true}, func() config.CollectPrefs {
 		return config.CollectPrefs{Version: "remote", LogDiscoveryEnabled: false}
 	}, nil)
 	raw, err := c.Collect(context.Background())
@@ -95,7 +95,7 @@ func TestCollectDetectsContainerKubernetesAndOTLPRuntimeSignals(t *testing.T) {
 		}
 	}
 
-	c := newCollector(config.Config{
+	c := newFixtureCollector(config.Config{
 		LogDiscoveryEnabled:       true,
 		ContainerDockerSocket:     dockerSock,
 		ContainerContainerdSocket: containerdSock,
@@ -144,7 +144,7 @@ func TestCollectReportsPermissionGapForInaccessiblePath(t *testing.T) {
 		_ = os.Chmod(blockedDir, 0o700)
 	}()
 
-	c := newCollector(config.Config{LogDiscoveryEnabled: true}, nil, []knownPath{{
+	c := newFixtureCollector(config.Config{LogDiscoveryEnabled: true}, nil, []knownPath{{
 		Path:                logPath,
 		Kind:                "log_file",
 		Product:             "nginx",
@@ -178,7 +178,7 @@ func TestPKG74ControlledDiscoveryEvidence(t *testing.T) {
 	paths, blockedDir := pkg74ControlledPaths(t, dir)
 	defer func() { _ = os.Chmod(blockedDir, 0o700) }()
 
-	c := newCollector(config.Config{
+	c := newFixtureCollector(config.Config{
 		LogDiscoveryEnabled:          true,
 		LogDiscoveryMaxCandidates:    300,
 		LogDiscoveryMaxEvidenceBytes: 1024,
@@ -227,7 +227,7 @@ func TestFingerprintDeduplicatesSuperficialDuplicates(t *testing.T) {
 	dup.Evidence = []string{"size:10", "mtime:changed"}
 	dup.Fingerprint = fingerprint(dup)
 
-	c := newCollector(config.Config{}, nil, nil)
+	c := newFixtureCollector(config.Config{}, nil, nil)
 	rows := c.deduplicate([]Candidate{row, dup}, 10)
 	if len(rows) != 1 {
 		t.Fatalf("expected one deduped candidate, got %d", len(rows))
@@ -450,4 +450,12 @@ func pkg74FileSize(t *testing.T, path string) int {
 		t.Fatal(err)
 	}
 	return int(info.Size())
+}
+
+// File/runtime contract tests use controlled process and listener facts, never the developer host.
+func newFixtureCollector(cfg config.Config, prefs func() config.CollectPrefs, paths []knownPath) *Collector {
+	c := newCollector(cfg, prefs, paths)
+	c.processDiscovery = func(context.Context, *[]gap) []Candidate { return []Candidate{} }
+	c.listenerDiscovery = func(context.Context, *[]gap) []Candidate { return []Candidate{} }
+	return c
 }

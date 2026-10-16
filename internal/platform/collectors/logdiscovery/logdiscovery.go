@@ -30,11 +30,13 @@ const (
 )
 
 type Collector struct {
-	cfg        config.Config
-	prefs      func() config.CollectPrefs
-	knownPaths []knownPath
-	now        func() time.Time
-	hostname   func() (string, error)
+	cfg               config.Config
+	prefs             func() config.CollectPrefs
+	knownPaths        []knownPath
+	now               func() time.Time
+	hostname          func() (string, error)
+	processDiscovery  func(context.Context, *[]gap) []Candidate
+	listenerDiscovery func(context.Context, *[]gap) []Candidate
 }
 
 type knownPath struct {
@@ -112,13 +114,16 @@ func newCollector(cfg config.Config, prefsProvider func() config.CollectPrefs, p
 	if prefsProvider == nil {
 		prefsProvider = func() config.CollectPrefs { return config.CollectPrefs{} }
 	}
-	return &Collector{
+	c := &Collector{
 		cfg:        cfg,
 		prefs:      prefsProvider,
 		knownPaths: paths,
 		now:        time.Now,
 		hostname:   os.Hostname,
 	}
+	c.processDiscovery = c.discoverProcesses
+	c.listenerDiscovery = c.discoverListeners
+	return c
 }
 
 func (c *Collector) Name() string { return collectorName }
@@ -137,8 +142,8 @@ func (c *Collector) Collect(ctx context.Context) ([]byte, error) {
 	candidates = append(candidates, c.discoverKnownLogFiles(&gaps)...)
 	candidates = append(candidates, c.discoverSystemdUnits(&gaps)...)
 	candidates = append(candidates, c.discoverRuntimes()...)
-	candidates = append(candidates, c.discoverProcesses(ctx, &gaps)...)
-	candidates = append(candidates, c.discoverListeners(ctx, &gaps)...)
+	candidates = append(candidates, c.processDiscovery(ctx, &gaps)...)
+	candidates = append(candidates, c.listenerDiscovery(ctx, &gaps)...)
 	candidates = c.deduplicate(candidates, c.maxCandidates(p))
 
 	body := payload{

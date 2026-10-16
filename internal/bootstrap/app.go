@@ -395,7 +395,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		RuntimeSnapshot: func() map[string]any {
 			p := prefStore.Get()
 			settings := agentlessSettings()
-			return buildSelfHealRuntimeSnapshot(cfg, mode, p, settings, agentlessUC != nil, selfUpdateUC)
+			return withOutboxRuntimeEvidence(buildSelfHealRuntimeSnapshot(cfg, mode, p, settings, agentlessUC != nil, selfUpdateUC), outboxRepo, flushUC)
 		},
 	})
 	commandDedupe := usecase.NewCommandIdempotency(6*time.Hour, 2048)

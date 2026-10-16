@@ -551,3 +551,11 @@ Rollback: instalar o binário 0.8.42 e retirar o access log da configuração re
 - Reteste: testes HTTP dos dois endpoints exigem ambos os headers; `./check.sh` passou; o Agente 4 executou e enviou o check TCP do MySQL OCI pelo HUB sem novo 401, antes da expansão.
 - Evidência: agentes ativos `4`, `70`, `71` e `73` confirmaram `0.8.54`, sem payload pendente; o check `14453` gerou observação `source=hub`, `hub_agente_id=4`, `status=ok`.
 - Rollback: reinstalar a versão assinada `0.8.53`; nenhuma alteração de banco ou contrato foi necessária.
+
+## BUG-20261016-01 — HUB confirma lote sem persistir com fila cheia
+
+- Causa confirmada no código: handler de ingestão retornava 202 mesmo após falha de Append; o relay removia os envelopes como se entregues. HUB 84/SADA reportou fila de aproximadamente 200 MB e falhas de coleta por capacidade.
+- Correção 0.8.55: qualquer falha de persistência retorna 503 com Retry-After; o relay mantém o lote. Persistência parcial permanece na fila e IDs idempotentes permitem retry. Sem limpeza, replay manual, alteração de retenção ou aumento de limite.
+- Diagnóstico somente leitura: inspect_runtime_config inclui outbox_runtime com contadores/rota/ACK/backoff e classificação finita de erro; nenhum erro bruto, credencial ou payload é enviado.
+- Reteste: persistência falha/parcial nas rotas métricas e logs; diagnóstico sem segredo. Coleta real e escoamento são gates independentes, ainda a validar.
+- Rollback: pacote anterior assinado no alvo; preservar configuração, outbox e histórico. A versão anterior volta a ter o defeito de ACK em fila cheia.

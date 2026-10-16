@@ -676,3 +676,10 @@ Status: implementação integrada na `main`; `0.8.50` e `0.8.51` foram publicada
 - [ ] Atualizar somente o HUB piloto, validar versão/serviço, medir regularidade e só então ampliar Web e inventário.
 
 Rollback: pacote anterior assinado, política de despacho Web vazia e configuração anterior do HUB. Preservar outbox e histórico. Sem alteração de schema ou rotina nova de limpeza.
+
+## Correção operacional de coleta SBC via HUB84 — 16/10/2026
+
+- [x] Diagnosticar fila cheia do HUB e confirmação incorreta de persistência no handler relay.
+- [x] Corrigir ACK em falha/parcial e disponibilizar diagnóstico finito e sanitizado da outbox pelo canal existente.
+- [ ] Validar gate completo, publicar pacote0.8.55 assinado e aplicar somente ao HUB84.
+- [ ] Comprovar escoamento e regularidade das medições do SBC674, sem interferir no Runtime/GOS.

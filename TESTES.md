@@ -660,3 +660,9 @@ Evidência 2026-06-20:
 - `go test -race ./internal/common/schedule ./internal/domain/usecase ./internal/bootstrap`: valida a proteção concorrente da máquina de estados.
 - O jitter usa relógio/hash controlados, sem espera real: mesma identidade/rotina mantém a fase, identidades/rotinas diferentes distribuem fases, o valor fica em `[0, intervalo)` e o intervalo permanente não muda.
 - Reteste canário: confirmar versão, serviço e health; comparar janela equivalente antes/depois para `GET /v1/agent/config` (`200`/`204`), `POST /v1/agent/config-report`, `POST /v1/agent/error-report`, CPU, taxa total e 5xx; executar `collect_now`, update e self-heal controlados antes de ampliar.
+
+## Reteste de ingestão relay/HUB com fila cheia — 16/10/2026
+
+`TestHubDoesNotAcknowledgeFailedOrPartialPersistence` exige HTTP503/Retry-After nas rotas métricas/logs quando Append falha no início ou no meio do lote, preservando os envelopes já gravados. Os testes existentes mantêm ACK202 para lotes íntegros e identidade relay. `TestOutboxRuntimeEvidenceIsReadOnlyAndDoesNotExposeTransportPayload` confere contadores e ausência de credenciais/erro bruto. Gate completo obrigatório. Validação produtiva: confirmar versão no HUB84, outbox_runtime, métricas novas do SBC674 e regularidade da janela; update sozinho não encerra o incidente.
+
+Os testes de contrato de arquivos/runtimes de logdiscovery injetam processos/listeners controlados, em vez de varrer processos reais do Mac com lsof. Os adaptadores reais continuam como defaults em produção; a validação não desliga nem enfraquece a descoberta produtiva.

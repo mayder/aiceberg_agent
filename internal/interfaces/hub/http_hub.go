@@ -58,6 +58,7 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 			return
 		}
 		buffered := 0
+		failed := false
 		for i := range batch {
 			if batch[i].ID == "" {
 				usecase.HandleInvalidEnvelope(log, batch[i], "missing_envelope_id")
@@ -73,6 +74,7 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 			batch[i].AuthHeader = auth
 			batch[i].IdentityHeader = identity
 			if err := outbox.Append(batch[i]); err != nil {
+				failed = true
 				log.Error(logger.KV("outbox append failed",
 					"event_id", batch[i].ID,
 					"agent_id", batch[i].AgentID,
@@ -87,6 +89,11 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 			"route", r.URL.Path,
 			"batch_size", buffered,
 		))
+		if failed {
+			w.Header().Set("Retry-After", "15")
+			http.Error(w, "hub persistence unavailable; retain batch for retry", http.StatusServiceUnavailable)
+			return
+		}
 		if pendingCfg != nil {
 			if cfgRaw, ok := pendingCfg.Pop(auth); ok {
 				w.Header().Set("Content-Type", "application/json")

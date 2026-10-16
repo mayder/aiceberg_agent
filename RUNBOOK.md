@@ -709,3 +709,7 @@ Dependências externas (UDP/161, credenciais, gerência dos dispositivos) devem 
 6. Comparar CPU, taxa total de requisições e erros 5xx. Só ampliar se não houver perda de coleta, comando, update, Agentless ou self-heal.
 
 Rollback: restaurar o binário assinado anterior e reiniciar somente o serviço do agente. Não apagar prefs, token, outbox ou evidências; a versão condicional e o jitter não exigem mudança no Web/Runtime.
+
+### Diagnóstico de fila HUB sem acesso local
+
+A partir de 0.8.55, `inspect_runtime_config` inclui `outbox_runtime`: quantidade/bytes, último ACK, rota e classe de erro, retenção do último lote e backoff. O snapshot é somente leitura e não contém erro bruto nem conteúdo de envelope. O comando continua no canal autenticado existente. Em fila cheia, o HUB responde503/Retry-After e o relay mantém seu lote. Não limpar ou reproduzir filas manualmente; conferir escoamento e novas métricas antes de declarar recuperação. Rollout inicial restrito ao HUB84/SADA; rollback para pacote assinado anterior preservando estado.
