@@ -719,3 +719,7 @@ A partir de 0.8.55, `inspect_runtime_config` inclui `outbox_runtime`: quantidade
 `HUB_OUTBOX_FLUSH_BATCH` default400 (máximo400), `HUB_OUTBOX_FLUSH_CONCURRENCY` default4 (máximo8). Aplicam-se somente ao modo HUB; relay/direct mantêm lote anterior e envio serial. Grupos são separados por autorização, identidade e rota; chunks do grupo permanecem sequenciais, callback de configuração serializado, falhas retidas. `outbox_runtime` informa capacidade efetiva. Rollback operacional: valores50/1 no ambiente do HUB ou pacote0.8.55 assinado. Não alterar armazenamento, retenção, filas centrais ou ownership.
 
 O envio paralelo limita o despacho a oito segundos por ciclo, respeita cancelamento e mantém grupos ainda não enviados. Requisições já em andamento permanecem limitadas pelo timeout HTTP configurado.
+
+### Capacidade HUB0.8.57
+
+Piloto84/SADA mensurado com206 relays ativos: defaults HUB_OUTBOX_FLUSH_BATCH=800 (teto800) e HUB_OUTBOX_FLUSH_CONCURRENCY=8 (teto8). Preserva despacho8s, timeout HTTP e estado. Valores50/1 restauram capacidade anterior; pacote0.8.56 permite rollback assinado. Não ampliar rollout além do HUB84 nem limpar outbox.

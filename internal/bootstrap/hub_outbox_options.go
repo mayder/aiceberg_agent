@@ -11,14 +11,14 @@ func hubOutboxFlushOptions(mode string, cfg config.Config, opts usecase.FlushOut
 	}
 	batch := cfg.HubOutboxFlushBatch
 	if batch <= 0 {
-		batch = 400
+		batch = 800
 	}
-	if batch > 400 {
-		batch = 400
+	if batch > 800 {
+		batch = 800
 	}
 	concurrency := cfg.HubOutboxFlushConcurrency
 	if concurrency <= 0 {
-		concurrency = 4
+		concurrency = 8
 	}
 	if concurrency > 8 {
 		concurrency = 8

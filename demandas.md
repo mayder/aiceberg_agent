@@ -688,3 +688,6 @@ Rollback: pacote anterior assinado, política de despacho Web vazia e configura�
 - [x] Implementar0.8.56: capacidade HUB400/4 limitada, identidade/retry isolados e callback de configuração serializado.
 - [x] Publicar0.8.56 assinada e aplicar somente ao HUB84 (config26/version_confirmed18:04:04UTC); commit468cb44, Web3a74351e, esteira38944283175 SUCCESS.
 - [ ] Comprovar coleta SBC regular e janela de oito minutos completa.
+
+- [x] Medir capacidade após0.8.56: fila volta a200MB com206 relays ativos; defaults400/4 insuficientes.
+- [ ] Publicar0.8.57 assinada com capacidade800/8 restrita ao HUB84 e validar atraso/regularidade sem limpeza.

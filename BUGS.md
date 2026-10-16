@@ -563,3 +563,7 @@ Rollback: instalar o binário 0.8.42 e retirar o access log da configuração re
 ### Gargalo confirmado no HUB84 — complemento0.8.56
 
 O inspect95 da0.8.55 confirmou9432 envelopes/208201238bytes, sem erro nem retenção no envio, mas lote50 com7210ms e amostra mais antiga601s. A fila continua cheia por capacidade insuficiente, não por falha de autenticação. A0.8.56 usa no HUB lote máximo400 e quatro grupos independentes simultâneos (configuráveis, teto8 workers); cada grupo mantém identidade/rota, chunks sequenciais e ACK/retry próprios. Callbacks de configuração são serializados. Relay/direct conservam comportamento anterior. Não aumenta armazenamento nem altera retenção.
+
+### Ajuste mensurado0.8.57
+
+A observação prolongada da0.8.56 manteve a fila no limite: inspect99 com9336 itens/209713514bytes e133 retidos no ciclo. Há206 relays ativos com CPU/memória ligadas. Lote400/4 não oferece margem suficiente. A0.8.57 usa lote máximo800 e oito grupos simultâneos; preserva orçamento de despacho8s, timeout HTTP, identidades, ACK/retry e retenção. Validar escoamento sustentado antes de encerrar.
