@@ -713,3 +713,9 @@ Rollback: restaurar o binário assinado anterior e reiniciar somente o serviço 
 ### Diagnóstico de fila HUB sem acesso local
 
 A partir de 0.8.55, `inspect_runtime_config` inclui `outbox_runtime`: quantidade/bytes, último ACK, rota e classe de erro, retenção do último lote e backoff. O snapshot é somente leitura e não contém erro bruto nem conteúdo de envelope. O comando continua no canal autenticado existente. Em fila cheia, o HUB responde503/Retry-After e o relay mantém seu lote. Não limpar ou reproduzir filas manualmente; conferir escoamento e novas métricas antes de declarar recuperação. Rollout inicial restrito ao HUB84/SADA; rollback para pacote assinado anterior preservando estado.
+
+### Capacidade de envio HUB —0.8.56
+
+`HUB_OUTBOX_FLUSH_BATCH` default400 (máximo400), `HUB_OUTBOX_FLUSH_CONCURRENCY` default4 (máximo8). Aplicam-se somente ao modo HUB; relay/direct mantêm lote anterior e envio serial. Grupos são separados por autorização, identidade e rota; chunks do grupo permanecem sequenciais, callback de configuração serializado, falhas retidas. `outbox_runtime` informa capacidade efetiva. Rollback operacional: valores50/1 no ambiente do HUB ou pacote0.8.55 assinado. Não alterar armazenamento, retenção, filas centrais ou ownership.
+
+O envio paralelo limita o despacho a oito segundos por ciclo, respeita cancelamento e mantém grupos ainda não enviados. Requisições já em andamento permanecem limitadas pelo timeout HTTP configurado.

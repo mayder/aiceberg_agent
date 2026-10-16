@@ -18,6 +18,7 @@ func buildOutboxRuntimeEvidence(repo ports.OutboxRepo, flush *usecase.FlushOutbo
 	s := flush.Snapshot()
 	return map[string]any{
 		"queue_items": items, "queue_bytes": bytes,
+		"batch_limit": s.BatchLimit, "concurrency": s.Concurrency,
 		"last_error_kind":  outboxErrorKind(s.LastError),
 		"last_error_route": s.LastErrorRoute, "last_error_batch": s.LastErrorBatch,
 		"last_ack_route": s.LastAckRoute, "last_ack_batch": s.LastAckBatch,

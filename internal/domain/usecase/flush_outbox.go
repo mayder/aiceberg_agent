@@ -24,6 +24,8 @@ type FlushOutbox struct {
 	defaultAuth                   string
 	onConfig                      IngestConfigHandler
 	batchSize                     int
+	concurrency                   int
+	configMu                      sync.Mutex
 	maxBatchBytes                 int
 	identityHeaderProvider        func() string
 	refreshCredentialsForEnvelope func(entities.Envelope) bool
@@ -35,12 +37,15 @@ type FlushOutbox struct {
 
 type FlushOutboxOptions struct {
 	BatchSize                     int
+	Concurrency                   int
 	MaxBatchBytes                 int
 	IdentityHeaderProvider        func() string
 	RefreshCredentialsForEnvelope func(entities.Envelope) bool
 }
 
 type FlushOutboxSnapshot struct {
+	BatchLimit            int            `json:"batch_limit"`
+	Concurrency           int            `json:"concurrency"`
 	LastError             string         `json:"last_error,omitempty"`
 	LastErrorRoute        string         `json:"last_error_route,omitempty"`
 	LastErrorBatch        int            `json:"last_error_batch,omitempty"`
@@ -88,6 +93,7 @@ func NewFlushOutboxWithOptions(o ports.OutboxRepo, t ports.Transport, l logger.L
 		defaultAuth:                   defaultAuth,
 		onConfig:                      onConfig,
 		batchSize:                     batchSize,
+		concurrency:                   boundedFlushConcurrency(opts.Concurrency),
 		maxBatchBytes:                 maxBatchBytes,
 		identityHeaderProvider:        opts.IdentityHeaderProvider,
 		refreshCredentialsForEnvelope: opts.RefreshCredentialsForEnvelope,
@@ -126,7 +132,7 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	acked, retained, firstErr := uc.flushGroups(grouped)
+	acked, retained, firstErr := uc.flushGroups(ctx, grouped)
 
 	durationMs := time.Since(start).Milliseconds()
 	uc.log.Info(logger.KV("flushed",
@@ -139,7 +145,7 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 	return acked, firstErr
 }
 
-func (uc *FlushOutbox) flushGroups(grouped map[flushGroupKey][]entities.Envelope) (int, int, error) {
+func (uc *FlushOutbox) flushGroupsSequential(grouped map[flushGroupKey][]entities.Envelope) (int, int, error) {
 	var firstErr error
 	acked, retained := 0, 0
 	for group, list := range grouped {
@@ -268,7 +274,9 @@ func (uc *FlushOutbox) handleIngestConfig(auth, endpoint string, respBody []byte
 		uc.log.Error(logger.KV("ingest config parse failed", "route", endpoint, "err", err))
 	}
 	if cfg != nil {
+		uc.configMu.Lock()
 		uc.onConfig(auth, *cfg)
+		uc.configMu.Unlock()
 	}
 }
 
@@ -350,6 +358,8 @@ func (uc *FlushOutbox) Snapshot() FlushOutboxSnapshot {
 	uc.mu.Lock()
 	defer uc.mu.Unlock()
 	out := uc.snapshot
+	out.BatchLimit = uc.batchSize
+	out.Concurrency = uc.concurrency
 	if uc.snapshot.EndpointBacklog != nil {
 		out.EndpointBacklog = make(map[string]int, len(uc.snapshot.EndpointBacklog))
 		for k, v := range uc.snapshot.EndpointBacklog {

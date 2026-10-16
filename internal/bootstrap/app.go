@@ -217,6 +217,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		IdentityHeaderProvider:        identityHeaderProvider,
 		RefreshCredentialsForEnvelope: refreshLocalEnvelopeCredentials,
 	}
+	flushOptions = hubOutboxFlushOptions(mode, cfg, flushOptions)
 	flushUC := usecase.NewFlushOutboxWithOptions(outboxRepo, tx, log, authHeader, onIngestConfig, flushOptions)
 	pingUC := usecase.NewPingBackend(cfg, log)
 	selfUpdateUC := usecase.NewSelfUpdate(cfg, log, prefStore.Get)

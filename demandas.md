@@ -683,3 +683,7 @@ Rollback: pacote anterior assinado, política de despacho Web vazia e configura�
 - [x] Corrigir ACK em falha/parcial e disponibilizar diagnóstico finito e sanitizado da outbox pelo canal existente.
 - [ ] Validar gate completo, publicar pacote0.8.55 assinado e aplicar somente ao HUB84.
 - [ ] Comprovar escoamento e regularidade das medições do SBC674, sem interferir no Runtime/GOS.
+
+- [x] Diagnóstico produtivo pela0.8.55 confirmou fila cheia apesar de ACKs válidos e gargalo no lote serial50.
+- [x] Implementar0.8.56: capacidade HUB400/4 limitada, identidade/retry isolados e callback de configuração serializado.
+- [ ] Publicar0.8.56 assinada, aplicar somente ao HUB84 e comprovar coleta SBC regular.

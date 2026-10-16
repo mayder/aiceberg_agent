@@ -51,6 +51,8 @@ type Config struct {
 	IngestTimeout                      time.Duration
 	MetricsInterval                    time.Duration
 	OutboxFlushBatch                   int
+	HubOutboxFlushBatch                int
+	HubOutboxFlushConcurrency          int
 	OutboxFlushInterval                time.Duration
 	TLSInsecureSkip                    bool
 	TLSInsecureAllowProd               bool
@@ -362,6 +364,8 @@ func Load(configPath string) (Config, error) {
 		HTTPGzip:                           strings.ToLower(getenv("HTTP_GZIP", "")) == "true",
 		HTTPIdempotency:                    strings.ToLower(getenv("HTTP_IDEMPOTENCY", "true")) == "true",
 		OutboxFlushBatch:                   intEnv("OUTBOX_FLUSH_BATCH", 50),
+		HubOutboxFlushBatch:                intEnv("HUB_OUTBOX_FLUSH_BATCH", 400),
+		HubOutboxFlushConcurrency:          intEnv("HUB_OUTBOX_FLUSH_CONCURRENCY", 4),
 		TLSInsecureSkip:                    strings.ToLower(getenv("TLS_INSECURE_SKIP_VERIFY", "")) == "true",
 		TLSInsecureAllowProd:               strings.ToLower(getenv("TLS_INSECURE_ALLOW_PROD", "")) == "true",
 		RemoteConfigSignatureSecret:        getenv("REMOTE_CONFIG_SIGNATURE_SECRET", ""),

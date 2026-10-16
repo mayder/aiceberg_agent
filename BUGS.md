@@ -559,3 +559,7 @@ Rollback: instalar o binário 0.8.42 e retirar o access log da configuração re
 - Diagnóstico somente leitura: inspect_runtime_config inclui outbox_runtime com contadores/rota/ACK/backoff e classificação finita de erro; nenhum erro bruto, credencial ou payload é enviado.
 - Reteste: persistência falha/parcial nas rotas métricas e logs; diagnóstico sem segredo. Coleta real e escoamento são gates independentes, ainda a validar.
 - Rollback: pacote anterior assinado no alvo; preservar configuração, outbox e histórico. A versão anterior volta a ter o defeito de ACK em fila cheia.
+
+### Gargalo confirmado no HUB84 — complemento0.8.56
+
+O inspect95 da0.8.55 confirmou9432 envelopes/208201238bytes, sem erro nem retenção no envio, mas lote50 com7210ms e amostra mais antiga601s. A fila continua cheia por capacidade insuficiente, não por falha de autenticação. A0.8.56 usa no HUB lote máximo400 e quatro grupos independentes simultâneos (configuráveis, teto8 workers); cada grupo mantém identidade/rota, chunks sequenciais e ACK/retry próprios. Callbacks de configuração são serializados. Relay/direct conservam comportamento anterior. Não aumenta armazenamento nem altera retenção.

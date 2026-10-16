@@ -666,3 +666,7 @@ Evidência 2026-06-20:
 `TestHubDoesNotAcknowledgeFailedOrPartialPersistence` exige HTTP503/Retry-After nas rotas métricas/logs quando Append falha no início ou no meio do lote, preservando os envelopes já gravados. Os testes existentes mantêm ACK202 para lotes íntegros e identidade relay. `TestOutboxRuntimeEvidenceIsReadOnlyAndDoesNotExposeTransportPayload` confere contadores e ausência de credenciais/erro bruto. Gate completo obrigatório. Validação produtiva: confirmar versão no HUB84, outbox_runtime, métricas novas do SBC674 e regularidade da janela; update sozinho não encerra o incidente.
 
 Os testes de contrato de arquivos/runtimes de logdiscovery injetam processos/listeners controlados, em vez de varrer processos reais do Mac com lsof. Os adaptadores reais continuam como defaults em produção; a validação não desliga nem enfraquece a descoberta produtiva.
+
+### Capacidade limitada do HUB —0.8.56
+
+Teste coordenado por canais comprova dois destinos simultâneos, limite de workers, ACK apenas dos três destinos bons e retenção do destino falho. Teste de bootstrap cobre defaults HUB400/4, tetos400/8, rollback50/1 e ausência de mudança em relay/direct. Executar race detector nos novos testes e gate completo. Regularidade SBC em produção permanece gate separado.
