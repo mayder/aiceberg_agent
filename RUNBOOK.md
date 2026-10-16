@@ -723,3 +723,17 @@ O envio paralelo limita o despacho a oito segundos por ciclo, respeita cancelame
 ### Capacidade HUB0.8.57
 
 Piloto84/SADA mensurado com206 relays ativos: defaults HUB_OUTBOX_FLUSH_BATCH=800 (teto800) e HUB_OUTBOX_FLUSH_CONCURRENCY=8 (teto8). Preserva despacho8s, timeout HTTP e estado. Valores50/1 restauram capacidade anterior; pacote0.8.56 permite rollback assinado. Não ampliar rollout além do HUB84 nem limpar outbox.
+
+## Pré-verificação para atualização em lote (candidato local)
+
+Solicitar `inspect_runtime_config` com `payload.update_readiness=true` pelo canal
+existente, mantendo as mesmas permissões e allowlist do inspector. Resultado deve
+conter `update_readiness.schema=aiceberg-agent-update-readiness.v1` e todos os checks
+booleanos aprovados. A ausência do resultado em versão antiga exige preparação.
+O probe não baixa/aplica pacote nem reinicia serviço e preserva pendências existentes.
+
+Launchers aceitos: Unix `/usr/local/sbin/aiceberg-agent-update-launcher.sh`, direto
+para root ou com `sudo -n`; Windows comando PowerShell `& '<caminho-absoluto-do-launcher>'`
+para `aiceberg-agent-update-launcher.ps1`. Não receber shell arbitrário da tela.
+Pacote macOS atual ainda não instala launcher/apply; suporte launchd permanece pendente.
+Mesmo com preflight aprovado, acompanhar reconnect e versão efetivamente confirmada.

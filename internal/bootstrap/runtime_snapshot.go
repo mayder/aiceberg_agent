@@ -607,16 +607,17 @@ func buildFleetRuntimeSnapshot(cfg config.Config, mode string, prefs config.Coll
 		driftStatus = "applied"
 	}
 	return map[string]any{
-		"agent_version":        strings.TrimSpace(version.Version),
-		"goos":                 runtime.GOOS,
-		"goarch":               runtime.GOARCH,
-		"mode":                 strings.TrimSpace(mode),
-		"config_version":       strings.TrimSpace(prefs.Version),
-		"config_hash":          configHash,
-		"config_drift_status":  driftStatus,
-		"auto_update_enabled":  cfg.AutoUpdateEnabled,
-		"rollback_state":       inspectLocalStateEntry(filepath.Join(cfg.AutoUpdateDir, ".pending_update.json"), true),
-		"last_snapshot_source": "runtime",
+		"agent_version":           strings.TrimSpace(version.Version),
+		"update_readiness_schema": usecase.UpdateReadinessSchema,
+		"goos":                    runtime.GOOS,
+		"goarch":                  runtime.GOARCH,
+		"mode":                    strings.TrimSpace(mode),
+		"config_version":          strings.TrimSpace(prefs.Version),
+		"config_hash":             configHash,
+		"config_drift_status":     driftStatus,
+		"auto_update_enabled":     cfg.AutoUpdateEnabled,
+		"rollback_state":          inspectLocalStateEntry(filepath.Join(cfg.AutoUpdateDir, ".pending_update.json"), true),
+		"last_snapshot_source":    "runtime",
 	}
 }
 

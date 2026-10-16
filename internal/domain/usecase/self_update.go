@@ -569,7 +569,7 @@ func privilegedUpdateLauncherAvailable(command string) bool {
 	if err != nil || info.IsDir() || info.Mode().Perm()&0o111 == 0 {
 		return false
 	}
-	return exec.Command("sudo", "-n", "-l", launcher).Run() == nil
+	return probeUpdateLauncherAuthorization(context.Background(), launcher)
 }
 
 func isEnvironmentAssignment(value string) bool {

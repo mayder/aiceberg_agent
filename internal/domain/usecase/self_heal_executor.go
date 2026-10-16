@@ -30,6 +30,7 @@ type SelfHealDeps struct {
 	ClearAgentlessLock  func()
 	HasAgentlessWorker  func() bool
 	RuntimeSnapshot     func() map[string]any
+	UpdateReadiness     func(context.Context) map[string]any
 	SupportFlare        func(context.Context) (map[string]any, error)
 }
 
@@ -208,9 +209,7 @@ func (uc *SelfHealExecutor) executeCode(ctx context.Context, cmd entities.SelfHe
 		}
 		return "time sync probe triggered", map[string]any{"source": "health_collect"}, nil
 	case "inspect_runtime_config":
-		return "runtime configuration snapshot collected", uc.withRuntimeEvidence(map[string]any{
-			"snapshot_source": "selfheal.inspect_runtime_config",
-		}), nil
+		return uc.inspectRuntimeConfig(ctx, cmd)
 	case "collect_support_flare":
 		evidence := uc.withRuntimeEvidence(map[string]any{
 			"snapshot_source": "selfheal.collect_support_flare",

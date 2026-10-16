@@ -692,3 +692,18 @@ Rollback: pacote anterior assinado, política de despacho Web vazia e configura�
 - [x] Medir capacidade após0.8.56: fila volta a200MB com206 relays ativos; defaults400/4 insuficientes.
 - [x] Publicar0.8.57 assinada com capacidade800/8 restrita ao HUB84; config27/version_confirmed às18:26:37UTC. Fontef2ed837 enviada; hash público Linux conferido.
 - [ ] Concluir escoamento sustentado e avaliação natural da janela: SBC recebeu memória75% às18:30:48UTC, atraso de entrega246,6s. Média em lote depende da correção PHP/Go coordenada com a frente GOS.
+
+## Central de atualização — pré-verificação local do updater (16/10/2026)
+
+- [x] Acrescentar ao comando existente `inspect_runtime_config` o pedido explícito
+  `payload.update_readiness=true`, sem novos comandos de shell ou alteração de configuração.
+- [x] Retornar contrato versionado, horário UTC, SO/arquitetura, versão/configuração e
+  verificações booleanas de updater, scripts, serviço, privilégios e pendência local.
+- [x] Preservar estado pendente; não baixar pacote, aplicar, reiniciar ou coletar flare.
+- [ ] Concluir gate completo, publicar nova versão assinada e validar em hosts piloto.
+- [ ] Entregar scripts oficiais macOS/launchd: pacote atual possui apenas binário/env.
+- [ ] Integrar dispatcher/lotes no Web; resultado sem schema novo exige preparação.
+
+Riscos remanescentes de apply (bloqueio do binário, EDR/antivírus, políticas de sistema)
+continuam explícitos; pré-verificação não substitui confirmação pós-reinício. Runtime/GOS
+não são alterados nesta entrega.

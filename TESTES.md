@@ -676,3 +676,13 @@ Publicação produtiva: agente468cb44 e Web3a74351e enviados, workflow https://g
 0.8.57: mesmos testes de limite/concurrency/cancelamento/race, com default/teto800/8 no HUB. Relay/direct inalterados. Motivação produtiva: fila novamente209713514bytes com400/4; sustentar escoamento/atualidade do SBC é gate separado.
 
 Rollout57/HUB84 confirmado às18:26:37UTC, config27 aplicada. Inspect100 confirmou800/8, fila199948968bytes/8813itens e ACKs sem perda; dados do SBC voltaram (memória75%, entrega18:30:48UTC, fonte18:26:41UTC, atraso246,6s). A fila ainda está em escoamento; não declarar fim do atraso nem avaliação natural da média corrigida. Carga central medida4,32→4,14 em8CPUs e memória disponível80,7→80,6%; não é ensaio de p95/capacidade máxima. GOS/runtime sem alteração de ownership ou versão.
+
+Central de atualização: testes focados de readiness cobrem launchers canônicos por SO,
+rejeição de comandos adicionais/paths alternativos, todos os booleanos obrigatórios,
+updater desabilitado/contexto cancelado sem criar staging, pendência preservada e
+configuração alterada. Inspector explícito não invoca snapshot amplo e recusa flag
+malformada ou callback ausente. Build/teste local não comprova apply em Windows/macOS.
+
+Validação deste candidato: gate raiz PASS; testes focados/race PASS para readiness e
+inspector; compilação Windows AMD64 e Linux ARM64 PASS. Nenhum pacote publicado,
+serviço instalado ou agente remoto modificado. macOS launchd e piloto continuam pendentes.

@@ -478,3 +478,22 @@ Referências:
 - Alternativas consideradas: relaxar a política no backend ou reutilizar uma claim fixa. Ambas reduzem a segurança ou voltam a expirar em processos long-running.
 - Impacto: HUBs provisionados conseguem operar Agentless sob identidade estrita sem mudança de banco ou payload.
 - Rollback: reinstalar o artefato assinado anterior; o backend permanece compatível.
+
+## 16/10/2026 — pré-verificação explícita para atualização em lote
+
+Reutilizar o inspector existente com flag booleana estrita `update_readiness=true`,
+retornando somente contrato `aiceberg-agent-update-readiness.v1`, booleanos, versões,
+plataforma, horário UTC e limitações conhecidas. Não chamar o snapshot amplo nessa
+modalidade para evitar coletar dados alheios e limpar automaticamente estado pendente.
+Nenhum download, restart, alteração de config ou aplicação ocorre durante a inspeção.
+
+A pré-verificação usa os probes existentes de staging/instalação e exige launcher e
+apply oficiais, gerenciador de serviço, autorização não interativa e ausência de update
+pendente. Consulta `sudo -n -l` limitada a3s; Windows consulta elevação por PowerShell
+não interativo limitado a3s. Configuração deve ser conhecida e permanecer igual durante
+o probe. Mudança posterior será recusada no Web por versão/CAS antes do envio.
+
+Ausência de evidência estruturada em agentes legados não é sucesso. Precisam de
+preparação pelo instalador oficial. macOS ainda precisa de scripts launchd e validação
+nativa antes de ser considerado pronto para atualizar serviços. Rollback remove o uso
+da flag na central, preserva o inspector normal e o fluxo individual existente.
