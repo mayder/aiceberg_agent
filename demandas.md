@@ -690,4 +690,5 @@ Rollback: pacote anterior assinado, política de despacho Web vazia e configura�
 - [ ] Comprovar coleta SBC regular e janela de oito minutos completa.
 
 - [x] Medir capacidade após0.8.56: fila volta a200MB com206 relays ativos; defaults400/4 insuficientes.
-- [ ] Publicar0.8.57 assinada com capacidade800/8 restrita ao HUB84 e validar atraso/regularidade sem limpeza.
+- [x] Publicar0.8.57 assinada com capacidade800/8 restrita ao HUB84; config27/version_confirmed às18:26:37UTC. Fontef2ed837 enviada; hash público Linux conferido.
+- [ ] Concluir escoamento sustentado e avaliação natural da janela: SBC recebeu memória75% às18:30:48UTC, atraso de entrega246,6s. Média em lote depende da correção PHP/Go coordenada com a frente GOS.
