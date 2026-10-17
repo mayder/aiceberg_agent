@@ -778,3 +778,11 @@ Validação: `python3 scripts/test_macos_updater.py`, `plutil -lint
 scripts/macos/com.aiceberg.agent.plist`, testes Go de readiness e `./check.sh`.
 O ensaio substitui apenas launchd/health em processos de teste e arquivos temporários;
 não prova instalação, privilégio, rede nem restart de serviço real em host piloto.
+
+## Piloto da central — versão0.8.59
+
+A versão0.8.59 permite validar atualização real a partir da0.8.58, primeira versão
+com inspector estruturado. Mantém os procedimentos e assinaturas oficiais dos cinco
+pacotes. Preparar agentes legados pelo fluxo individual antes de iniciar lote;
+compatibilidade local não comprova atualização física. Registrar confirmação no servidor
+após reinício. Sem atualização ampla da frota.
