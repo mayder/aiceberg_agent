@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
@@ -21,12 +22,13 @@ import (
 
 // ConfigSync faz pull periódico das preferências de coleta do backend e persiste localmente.
 type ConfigSync struct {
-	cfg      config.Config
-	log      logger.Logger
-	store    *prefs.Store
-	cl       *http.Client
-	commands chan<- ControlCommand
-	backoff  *retry.Backoff
+	cfg           config.Config
+	log           logger.Logger
+	store         *prefs.Store
+	cl            *http.Client
+	commands      chan<- ControlCommand
+	backoff       *retry.Backoff
+	forceFullSync atomic.Bool
 }
 
 func NewConfigSync(cfg config.Config, log logger.Logger, store *prefs.Store, commands chan<- ControlCommand) *ConfigSync {
@@ -56,7 +58,7 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if currentVersion := strings.TrimSpace(uc.store.Get().Version); currentVersion != "" {
+	if currentVersion := strings.TrimSpace(uc.store.Get().Version); currentVersion != "" && !uc.forceFullSync.Load() {
 		query := req.URL.Query()
 		query.Set("version", currentVersion)
 		req.URL.RawQuery = query.Encode()
@@ -126,6 +128,7 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 		}
 		return err
 	}
+	uc.forceFullSync.Store(false)
 	if reportErr := uc.reportConfigApply(ctx, version, configHash, "applied", configApplyMessage(applied)); reportErr != nil {
 		uc.log.Error(logger.KV("config report failed",
 			"version", version,

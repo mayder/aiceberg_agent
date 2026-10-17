@@ -158,7 +158,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	otlpTracesUC := usecase.NewCollectAndBufferWithIdentityProvider(otlpReceiver.TracesCollector(), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
 
 	commandChan := make(chan usecase.ControlCommand, 10)
-	configSyncUC := usecase.NewConfigSync(cfg, log, prefStore, commandChan)
+	configSyncUC := usecase.NewStartupConfigSync(cfg, log, prefStore, commandChan)
 
 	var pendingCfg *hub.PendingConfigStore
 	onIngestConfig := func(auth string, ingestCfg usecase.IngestConfig) {

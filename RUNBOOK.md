@@ -786,3 +786,11 @@ com inspector estruturado. Mantém os procedimentos e assinaturas oficiais dos c
 pacotes. Preparar agentes legados pelo fluxo individual antes de iniciar lote;
 compatibilidade local não comprova atualização física. Registrar confirmação no servidor
 após reinício. Sem atualização ampla da frota.
+
+## Reinício com política remota —0.8.60
+
+Na inicialização, requisitar uma configuração completa autenticada e validada,
+mesmo com versão de preferências persistida. Assim a política de atualização em
+memória é reaplicada antes dos polls condicionais seguintes. Resposta204 ou falha
+não consome a recuperação pendente. Agentes anteriores podem precisar de reenvio
+da configuração pelo servidor antes do preflight; não remover o check de habilitação.
