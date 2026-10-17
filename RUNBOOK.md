@@ -808,3 +808,9 @@ o comando canônico do launcher e reenviar somente a configuração autorizada.
 Em falha, manter bloqueio do lote e restaurar comando/arquivos pelo backup somente
 após diagnóstico; não apagar a evidência. Backup operacional retido até aprovação
 explícita de limpeza; não criar rotina automática para removê-lo.
+
+Validação portátil dos bloqueios antes de qualquer alteração no host:
+`pwsh -NoProfile -NonInteractive -File scripts/test_windows_legacy_updater.ps1`.
+Cobre serviço/binário divergente, versão não aprovada, checksum divergente e pacote
+sem os scripts oficiais. AST PowerShell validado; prova de serviço/ACL/apply depende
+do piloto Windows real, não é substituída por esses testes negativos locais.
