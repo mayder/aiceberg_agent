@@ -794,3 +794,17 @@ mesmo com versão de preferências persistida. Assim a política de atualizaçã
 memória é reaplicada antes dos polls condicionais seguintes. Resposta204 ou falha
 não consome a recuperação pendente. Agentes anteriores podem precisar de reenvio
 da configuração pelo servidor antes do preflight; não remover o check de habilitação.
+
+### Preparação individual Windows legado com serviço padrão
+
+`scripts/windows/prepare-legacy-update-launcher.ps1` é uma operação administrativa
+restrita ao piloto, executada pelo fluxo individual já existente. Exige serviço
+AIcebergAgent/binário no caminho padrão e pacote0.8.59 previamente validado por
+assinatura no agente; revalida SHA256 e lê apenas dois scripts oficiais do ZIP.
+Instala esses scripts em diretório restrito a SYSTEM/Administradores, preservando
+serviço, binário, token e coletores. Guarda cópia anterior e variáveis de atualização
+em subpasta protegida; não remove dados. Ao confirmar versão, configurar no backend
+o comando canônico do launcher e reenviar somente a configuração autorizada.
+Em falha, manter bloqueio do lote e restaurar comando/arquivos pelo backup somente
+após diagnóstico; não apagar a evidência. Backup operacional retido até aprovação
+explícita de limpeza; não criar rotina automática para removê-lo.
