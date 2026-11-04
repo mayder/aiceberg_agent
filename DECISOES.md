@@ -529,3 +529,24 @@ ser desativada sem interromper a coleta.
 - Risco: maior utilização da API enquanto houver backlog/progresso. Piloto mede
   ACK/idade, Agentless/coletas/relays e CPU/I/O/API; local não prova normalização.
 - Validação: docs/evidence/hub-outbox-catchup-20261103.md e TESTES.md.
+
+### DEC-20261104-02 - Worker de envio acordado pela gravação no HUB
+
+- Contexto: o usuário pediu envio por chegada; o receiver HTTP já é concorrente,
+  mas o flush inline depende do timer e ocupa o loop de coleta enquanto envia.
+- Decisão: sinalizar depois de Push bem-sucedido para um worker único do HUB.
+  Canal1coalesce rajadas; main/oslogs mantêm dono único, ACK e limites anteriores.
+  Fallback periódico/backlog/cooldown permanecem; sem goroutine por envelope.
+- Concorrência: own config do ingest volta para o loop principal junto deconfig-sync;
+  relay config usa PendingConfigStore. Contexto filho cancela listener/worker;
+  retorno deRun aguarda envio em curso e preserva os demais itens.
+- Observabilidade: flag aditiva no inspector, métricas/logs existentes; sem
+  payload/token emlogs, nova tabela, storage ou retenção. Piloto mede volume/I/O.
+- Alternativas: POST síncrono no receiver ou worker por chegada; rejeitadas por
+  acoplar aceite à API e por concorrência/requisições sem limite. Apenas reduzir
+  o timer não remove o bloqueio do loop principal nem reage a cada recebimento.
+- Rollback: HUB_OUTBOX_ASYNC_ENABLED=false retorna ao inline610fead;
+  HUB_OUTBOX_CATCHUP_ENABLED permanece independente. Fila/config preservadas.
+- Gate: correção local, sem push/artefato oficial/update. Piloto produtivo precisa
+  de autorização e evidência de Agentless/coletas/relays/carga/idade real.
+- Validação: docs/evidence/hub-outbox-arrival-worker-20261104.md e TESTES.md.

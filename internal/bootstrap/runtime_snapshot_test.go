@@ -70,6 +70,7 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 		AgentlessOutboxMaxMB: 55,
 	}
 	cfg.HubOutboxCatchupEnabled = true
+	cfg.HubOutboxAsyncEnabled = true
 	prefs := config.CollectPrefs{
 		Version:            "cfg-v42",
 		Paused:             false,
@@ -94,6 +95,9 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 	}
 	if snap["ingest_runtime"].(map[string]any)["hub_catchup_enabled"] != true {
 		t.Fatal("catch-up flag missing from safe runtime inspection")
+	}
+	if snap["ingest_runtime"].(map[string]any)["hub_async_enabled"] != true {
+		t.Fatal("async forwarding flag missing from safe runtime inspection")
 	}
 	if snap["prefs_version"] != "cfg-v42" {
 		t.Fatalf("unexpected prefs_version: %#v", snap["prefs_version"])

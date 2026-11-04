@@ -40,6 +40,7 @@ func buildSelfHealRuntimeSnapshot(
 			"flush_interval_sec":  int64(cfg.OutboxFlushInterval.Seconds()),
 			"flush_batch":         cfg.OutboxFlushBatch,
 			"hub_catchup_enabled": mode == "hub" && cfg.HubOutboxCatchupEnabled,
+			"hub_async_enabled":   mode == "hub" && cfg.HubOutboxAsyncEnabled,
 		},
 		"agentless_runtime": map[string]any{
 			"poll_sec":    settings.PollSec,

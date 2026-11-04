@@ -384,6 +384,25 @@ Uma coleta possui identidade reproduzível e pode gerar séries dependentes no R
 Não fecha o PKG-33 nem altera o planejamentoPKG-134. Não gera artefato/update
 nesta etapa. Evidência: docs/evidence/hub-outbox-catchup-20261103.md.
 
+### Envio por chegada em worker dedicado — 04/11/2026
+
+Solicitado pelo usuário após a correção local610fead: ao receber dados dos
+Relays, persistir e sinalizar envio sem aguardar o timer nem bloquear coletas.
+
+- [x] Notificar somente após Append bem-sucedido; sinal não bloqueante/coalescido.
+- [x] Um worker proprietário dos dois flushes no HUB; timer inline desativado.
+- [x] Preservar fila/ACK, auth/identidade/rota, cooldown, limites8s/8threads/8MiB.
+- [x] Manter fallback periódico, retomada de backlog e frequência normal de pruning.
+- [x] Serializar configuração própria no loop principal; relay config segue PendingConfigStore.
+- [x] Cancelar/juntar worker e encerrar listener; preservar pendentes em disco.
+- [x] Testar Relay→HUB→Bolt→API bloqueada, rajada64relays, cancelamento e race.
+- [x] Consolidar check/review e commit exclusivo.
+- [ ] Publicar e validar piloto comAgentless/relays/host/API mediante autorização.
+
+Rollback porHUB_OUTBOX_ASYNC_ENABLED=false mantém o fluxo local610fead.
+Não fecha o PKG-33/134 nem autoriza push ou update remoto.
+Evidência: docs/evidence/hub-outbox-arrival-worker-20261104.md.
+
 ### Evidências do incidente
 
 - Relay em `AGENT_MODE=relay` com `channel.connected=true`, `relay_uses_hub_url=true` e sem conexão direta com AIceberg.

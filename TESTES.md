@@ -2,6 +2,24 @@
 
 Fonte de verdade para testes automatizados, validação manual e reteste de bugs.
 
+## Envio por chegada do HUB — 04/11/2026
+
+`go test -race ./internal/bootstrap ./internal/interfaces/hub ./internal/data/repositories ./internal/common/config ./internal/domain/usecase -run 'TestAsyncHub|TestHubOutboxWorker|TestHubWorkerQueues|TestOutboxNotifies|TestLoadHubOutbox|TestServeHubStops|TestHubDoesNotAcknowledge|TestRealRelayTransport|TestFlushOutbox|TestBuildSelfHealRuntimeSnapshotSanitizes' -count=1`.
+
+- Append só notifica após gravação; falha não notifica. Mil sinais ficam em 1 slot,
+  sem sobrepor ciclos; fallback periódico e cancelamento durante guard funcionam.
+- Timer de1hora no teste: Relay realHTTP é aceito após Bolt enquanto API bloqueada;
+  chegada acorda worker,ACK remoto remove só o recebido e shutdown preserva outros
+  dois envelopes após reabrir arquivo. Não depende de dados/credenciais reais.
+- Rajada de 64 Relays HTTP simultâneos: todos aceitos com API bloqueada; depois todos
+  entregues uma vez,concorrência≤8,pruning 1 vez e fronteiras de auth/rota preservadas.
+- Own config não é aplicada no worker; relay config preserva rota e fila própria
+  cancela sem deadlock. Opt-out local e inspector têm configuração explícita.
+- Mutante que suprime a notificação faz o teste Relay→HUB→API falhar por ausência
+  do envio; fonte restaurada e retestada. HTTP503 na persistência conserva relay.
+- `./check.sh`,cross-build e piloto produtivo continuam gates separados. Não
+  considerar esse teste de loopback como SLA/capacidade da frota ou publicação.
+
 ## Retomada do flush do HUB — BUG-20261103-01
 
 - `go test ./internal/domain/usecase ./internal/bootstrap ./internal/common/schedule ./internal/common/config -run 'TestFlushOutbox|TestOutboxCatchup|TestOutboxRuntimeEvidence|TestPeriodicTimer|TestLoadHubOutboxCatchup|TestHubOutboxCapacity' -count=1`

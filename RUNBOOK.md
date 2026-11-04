@@ -2,6 +2,37 @@
 
 Runbook operacional do projeto.
 
+## Worker do HUB acordado por chegada — candidata local — 04/11/2026
+
+HUB_OUTBOX_ASYNC_ENABLED=true habilita um worker dedicado somente em modo HUB.
+Após Store.Push concluir, Append emite sinal não bloqueante em canal de 1 posição.
+O worker acorda sem aguardar OUTBOX_FLUSH_INTERVAL; recebimentos durante envio
+deixam um sinal pendente. Não se cria worker por envelope nem outro flush inline.
+Coletores continuam no loop principal e os próprios intervalos não mudam.
+
+O worker executa main/oslogs sequencialmente, mantendo até 8 grupos independentes
+em paralelo dentro do flush,janela de 8s / 8MiB,ACK e cooldown existentes. O timer
+normal recupera pendentes/retries e a retomada após progresso continua disponível.
+Falha sem ACK limita novos wakes a uma passagem por segundo, respeitando também
+o backoff HTTP por grupo; chegadas saudáveis em worker ocioso acordam imediatamente.
+Pruning não passa a executar a cada chegada; sua cadência/política são preservadas.
+
+Configuração do próprio HUB recebida no envio vai para o loop principal, junto
+do config-sync; só relay config usa o PendingConfigStore concorrente. Essa fila
+de configuração tem 1 posição e cancela com `Run`, sem persistência/log adicional.
+Ao sair de `Run`, cancelar contexto do listener/worker e aguardar a requisição em
+curso até o timeout HTTP configurado; não confirmar ou remover itens não enviados.
+
+Conferir ingest_runtime.hub_async_enabled no inspector, LastAck/LastDeferred,
+fila/idade real e coletasAgentless/host. A rota pode ter latência/fila/backoff:
+acordar imediatamente não garante persistência imediata na API. Validar Bolt
+ativo no piloto; seleção/fallback de storage anterior não foi alterada.
+
+Rollback: HUB_OUTBOX_ASYNC_ENABLED=false e reinício controlado autorizado
+voltam ao envio inline anterior; HUB_OUTBOX_CATCHUP_ENABLED é independente.
+Não mudar credencial, limites, pruning, registros ou outbox para reverter.
+Nenhum push, pacote oficial ou update remoto nesta etapa.
+
 ## HUB com backlog após recuperar a ingestão — 03/11/2026
 
 Na candidata local, HUB_OUTBOX_CATCHUP_ENABLED=true permite uma próxima vez em1s

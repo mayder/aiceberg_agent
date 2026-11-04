@@ -54,14 +54,22 @@ import (
 )
 
 func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
+	ctx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
 	startedAt := time.Now()
+	mode := cfg.Mode()
+	asyncFlush := mode == "hub" && cfg.HubOutboxAsyncEnabled
+	var wake chan struct{}
+	var notify func()
+	if asyncFlush {
+		wake = make(chan struct{}, 1)
+		notify = func() { signalOutbox(wake) }
+	}
 	// Adapters mínimos
 	store := selectOutbox(cfg, log)
-	outboxRepo := repositories.NewOutboxRepository(store)
+	outboxRepo := repositories.NewOutboxRepositoryWithNotify(store, notify)
 	prefStore := prefs.NewStore(cfg.PrefsPath)
 	_, _ = prefStore.Load()
-
-	mode := cfg.Mode()
 
 	pruneOpts := outbox.PruneOptions{MaxPerAgent: 10}
 	if mode == "hub" {
@@ -212,6 +220,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		}
 	}
 
+	applyIngestConfig := onIngestConfig
+	var ingestConfigEvents <-chan ingestConfigEvent
+	if asyncFlush {
+		onIngestConfig, ingestConfigEvents = queueOwnIngestConfig(ctx, authHeader, applyIngestConfig)
+	}
 	flushOptions := usecase.FlushOutboxOptions{
 		BatchSize:                     cfg.OutboxFlushBatch,
 		IdentityHeaderProvider:        identityHeaderProvider,
@@ -288,7 +301,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var agentlessBusy atomic.Bool
 	// Inicializa coletor de logs do SO; o gating agora é feito pelas prefs (collect_logs e flags avançados).
 	osStore := outbox.NewMemStore()
-	osRepo := repositories.NewOutboxRepository(osStore)
+	osRepo := repositories.NewOutboxRepositoryWithNotify(osStore, notify)
 	osLogRepo = osRepo
 	osCollector := oslogs.New(cfg, prefStore.Get)
 	osLogCollectUC = usecase.NewCollectAndBufferWithIdentityProviderAndExtraEndpointsProvider(osCollector, osRepo, log, authHeader, identityHeaderProvider, "/v1/logs/raw", func() []string {
@@ -442,12 +455,24 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		})
 	}
 
+	flushCycle := &outboxFlushCycle{mode: mode, cfg: cfg, main: flushUC, oslogs: osLogFlushUC,
+		counter: &counters, report: reportWorkerError,
+		prune: func() { pruneStore(store, "main"); pruneStore(osStore, "oslogs") }}
+	if asyncFlush {
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			runHubOutboxWorker(ctx, wake, cfg.OutboxFlushInterval, flushCycle.Execute)
+		}()
+		defer func() { cancelRun(); <-done }()
+	}
+
 	if mode == "hub" {
 		addr := cfg.HubListenAddr
 		if addr == "" {
 			addr = ":9090"
 		}
-		go hub.ServeHub(addr, cfg, outboxRepo, log, pendingCfg)
+		go hub.ServeHub(ctx, addr, cfg, outboxRepo, log, pendingCfg)
 	}
 
 	tMetrics := time.NewTicker(cfg.MetricsInterval)
@@ -455,8 +480,10 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	tInventory := time.NewTicker(8 * time.Hour)
 	hostname, _ := os.Hostname()
 	periodicIdentity := schedule.Identity(cfg.AgentInstallationID, cfg.AgentClientID, cfg.AgentID, hostname)
-	tFlush := schedule.NewPeriodicTimer(periodicIdentity, "outbox-flush", cfg.OutboxFlushInterval)
-	flushCadence := outboxFlushCadence{}
+	var tFlush *schedule.PeriodicTimer
+	if !asyncFlush {
+		tFlush = schedule.NewPeriodicTimer(periodicIdentity, "outbox-flush", cfg.OutboxFlushInterval)
+	}
 	var tPing *schedule.PeriodicTimer
 	var tCfgSync *schedule.PeriodicTimer
 	var tOsCollect *time.Ticker
@@ -753,6 +780,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		case <-ctx.Done():
 			log.Info(logger.KV("shutdown"))
 			return nil
+		case event := <-ingestConfigEvents:
+			applyIngestConfig(event.auth, event.config)
 		case <-tMetrics.C:
 			start := time.Now()
 			if err := metricsUC.Execute(ctx); err != nil {
@@ -822,48 +851,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			}
 		case <-tFlush.C():
 			tFlush.Reset()
-			if mode != "hub" || !cfg.HubOutboxCatchupEnabled || flushCadence.pruneDue(time.Now(), cfg.OutboxFlushInterval) {
-				pruneStore(store, "main")
-				pruneStore(osStore, "oslogs")
-			}
-			start := time.Now()
-			n, flushErr := flushUC.Execute(ctx)
-			catchupDelay := outboxCatchupDelay(mode, cfg, n, flushUC.Snapshot(), ctx.Err())
-			if flushErr != nil {
-				counters.flushErr.Add(1)
-				reportWorkerError(ctx, "flush_outbox_failed", "error", "open", flushErr, map[string]any{
-					"route": "/v1/ingest",
-				})
-			} else {
-				counters.flushOK.Add(1)
-				counters.lastFlushBatch.Store(int64(n))
-				reportWorkerRecovered(ctx, "flush_outbox_failed", map[string]any{
-					"route": "/v1/ingest",
-				})
-			}
-			counters.lastFlushMs.Store(time.Since(start).Milliseconds())
-			if osLogFlushUC != nil {
-				start := time.Now()
-				n, err := osLogFlushUC.Execute(ctx)
-				if delay := outboxCatchupDelay(mode, cfg, n, osLogFlushUC.Snapshot(), ctx.Err()); delay > 0 {
-					catchupDelay = delay
-				}
-				if err != nil {
-					counters.flushErr.Add(1)
-					reportWorkerError(ctx, "flush_oslogs_failed", "warning", "open", err, map[string]any{
-						"route": "/v1/logs/raw",
-					})
-				} else {
-					counters.flushOK.Add(1)
-					counters.lastFlushBatch.Store(int64(n))
-					reportWorkerRecovered(ctx, "flush_oslogs_failed", map[string]any{
-						"route": "/v1/logs/raw",
-					})
-				}
-				counters.lastFlushMs.Store(time.Since(start).Milliseconds())
-			}
-			if catchupDelay > 0 && ctx.Err() == nil {
-				tFlush.ResetAfter(catchupDelay)
+			if result := flushCycle.Execute(ctx); result.nextDelay > 0 && ctx.Err() == nil {
+				tFlush.ResetAfter(result.nextDelay)
 			}
 		case <-tPing.C():
 			tPing.Reset()

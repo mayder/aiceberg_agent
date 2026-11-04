@@ -19,11 +19,27 @@ type envelopeReplacer interface {
 	Replace(originalID string, replacements []entities.Envelope) error
 }
 
-type outboxRepo struct{ store Store }
+type outboxRepo struct {
+	store    Store
+	onAppend func()
+}
 
-func NewOutboxRepository(s Store) ports.OutboxRepo { return &outboxRepo{store: s} }
+func NewOutboxRepository(s Store) ports.OutboxRepo { return NewOutboxRepositoryWithNotify(s, nil) }
 
-func (r *outboxRepo) Append(env entities.Envelope) error { return r.store.Push(env) }
+// onAppend runs after a successful Push; callers must keep it non-blocking.
+func NewOutboxRepositoryWithNotify(s Store, onAppend func()) ports.OutboxRepo {
+	return &outboxRepo{store: s, onAppend: onAppend}
+}
+
+func (r *outboxRepo) Append(env entities.Envelope) error {
+	if err := r.store.Push(env); err != nil {
+		return err
+	}
+	if r.onAppend != nil {
+		r.onAppend()
+	}
+	return nil
+}
 
 func (r *outboxRepo) ReadBatch(n int) ([]entities.Envelope, error) { return r.store.Peek(n) }
 

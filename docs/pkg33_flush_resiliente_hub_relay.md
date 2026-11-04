@@ -2,6 +2,10 @@
 
 ## Configuracao
 
+- Candidata local: `HUB_OUTBOX_ASYNC_ENABLED=true` cria um worker do HUB que
+  acorda após gravar cada recebimento, com sinal coalescido. O recebimento não
+  espera a API, e o envio não ocupa o loop dos coletores. Somente um dono faz
+  main/oslogs; direct/relay conservam seus fluxos. False volta ao modo inline.
 - `INGEST_TIMEOUT_SEC`: timeout do POST para API ou Hub. Default: `10`.
 - `OUTBOX_FLUSH_BATCH`: tamanho maximo lido da outbox por ciclo. Default: `50`.
 - `OUTBOX_FLUSH_INTERVAL`: intervalo do flush principal. Default: `15`.
@@ -34,6 +38,7 @@ Campos principais:
 - `flush_detail.last_retained`: itens mantidos para retry no ultimo ciclo.
 - `flush_detail.last_deferred`: itens de grupos que não chegaram a ser despachados.
 - `flush_detail.last_read_batch`: total lido no último lote iniciado.
+- `ingest_runtime.hub_async_enabled` no inspector: worker por chegada configurado.
 - `flush_detail.oldest_pending_age_sec`: idade aproximada do item mais antigo lido no lote.
 - `ingest_timeout_sec`, `flush_interval_sec`, `flush_batch_limit`: configuracao efetiva.
 
@@ -45,6 +50,9 @@ Campos principais:
 - Respostas da API com `retry_after`, `suggested_batch_size` e `degraded_endpoint` podem orientar backoff do Hub sem quebrar agentes antigos.
 
 ## Rollback
+
+Para a candidata por chegada, desativar `HUB_OUTBOX_ASYNC_ENABLED` e reiniciar
+de forma controlada/autorizada volta ao fluxo anterior sem trocar a fila.
 
 Rollback operacional sem trocar binario:
 

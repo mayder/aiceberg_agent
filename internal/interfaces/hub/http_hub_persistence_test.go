@@ -8,12 +8,28 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/data/remote/transport"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
 )
+
+func TestServeHubStopsWithCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ServeHub(ctx, "127.0.0.1:0", config.Config{}, &testHubOutbox{}, testHubLogger{}, nil)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("HUB listener survived cancelled run context")
+	}
+}
 
 type failingHubOutbox struct {
 	testHubOutbox
