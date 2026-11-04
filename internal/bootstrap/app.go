@@ -456,6 +456,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	hostname, _ := os.Hostname()
 	periodicIdentity := schedule.Identity(cfg.AgentInstallationID, cfg.AgentClientID, cfg.AgentID, hostname)
 	tFlush := schedule.NewPeriodicTimer(periodicIdentity, "outbox-flush", cfg.OutboxFlushInterval)
+	flushCadence := outboxFlushCadence{}
 	var tPing *schedule.PeriodicTimer
 	var tCfgSync *schedule.PeriodicTimer
 	var tOsCollect *time.Ticker
@@ -821,12 +822,16 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			}
 		case <-tFlush.C():
 			tFlush.Reset()
-			pruneStore(store, "main")
-			pruneStore(osStore, "oslogs")
+			if mode != "hub" || !cfg.HubOutboxCatchupEnabled || flushCadence.pruneDue(time.Now(), cfg.OutboxFlushInterval) {
+				pruneStore(store, "main")
+				pruneStore(osStore, "oslogs")
+			}
 			start := time.Now()
-			if n, err := flushUC.Execute(ctx); err != nil {
+			n, flushErr := flushUC.Execute(ctx)
+			catchupDelay := outboxCatchupDelay(mode, cfg, n, flushUC.Snapshot(), ctx.Err())
+			if flushErr != nil {
 				counters.flushErr.Add(1)
-				reportWorkerError(ctx, "flush_outbox_failed", "error", "open", err, map[string]any{
+				reportWorkerError(ctx, "flush_outbox_failed", "error", "open", flushErr, map[string]any{
 					"route": "/v1/ingest",
 				})
 			} else {
@@ -839,7 +844,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			counters.lastFlushMs.Store(time.Since(start).Milliseconds())
 			if osLogFlushUC != nil {
 				start := time.Now()
-				if n, err := osLogFlushUC.Execute(ctx); err != nil {
+				n, err := osLogFlushUC.Execute(ctx)
+				if delay := outboxCatchupDelay(mode, cfg, n, osLogFlushUC.Snapshot(), ctx.Err()); delay > 0 {
+					catchupDelay = delay
+				}
+				if err != nil {
 					counters.flushErr.Add(1)
 					reportWorkerError(ctx, "flush_oslogs_failed", "warning", "open", err, map[string]any{
 						"route": "/v1/logs/raw",
@@ -852,6 +861,9 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 					})
 				}
 				counters.lastFlushMs.Store(time.Since(start).Milliseconds())
+			}
+			if catchupDelay > 0 && ctx.Err() == nil {
+				tFlush.ResetAfter(catchupDelay)
 			}
 		case <-tPing.C():
 			tPing.Reset()

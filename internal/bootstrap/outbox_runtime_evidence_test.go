@@ -27,6 +27,9 @@ func TestOutboxRuntimeEvidenceIsReadOnlyAndDoesNotExposeTransportPayload(t *test
 	if evidence["queue_items"] != 93 || evidence["queue_bytes"] != int64(208000000) {
 		t.Fatalf("missing queue counters: %s", raw)
 	}
+	if evidence["last_deferred"] != 0 || evidence["last_read_batch"] != 0 {
+		t.Fatal("dispatch counters missing or inconsistent")
+	}
 	if strings.Contains(string(raw), "private") || strings.Contains(string(raw), "last_error\"") {
 		t.Fatalf("raw error or credential exposed: %s", raw)
 	}

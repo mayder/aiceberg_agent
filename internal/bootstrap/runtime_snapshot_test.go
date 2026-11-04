@@ -69,6 +69,7 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 		AgentlessOutboxPath:  agentlessOutboxPath,
 		AgentlessOutboxMaxMB: 55,
 	}
+	cfg.HubOutboxCatchupEnabled = true
 	prefs := config.CollectPrefs{
 		Version:            "cfg-v42",
 		Paused:             false,
@@ -90,6 +91,9 @@ func TestBuildSelfHealRuntimeSnapshotSanitizesSecretsAndIncludesRuntime(t *testi
 
 	if snap["agent_mode_runtime"] != "hub" {
 		t.Fatalf("unexpected agent_mode_runtime: %#v", snap["agent_mode_runtime"])
+	}
+	if snap["ingest_runtime"].(map[string]any)["hub_catchup_enabled"] != true {
+		t.Fatal("catch-up flag missing from safe runtime inspection")
 	}
 	if snap["prefs_version"] != "cfg-v42" {
 		t.Fatalf("unexpected prefs_version: %#v", snap["prefs_version"])

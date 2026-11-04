@@ -54,6 +54,8 @@ type FlushOutboxSnapshot struct {
 	LastAckAtUnix         int64          `json:"last_ack_at_unix,omitempty"`
 	LastDurationMs        int64          `json:"last_duration_ms,omitempty"`
 	LastRetained          int            `json:"last_retained,omitempty"`
+	LastDeferred          int            `json:"last_deferred,omitempty"`
+	LastReadBatch         int            `json:"last_read_batch,omitempty"`
 	OldestPendingAgeSec   int64          `json:"oldest_pending_age_sec,omitempty"`
 	LastBackoffRoute      string         `json:"last_backoff_route,omitempty"`
 	LastBackoffUntilUnix  int64          `json:"last_backoff_until_unix,omitempty"`
@@ -132,16 +134,17 @@ func (uc *FlushOutbox) Execute(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	acked, retained, firstErr := uc.flushGroups(ctx, grouped)
+	acked, retained, deferred, firstErr := uc.flushGroups(ctx, grouped)
 
 	durationMs := time.Since(start).Milliseconds()
 	uc.log.Info(logger.KV("flushed",
 		"batch_size", len(batch),
 		"acked", acked,
 		"retained", retained,
+		"deferred", deferred,
 		"duration_ms", durationMs,
 	))
-	uc.recordSummary(durationMs, retained)
+	uc.recordSummary(durationMs, retained, deferred)
 	return acked, firstErr
 }
 
@@ -426,11 +429,12 @@ func (uc *FlushOutbox) recordAck(endpoint string, batchSize int) {
 	uc.snapshot.LastAckAtUnix = uc.now().Unix()
 }
 
-func (uc *FlushOutbox) recordSummary(durationMs int64, retained int) {
+func (uc *FlushOutbox) recordSummary(durationMs int64, retained, deferred int) {
 	uc.mu.Lock()
 	defer uc.mu.Unlock()
 	uc.snapshot.LastDurationMs = durationMs
 	uc.snapshot.LastRetained = retained
+	uc.snapshot.LastDeferred = deferred
 }
 
 func (uc *FlushOutbox) updatePendingSnapshot(batch []entities.Envelope) {
@@ -457,6 +461,7 @@ func (uc *FlushOutbox) updatePendingSnapshot(batch []entities.Envelope) {
 	uc.mu.Lock()
 	defer uc.mu.Unlock()
 	uc.snapshot.EndpointBacklog = endpoints
+	uc.snapshot.LastReadBatch = len(batch)
 	uc.snapshot.OldestPendingAgeSec = ageSec
 }
 

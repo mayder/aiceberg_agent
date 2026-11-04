@@ -508,3 +508,24 @@ versão alvo; falha restaura a versão anterior e mantém resultado de falha par
 Instalações antigas exigem preparação. Testes isolados não certificam apply físico.
 Rollback preserva binários anteriores, configuração e dados; política remota pode
 ser desativada sem interromper a coleta.
+
+### DEC-20261104-01 - Retomada limitada da outbox do HUB após progresso
+
+- Status: implementada localmente para BUG-20261103-01/PKG-33; piloto pendente.
+- Contexto: recuperar disco/banco/auth não removeu o atraso residual. O agente
+  conserva15s entre ciclos, mesmo com ACK e trabalho ainda não despachado/lote cheio.
+- Decisão: uma próxima execução em1s somente HUB habilitado, ACK positivo e
+  indício de backlog; sem progresso, cancelamento ou lote pequeno completo,
+  manter o timer. Não criar outro worker nem alterar concorrência8/janela8s.
+- Preservação: ACK/idempotência/auth/identidade/rota/cooldown mantidos; pruning
+  não ganha frequência com os ciclos adicionais. Sem limpeza/replay/novo storage.
+- Evidência: last_read_batch/last_deferred distinguem trabalho lido/não iniciado
+  de last_retained. Inteiros no snapshot/log existente, sem payload/segredo,
+  nova tabela ou retenção; rotação anterior permanece.
+- Alternativas: aumentar concorrência/timeout ou antecipar todo ciclo; rejeitadas
+  por carga simultânea, bloqueio do loop e tentativas agressivas sem progresso.
+- Rollback: HUB_OUTBOX_CATCHUP_ENABLED=false ou binário anterior assinado,
+  preservando outbox/configuração. Nenhum update/push autorizado nesta etapa.
+- Risco: maior utilização da API enquanto houver backlog/progresso. Piloto mede
+  ACK/idade, Agentless/coletas/relays e CPU/I/O/API; local não prova normalização.
+- Validação: docs/evidence/hub-outbox-catchup-20261103.md e TESTES.md.

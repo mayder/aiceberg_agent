@@ -5,8 +5,15 @@
 - `INGEST_TIMEOUT_SEC`: timeout do POST para API ou Hub. Default: `10`.
 - `OUTBOX_FLUSH_BATCH`: tamanho maximo lido da outbox por ciclo. Default: `50`.
 - `OUTBOX_FLUSH_INTERVAL`: intervalo do flush principal. Default: `15`.
+- HUB usa `HUB_OUTBOX_FLUSH_BATCH=800` e `HUB_OUTBOX_FLUSH_CONCURRENCY=8`,
+  limitados a esses tetos; OUTBOX_FLUSH_BATCH continua referência de direct/relay.
+- Candidata local: `HUB_OUTBOX_CATCHUP_ENABLED=true` permite próxima execução
+  em1s após ACK positivo com lote cheio ou grupos não despachados; false conserva
+  o timer anterior. Não altera timeout, isolamento, ACK ou cooldown.
 
-Os defaults preservam o comportamento anterior. Em Hub com backlog alto, reduza primeiro `OUTBOX_FLUSH_BATCH` e aumente `OUTBOX_FLUSH_INTERVAL`; nao desligue coletas.
+Antes de mudar capacidade, distinguir API lenta/backpressure, credencial inválida,
+ACK recusado e limite de despacho. Aumentar o intervalo indiscriminadamente
+pode piorar atraso após recuperação. Não desligar coletas nem limpar a outbox.
 
 ## Diagnostico
 
@@ -25,6 +32,8 @@ Campos principais:
 - `flush_detail.last_error_route`: endpoint que falhou por ultimo.
 - `flush_detail.last_ack_route`: endpoint confirmado por ultimo.
 - `flush_detail.last_retained`: itens mantidos para retry no ultimo ciclo.
+- `flush_detail.last_deferred`: itens de grupos que não chegaram a ser despachados.
+- `flush_detail.last_read_batch`: total lido no último lote iniciado.
 - `flush_detail.oldest_pending_age_sec`: idade aproximada do item mais antigo lido no lote.
 - `ingest_timeout_sec`, `flush_interval_sec`, `flush_batch_limit`: configuracao efetiva.
 
@@ -40,6 +49,8 @@ Campos principais:
 Rollback operacional sem trocar binario:
 
 1. Restaurar `INGEST_TIMEOUT_SEC=10`, `OUTBOX_FLUSH_BATCH=50`, `OUTBOX_FLUSH_INTERVAL=15`.
+   Na candidata, desabilitar a retomada com `HUB_OUTBOX_CATCHUP_ENABLED=false`;
+   parâmetros específicos do HUB permanecem independentes de OUTBOX_FLUSH_BATCH.
 2. Reiniciar o servico do agente.
 3. Confirmar em `/health` que os valores efetivos voltaram ao padrao.
 

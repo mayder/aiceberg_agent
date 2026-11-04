@@ -24,6 +24,8 @@ func buildOutboxRuntimeEvidence(repo ports.OutboxRepo, flush *usecase.FlushOutbo
 		"last_ack_route": s.LastAckRoute, "last_ack_batch": s.LastAckBatch,
 		"last_ack_at_unix": s.LastAckAtUnix, "last_duration_ms": s.LastDurationMs,
 		"last_retained": s.LastRetained, "oldest_pending_age_sec": s.OldestPendingAgeSec,
+		"last_deferred":      s.LastDeferred,
+		"last_read_batch":    s.LastReadBatch,
 		"last_backoff_route": s.LastBackoffRoute, "last_backoff_until_unix": s.LastBackoffUntilUnix,
 		"endpoint_backlog": s.EndpointBacklog,
 	}

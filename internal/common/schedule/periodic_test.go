@@ -37,3 +37,24 @@ func TestPeriodicTimerKeepsConfiguredInterval(t *testing.T) {
 		t.Fatalf("configured interval changed: got %s want %s", timer.interval, interval)
 	}
 }
+
+func TestPeriodicTimerOneShotCatchupKeepsNormalInterval(t *testing.T) {
+	interval := 15 * time.Second
+	timer := NewPeriodicTimer("fixture", "flush", interval)
+	defer timer.Stop()
+	timer.ResetAfter(time.Millisecond)
+	select {
+	case <-timer.C():
+	case <-time.After(2 * time.Second):
+		t.Fatal("catch-up turn still waits for the normal interval")
+	}
+	timer.Reset()
+	if timer.interval != interval {
+		t.Fatal("one-shot changed configured cadence")
+	}
+	select {
+	case <-timer.C():
+		t.Fatal("catch-up cadence leaked into the next normal turn")
+	case <-time.After(10 * time.Millisecond):
+	}
+}

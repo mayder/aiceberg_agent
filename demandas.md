@@ -371,6 +371,19 @@ Uma coleta possui identidade reproduzível e pode gerar séries dependentes no R
 
 **Dependências** — `aiceberg_web` PKG-33, PKG-20 (envio incremental), PKG-32 (canal operacional), publicação oficial de artefatos conforme `GOVERNANCA.md`.
 
+### Correção do incidente03/11/2026 — retomada após progresso
+
+- [x] Separar contagem de grupos não despachados das recusas/transporte.
+- [x] Retomar em1s somente HUB com ACK positivo e lote cheio/deferral.
+- [x] Preservar limites8s/8threads, ACK, auth/identidade/rota e cooldown.
+- [x] Impedir que os ciclos adicionais antecipem pruning.
+- [x] Cobrir rollback por flag, direct/relay e retomada com Bolt/HTTP/race.
+- [x] Consolidar check/review e commit exclusivo desta correção.
+- [ ] Publicação e piloto autorizados, incluindoAgentless, idade/ACK e carga da API.
+
+Não fecha o PKG-33 nem altera o planejamentoPKG-134. Não gera artefato/update
+nesta etapa. Evidência: docs/evidence/hub-outbox-catchup-20261103.md.
+
 ### Evidências do incidente
 
 - Relay em `AGENT_MODE=relay` com `channel.connected=true`, `relay_uses_hub_url=true` e sem conexão direta com AIceberg.

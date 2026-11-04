@@ -48,6 +48,13 @@ func (p *PeriodicTimer) Reset() {
 	}
 }
 
+// ResetAfter schedules one turn without changing the configured normal cadence.
+func (p *PeriodicTimer) ResetAfter(delay time.Duration) {
+	if p != nil && delay > 0 {
+		p.timer.Reset(delay)
+	}
+}
+
 func (p *PeriodicTimer) Stop() {
 	if p != nil {
 		p.timer.Stop()

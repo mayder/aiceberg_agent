@@ -2,6 +2,29 @@
 
 Registro oficial de bugs conhecidos, reprodução, impacto, correção e reteste.
 
+## [BUG-20261103-01] HUB espera o ciclo normal mesmo com progresso e backlog
+
+- Severidade: alta/P1; área: forwarder/outbox, complemento do PKG-33.
+- Evidência: HUB84 reportou batch800/concorrência8, último ciclo8.227ms,
+  327retidos e fila6.513itens. Após recuperar disco/índice/auth no Web, snapshots
+  ainda chegavam cerca de203s atrasados. Não atribuir todos os327 ao orçamento:
+  o inspector antigo não separava grupos não despachados de recusas de ACK.
+- Reprodução de fonte: o dispatcher deixa de iniciar grupos ao expirar8s;
+  o timer externo conserva15s, inclusive após ACK parcial. Lote cheio com ACK
+  também espera15s mesmo que a fila contenha mais dados.
+- Esperado: retomar trabalho pendente após progresso, com pausa curta e limites
+  preservados, sem antecipar retry da credencial inválida nem pruning.
+- Correção local: próxima execução em1s somente HUB habilitado, ACK positivo
+  e lote cheio/grupos não despachados. Sem progresso/cancelamento mantém timer;
+  direct/relay, timeout8s, concorrência8, byte budget e ACK não mudam.
+- Diagnóstico aditivo: last_read_batch/last_deferred, sem erro bruto ou payload.
+- Reteste: cancelamento controlado/ACK parcial/retomada sem ACK duplicado,
+  cooldown401, opt-out e timer, race, Bolt+HTTP real com900frames/615identidades.
+- Status: correção qualificada localmente, check completo/race/compilaçãoPASS.
+  Não publicada/não instalada; idade
+  real, capacidade comAgentless e carga da API exigem piloto separado.
+- Evidência: docs/evidence/hub-outbox-catchup-20261103.md.
+
 ## Regras
 
 - Todo bug precisa ter severidade, área, passos de reprodução, esperado, observado e critério de fechamento.

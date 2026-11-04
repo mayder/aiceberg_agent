@@ -2,6 +2,28 @@
 
 Runbook operacional do projeto.
 
+## HUB com backlog após recuperar a ingestão — 03/11/2026
+
+Na candidata local, HUB_OUTBOX_CATCHUP_ENABLED=true permite uma próxima vez em1s
+após ACK positivo quando last_read_batch atinge batch_limit ou last_deferred>0.
+O intervalo normal OUTBOX_FLUSH_INTERVAL continua15s por padrão. Falha total,
+fila vazia, parent context cancelado e modosdirect/relay não antecipam o timer.
+O limite8s de despacho/concorrência8/8MiB e cooldown por auth/identidade/rota
+permanecem. Pruning conserva a cadência normal, sem nova política de descarte.
+
+Conferir no inspector outbox_runtime.last_read_batch,last_deferred,last_retained,
+último ACK e backlog; ingest_runtime.hub_catchup_enabled informa a configuração.
+LastError é histórico e retenção não significa sempre timeout/deferral. A queda
+de queue_items não prova entrega integral: existe pruning automático anterior.
+Comparar ts_unix_ms com received_at emUTC, além de ACK, coletaAgentless/relays,
+CPU/I/O do agente e carga/latência da API. Não usar só idade do recebimento da UI.
+
+Rollback local da candidata: HUB_OUTBOX_CATCHUP_ENABLED=false e reinício
+controlado pelo procedimento autorizado, ou versão anterior assinada. Não apagar
+outbox, alterar token, ownership, retenção ou baseline. Sem novo log/tabela;
+campos inteiros em evidência existente, rotação/retenção de logs preservadas.
+Esta entrega não gera artefatos nem autoriza push/update remoto.
+
 ## Objetivo
 
 Padronizar como rodar, diagnosticar, publicar, validar e reverter o projeto.

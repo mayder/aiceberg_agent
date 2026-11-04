@@ -2,6 +2,21 @@
 
 Fonte de verdade para testes automatizados, validação manual e reteste de bugs.
 
+## Retomada do flush do HUB — BUG-20261103-01
+
+- `go test ./internal/domain/usecase ./internal/bootstrap ./internal/common/schedule ./internal/common/config -run 'TestFlushOutbox|TestOutboxCatchup|TestOutboxRuntimeEvidence|TestPeriodicTimer|TestLoadHubOutboxCatchup|TestHubOutboxCapacity' -count=1`
+  cobre ACK seguro/parcial, despacho cancelado, retomada sem duplicação,
+  autenticação/identidade/rota, HTTP401/cooldown, timer e flag de rollback.
+- Repetir os pacotes/casos com `-race` para o dispatcher e snapshots concorrentes.
+- `go test -race ./internal/bootstrap -run TestOutboxCatchupDrainsPersistentBacklogWithRealHTTPAndRetains401 -count=1 -v`:
+  Bolt e HTTP reais em loopback,900frames/615identidades sintéticas. Entrega
+  uma vez cada, preserva401/cooldown e envelope pendente após reabrir arquivo.
+  Esse teste tem filesystem/rede local; não é teste de capacidade produtiva.
+- Regressões causais controladas: desativar a retomada na policy ou zerar
+  LastDeferred faz os testes correspondentes falharem; fontes restauradas e
+  retestadas. Timer/pruning usam datas controladas; timers reais só na API de timer.
+- Gate final `./check.sh`; publicação e piloto comAgentless são gates posteriores.
+
 ## Ordem de leitura
 
 1. `PATHS.toml`
