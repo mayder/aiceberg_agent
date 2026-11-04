@@ -1,5 +1,22 @@
 # BUGS.md
 
+## BUG-20261104-01 — configuração aplicada pelo ingest sem confirmação ao portal
+
+- HUB84 em0.8.61: OFF publicado v41 e envio consumido, mas config-report preserva
+  v40. Não confundir OFF no portal com confirmação de aplicação no host.
+- Reprodução HTTP/Pprefs controlada: aplicar v41 por ingest; próximo GET manda
+  version=41 e recebe204; zero config-report. Teste falhou com reports=0.
+- Causa: callback de ingest persiste preferências sem emitir report, e a consulta
+  condicional pula essa confirmação. O caminho já existia antes do worker.
+- Correção local0.8.62: mudança efetiva de versão própria no HUB assíncrono
+  solicita um GET completo na cadência normal. Reutiliza auth/assinatura/report;
+  relay, duplicata e persistência falha não solicitam confirmação extra.
+- Falha do report mantém solicitação de GET completo para o próximo ciclo;
+  sucesso retoma polling condicional. Não muda coletas, filas ou retenção.
+- Testes HTTP com -race passaram, incluindo503 do report e retomada204.
+  Publicação/validação no HUB continuam pendentes de autorização.
+
+
 Registro oficial de bugs conhecidos, reprodução, impacto, correção e reteste.
 
 ## [BUG-20261103-01] HUB espera o ciclo normal mesmo com progresso e backlog

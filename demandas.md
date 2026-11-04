@@ -379,7 +379,7 @@ Uma coleta possui identidade reproduzível e pode gerar séries dependentes no R
 - [x] Impedir que os ciclos adicionais antecipem pruning.
 - [x] Cobrir rollback por flag, direct/relay e retomada com Bolt/HTTP/race.
 - [x] Consolidar check/review e commit exclusivo desta correção.
-- [ ] Publicação e piloto autorizados, incluindoAgentless, idade/ACK e carga da API.
+- [x] Publicação0.8.61 e piloto autorizado somente HUB84 em04/11; métricas0–1s e Agentless ativos.
 
 Não fecha o PKG-33 nem altera o planejamentoPKG-134. Não gera artefato/update
 nesta etapa. Evidência: docs/evidence/hub-outbox-catchup-20261103.md.
@@ -397,11 +397,23 @@ Relays, persistir e sinalizar envio sem aguardar o timer nem bloquear coletas.
 - [x] Cancelar/juntar worker e encerrar listener; preservar pendentes em disco.
 - [x] Testar Relay→HUB→Bolt→API bloqueada, rajada64relays, cancelamento e race.
 - [x] Consolidar check/review e commit exclusivo.
-- [ ] Publicar e validar piloto comAgentless/relays/host/API mediante autorização.
+- [x] Publicar0.8.61 e validar piloto autorizado HUB84; relay124/Agentless, SHA do binário e API sem500 no recorte.
 
 Rollback porHUB_OUTBOX_ASYNC_ENABLED=false mantém o fluxo local610fead.
 Não fecha o PKG-33/134 nem autoriza push ou update remoto.
 Evidência: docs/evidence/hub-outbox-arrival-worker-20261104.md.
+
+### Confirmação da configuração recebida pelo ingest — candidato0.8.62
+
+- [x] Reproduzir v41 aplicada sem report após204 condicional.
+- [x] Solicitar confirmação própria na cadência normal, sem bloquear ingresso.
+- [x] Repetir confirmação após falha503; preservar relay/duplicatas/auth.
+- [x] Testes HTTP/race com fonte de preferências real.
+- [x] Consolidar check completo/revisão e commit exclusivo.
+- [ ] Autorizar publicação/piloto0.8.62 somente HUB84 e validar ACK do OFF.
+
+0.8.61 foi publicada no piloto; esse fato não encerra PKG-33 nem credencial
+inválida, histórico central ou confirmação v41. Ver docs/evidence/hub-outbox-config-confirmation-20261104.md.
 
 ### Evidências do incidente
 

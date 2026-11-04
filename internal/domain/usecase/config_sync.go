@@ -130,6 +130,7 @@ func (uc *ConfigSync) Execute(ctx context.Context) error {
 	}
 	uc.forceFullSync.Store(false)
 	if reportErr := uc.reportConfigApply(ctx, version, configHash, "applied", configApplyMessage(applied)); reportErr != nil {
+		uc.RequestFullSync()
 		uc.log.Error(logger.KV("config report failed",
 			"version", version,
 			"status", "applied",

@@ -32,3 +32,31 @@ func TestHubWorkerQueuesOwnConfigAndPreservesRelayRoute(t *testing.T) {
 	cancel()
 	awaitOutboxSignal(t, done, "config queue cancellation")
 }
+
+func TestIngestConfirmationOnlyRequestsSyncForChangedOwnerVersion(t *testing.T) {
+	for _, tc := range []struct {
+		name, auth, before, after string
+		want                      int
+	}{
+		{"changed owner", "owner", "40", "41", 1},
+		{"duplicate owner", "owner", "41", "41", 0},
+		{"relay boundary", "relay", "40", "41", 0},
+		{"failed persistence", "owner", "40", "40", 0},
+		{"invalid empty version", "owner", "40", "", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			version, requests, applied := tc.before, 0, 0
+			handle := confirmOwnIngestConfig("owner", func() string { return version }, func() { requests++ }, func(auth string, _ usecase.IngestConfig) {
+				if auth != tc.auth {
+					t.Fatal("authentication boundary changed")
+				}
+				applied++
+				version = tc.after
+			})
+			handle(tc.auth, usecase.IngestConfig{})
+			if requests != tc.want || applied != 1 {
+				t.Fatalf("requests=%d applied=%d", requests, applied)
+			}
+		})
+	}
+}

@@ -2,6 +2,17 @@
 
 Fonte de verdade para testes automatizados, validação manual e reteste de bugs.
 
+## Confirmação após configuração recebida no ingest — 04/11/2026
+
+`go test -race ./internal/bootstrap ./internal/domain/usecase -run 'TestOwnIngestConfigIsConfirmed|TestIngestConfirmation|TestConfigSync|TestHubWorkerQueues|TestAsyncHub' -count=1`.
+
+Reprodução: v40→v41 pelo callback real; GET condicional204 não gera report.
+Correção: consulta completa/ACK autenticado v41 e retorno ao204; duplicatas,
+relay, versão vazia/falha de persistência preservam o limite. Report503 solicita
+nova tentativa na cadência normal. Fixtures HTTP/prefs em arquivo, sem dados produtivos.
+`./check.sh` é o gate do commit/publicação. Instalação real é gate separado.
+
+
 ## Envio por chegada do HUB — 04/11/2026
 
 `go test -race ./internal/bootstrap ./internal/interfaces/hub ./internal/data/repositories ./internal/common/config ./internal/domain/usecase -run 'TestAsyncHub|TestHubOutboxWorker|TestHubWorkerQueues|TestOutboxNotifies|TestLoadHubOutbox|TestServeHubStops|TestHubDoesNotAcknowledge|TestRealRelayTransport|TestFlushOutbox|TestBuildSelfHealRuntimeSnapshotSanitizes' -count=1`.

@@ -2,6 +2,18 @@
 
 Runbook operacional do projeto.
 
+## Confirmação de configuração — candidato0.8.62
+
+Após aplicar configuração própria via ACK de ingest no HUB assíncrono, a próxima
+consulta periódica solicita resposta completa para registrar config-report.
+Não há chamada HTTP extra no caminho de recepção, restart ou novo timer. Em
+falha do report, nova tentativa fica para a próxima cadência normal; sucesso
+retoma GET condicional. Confirmar config_version_applied e a versão publicada,
+não apenas send_configuration=0 ou o botão OFF. Rollback para0.8.61 preserva
+fila/configuração, mas devolve a lacuna de confirmação. Não ampliar o piloto
+além do HUB84 sem nova autorização. Nenhuma publicação efetuada deste candidato.
+
+
 ## Worker do HUB acordado por chegada — candidata local — 04/11/2026
 
 HUB_OUTBOX_ASYNC_ENABLED=true habilita um worker dedicado somente em modo HUB.

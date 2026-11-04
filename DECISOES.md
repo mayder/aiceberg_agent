@@ -2,6 +2,16 @@
 
 Registro de decisões arquiteturais, técnicas e operacionais relevantes.
 
+## DEC-20261104-03 — confirmar configuração própria no polling existente
+
+Mudança de versão persistida pelo ingest do HUB assíncrono solicita um GET
+completo no ConfigSync existente para que config-report não seja pulado por204.
+Não fazer rede no callback de recepção nem criar outro worker/timer. Relay e
+repetições não disparam sync extra; falha de ACK mantém a confirmação pendente.
+Reutilizar auth, assinatura, cadência e controles atuais; não repetir comandos
+por replay manual. Rollback:0.8.61, preservando estado e aceitando a lacuna de
+confirmação. Candidato0.8.62 depende de autorização para push/publicação/piloto.
+
 Este arquivo existe para evitar que decisões importantes fiquem espalhadas em backlog, escopo, comentários ou histórico de chat.
 
 ## Quando registrar

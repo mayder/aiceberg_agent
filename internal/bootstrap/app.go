@@ -223,6 +223,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	applyIngestConfig := onIngestConfig
 	var ingestConfigEvents <-chan ingestConfigEvent
 	if asyncFlush {
+		applyIngestConfig = confirmOwnIngestConfig(authHeader, func() string { return prefStore.Get().Version }, configSyncUC.RequestFullSync, applyIngestConfig)
 		onIngestConfig, ingestConfigEvents = queueOwnIngestConfig(ctx, authHeader, applyIngestConfig)
 	}
 	flushOptions := usecase.FlushOutboxOptions{
