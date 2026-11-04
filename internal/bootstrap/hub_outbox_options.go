@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/data/local/outbox"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
 )
 
@@ -26,4 +27,8 @@ func hubOutboxFlushOptions(mode string, cfg config.Config, opts usecase.FlushOut
 	opts.BatchSize = batch
 	opts.Concurrency = concurrency
 	return opts
+}
+
+func hubOutboxStorageOptions(cfg config.Config) outbox.BoltOptions {
+	return outbox.BoltOptions{BatchWrites: cfg.Mode() == "hub" && cfg.HubOutboxWriteBatchEnabled}
 }

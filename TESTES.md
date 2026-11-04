@@ -1,5 +1,10 @@
 # TESTES.md
 
+## Agrupamento durável da outbox do HUB — 04/11/2026
+
+Reteste: go test -race ./internal/data/local/outbox ./internal/bootstrap ./internal/common/config -run 'TestBoltStore|TestBoltBatch|TestHubOutbox|TestLoadHubOutbox|TestAsyncHub|TestBuildSelfHealRuntimeSnapshot' -count=1. Casos: commit bloqueado sem ACK antecipado, capacidade/duplicata, rollback interno de callback vizinho, reabertura legada após kill e HTTP/64 relays com API bloqueada. Benchmark controlado e limites em docs/evidence/hub-durable-write-batching-local-20261104.md. Sem dados produtivos; piloto e consumo real são gates separados.
+
+
 Fonte de verdade para testes automatizados, validação manual e reteste de bugs.
 
 ## Confirmação após configuração recebida no ingest — 04/11/2026

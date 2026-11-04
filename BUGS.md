@@ -1,5 +1,10 @@
 # BUGS.md
 
+## BUG-20261104-02 — amplificação de escrita da outbox do HUB
+
+P1, armazenamento local. HUB84 apresentou 39,4 MB/s entre snapshots do mesmo processo e atraso variável. Gravação/ACK por transação e freelist fragmentada amplificam I/O em fixture; CPU integral do HUB ainda não tem causa única confirmada. Candidato 0.8.63 agrupa gravações concorrentes por até 5 ms/64 callbacks, preservando commit durável e validação transacional de capacidade. Testes race, falha concorrente, processo encerrado e benchmark real do store aprovados. Publicação/piloto pendentes; não declarado resolvido em produção. Evidência: docs/evidence/hub-durable-write-batching-local-20261104.md.
+
+
 ## BUG-20261104-01 — configuração aplicada pelo ingest sem confirmação ao portal
 
 - HUB84 em0.8.61: OFF publicado v41 e envio consumido, mas config-report preserva

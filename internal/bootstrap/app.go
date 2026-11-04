@@ -1286,7 +1286,7 @@ func selectOutbox(cfg config.Config, log logger.Logger) repositories.Store {
 	maxMB := cfg.OutboxMaxMB
 	path := cfg.OutboxPath
 	if path != "" {
-		if bs, err := outbox.NewBoltStore(path, maxMB); err == nil {
+		if bs, err := outbox.NewBoltStoreWithOptions(path, maxMB, hubOutboxStorageOptions(cfg)); err == nil {
 			log.Info(logger.KV("outbox bolt enabled",
 				"path", path,
 			))

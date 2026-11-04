@@ -25,3 +25,15 @@ func TestHubOutboxCapacityIsBoundedAndDoesNotChangeRelayOrDirect(t *testing.T) {
 		t.Fatal("rollback settings ignored")
 	}
 }
+
+func TestHubOutboxBatchWritesStayWithinHubScopeAndAllowRollback(t *testing.T) {
+	for _, mode := range []string{"direct", "relay", "hub"} {
+		cfg := config.Config{AgentMode: mode, HubOutboxWriteBatchEnabled: true}
+		if got := hubOutboxStorageOptions(cfg).BatchWrites; got != (mode == "hub") {
+			t.Fatalf("mode=%s batch=%v", mode, got)
+		}
+	}
+	if hubOutboxStorageOptions(config.Config{AgentMode: "hub"}).BatchWrites {
+		t.Fatal("opt-out ignored")
+	}
+}

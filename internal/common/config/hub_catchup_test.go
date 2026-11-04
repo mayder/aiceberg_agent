@@ -29,3 +29,17 @@ func TestLoadHubOutboxAsyncDefaultAndRollback(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadHubOutboxWriteBatchDefaultAndRollback(t *testing.T) {
+	t.Setenv("AGENT_TOKEN", "fixture-token")
+	for _, tc := range []struct {
+		value string
+		want  bool
+	}{{"", true}, {"true", true}, {"false", false}} {
+		t.Setenv("HUB_OUTBOX_WRITE_BATCH_ENABLED", tc.value)
+		cfg, err := Load("")
+		if err != nil || cfg.HubOutboxWriteBatchEnabled != tc.want {
+			t.Fatalf("value=%q enabled=%v err=%v", tc.value, cfg.HubOutboxWriteBatchEnabled, err)
+		}
+	}
+}

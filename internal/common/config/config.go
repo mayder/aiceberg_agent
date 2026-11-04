@@ -55,6 +55,7 @@ type Config struct {
 	HubOutboxFlushConcurrency          int
 	HubOutboxCatchupEnabled            bool
 	HubOutboxAsyncEnabled              bool
+	HubOutboxWriteBatchEnabled         bool
 	OutboxFlushInterval                time.Duration
 	TLSInsecureSkip                    bool
 	TLSInsecureAllowProd               bool
@@ -370,6 +371,7 @@ func Load(configPath string) (Config, error) {
 		HubOutboxFlushConcurrency:          intEnv("HUB_OUTBOX_FLUSH_CONCURRENCY", 8),
 		HubOutboxCatchupEnabled:            boolEnv("HUB_OUTBOX_CATCHUP_ENABLED", true),
 		HubOutboxAsyncEnabled:              boolEnv("HUB_OUTBOX_ASYNC_ENABLED", true),
+		HubOutboxWriteBatchEnabled:         boolEnv("HUB_OUTBOX_WRITE_BATCH_ENABLED", true),
 		TLSInsecureSkip:                    strings.ToLower(getenv("TLS_INSECURE_SKIP_VERIFY", "")) == "true",
 		TLSInsecureAllowProd:               strings.ToLower(getenv("TLS_INSECURE_ALLOW_PROD", "")) == "true",
 		RemoteConfigSignatureSecret:        getenv("REMOTE_CONFIG_SIGNATURE_SECRET", ""),

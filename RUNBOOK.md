@@ -1,5 +1,12 @@
 # RUNBOOK.md
 
+## Candidato 0.8.63 — agrupamento de escrita da outbox
+
+HUB_OUTBOX_WRITE_BATCH_ENABLED=true habilita somente no HUB agrupamento durável de Push/ACK (64 callbacks, até 5 ms para formar lote). Atraso de agrupamento não é timeout de commit; sucesso exige commit/fsync. NoSync/NoFreelistSync permanecem desligados. Direct/relay conservam escrita anterior; não há nova retenção/limpeza. Conferir ingest_runtime.hub_outbox_write_batch_enabled, versão, ACK e idade real.
+
+Piloto proposto somente HUB84 após autorização específica de push/publicação/update. Medir janelas equivalentes de I/O por delta do mesmo processo, CPU com denominador explícito, fila/atraso e recibos. Não atribuir redução a CPU média desde startup. Opt-out local pela flag false/restart autorizado ou rollback assinado para 0.8.62, preservando arquivos. Não limpar fila. Evidência: docs/evidence/hub-durable-write-batching-local-20261104.md.
+
+
 Runbook operacional do projeto.
 
 ## Confirmação de configuração — candidato0.8.62

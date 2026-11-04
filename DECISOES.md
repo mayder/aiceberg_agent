@@ -560,3 +560,8 @@ ser desativada sem interromper a coleta.
 - Gate: correção local, sem push/artefato oficial/update. Piloto produtivo precisa
   de autorização e evidência de Agentless/coletas/relays/carga/idade real.
 - Validação: docs/evidence/hub-outbox-arrival-worker-20261104.md e TESTES.md.
+
+
+### DEC-20261104-OUTBOX-DURABLE-BATCH — reduzir commits sem enfraquecer persistência
+
+Agrupar somente Push/ACK concorrentes do HUB por bbolt.Batch, limitado a 64 callbacks/5 ms, com validação de capacidade dentro da transação. Callbacks só alteram a transação e toleram repetição após erro vizinho. Não usar NoSync ou NoFreelistSync; manter formato/retenção/ACK e versões da biblioteca. A opção somente HUB tem opt-out; rollback assinado reabre o arquivo com construtor anterior. Benchmark mede páginas/operações e tempo, sem afirmar redução produtiva de CPU. Evidência e gates: docs/evidence/hub-durable-write-batching-local-20261104.md.

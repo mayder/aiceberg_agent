@@ -15,12 +15,13 @@ import (
 
 // BoltStore persistente com limites de tamanho e coleta simples por lote.
 type BoltStore struct {
-	path     string
-	maxMB    int
-	db       *bolt.DB
-	mu       sync.Mutex
-	bucket   []byte
-	maxBytes int64
+	path        string
+	maxMB       int
+	db          *bolt.DB
+	mu          sync.Mutex
+	bucket      []byte
+	maxBytes    int64
+	batchWrites bool
 }
 
 type storedEnvelope struct {
@@ -38,6 +39,10 @@ type storedEnvelopeMeta struct {
 }
 
 func NewBoltStore(path string, maxMB int) (*BoltStore, error) {
+	return NewBoltStoreWithOptions(path, maxMB, BoltOptions{})
+}
+
+func NewBoltStoreWithOptions(path string, maxMB int, opts BoltOptions) (*BoltStore, error) {
 	if path == "" {
 		return nil, errors.New("bolt path obrigatório")
 	}
@@ -52,7 +57,11 @@ func NewBoltStore(path string, maxMB int) (*BoltStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	store := &BoltStore{path: path, maxMB: maxMB, maxBytes: maxBytes, db: db, bucket: []byte("outbox")}
+	store := &BoltStore{path: path, maxMB: maxMB, maxBytes: maxBytes, db: db, bucket: []byte("outbox"), batchWrites: opts.BatchWrites}
+	if opts.BatchWrites {
+		db.MaxBatchSize = boltWriteBatchSize
+		db.MaxBatchDelay = boltWriteBatchDelay
+	}
 	if err := store.init(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -76,17 +85,14 @@ func (b *BoltStore) Push(e entities.Envelope) error {
 	if err != nil {
 		return err
 	}
-	key := []byte(e.ID)
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if ok, err := b.withinLimit(int64(len(raw))); err != nil {
-		return err
-	} else if !ok {
-		return errors.New("outbox full (max MB reached)")
-	}
-	return b.db.Update(func(tx *bolt.Tx) error {
+	return b.write(func(tx *bolt.Tx) error {
 		bk := tx.Bucket(b.bucket)
-		return bk.Put(key, raw)
+		_, currentBytes := bucketStats(tx, b.bucket)
+		projected := currentBytes - int64(len(bk.Get([]byte(e.ID)))) + int64(len(raw))
+		if projected > b.maxBytes {
+			return errors.New("outbox full (max MB reached)")
+		}
+		return bk.Put([]byte(e.ID), raw)
 	})
 }
 
@@ -126,10 +132,12 @@ func (b *BoltStore) Delete(ids []string) error {
 	for _, id := range ids {
 		idset[id] = struct{}{}
 	}
-	return b.db.Update(func(tx *bolt.Tx) error {
+	return b.write(func(tx *bolt.Tx) error {
 		bk := tx.Bucket(b.bucket)
 		for id := range idset {
-			_ = bk.Delete([]byte(id))
+			if err := bk.Delete([]byte(id)); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -209,18 +217,6 @@ func (b *BoltStore) GC() error {
 		}
 		return nil
 	})
-}
-
-func (b *BoltStore) withinLimit(nextBytes int64) (bool, error) {
-	var curBytes int64
-	err := b.db.View(func(tx *bolt.Tx) error {
-		_, curBytes = bucketStats(tx, b.bucket)
-		return nil
-	})
-	if err != nil {
-		return false, err
-	}
-	return curBytes+nextBytes <= b.maxBytes, nil
 }
 
 func (b *BoltStore) Prune(opts PruneOptions) (int, error) {

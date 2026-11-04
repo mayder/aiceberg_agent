@@ -415,6 +415,16 @@ Evidência: docs/evidence/hub-outbox-arrival-worker-20261104.md.
 0.8.61 foi publicada no piloto; esse fato não encerra PKG-33 nem credencial
 inválida, histórico central ou confirmação v41. Ver docs/evidence/hub-outbox-config-confirmation-20261104.md.
 
+### Amplificação de escrita do HUB — candidato 0.8.63
+
+- [x] Medir deltas de I/O por processo e reproduzir amplificação em fixture.
+- [x] Agrupar Push/ACK com persistência durável, limite transacional e opt-out somente HUB.
+- [x] Testar race, falha concorrente, perda do processo, reabertura legada e HTTP de 64 relays.
+- [x] Medir benchmark do store real e registrar limites de conclusão.
+- [ ] Publicar por autorização específica e validar consumo/atraso somente no HUB84.
+
+Candidato local; CPU integral ainda sem profiler produtivo. Não fecha PKG-33/134, não modifica histórico, credenciais ou retenção. Evidência: docs/evidence/hub-durable-write-batching-local-20261104.md.
+
 ### Evidências do incidente
 
 - Relay em `AGENT_MODE=relay` com `channel.connected=true`, `relay_uses_hub_url=true` e sem conexão direta com AIceberg.

@@ -32,7 +32,7 @@ func newAsyncOutboxFixture(t *testing.T, apiURL string, releaseAPI func()) *asyn
 	t.Helper()
 	f := &asyncOutboxFixture{path: filepath.Join(t.TempDir(), "hub.db"), results: make(chan outboxCycleResult, 8), done: make(chan struct{})}
 	var err error
-	f.store, err = outbox.NewBoltStore(f.path, 4)
+	f.store, err = outbox.NewBoltStoreWithOptions(f.path, 4, outbox.BoltOptions{BatchWrites: true})
 	if err != nil {
 		t.Fatal(err)
 	}
