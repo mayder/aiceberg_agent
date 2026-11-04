@@ -43,6 +43,8 @@ func buildSelfHealRuntimeSnapshot(
 			"hub_async_enabled":                   mode == "hub" && cfg.HubOutboxAsyncEnabled,
 			"hub_outbox_write_batch_enabled":      mode == "hub" && cfg.HubOutboxWriteBatchEnabled,
 			"hub_outbox_freelist_rebuild_enabled": mode == "hub" && cfg.HubOutboxFreelistRebuildEnabled,
+			"hub_outbox_raw_body_enabled":         mode == "hub" && cfg.HubOutboxRawBodyEnabled,
+			"relay_outbox_async_enabled":          mode == "relay" && cfg.RelayOutboxAsyncEnabled,
 		},
 		"agentless_runtime": map[string]any{
 			"poll_sec":    settings.PollSec,

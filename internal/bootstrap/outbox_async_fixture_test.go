@@ -32,14 +32,14 @@ func newAsyncOutboxFixture(t *testing.T, apiURL string, releaseAPI func()) *asyn
 	t.Helper()
 	f := &asyncOutboxFixture{path: filepath.Join(t.TempDir(), "hub.db"), results: make(chan outboxCycleResult, 8), done: make(chan struct{})}
 	var err error
-	f.store, err = outbox.NewBoltStoreWithOptions(f.path, 4, outbox.BoltOptions{BatchWrites: true})
+	f.store, err = outbox.NewBoltStoreWithOptions(f.path, 4, outbox.BoltOptions{BatchWrites: true, RawBodies: true, RebuildFreelist: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = f.store.Close() })
 	wake := make(chan struct{}, 1)
 	f.repo = repositories.NewOutboxRepositoryWithNotify(f.store, func() { signalOutbox(wake) })
-	server := httptest.NewServer(hub.NewHandler(config.Config{}, f.repo, testBootstrapLogger{}, nil))
+	server := httptest.NewServer(hub.NewHandler(config.Config{HubOutboxRawBodyEnabled: true}, f.repo, testBootstrapLogger{}, nil))
 	f.hubURL = server.URL
 	t.Cleanup(server.Close)
 	cfg := config.Config{APIBaseURL: apiURL, IngestTimeout: 15 * time.Second,
@@ -52,7 +52,7 @@ func newAsyncOutboxFixture(t *testing.T, apiURL string, releaseAPI func()) *asyn
 	ctx, f.cancel = context.WithCancel(context.Background())
 	go func() {
 		defer close(f.done)
-		runHubOutboxWorker(ctx, wake, time.Hour, func(ctx context.Context) outboxCycleResult {
+		runAsyncOutboxWorker(ctx, wake, time.Hour, func(ctx context.Context) outboxCycleResult {
 			r := cycle.Execute(ctx)
 			f.results <- r
 			return r

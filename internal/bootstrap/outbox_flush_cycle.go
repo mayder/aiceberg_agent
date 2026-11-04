@@ -30,7 +30,7 @@ func (c *outboxFlushCycle) Execute(ctx context.Context) outboxCycleResult {
 	if ctx.Err() != nil {
 		return result
 	}
-	boundedPruning := c.mode == "hub" && (c.cfg.HubOutboxCatchupEnabled || c.cfg.HubOutboxAsyncEnabled)
+	boundedPruning := (c.mode == "hub" && c.cfg.HubOutboxCatchupEnabled) || asyncOutboxEnabled(c.mode, c.cfg)
 	if c.prune != nil && (!boundedPruning || c.cadence.pruneDue(time.Now(), c.cfg.OutboxFlushInterval)) {
 		c.prune()
 	}
@@ -65,4 +65,11 @@ func (c *outboxFlushCycle) flushOne(ctx context.Context, flush *usecase.FlushOut
 	}
 	c.counter.lastFlushMs.Store(time.Since(start).Milliseconds())
 	return n, err
+}
+
+// Arrival-triggered Relay startup must not bring retention forward.
+func (c *outboxFlushCycle) startRelayPruneCadence(now time.Time) {
+	if c.mode == "relay" && c.cfg.RelayOutboxAsyncEnabled {
+		c.cadence.lastPrune = now
+	}
 }

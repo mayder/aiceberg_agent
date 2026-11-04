@@ -57,3 +57,16 @@ func TestLoadHubFreelistRebuildDefaultAndOptOut(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadRelayAsyncAndHubRawBodiesSupportOptOut(t *testing.T) {
+	t.Setenv("AGENT_TOKEN", "synthetic")
+	for _, value := range []string{"", "true", "false"} {
+		t.Setenv("RELAY_OUTBOX_ASYNC_ENABLED", value)
+		t.Setenv("HUB_OUTBOX_RAW_BODY_ENABLED", value)
+		cfg, err := Load("")
+		want := value != "false"
+		if err != nil || cfg.RelayOutboxAsyncEnabled != want || cfg.HubOutboxRawBodyEnabled != want {
+			t.Fatal("config boundary", err)
+		}
+	}
+}

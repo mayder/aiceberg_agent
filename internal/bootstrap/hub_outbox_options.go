@@ -33,5 +33,6 @@ func hubOutboxStorageOptions(cfg config.Config) outbox.BoltOptions {
 	return outbox.BoltOptions{
 		BatchWrites:     cfg.Mode() == "hub" && cfg.HubOutboxWriteBatchEnabled,
 		RebuildFreelist: cfg.Mode() == "hub" && cfg.HubOutboxFreelistRebuildEnabled,
+		RawBodies:       cfg.Mode() == "hub" && cfg.HubOutboxRawBodyEnabled,
 	}
 }

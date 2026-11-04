@@ -22,6 +22,7 @@ type BoltStore struct {
 	bucket      []byte
 	maxBytes    int64
 	batchWrites bool
+	rawBodies   bool
 }
 
 type storedEnvelope struct {
@@ -57,7 +58,7 @@ func NewBoltStoreWithOptions(path string, maxMB int, opts BoltOptions) (*BoltSto
 	if err != nil {
 		return nil, err
 	}
-	store := &BoltStore{path: path, maxMB: maxMB, maxBytes: maxBytes, db: db, bucket: []byte("outbox"), batchWrites: opts.BatchWrites}
+	store := &BoltStore{path: path, maxMB: maxMB, maxBytes: maxBytes, db: db, bucket: []byte("outbox"), batchWrites: opts.BatchWrites, rawBodies: opts.RawBodies}
 	if opts.BatchWrites {
 		db.MaxBatchSize = boltWriteBatchSize
 		db.MaxBatchDelay = boltWriteBatchDelay
@@ -106,15 +107,9 @@ func (b *BoltStore) Peek(n int) ([]entities.Envelope, error) {
 		bk := tx.Bucket(b.bucket)
 		c := bk.Cursor()
 		for k, v := c.First(); k != nil && len(out) < n; k, v = c.Next() {
-			var stored storedEnvelope
-			if err := json.Unmarshal(v, &stored); err != nil {
+			env, err := b.decode(v)
+			if err != nil {
 				continue
-			}
-			env := stored.Env
-			env.AuthHeader = stored.AuthHeader
-			env.IdentityHeader = stored.IdentityHeader
-			if env.Endpoint == "" {
-				env.Endpoint = stored.Endpoint
 			}
 			out = append(out, env)
 		}

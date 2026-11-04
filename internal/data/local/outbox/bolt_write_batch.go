@@ -10,12 +10,13 @@ const (
 	boltWriteBatchDelay = 5 * time.Millisecond
 )
 
-// BoltOptions changes write scheduling, never the durability of a successful call.
+// BoltOptions controls scheduling and decoding; successful writes remain durable.
 type BoltOptions struct {
 	BatchWrites bool
 	// RebuildFreelist omits only the reconstructible free-page index. Data and
 	// metadata still fsync on every successful transaction. Reopen scans pages.
 	RebuildFreelist bool
+	RawBodies       bool
 }
 
 // Batch callbacks only change their transaction: bbolt can retry them after a

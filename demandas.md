@@ -771,6 +771,21 @@ não são alterados nesta entrega.
 - [x] Evitar serialização de métricas no normalizador exclusivo de logs, preservando limite de envio.
 - [x] Testar upgrade, kill, reabertura legada, isolamento por modo, opt-out e regressões com race.
 - [x] Consolidar review/check e candidato assinado0.8.64; cinco pacotes/hashes/Ed25519 verificados.
-- [ ] Autorizar novo push/publicação e piloto somente HUB84; validar recursos, fila, atraso e recuperação.
+- [x] Publicar0.8.64 autorizada somenteHUB84; hash/OFF53 confirmados, escrita-78%, CPU44,87% e picos no relay permanecem.
 
 Nenhuma limpeza, replay ou mudança de credencial. CPU integral do HUB ainda não comprovada por profiler instalado. Ver docs/evidence/hub-freelist-and-normalization-local-20261104.md.
+
+### CPU do HUB e envio do relay — candidato0.8.65, PKG-33
+
+- [x] Diferenciar atraso envelope→API de localização do atraso; inventariar timer síncrono do relay.
+- [x] Eliminar materialização redundante de Body no listener/Bolt do HUB, com flag de rollback.
+- [x] Reutilizar worker independente no relay; manter configuração no loop principal, ACK, cooldown e pruning.
+- [x] Adicionar carimbo de recepção no HUB e contador de CPU cumulativa, sem tabela ou log novo.
+- [x] Testar pipeline HTTP/Bolt real, coletor bloqueado, falha503, reabertura, split e limites por modo com race.
+- [x] Medir leitura/forwarding estruturado em macOS e Linux sintético; gain local separado do piloto.
+- [x] Consolidar check/review/commit exclusivo da correção local.
+- [ ] Gerar/verificar cinco pacotes assinados antes da autorização de publicação.
+- [ ] Autorizar novo push/publicação e piloto escalonado:HUB84 e somenteRelay124.
+- [ ] Medir saltos/CPU por janela e comprovar redução de picos antes de encerrar.
+
+Preservar histórico, filas,27confirmações incertas e credencial de origem. Não fecha PKG-33/134. Evidência: docs/evidence/hub-cpu-relay-arrival-local-20261104.md.

@@ -522,6 +522,7 @@ type performanceCheck struct {
 }
 
 type agentRuntimeProfile struct {
+	CPUTimeSec       float64              `json:"cpu_time_sec,omitempty"`
 	PID              int32                `json:"pid,omitempty"`
 	Version          string               `json:"version,omitempty"`
 	Mode             string               `json:"mode,omitempty"`
@@ -1643,6 +1644,9 @@ func buildAgentRuntimeProfile(s snapshot, p config.CollectPrefs) *agentRuntimePr
 	}
 
 	if proc, err := process.NewProcess(profile.PID); err == nil {
+		if times, err := proc.Times(); err == nil && times != nil {
+			profile.CPUTimeSec = times.User + times.System
+		}
 		if cpuPct, err := proc.CPUPercent(); err == nil {
 			profile.CPUPercent = roundFloat(cpuPct, 2)
 		} else {

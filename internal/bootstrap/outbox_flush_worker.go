@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"time"
+
+	"github.com/you/aiceberg_agent/internal/common/config"
 )
 
 func signalOutbox(wake chan<- struct{}) {
@@ -14,7 +16,7 @@ func signalOutbox(wake chan<- struct{}) {
 
 // One owner executes both flushes. Arrival signals coalesce in a one-slot
 // channel; the periodic timer also recovers persisted work after restart.
-func runHubOutboxWorker(ctx context.Context, wake <-chan struct{}, interval time.Duration, execute func(context.Context) outboxCycleResult) {
+func runAsyncOutboxWorker(ctx context.Context, wake <-chan struct{}, interval time.Duration, execute func(context.Context) outboxCycleResult) {
 	if interval <= 0 {
 		interval = 15 * time.Second
 	}
@@ -62,4 +64,8 @@ func waitForOutboxTurn(ctx context.Context, notBefore time.Time) bool {
 		}
 	}
 	return ctx.Err() == nil
+}
+
+func asyncOutboxEnabled(mode string, cfg config.Config) bool {
+	return (mode == "hub" && cfg.HubOutboxAsyncEnabled) || (mode == "relay" && cfg.RelayOutboxAsyncEnabled)
 }

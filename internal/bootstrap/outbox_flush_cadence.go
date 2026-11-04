@@ -12,7 +12,8 @@ const hubOutboxCatchupDelay = time.Second
 // Only progress with a full batch or undispatched work requests a short next turn. Failed
 // requests keep their own cooldown; cancellation and no progress never spin.
 func outboxCatchupDelay(mode string, cfg config.Config, acked int, snapshot usecase.FlushOutboxSnapshot, ctxErr error) time.Duration {
-	if mode != "hub" || !cfg.HubOutboxCatchupEnabled || ctxErr != nil || acked <= 0 {
+	enabled := (mode == "hub" && cfg.HubOutboxCatchupEnabled) || (mode == "relay" && cfg.RelayOutboxAsyncEnabled)
+	if !enabled || ctxErr != nil || acked <= 0 {
 		return 0
 	}
 	fullBatch := snapshot.BatchLimit > 0 && snapshot.LastReadBatch >= snapshot.BatchLimit

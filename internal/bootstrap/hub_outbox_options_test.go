@@ -57,3 +57,18 @@ func TestHubFreelistRebuildDoesNotDependOnWriteBatching(t *testing.T) {
 		t.Fatal("independent opt-outs changed")
 	}
 }
+
+func TestAsyncOutboxAndRawBodiesStayWithinConfiguredModes(t *testing.T) {
+	for _, mode := range []string{"hub", "relay", "direct"} {
+		cfg := config.Config{AgentMode: mode, HubOutboxAsyncEnabled: true, RelayOutboxAsyncEnabled: true, HubOutboxRawBodyEnabled: true}
+		if asyncOutboxEnabled(mode, cfg) != (mode != "direct") {
+			t.Fatal("async mode boundary changed")
+		}
+		if hubOutboxStorageOptions(cfg).RawBodies != (mode == "hub") {
+			t.Fatal("raw storage leaked outside HUB")
+		}
+	}
+	if asyncOutboxEnabled("relay", config.Config{}) || hubOutboxStorageOptions(config.Config{AgentMode: "hub"}).RawBodies {
+		t.Fatal("opt-out ignored")
+	}
+}

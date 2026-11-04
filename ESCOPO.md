@@ -120,3 +120,7 @@ Decisões arquiteturais, técnicas e operacionais ficam em `DECISOES.md`.
 - Tipo: Agente Go
 - Stack detectada: Go agent/CLI, gopsutil, NTP, SNMP
 - Regra: adaptar comandos, camadas, testes, fixtures e limites conforme a realidade deste modulo Go.
+
+## Serialização de envelopes de transporte
+
+internal/common/envelopejson contém DTO/parser de Envelope com Body JSON opaco; é consumido pelo listener internal/interfaces/hub e pelo adapter Bolt em internal/data/local/outbox. Entrada: JSON; saída: entities.Envelope com roteamento normalizado e RawMessage validado com bytes próprios. Não autoriza, persiste, envia, altera retenção ou interpreta regras do Body. Erros JSON recusam o request/leitura como no caminho anterior. Regressões de sintaxe, memória, identidade, limites e rollback são obrigatórias; flag doHUB restaura a decodificação anterior. O worker em internal/bootstrap coordena FlushOutbox paraHUB/Relay; CollectAndBuffer continua responsável pela coleta e persistência antes da notificação.

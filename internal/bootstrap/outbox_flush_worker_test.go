@@ -16,7 +16,7 @@ func TestHubOutboxWorkerCoalescesArrivalsAndNeverOverlapsCycles(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runHubOutboxWorker(ctx, wake, time.Hour, func(ctx context.Context) outboxCycleResult {
+		runAsyncOutboxWorker(ctx, wake, time.Hour, func(ctx context.Context) outboxCycleResult {
 			n := active.Add(1)
 			defer active.Add(-1)
 			if n > 1 {
@@ -54,7 +54,7 @@ func TestHubOutboxWorkerFailureGuardIsCancellable(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runHubOutboxWorker(ctx, wake, time.Hour, func(context.Context) outboxCycleResult {
+		runAsyncOutboxWorker(ctx, wake, time.Hour, func(context.Context) outboxCycleResult {
 			called <- struct{}{}
 			return outboxCycleResult{failed: true}
 		})
@@ -77,7 +77,7 @@ func TestHubOutboxWorkerPeriodicFallbackWithoutNotification(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runHubOutboxWorker(ctx, nil, 5*time.Millisecond, func(context.Context) outboxCycleResult {
+		runAsyncOutboxWorker(ctx, nil, 5*time.Millisecond, func(context.Context) outboxCycleResult {
 			called <- struct{}{}
 			return outboxCycleResult{}
 		})

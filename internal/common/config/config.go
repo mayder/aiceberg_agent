@@ -57,6 +57,8 @@ type Config struct {
 	HubOutboxAsyncEnabled              bool
 	HubOutboxWriteBatchEnabled         bool
 	HubOutboxFreelistRebuildEnabled    bool
+	HubOutboxRawBodyEnabled            bool
+	RelayOutboxAsyncEnabled            bool
 	OutboxFlushInterval                time.Duration
 	TLSInsecureSkip                    bool
 	TLSInsecureAllowProd               bool
@@ -374,6 +376,8 @@ func Load(configPath string) (Config, error) {
 		HubOutboxAsyncEnabled:              boolEnv("HUB_OUTBOX_ASYNC_ENABLED", true),
 		HubOutboxWriteBatchEnabled:         boolEnv("HUB_OUTBOX_WRITE_BATCH_ENABLED", true),
 		HubOutboxFreelistRebuildEnabled:    boolEnv("HUB_OUTBOX_FREELIST_REBUILD_ENABLED", true),
+		HubOutboxRawBodyEnabled:            boolEnv("HUB_OUTBOX_RAW_BODY_ENABLED", true),
+		RelayOutboxAsyncEnabled:            boolEnv("RELAY_OUTBOX_ASYNC_ENABLED", true),
 		TLSInsecureSkip:                    strings.ToLower(getenv("TLS_INSECURE_SKIP_VERIFY", "")) == "true",
 		TLSInsecureAllowProd:               strings.ToLower(getenv("TLS_INSECURE_ALLOW_PROD", "")) == "true",
 		RemoteConfigSignatureSecret:        getenv("REMOTE_CONFIG_SIGNATURE_SECRET", ""),

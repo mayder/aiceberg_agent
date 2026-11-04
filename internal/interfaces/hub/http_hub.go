@@ -13,12 +13,14 @@ import (
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/common/envelopejson"
 	"github.com/you/aiceberg_agent/internal/common/httpx"
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/domain/channel"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
+	"strconv"
 )
 
 // ServeHub inicia o listener HTTP para receber ingest de agentes em modo hub.
@@ -66,10 +68,16 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 		defer r.Body.Close()
 
 		var batch []entities.Envelope
-		if err := json.Unmarshal(body, &batch); err != nil {
+		if cfg.HubOutboxRawBodyEnabled {
+			batch, err = envelopejson.DecodeBatch(body)
+		} else {
+			err = json.Unmarshal(body, &batch)
+		}
+		if err != nil {
 			http.Error(w, "invalid payload", http.StatusBadRequest)
 			return
 		}
+		receivedAt := strconv.FormatInt(time.Now().UnixMilli(), 10)
 		buffered := 0
 		failed := false
 		for i := range batch {
@@ -81,6 +89,7 @@ func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, p
 				batch[i].Meta = map[string]string{}
 			}
 			batch[i].Meta["via"] = "hub"
+			batch[i].Meta["hub_received_at_unix_ms"] = receivedAt
 			if batch[i].Endpoint == "" {
 				batch[i].Endpoint = r.URL.Path
 			}

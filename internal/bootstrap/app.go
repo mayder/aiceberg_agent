@@ -58,7 +58,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	defer cancelRun()
 	startedAt := time.Now()
 	mode := cfg.Mode()
-	asyncFlush := mode == "hub" && cfg.HubOutboxAsyncEnabled
+	asyncFlush := asyncOutboxEnabled(mode, cfg)
 	var wake chan struct{}
 	var notify func()
 	if asyncFlush {
@@ -459,11 +459,12 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	flushCycle := &outboxFlushCycle{mode: mode, cfg: cfg, main: flushUC, oslogs: osLogFlushUC,
 		counter: &counters, report: reportWorkerError,
 		prune: func() { pruneStore(store, "main"); pruneStore(osStore, "oslogs") }}
+	flushCycle.startRelayPruneCadence(time.Now())
 	if asyncFlush {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			runHubOutboxWorker(ctx, wake, cfg.OutboxFlushInterval, flushCycle.Execute)
+			runAsyncOutboxWorker(ctx, wake, cfg.OutboxFlushInterval, flushCycle.Execute)
 		}()
 		defer func() { cancelRun(); <-done }()
 	}
