@@ -17,7 +17,7 @@ func BenchmarkBoltDurableConcurrentBurst(b *testing.B) {
 	}
 }
 
-func fragmentedBoltFixture(b *testing.B, batch bool) *BoltStore {
+func fragmentedBoltFixture(b testing.TB, batch bool) *BoltStore {
 	b.Helper()
 	s, err := NewBoltStoreWithOptions(b.TempDir()+"/synthetic.db", 256, BoltOptions{BatchWrites: batch})
 	if err != nil {

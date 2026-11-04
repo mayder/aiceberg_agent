@@ -1,3 +1,7 @@
+## Redução de I/O do HUB — candidato0.8.64
+
+HUB_OUTBOX_FREELIST_REBUILD_ENABLED=true somente no HUB omite a gravação da freelist reconstruível do bbolt; dados/metadados continuam fsync e o sucesso local continua posterior ao commit. A abertura/recovery percorre páginas alcançáveis: medir tempo de retomada no piloto, sem esvaziar/compactar a fila. Direct/relay conservam a configuração anterior. Inspector expõe ingest_runtime.hub_outbox_freelist_rebuild_enabled. Opt-out false exige reinício autorizado; pacote0.8.63 lê o mesmo arquivo e reconstrói a freelist automaticamente. Não mudar NoSync. Não declarar CPU resolvida a partir do microbenchmark; medir deltas do mesmo processo e atraso/recibos reais no HUB84 antes de ampliar. Evidência e limites: docs/evidence/hub-freelist-and-normalization-local-20261104.md.
+
 # RUNBOOK.md
 
 ## Candidato 0.8.63 — agrupamento de escrita da outbox

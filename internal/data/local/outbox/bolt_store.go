@@ -53,7 +53,7 @@ func NewBoltStoreWithOptions(path string, maxMB int, opts BoltOptions) (*BoltSto
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
-	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: 1 * time.Second})
+	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: 1 * time.Second, NoFreelistSync: opts.RebuildFreelist})
 	if err != nil {
 		return nil, err
 	}

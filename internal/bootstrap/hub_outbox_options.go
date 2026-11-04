@@ -30,5 +30,8 @@ func hubOutboxFlushOptions(mode string, cfg config.Config, opts usecase.FlushOut
 }
 
 func hubOutboxStorageOptions(cfg config.Config) outbox.BoltOptions {
-	return outbox.BoltOptions{BatchWrites: cfg.Mode() == "hub" && cfg.HubOutboxWriteBatchEnabled}
+	return outbox.BoltOptions{
+		BatchWrites:     cfg.Mode() == "hub" && cfg.HubOutboxWriteBatchEnabled,
+		RebuildFreelist: cfg.Mode() == "hub" && cfg.HubOutboxFreelistRebuildEnabled,
+	}
 }

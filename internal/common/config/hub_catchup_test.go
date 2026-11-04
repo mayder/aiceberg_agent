@@ -43,3 +43,17 @@ func TestLoadHubOutboxWriteBatchDefaultAndRollback(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadHubFreelistRebuildDefaultAndOptOut(t *testing.T) {
+	t.Setenv("AGENT_TOKEN", "fixture-token")
+	for _, tc := range []struct {
+		value string
+		want  bool
+	}{{"", true}, {"true", true}, {"false", false}} {
+		t.Setenv("HUB_OUTBOX_FREELIST_REBUILD_ENABLED", tc.value)
+		cfg, err := Load("")
+		if err != nil || cfg.HubOutboxFreelistRebuildEnabled != tc.want {
+			t.Fatalf("value=%q err=%v", tc.value, err)
+		}
+	}
+}

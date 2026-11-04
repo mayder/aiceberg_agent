@@ -1,3 +1,7 @@
+## Freelist reconstruível e normalização por rota — 04/11/2026
+
+Reteste com race: go test -race ./internal/data/local/outbox ./internal/domain/usecase ./internal/bootstrap ./internal/common/config -run 'TestBolt|TestMetricsBypass|TestRawLogsStill|TestFlushOutbox|TestHub|TestLoadHub|TestAsyncHub' -count=1. Cobre commit bloqueado, falha/capacidade concorrente, kill/reabertura por construtor anterior, upgrade/rollback, fsync ativo, opt-outs por modo e independentes, tamanho/codificação de request e logs oversized. Benchmarks macOS/Linux e limites em docs/evidence/hub-freelist-and-normalization-local-20261104.md. Não apaga dados produtivos; não equivale a falha física de energia/disco. ./check.sh no fechamento do lote e assinatura dos cinco pacotes são gates locais; publicação/piloto exigem autorização própria.
+
 # TESTES.md
 
 ## Agrupamento durável da outbox do HUB — 04/11/2026

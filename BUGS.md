@@ -2,7 +2,7 @@
 
 ## BUG-20261104-02 — amplificação de escrita da outbox do HUB
 
-P1, armazenamento local. HUB84 apresentou 39,4 MB/s entre snapshots do mesmo processo e atraso variável. Gravação/ACK por transação e freelist fragmentada amplificam I/O em fixture; CPU integral do HUB ainda não tem causa única confirmada. Candidato 0.8.63 agrupa gravações concorrentes por até 5 ms/64 callbacks, preservando commit durável e validação transacional de capacidade. Testes race, falha concorrente, processo encerrado e benchmark real do store aprovados. Publicação/piloto pendentes; não declarado resolvido em produção. Evidência: docs/evidence/hub-durable-write-batching-local-20261104.md.
+P1, armazenamento local. HUB84 apresentou 39,4 MB/s entre snapshots do mesmo processo e atraso variável. Gravação/ACK por transação e freelist fragmentada amplificam I/O em fixture; CPU integral do HUB ainda não tem causa única confirmada. Candidato 0.8.63 agrupa gravações concorrentes por até 5 ms/64 callbacks, preservando commit durável e validação transacional de capacidade. Testes race, falha concorrente, processo encerrado e benchmark real do store aprovados. 0.8.63 publicada e confirmada somente no HUB84 às18:24 de04/11; I/O32,83→26,67MB/s (~19%) no recorte comparável, CPU do processo ainda~52%. Observabilidade OFF/config50 confirmada. Não declarado resolvido em produção. Candidato0.8.64 evita regravar freelist e serializar métricas no normalizador exclusivo de logs; ver docs/evidence/hub-freelist-and-normalization-local-20261104.md. Evidência: docs/evidence/hub-durable-write-batching-local-20261104.md.
 
 
 ## BUG-20261104-01 — configuração aplicada pelo ingest sem confirmação ao portal

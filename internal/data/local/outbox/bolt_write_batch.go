@@ -13,6 +13,9 @@ const (
 // BoltOptions changes write scheduling, never the durability of a successful call.
 type BoltOptions struct {
 	BatchWrites bool
+	// RebuildFreelist omits only the reconstructible free-page index. Data and
+	// metadata still fsync on every successful transaction. Reopen scans pages.
+	RebuildFreelist bool
 }
 
 // Batch callbacks only change their transaction: bbolt can retry them after a

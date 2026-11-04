@@ -421,7 +421,7 @@ inválida, histórico central ou confirmação v41. Ver docs/evidence/hub-outbox
 - [x] Agrupar Push/ACK com persistência durável, limite transacional e opt-out somente HUB.
 - [x] Testar race, falha concorrente, perda do processo, reabertura legada e HTTP de 64 relays.
 - [x] Medir benchmark do store real e registrar limites de conclusão.
-- [ ] Publicar por autorização específica e validar consumo/atraso somente no HUB84.
+- [x] Publicar0.8.63 por autorização específica e confirmar somente HUB84; I/O caiu~19%, CPU ainda elevada; não encerra consumo.
 
 Candidato local; CPU integral ainda sem profiler produtivo. Não fecha PKG-33/134, não modifica histórico, credenciais ou retenção. Evidência: docs/evidence/hub-durable-write-batching-local-20261104.md.
 
@@ -762,3 +762,15 @@ Rollback: pacote anterior assinado, política de despacho Web vazia e configura�
 Riscos remanescentes de apply (bloqueio do binário, EDR/antivírus, políticas de sistema)
 continuam explícitos; pré-verificação não substitui confirmação pós-reinício. Runtime/GOS
 não são alterados nesta entrega.
+
+### Redução adicional de CPU/I/O — candidato0.8.64, PKG-33
+
+- [x] Medir escrita sustentada em0.8.63 e confirmar aplicação/OFF no piloto autorizado.
+- [x] Reproduzir custo da freelist em chegadas espaçadas no BoltStore real, inclusive Linux.
+- [x] Omitir somente freelist reconstruível no HUB, com fsync de dados/meta e opt-out independente.
+- [x] Evitar serialização de métricas no normalizador exclusivo de logs, preservando limite de envio.
+- [x] Testar upgrade, kill, reabertura legada, isolamento por modo, opt-out e regressões com race.
+- [x] Consolidar review/check e candidato assinado0.8.64; cinco pacotes/hashes/Ed25519 verificados.
+- [ ] Autorizar novo push/publicação e piloto somente HUB84; validar recursos, fila, atraso e recuperação.
+
+Nenhuma limpeza, replay ou mudança de credencial. CPU integral do HUB ainda não comprovada por profiler instalado. Ver docs/evidence/hub-freelist-and-normalization-local-20261104.md.

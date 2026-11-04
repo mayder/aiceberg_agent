@@ -19,11 +19,14 @@ func (uc *FlushOutbox) normalizeOversizedLogEnvelopes(batch []entities.Envelope)
 	replacer, ok := uc.outbox.(ports.OutboxEnvelopeReplacer)
 	normalized := 0
 	for _, envelope := range batch {
+		if strings.TrimSpace(envelope.Endpoint) != rawLogsEndpoint {
+			continue
+		}
 		oversized, err := envelopeExceedsRequestLimit(envelope, uc.maxBatchBytes)
 		if err != nil {
 			return normalized, err
 		}
-		if !oversized || strings.TrimSpace(envelope.Endpoint) != rawLogsEndpoint {
+		if !oversized {
 			continue
 		}
 		if !ok {

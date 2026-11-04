@@ -17,7 +17,7 @@ import (
 func batchFixture(t *testing.T, maxMB int) (*BoltStore, string) {
 	t.Helper()
 	path := t.TempDir() + "/synthetic.db"
-	s, err := NewBoltStoreWithOptions(path, maxMB, BoltOptions{BatchWrites: true})
+	s, err := NewBoltStoreWithOptions(path, maxMB, BoltOptions{BatchWrites: true, RebuildFreelist: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestBoltBatchCrashHelper(t *testing.T) {
 	if path == "" {
 		t.Skip("subprocess-only synthetic writer")
 	}
-	s, err := NewBoltStoreWithOptions(path, 2, BoltOptions{BatchWrites: true})
+	s, err := NewBoltStoreWithOptions(path, 2, BoltOptions{BatchWrites: true, RebuildFreelist: os.Getenv("AICEBERG_BOLT_REBUILD_FREELIST") == "1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,10 +136,10 @@ func TestBoltBatchCrashHelper(t *testing.T) {
 	time.Sleep(time.Minute)
 }
 
-func killCommittedBatchWriter(t *testing.T, path string) {
+func killCommittedBatchWriter(t *testing.T, path string, extraEnv ...string) {
 	t.Helper()
 	cmd := exec.Command(os.Args[0], "-test.run=^TestBoltBatchCrashHelper$")
-	cmd.Env = append(os.Environ(), "AICEBERG_BOLT_CRASH_PATH="+path)
+	cmd.Env = append(append(os.Environ(), "AICEBERG_BOLT_CRASH_PATH="+path), extraEnv...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)

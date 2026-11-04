@@ -37,3 +37,23 @@ func TestHubOutboxBatchWritesStayWithinHubScopeAndAllowRollback(t *testing.T) {
 		t.Fatal("opt-out ignored")
 	}
 }
+
+func TestHubFreelistRebuildIsScopedAndAllowsOptOut(t *testing.T) {
+	for _, mode := range []string{"hub", "direct", "relay"} {
+		cfg := config.Config{AgentMode: mode, HubOutboxFreelistRebuildEnabled: true}
+		if hubOutboxStorageOptions(cfg).RebuildFreelist != (mode == "hub") {
+			t.Fatal("scope changed")
+		}
+	}
+	if hubOutboxStorageOptions(config.Config{AgentMode: "hub"}).RebuildFreelist {
+		t.Fatal("opt-out ignored")
+	}
+}
+
+func TestHubFreelistRebuildDoesNotDependOnWriteBatching(t *testing.T) {
+	cfg := config.Config{AgentMode: "hub", HubOutboxFreelistRebuildEnabled: true}
+	opts := hubOutboxStorageOptions(cfg)
+	if !opts.RebuildFreelist || opts.BatchWrites {
+		t.Fatal("independent opt-outs changed")
+	}
+}
