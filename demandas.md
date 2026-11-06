@@ -6,6 +6,8 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 ## Organização por pacotes entregáveis
 
+- `PKG-134` Diagnóstico local e controle de falhas de configuração (Agent/Web)
+
 - `PKG-32` Canal operacional bidirecional com agentes
 - `PKG-33` Flush resiliente e backpressure para HUB/Relay
 - `PKG-73` Agente/SOC — taxonomia canônica de origem, campos SOC e roteamento seguro para PKG-54
@@ -19,6 +21,131 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 - `PKG-117` Discovery local, autorregistro e protótipos
 - `PKG-120` HUB resiliente — assignment, failover e capacidade
 - `PKG-121` SDK de extensões seguras e teste pré-ativação
+
+---
+
+## [PKG-134] Agente/Web — diagnóstico local e controle de falhas de configuração
+
+**Status — implementação parcial, reconciliada em 06/11/2026.** Prioridade P0 na
+frente de configuração. Plano principal no Agent; Web complementa L04 e participa
+de L01/L05. O usuário autorizou reconciliar a documentação na main, preservando o
+planejamento do pacote já preparado, sem implementar, publicar ou fazer push.
+Decisão: `DEC-20261106-01`. Publicação, homologação e piloto ficam separados.
+
+### Base existente e evidência da lacuna
+
+- [x] ConfigSync tem backoff para transporte/HTTP/leitura e preserva a validação de
+  segurança da configuração. Reutilizar esse mecanismo, sem implementar outro.
+- [x] config-report legado entrega status/message/config_version/config_hash;
+  Web já persiste/apresenta resultado e mantém autenticação/isolamento/auditoria.
+- [x] Contenção de notificações repetidas foi entregue separadamente no Web
+  (371cc0d0 e correções posteriores de concorrência). Não reconstruir a política
+  central nem confundir supressão de envio com controle da tentativa no agente.
+- [x] Store de prefs, infraestrutura de transporte e mecanismos de update existem;
+  não incluir novos coletores, self-update ou engine de alertas neste pacote.
+
+Lacuna inspecionada: ConfigSync.Execute retorna erro de
+ApplyConfigPayloadWithSecurity após reportar apply_failed sem chamar recordFailure.
+A falha de aplicação não recebe a espera usada nas outras falhas. O relato atual
+não inclui identidade estável da condição, contagem/estado agregado ou próximo
+retry. Incidente289 (`mkdir data: file exists`) é evidência histórica; a causa
+física no host não está comprovada. Não diagnosticar arquivo/permissão/disco só
+pelo texto, nem corrigir o host como parte desta reconciliação.
+
+### Implementação realmente pendente
+
+**L01 — Diagnóstico determinístico e contrato aditivo**
+
+- [ ] Reproduzir falhas locais com fixtures controladas e definir códigos/causa
+  transitória ou persistente, ação segura e evidência sanitizada para pasta válida,
+  arquivo conflitante, permissão, disco cheio, filesystem somente leitura e corrida;
+  erro desconhecido permanece desconhecido. Especificar fingerprint estável por
+  agente/operação/configuração/causa, excluindo timestamps/segredos/dados voláteis.
+- [ ] Definir metadados versionados e limitados de causa/ação, first_seen/last_seen,
+  contagem, tentativa, próximo retry e recuperação, preservando campos legados.
+  Mapear produtor, HUB/Relay, API-006 e fallback PHP e qualificar ownership real.
+  Definir teto do estado antes da persistência; nenhuma nova migração implícita.
+
+**L02 — Corrigir espera e aplicação segura**
+
+- [ ] Conectar o controle de espera existente à falha de persistência/aplicação,
+  separando tentativa de aplicar de tentativa de entregar seu relatório. Reutilizar
+  jitter/teto para transitórios; limitar reavaliação da mesma causa persistente.
+  Configuração/causa nova e recuperação não podem ficar bloqueadas indevidamente;
+  preservar última configuração válida, integridade/assinatura e canal de controle.
+- [ ] Qualificar caminho absoluto/configurado e tratamento seguro de tipo/permissão
+  e criação concorrente, reutilizando store/aplicação existentes. Criar somente
+  diretório ausente permitido; não apagar/renomear/sobrescrever conflito, seguir
+  symlink inesperado, elevar privilégio ou mudar permissões automaticamente.
+
+**L03 — Relatos por mudança/resumo e recuperação**
+
+- [ ] Emitir primeira falha, mudança material e recuperação; suprimir relato igual
+  a cada ciclo. Resumo no máximo uma vez por 30min/fingerprint, com contagem,
+  mantendo política de notificação/destinatários/deduplicação no servidor.
+- [ ] Manter estado mínimo, limitado e recuperável usando infraestrutura existente,
+  com retenção de 30 dias para resolvidos e teto definido em L01, sem depender só
+  do diretório que falhou. Se indisponível, usar memória limitada e indicar perda
+  de durabilidade. Proteger reboot/crash/timeout de ACK/reentrega sem novo incidente
+  artificial; acrescentar métricas de tentativas/supressão/bytes/duração sem alta
+  cardinalidade, segredo ou caminho pessoal bruto.
+
+**L04 — Complemento Web e consumidores efetivos**
+
+- [ ] Integrar metadados aditivos nas estruturas/superfícies existentes do Web com
+  limites, causa/ação, repetição/recuperação e próximo retry; preservar legado,
+  tenant e proteção central. Resumo sem mudança não renotifica; recuperação de
+  configuração não implica coleta saudável nem encerra outra condição.
+- [ ] Qualificar preservação por HUB/Relay/API-006/fallback PHP. Adaptar somente
+  consumidor efetivo que perca/rejeite dados necessários, antes do rollout do
+  produtor; registrar dependência no Runtime se comprovada. Não criar outro motor
+  ou declarar mudança de ownership por este planejamento.
+
+**L05 — Integração, testes e consolidação técnica**
+
+- [ ] Testar relógio/rede/filesystem controlados: primeira falha, 1000 ciclos iguais
+  sem novo relato antes da janela, resumo único, mudança de causa/configuração,
+  recuperação, reinício, estado não gravável, reentrega/concorrência/clock skew e
+  retorno de versão. Cobrir Windows/Linux e demais SO afetados; agentes antigos/
+  novos e Web antigo/novo, HUB/Relay e consumidores. Sem host real como fixture.
+- [ ] Revisar escopo/SOLID/contratos/rollback/retenção, atualizar manuais/testes/
+  runbooks e TELAS se aplicável; rodar validação focada por lote e checks completos
+  dos repositórios alterados ao100% de implementação, com commit por pacote.
+  Comparações locais reproduzíveis servem de baseline, não de ganho produtivo.
+
+### Publicação — gate separado
+
+Após implementação, validação e autorização, publicar consumidores compatíveis
+antes do agente quando necessário; gerar/assinar/publicar os compactados oficiais
+antes de solicitar update remoto. Registrar versões/commits/workflows, hashes e
+smokes, sem sobrescrever artefato nem atualizar frota por esta reconciliação.
+
+### Homologação — gate separado
+
+Comprovar contrato e fluxo integrado em ambiente controlado autorizado, versões
+antigas/novas, transporte direto/HUB/Relay, autenticação/tenant, estados/erros,
+repetição/recuperação e rollback. Separar saúde de configuração, agente e coleta.
+Registrar versões, SO, esperado/observado e evidências sanitizadas, sem criar
+falha destrutiva em host real nem presumir causa física no incidente289.
+
+### Piloto e medição operacional — gate separado
+
+Depois da homologação e publicação autorizadas, piloto limitado com agente real,
+observando condição/recuperação segura e proteção central preservada. Comparar
+mesmos ciclos/baseline antes/depois: tentativas/requisições/bytes, consultas/envios,
+tempo até diagnóstico/recuperação e CPU/RSS/disco. Registrar janela/amostra/versões,
+rollback e aceite humano; ganho percentual só após medição. Nenhum piloto ou reparo
+de host foi executado nesta tarefa. Conclusão do código não depende de declarar
+um ganho operacional ainda não medido.
+
+### Limites e rollback
+
+Sem IA, shell arbitrário, engine de alertas na borda, novo schema SQL ou expansão
+para falhas gerais/coletores/self-update. Rollback funcional futuro: versão assinada
+anterior e capability/política quando disponível, preservando configuração/outbox/
+estado e defesa central. Não limpar arquivos/filas nem descartar histórico.
+Reconciliação documental apenas; pacote permanece parcial. Reverter o commit
+documental para desfazer o planejamento, sem alterar implementação existente.
 
 ---
 

@@ -52,6 +52,45 @@ Referências:
 
 ## Decisões
 
+### DEC-20261106-01 - Reconciliar PKG-134 e separar entrega operacional
+
+- Status: aceita para planejamento; reconciliação na main autorizada pelo usuário.
+- Decisão: preservar backoff/transporte/config-report/store e contenção central
+  existentes; manter L01 diagnóstico/contrato, L02 espera/aplicação segura,
+  L03 relatos/estado, L04 complemento Web/consumidores efetivos e L05 testes/docs.
+- Evidência: erro de aplicação em ConfigSync retorna após apply_failed sem chamar
+  recordFailure; backoff de transporte não comprova controle dessa falha. Contenção
+  de notificação no Web não equivale a correção do host ou redução de relatos.
+- Fronteiras: agente controla tentativa/diagnóstico; servidor conserva política,
+  isolamento, história e deduplicação. Reusar consumidores; Runtime só muda se a
+  compatibilidade/ownership efetivos exigirem, sem migração antecipada de API-006.
+- Gates separados: publicação de consumidores/agente assinado, homologação de
+  compatibilidade/recuperação e piloto real com baseline/medição/aceite humano.
+  Nenhum ganho produtivo ou causa física do host289 é presumido.
+- Impacto: documentação somente; não autoriza implementação, SQL, chamada remota,
+  reparo de host, rollout ou push. Preservar decisão anterior do mesmo pacote.
+- Rollback: reverter a reconciliação documental preservando código/config/outbox,
+  contenção central e histórico. Pacote continua com implementação pendente.
+- Referências: demandas.md PKG-134; aiceberg_web/DEMANDAS.md PKG-134.
+
+### DEC-20261030-01 - Diagnóstico de configuração na borda com proteção central
+
+- Status: aceita para o planejamento do PKG-134; implementação pendente.
+- Contexto: falhas locais de configuração repetidas ampliaram o incidente289.
+- Decisão: Agent identifica causa local, controla tentativas e agrega relatos;
+  Web conserva política de notificação, segurança e deduplicação. Complementa
+  DEC-20260929-02: regra global/escalada não migra para o agente.
+- Contrato: evolução aditiva do config-report, com qualificação de HUB/Relay,
+  API-006 e fallback PHP. Runtime só recebe adaptação no consumidor existente
+  se o contrato efetivo exigir; não antecipar migração nem criar outro motor.
+- Alternativas: enviar toda tentativa ao servidor ou transferir toda decisão ao
+  agente; rejeitadas por custo e divergência de políticas, respectivamente.
+- Testes: ciclo de falha/mudança/recuperação, restart, estado não gravável,
+  limites de recursos, Windows/Linux e compatibilidade entre versões.
+- Rollback: agente anterior assinado com defesa central preservada, sem apagar
+  dados/outbox/arquivos conflitantes. Reversão de boundary exige decisão nova.
+- Referências: DEMANDAS.md PKG-134; aiceberg_web/DEMANDAS.md PKG-134.
+
 ### DEC-20260929-02 - Agent coleta na borda e o Runtime decide no servidor
 
 - Status: aceita
