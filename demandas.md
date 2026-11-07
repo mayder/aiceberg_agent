@@ -8,6 +8,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 - `PKG-134` Diagnóstico local e controle de falhas de configuração (Agent/Web)
 
+- `PKG-49` Entrega rápida Agentless (implementação100%; publicação/homologação/SLA separados)
 - `PKG-32` Canal operacional bidirecional com agentes
 - `PKG-33` Flush resiliente e backpressure para HUB/Relay
 - `PKG-73` Agente/SOC — taxonomia canônica de origem, campos SOC e roteamento seguro para PKG-54
@@ -916,3 +917,33 @@ Nenhuma limpeza, replay ou mudança de credencial. CPU integral do HUB ainda nã
 - [ ] Medir saltos/CPU por janela e comprovar redução de picos antes de encerrar.
 
 Preservar histórico, filas,27confirmações incertas e credencial de origem. Não fecha PKG-33/134. Evidência: docs/evidence/hub-cpu-relay-arrival-local-20261104.md.
+
+
+## [PKG-49] Entrega rápida Agentless — delta coordenado Agent/Web
+
+**Implementação100% — 06/11/2026.** Escopo principal e gates externos no
+`aiceberg_web/DEMANDAS.md`, PKG-49. Usuário autorizou implementar/commitar na main
+deste repositório em06/11, sem push/publicação. Não altera autorização de outros pacotes.
+
+- [x] L08: `delivery_timing/agentless_delivery_v1` com RFC3339 UTC por tentativa,
+  coleta original/IDs/dedupe preservados. Consumidor Web distingue medição local,
+  estimativa entre relógios e conclusão do save antes do commit.
+- [x] L09: política opt-in `AGENTLESS_DELIVERY_PRIORITY=false`, seleção justa de
+  cabeças por check/segmento/coleta em memória/Bolt, sem mudar schema do arquivo.
+  Três slots rápidos recentes/um mais antigo, sem ultrapassar parcial/final.
+- [x] Recusa de payload/resultado parcial isolada apenas com dedupe, com todos os
+  splits dentro das oito tentativas existentes. ACK vazio/inválido/divergente não
+  remove dados; falha global/auth/rate limit/transporte mantém interrupção/cadência.
+- [x] L10: HTTP/Bolt reais controlados, reinício, memória/Bolt equivalentes,
+  prioridade/justiça/ordem/legado, cancelamento, resposta parcial e rollback por
+  flag. `-race`, gate `./check.sh`, revisão e commits próprios coordenados no Web.
+
+- [ ] Publicação de versão/artefatos assinados pela esteira autorizada; confirmar
+  versão/commit instalado no HUB alvo e Web compatível.
+- [ ] Homologação de baseline/depois, relógios, carga, backlog, retry/falhas/tela e
+  rollback sem excluir registros.
+- [ ] Comprovar metrics_fast em1–2min após coleta com janela/amostra reais e
+  resultado do atraso histórico. Não há prova produtiva neste ciclo.
+
+Evidência: `docs/evidence/pkg49-local-20261106.md`. Sem novo coletor, scheduler,
+fila, tuning em frota, acesso remoto, push, limpeza ou descarte de backlog.

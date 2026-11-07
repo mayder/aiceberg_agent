@@ -898,3 +898,44 @@ Validação portátil dos bloqueios antes de qualquer alteração no host:
 Cobre serviço/binário divergente, versão não aprovada, checksum divergente e pacote
 sem os scripts oficiais. AST PowerShell validado; prova de serviço/ACL/apply depende
 do piloto Windows real, não é substituída por esses testes negativos locais.
+
+
+## Entrega Agentless por segmento — PKG-49
+
+Implementação local; sem ativação/publicação. `AGENTLESS_DELIVERY_PRIORITY=false`
+é padrão. Habilitar true somente em HUB autorizado depois de publicar Agent/Web
+compatíveis e confirmar versão instalada; requer configuração local e reinício
+pelos procedimentos existentes. False restaura seleção antiga no mesmo Bolt,
+sem exclusão, transformação ou reconstrução de backlog. Não alterar frequência,
+limites/backpressure ou apagar pendências para obter SLA artificial.
+
+Fila opt-in: uma cabeça por check/segmento/coleta, três slots fast recente/um head antigo
+incluindo lentos. Até oito requisições por ciclo, incluindo splits. Erro de payload
+pode ser isolado só com dedupe; stream recusado bloqueia seus finais e permanece
+pendente. Erros globais, auth,429,rede,timeout e confirmação ambígua param o ciclo;
+retomada usa a cadência existente. Verificar logs seguros
+`agentless delivery deferred/acknowledged` e diagnóstico Web por segmento.
+
+Contrato `delivery_timing.version=agentless_delivery_v1`: UTC RFC3339 por origem.
+Fim da coleta é imutável; início de envio é da tentativa atual. Espera desde fim
+inclui tentativas anteriores. Web mede entrada da action e save antes de commit,
+sem fingir gravação completa/tempo da tela. Estimativas entre relógios ficam
+separadas de etapas locais até aferir offset; conferir janela/carga antes/depois.
+
+Reteste: `go test -race ./internal/data/local/agentless ./internal/data/remote ./internal/domain/usecase ./internal/common/config -run 'TestAgentless|TestDelivery|TestLoadAgentlessDelivery' -count=1`.
+Gate de fechamento: `./check.sh`. Benchmark opcional:
+`go test ./internal/data/local/agentless -run '^$' -bench BenchmarkDeliverySelection -benchtime=3x`.
+Não é capacidade/SLA do HUB real. Evidência local em docs/evidence/pkg49-local-20261106.md.
+Publicação, ativação, relógios, homologação de erro/retry/rollback e comprovação de
+metrics_fast em1–2min são gates separados. Preservar backlog/observações em todos.
+
+Compatibilidade de ACK: em parcial, failure_class=payload permite isolamento
+com dedupe; service ou classe ausente interrompe o ciclo. Atualizar Web antes
+de ativar a prioridade nova. Consumidor antigo ignora o campo aditivo.
+
+Coletas recentes podem passar backlog antigo, preservando partes/final de cada
+coleta. Web revalida projeção sob lock e não regride estado/threshold/binding;
+observações seguem retenção atual. Timestamp futuro acima de1800s da recepção
+permanece na observação, mas não atualiza a projeção. Corrigir relógios só após
+diagnóstico. Rollback por flag é preferencial; não reintroduzir ACK total de
+resposta200parcial ao planejar rollback de binário/código.

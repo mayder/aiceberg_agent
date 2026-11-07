@@ -614,3 +614,51 @@ Somente HUB usa a opção existente NoFreelistSync do bbolt1.3.7 para não regra
 HUB_OUTBOX_RAW_BODY_ENABLED controla somenteHUB: valida JSON/routing e conserva Body como RawMessage com bytes próprios na recepção/Bolt/forwarding. Não mudar formato do arquivo, ACK, identidade, autenticação ou limites HTTP. RELAY_OUTBOX_ASYNC_ENABLED controla somenteRelay e reutiliza o worker único sinalizado após persistência; aplicação de configuração própria continua no loop principal. Direct permanece síncrono; coalescência, timeout, cooldown e pruning na cadência normal permanecem. Retomada curta só com progresso/lote cheio. Não criar outra thread por frame.
 
 O HUB sobrescreve meta.hub_received_at_unix_ms com relógio local depois do parse e antes da persistência, preservando ts_unix_ms original. Serve para diagnóstico do salto, não autenticação ou ordenação; um retry marca a nova recepção. O campo é preservado no raw_json já existente e segue sua retenção, sem tabela/log novo. cpu_time_sec adiciona contador de CPU para deltas do mesmoPID; não redefinir cpu_percent médio de vida. Rollback por flags/reinício autorizado ou pacotes anteriores; manter filas. Piloto em duas etapas:HUB84 comRelay124 antigo para medir o salto; depois somenteRelay124. Ganho local não comprova origem dos49s nem SLA produtivo.
+
+
+### DEC-20261106-02 — Entrega Agentless sem reconstruir outbox
+
+PKG-49: política de domínio isolada em entities/agentless_delivery, adaptada pelo
+repository/ports opcionais aos stores memória/Bolt; flush continua único sob lock.
+Ler uma cabeça por check/segmento/coleta para não ultrapassar partes/final; três posições
+privilegiam fast recente, a quarta serve o mais antigo. Ordenar coleções por início
+conhecido/observação e partes por sequência quando comparáveis. Registros legados
+sem início continuam elegíveis pela data/ID, sem reconstrução histórica. Seleção
+Bolt projeta só metadados no scan limitado pela capacidade configurada e lê payload
+só dos escolhidos; duas ordenações, sem sort repetido por posição nem índice novo.
+
+Opt-in local AGENTLESS_DELIVERY_PRIORITY=false por padrão. Adapter desconhecido
+recusa opt-in em vez de fingir prioridade; flag false restaura o caminho existente.
+O mesmo limite de oito tentativas cobre splits: somente recusa de payload e todos
+os itens com dedupe permitem bisseção; stream rejeitado permanece pendente e não
+libera final. Resposta200 parcial ou saved divergente não permite ACK total.
+Status=ok legado permanece compatível; corpo vazio/malformado é ambíguo e retém
+lote. Auth/rate limit/falha geral/rede/timeout interrompem ciclo sem contornar
+cadência/backpressure. Sem corpo de resposta em erro. ACK só após confirmação;
+erro no ACK também para. Não apagar, compactar, descartar ou converter registros.
+
+Contrato por tentativa `delivery_timing/agentless_delivery_v1`, timestamps RFC3339
+UTC. Marcar envio sem mutar payload/observação persistidos; retry preserva coleta,
+IDs e dedupe. Web descarta marcos de servidor forjados e mede save antes de commit,
+com etapas locais separadas das estimativas HUB/Web (offset não aferido). Sem
+parsers legados globais, alteração de outros produtores ou comprovação automática
+de120s. Logs existentes com rotação/retenção atuais; sem nova estrutura persistida.
+
+Risco: scan cresce com backlog; benchmark sintético qualifica custo local, não SLA
+ou capacidade instalada. Ativação gradual após publicar Web/agente compatíveis e
+medir no HUB autorizado. Rollback por false e reversão coordenada de commits,
+sem perda de backlog. Homologação e comprovação do SLA ficam independentes.
+
+O resultado parcial inclui failure_class: payload permite isolamento, service
+interrompe o ciclo. Consumidor novo trata parcial sem classe (Web legado) como
+indeterminada e para; não deduz classe a partir de mensagens livres de erro.
+
+Prioridade entre coletas exige proteger a projeção Web: lock atual do check
+por id/cliente/ativo dentro da transação, refresh dos counters e comparação
+do fim em UTC com micros. Observação antiga continua sujeita à retenção já
+existente, mas não regride estado/binding/threshold nem perfil vendor. Falta de
+marco ou origem mais de1800s à frente da recepção não fixa estado futuro; manter
+a data original na observação. O limite é o mesmo do guard legado, aplicado
+sem corrigir horário por hipótese. Registros sem identidade de coleta no agente
+continuam conservadoramente agrupados por check/segmento. Rollback preferencial
+é a flag; reversão de código deve preservar a correção de ACK200parcial.

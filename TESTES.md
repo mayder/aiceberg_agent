@@ -752,3 +752,19 @@ arquivos temporários; launchd e resposta health são substituídos, sem instala
 `bash -n` e testes entram no gate raiz; plist é validado com plutil em Darwin.
 Piloto real, instalação em root, assinatura dos novos artefatos e confirmação remota
 permanecem gates separados. Nenhuma assinatura oficial é usada nos fixtures.
+
+
+## Entrega rápida Agentless — PKG-49 (06/11/2026)
+
+`go test -race ./internal/data/local/agentless ./internal/data/remote ./internal/domain/usecase ./internal/common/config -run 'TestAgentless|TestDelivery|TestLoadAgentlessDelivery' -count=1`:
+20testes/13subcasos PASS. HTTP/Bolt reais locais: paridade/reinício, uma cabeça por
+coleta, sequência/final, fast recente sem bloquear todos os antigos, justiça para
+lentos, isolamento limitado de payload com dedupe, parcial/legado sem classe
+interrompe,401/429/5xx/ACK vazio/malformado, cancelamento ativo e flag opt-in/rollback.
+Web protege projeção sob lock contra backlog velho e clock futuro sem reescrever
+observações, com concorrência real verificada em MySQL. Não é homologação do HUB.
+
+Benchmark Bolt sintético:1000streams mistos/1KiB lógico, seleção100,3iterações,
+Mac ARM64:11,54ms/seleção. Não comprova p95/capacidade/SLA instalado. Gate final
+`./check.sh`; cross-build/artefatos assinados, publicação, ativação e prova dos120s
+permanecem nos gates posteriores. Evidência em docs/evidence/pkg49-local-20261106.md.

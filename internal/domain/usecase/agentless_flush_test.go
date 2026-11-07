@@ -18,7 +18,13 @@ func TestAgentlessFlushDrainsBoundedBatchesAndPreservesUnsentData(t *testing.T) 
 	for _, status := range []int{http.StatusOK, http.StatusServiceUnavailable} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			calls := 0
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; w.WriteHeader(status) }))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				w.WriteHeader(status)
+				if status == http.StatusOK {
+					fmt.Fprint(w, `{"status":"ok"}`)
+				}
+			}))
 			defer server.Close()
 			store := local.NewMemStore()
 			for i := 0; i < 20; i++ {

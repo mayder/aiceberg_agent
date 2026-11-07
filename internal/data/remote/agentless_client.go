@@ -97,17 +97,19 @@ func (c *AgentlessHubClient) SendObservations(ctx context.Context, list []entiti
 	if len(list) == 0 {
 		return nil
 	}
+	sendStarted := time.Now().UTC().Format(time.RFC3339Nano)
 	payload := make(map[string]any)
 	obs := make([]map[string]any, 0, len(list))
 	for _, o := range list {
 		item := map[string]any{
-			"check_id":     o.CheckID,
-			"status":       o.Status,
-			"latency_ms":   o.LatencyMs,
-			"code":         o.Code,
-			"message":      o.Message,
-			"payload_json": o.Payload,
-			"observed_at":  o.ObservedAt.Format("2006-01-02 15:04:05"),
+			"delivery_timing": map[string]any{"version": "agentless_delivery_v1", "hub_send_started_at": sendStarted, "segment_finished_at": o.ObservedAt.UTC().Format(time.RFC3339Nano)},
+			"check_id":        o.CheckID,
+			"status":          o.Status,
+			"latency_ms":      o.LatencyMs,
+			"code":            o.Code,
+			"message":         o.Message,
+			"payload_json":    o.Payload,
+			"observed_at":     o.ObservedAt.Format("2006-01-02 15:04:05"),
 		}
 		if o.CollectionKind != "" {
 			item["snmp_collection_kind"] = o.CollectionKind
@@ -129,6 +131,7 @@ func (c *AgentlessHubClient) SendObservations(ctx context.Context, list []entiti
 		}
 		if o.SegmentStartedAt != nil && !o.SegmentStartedAt.IsZero() {
 			item["segment_started_at"] = o.SegmentStartedAt.Format("2006-01-02 15:04:05")
+			item["delivery_timing"].(map[string]any)["collection_started_at"] = o.SegmentStartedAt.UTC().Format(time.RFC3339Nano)
 		}
 		if o.DedupeKey != "" {
 			item["dedupe_key"] = o.DedupeKey
@@ -139,7 +142,10 @@ func (c *AgentlessHubClient) SendObservations(ctx context.Context, list []entiti
 		obs = append(obs, item)
 	}
 	payload["observations"] = obs
-	raw, _ := json.Marshal(payload)
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return &AgentlessDeliveryError{PayloadRejected: true}
+	}
 
 	url := c.cfg.APIEndpoint("/v1/hub-agentless/observations")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
@@ -154,8 +160,19 @@ func (c *AgentlessHubClient) SendObservations(ctx context.Context, list []entiti
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		return fmt.Errorf("observations http %s body=%s", resp.Status, string(body))
+		return &AgentlessDeliveryError{HTTPStatus: resp.StatusCode, PayloadRejected: resp.StatusCode == 400 || resp.StatusCode == 413 || resp.StatusCode == 422}
+	}
+	var ack struct {
+		Status       string `json:"status"`
+		Saved        *int   `json:"saved"`
+		Failed       int    `json:"failed"`
+		FailureClass string `json:"failure_class"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&ack); err != nil {
+		return fmt.Errorf("agentless acknowledgement unavailable")
+	}
+	if ack.Status != "ok" || ack.Failed != 0 || (ack.Saved != nil && *ack.Saved != len(list)) {
+		return &AgentlessDeliveryError{PayloadRejected: ack.Failed > 0 && ack.FailureClass == "payload"}
 	}
 	return nil
 }

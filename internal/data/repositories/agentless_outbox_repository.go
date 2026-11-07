@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"errors"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
@@ -31,3 +32,12 @@ func (r *agentlessOutboxRepo) Ack(ids []string) error {
 }
 
 func (r *agentlessOutboxRepo) Len() (int, int64) { return r.store.Len() }
+
+func (r *agentlessOutboxRepo) ReadDeliveryBatch(n int, ordinal uint64, excluded map[string]bool) ([]entities.AgentlessObservation, error) {
+	if reader, ok := r.store.(interface {
+		PeekDelivery(int, uint64, map[string]bool) ([]entities.AgentlessObservation, error)
+	}); ok {
+		return reader.PeekDelivery(n, ordinal, excluded)
+	}
+	return nil, errors.New("agentless priority selection unsupported by store")
+}

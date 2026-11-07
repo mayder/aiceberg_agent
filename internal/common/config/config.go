@@ -165,6 +165,7 @@ type Config struct {
 	AgentlessOutboxMaxMB               int
 	AgentlessJobsLimit                 int
 	AgentlessLockSec                   int
+	AgentlessDeliveryPriority          bool
 	AgentlessFlushBatch                int
 	AgentlessDebug                     bool
 	AutoUpdateEnabled                  bool
@@ -476,6 +477,7 @@ func Load(configPath string) (Config, error) {
 		AgentlessOutboxMaxMB:               intEnv("AGENTLESS_OUTBOX_MAX_MB", 50),
 		AgentlessJobsLimit:                 intEnv("AGENTLESS_JOBS_LIMIT", 50),
 		AgentlessLockSec:                   intEnv("AGENTLESS_LOCK_SEC", 60),
+		AgentlessDeliveryPriority:          boolEnv("AGENTLESS_DELIVERY_PRIORITY", false),
 		AgentlessFlushBatch:                intEnv("AGENTLESS_FLUSH_BATCH", 100),
 		AgentlessDebug:                     strings.ToLower(getenv("AGENTLESS_DEBUG", "")) == "true",
 		AutoUpdateEnabled:                  strings.ToLower(getenv("AUTO_UPDATE_ENABLED", "")) == "true",

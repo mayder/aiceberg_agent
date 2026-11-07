@@ -13,3 +13,9 @@ type AgentlessOutboxRepo interface {
 	Ack(ids []string) error
 	Len() (items int, bytes int64)
 }
+
+// AgentlessDeliveryReader optionally provides stream-safe, fair selection.
+// Excluded streams stay pending; reading never acknowledges or removes data.
+type AgentlessDeliveryReader interface {
+	ReadDeliveryBatch(n int, ordinal uint64, excluded map[string]bool) ([]entities.AgentlessObservation, error)
+}

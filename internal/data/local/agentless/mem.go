@@ -74,3 +74,9 @@ func (m *MemStore) Prune(maxAge time.Duration) int {
 	m.queue = keep
 	return removed
 }
+
+func (m *MemStore) PeekDelivery(n int, ordinal uint64, excluded map[string]bool) ([]entities.AgentlessObservation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return entities.SelectAgentlessDelivery(m.queue, n, ordinal, excluded), nil
+}

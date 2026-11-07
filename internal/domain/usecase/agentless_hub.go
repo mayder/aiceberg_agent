@@ -17,16 +17,17 @@ import (
 )
 
 type AgentlessHub struct {
-	cfg      config.Config
-	log      logger.Logger
-	client   *remote.AgentlessHubClient
-	outbox   ports.AgentlessOutboxRepo
-	settings func() AgentlessSettings
-	store    AgentlessTargetsStore
-	mu       sync.RWMutex
-	flushMu  sync.Mutex
-	runMu    sync.Mutex
-	targets  []entities.AgentlessJob
+	cfg             config.Config
+	log             logger.Logger
+	client          *remote.AgentlessHubClient
+	outbox          ports.AgentlessOutboxRepo
+	settings        func() AgentlessSettings
+	store           AgentlessTargetsStore
+	mu              sync.RWMutex
+	flushMu         sync.Mutex
+	deliveryOrdinal uint64
+	runMu           sync.Mutex
+	targets         []entities.AgentlessJob
 }
 
 type AgentlessSettings struct {

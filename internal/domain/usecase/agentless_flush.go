@@ -22,6 +22,9 @@ func (uc *AgentlessHub) flushBatchSize() int {
 func (uc *AgentlessHub) Flush(ctx context.Context) error {
 	uc.flushMu.Lock()
 	defer uc.flushMu.Unlock()
+	if uc.cfg.AgentlessDeliveryPriority {
+		return uc.flushPriority(ctx)
+	}
 	for i := 0; i < agentlessFlushBatches; i++ {
 		if err := ctx.Err(); err != nil {
 			return err

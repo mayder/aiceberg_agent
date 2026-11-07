@@ -182,3 +182,50 @@ func bucketStats(tx *bolt.Tx, bucket []byte) (count int, bytes int64) {
 	})
 	return count, bytes
 }
+
+// Project scheduling metadata only; decode payloads solely for selected heads.
+// The scan is bounded by the configured outbox capacity, without a new index/schema.
+func (b *BoltStore) PeekDelivery(n int, ordinal uint64, excluded map[string]bool) ([]entities.AgentlessObservation, error) {
+	var out []entities.AgentlessObservation
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bk := tx.Bucket(b.bucket)
+		var candidates []entities.AgentlessObservation
+		err := bk.ForEach(func(_, raw []byte) error {
+			var projected struct {
+				Obs struct {
+					ID               string     `json:"id"`
+					CheckID          int        `json:"check_id"`
+					CollectionKind   string     `json:"snmp_collection_kind"`
+					SegmentID        string     `json:"segment_id"`
+					SegmentSeq       int        `json:"segment_seq"`
+					IsFinal          bool       `json:"is_final"`
+					CorrelationID    string     `json:"correlation_id"`
+					ObservedAt       time.Time  `json:"observed_at"`
+					CreatedAt        time.Time  `json:"created_at"`
+					SegmentStartedAt *time.Time `json:"segment_started_at"`
+				} `json:"obs"`
+			}
+			if err := json.Unmarshal(raw, &projected); err != nil {
+				return err
+			}
+			o := projected.Obs
+			candidates = append(candidates, entities.AgentlessObservation{ID: o.ID, CheckID: o.CheckID,
+				CollectionKind: o.CollectionKind, SegmentID: o.SegmentID, SegmentSeq: o.SegmentSeq,
+				IsFinal: o.IsFinal, CorrelationID: o.CorrelationID, ObservedAt: o.ObservedAt,
+				CreatedAt: o.CreatedAt, SegmentStartedAt: o.SegmentStartedAt})
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		for _, head := range entities.SelectAgentlessDelivery(candidates, n, ordinal, excluded) {
+			var stored storedObservation
+			if err := json.Unmarshal(bk.Get([]byte(head.ID)), &stored); err != nil {
+				return err
+			}
+			out = append(out, stored.Obs)
+		}
+		return nil
+	})
+	return out, err
+}
