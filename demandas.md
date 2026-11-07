@@ -8,7 +8,7 @@ Backlog do agente desktop/serviço. Este arquivo complementa o backlog do `aiceb
 
 - `PKG-134` Diagnóstico local e controle de falhas de configuração (Agent/Web)
 
-- `PKG-49` Entrega rápida Agentless (implementação100%; publicação/homologação/SLA separados)
+- `PKG-49` Entrega rápida Agentless (implementação/publicação100%; ativação/homologação/SLA separados)
 - `PKG-32` Canal operacional bidirecional com agentes
 - `PKG-33` Flush resiliente e backpressure para HUB/Relay
 - `PKG-73` Agente/SOC — taxonomia canônica de origem, campos SOC e roteamento seguro para PKG-54
@@ -921,7 +921,7 @@ Preservar histórico, filas,27confirmações incertas e credencial de origem. N�
 
 ## [PKG-49] Entrega rápida Agentless — delta coordenado Agent/Web
 
-**Implementação100% — 06/11/2026.** Escopo principal e gates externos no
+**Implementação e publicação100% — 06/11/2026(local).** Escopo principal e gates externos no
 `aiceberg_web/DEMANDAS.md`, PKG-49. Usuário autorizou implementar/commitar na main
 deste repositório em06/11, sem push/publicação. Não altera autorização de outros pacotes.
 
@@ -938,12 +938,16 @@ deste repositório em06/11, sem push/publicação. Não altera autorização de 
   prioridade/justiça/ordem/legado, cancelamento, resposta parcial e rollback por
   flag. `-race`, gate `./check.sh`, revisão e commits próprios coordenados no Web.
 
-- [ ] Publicação de versão/artefatos assinados pela esteira autorizada; confirmar
-  versão/commit instalado no HUB alvo e Web compatível.
+- [x] Publicação:fonte076b0df limpa/sincronizada, versão0.8.66 assinada nas cinco
+  plataformas, sete hashes públicos/cinco Range206 e Webf0ce186e/success.
+  Registro em docs/evidence/pkg49-production-20261106.md.
+- [ ] Ativação:autorizar HUB alvo, atualizar/confirmar versão instalada e habilitar
+  prioridade gradualmente. Publicação no catálogo não equivale a instalação.
 - [ ] Homologação de baseline/depois, relógios, carga, backlog, retry/falhas/tela e
   rollback sem excluir registros.
 - [ ] Comprovar metrics_fast em1–2min após coleta com janela/amostra reais e
   resultado do atraso histórico. Não há prova produtiva neste ciclo.
 
 Evidência: `docs/evidence/pkg49-local-20261106.md`. Sem novo coletor, scheduler,
-fila, tuning em frota, acesso remoto, push, limpeza ou descarte de backlog.
+fila, tuning em frota, limpeza ou descarte. Push/distribuição autorizados nesta
+publicação; sem update/ativação de HUB/Relay. Homologação e SLA não comprovados.
