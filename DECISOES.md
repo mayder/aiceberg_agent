@@ -688,3 +688,33 @@ Runtime API-006 envia diagnostic ao PHP antes de efeitos Go; consumidor compatí
 precede produtor. Nenhum SQL/corte/ownership novo. Reversão deve preservar histórico,
 prefs/estado/outbox e compatibilidade de encaminhamento; sem exclusão de dados.
 Publicação, homologação e piloto continuam gates próprios não executados.
+
+## DEC-20261108-PKG134-BUILD-TRUST — toolchain e scanner do artefato final
+
+O build0.8.67 usou Go1.25.4 do ambiente, embora os testes passassem. Trivy
+rootfs do binário identificou componentes antigos (incluindo stdlib/x/net);
+um scan filesystem com zero alvos não comprova segurança de binário Go. Fixar
+Go1.26.10 e x/net0.62.0/requisitos mínimos e publicar0.8.68, sem substituir67.
+Scanner local oficial verificado por Cosign/SHA; exigir alvo gobinary reconhecido
+e zero HIGH/CRITICAL no artefato final antes de assinar/distribuir ao piloto.
+Não representa prova de exploração dos achados; nenhuma exceção/VEX adicionada.
+
+Lint1.62.2/Go1.25 não suporta o alvo novo. Usar golangci-lint2.10.1 (Go1.26
+suportado desde2.9; correção buildssa em2.10.1), path de módulo v2 e cache por
+versão da ferramenta/toolchain. Compilar o linter com o mesmo GOVERSION do
+projeto; preservar cache anterior e verificações padrão, sem skip de gate.
+Fonte:https://github.com/golangci/golangci-lint/blob/main/CHANGELOG.md.
+
+Rollback preserva os pacotes/backup/configuração/outbox e escolhe release
+assinada compatível; voltar a componentes sinalizados exige avaliação explícita
+de segurança e não é retorno preferencial. Não altera contrato/API/coletores.
+
+A configuração v2 foi gerada pelo migrate oficial a partir dos defaults v1: os
+presets/std-error-handling e exclusão de código gerado preservam a política
+anterior, não são exceções de CVE. Novos oito avisos de quickfix foram corrigidos
+por equivalências mecânicas (De Morgan, Fprint e switches), sem desabilitar QF.
+Revisar diff e testar updater, runtime snapshot, logger e contadores de rede.
+networkcapture permanece dívida estrutural preexistente: a mudança de sintaxe
+não adiciona responsabilidade; futura separação incremental de merge/contadores
+deve preservar fixtures e contrato de fluxo, fora desta entrega de build.
+Fonte:https://golangci-lint.run/docs/product/migration-guide/.

@@ -438,10 +438,10 @@ func edrNDRGaps(cfg config.Config, prefs config.CollectPrefs, enabled bool) []st
 	if !enabled {
 		gaps = append(gaps, "edr_safe_disabled")
 	}
-	if !(cfg.RemoteConfigSignatureRequired || prefs.RemoteConfigSignatureRequired) {
+	if !cfg.RemoteConfigSignatureRequired && !prefs.RemoteConfigSignatureRequired {
 		gaps = append(gaps, "remote_config_signature_not_required")
 	}
-	if !(cfg.AutoUpdateTrustRequired || prefs.AutoUpdateTrustRequired) {
+	if !cfg.AutoUpdateTrustRequired && !prefs.AutoUpdateTrustRequired {
 		gaps = append(gaps, "auto_update_signature_not_required")
 	}
 	if cfg.TLSInsecureSkip {

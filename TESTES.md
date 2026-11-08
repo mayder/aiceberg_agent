@@ -794,3 +794,20 @@ Builds CGO0 cmd/agent:linux/amd64,linux/arm64,windows/amd64,darwin/amd64,darwin/
 PASS. Testes nativos Windows de códigos e safefile compilados; não executados neste
 Mac. Binários de validação temporários, sem gerar/assinar/publicar release oficial.
 Execução instalada/ACL nativa/falha física por SO pertencem à homologação separada.
+
+## Artefatos Go — gate de publicação PKG-134
+
+Usar o Go fixado no go.mod/toolchain; conferir go version -m nos cinco binários
+com versão esperada, vcs.revision exata e vcs.modified=false. Executar Trivy
+rootfs nos diretórios extraídos, com targets gobinary reconhecidos para todos
+os cinco OS/arch e zero HIGH/CRITICAL antes da assinatura/distribuição. Scan fs
+sem alvo gobinary não conta como validação. Não adicionar VEX/ignore para liberar.
+Verificar Ed25519/SHA256SUMS, catálogo e hashes dos sete arquivos públicos.
+Versão publicada é imutável; correção gera novo número e preserva anterior.
+
+check.sh usa golangci-lint2.10.1 compilado com GOVERSION do projeto e cache por
+versão/toolchain. Configuração v2 preserva defaults v1 pela migração oficial;
+nenhuma regra QF foi desabilitada. Depois de mudança de compiler/dependências,
+rodar race dos fluxos de configuração/estado/updater/HUB e dos consumidores de
+rede afetados, além do check completo e cross-builds. Homologação nativa segue
+separada; não injetar falhas destrutivas em produção.

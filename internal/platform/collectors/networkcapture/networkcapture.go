@@ -2097,22 +2097,24 @@ func mergeExternalObservation(
 		flow.tlsSubject = obs.tlsSubject
 	}
 	if obs.bytes > 0 {
-		if direction == "ingress" {
+		switch direction {
+		case "ingress":
 			flow.bytesIn += obs.bytes
-		} else if direction == "egress" {
+		case "egress":
 			flow.bytesOut += obs.bytes
-		} else {
+		default:
 			half := obs.bytes / 2
 			flow.bytesIn += half
 			flow.bytesOut += obs.bytes - half
 		}
 	}
 	if obs.packets > 0 {
-		if direction == "ingress" {
+		switch direction {
+		case "ingress":
 			flow.packetsIn += obs.packets
-		} else if direction == "egress" {
+		case "egress":
 			flow.packetsOut += obs.packets
-		} else {
+		default:
 			half := obs.packets / 2
 			flow.packetsIn += half
 			flow.packetsOut += obs.packets - half
@@ -2123,21 +2125,23 @@ func mergeExternalObservation(
 	deltaPacketsIn := 0
 	deltaPacketsOut := 0
 	if obs.bytes > 0 {
-		if direction == "ingress" {
+		switch direction {
+		case "ingress":
 			deltaBytesIn = obs.bytes
-		} else if direction == "egress" {
+		case "egress":
 			deltaBytesOut = obs.bytes
-		} else {
+		default:
 			deltaBytesIn = obs.bytes / 2
 			deltaBytesOut = obs.bytes - deltaBytesIn
 		}
 	}
 	if obs.packets > 0 {
-		if direction == "ingress" {
+		switch direction {
+		case "ingress":
 			deltaPacketsIn = obs.packets
-		} else if direction == "egress" {
+		case "egress":
 			deltaPacketsOut = obs.packets
-		} else {
+		default:
 			deltaPacketsIn = obs.packets / 2
 			deltaPacketsOut = obs.packets - deltaPacketsIn
 		}

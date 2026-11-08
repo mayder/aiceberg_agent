@@ -1040,10 +1040,10 @@ func expandCIDRHosts(raw string, limit int) ([]string, error) {
 
 	start := ipToUint32(base.Mask(n.Mask))
 	var out []string
-	switch {
-	case ones == 32:
+	switch ones {
+	case 32:
 		out = append(out, uint32ToIP(start).String())
-	case ones == 31:
+	case 31:
 		out = append(out, uint32ToIP(start).String(), uint32ToIP(start+1).String())
 	default:
 		hostBits := uint32(32 - ones)

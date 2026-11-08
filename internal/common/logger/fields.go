@@ -41,7 +41,7 @@ func Fields(kv ...any) string {
 		first = false
 		b.WriteString(key)
 		b.WriteByte('=')
-		b.WriteString(fmt.Sprint(val))
+		fmt.Fprint(&b, val)
 	}
 	return b.String()
 }

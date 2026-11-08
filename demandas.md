@@ -976,3 +976,22 @@ FATAL; instalação inicial concluída não prova estabilidade do backend. Não
 ampliar piloto com base nesse recibo. Detalhes/rollback e evidência integrada
 em aiceberg_web:docs/evidence/pkg134-production-20261108.md. Este registro
 documental não recompila nem substitui os artefatos públicos imutáveis0.8.67.
+
+### PKG-134 — correção da cadeia de build0.8.68 (08/11/2026)
+
+A verificação do artefato Linux0.8.67 identificou Go1.25.4 e x/net0.44.0
+sinalizados no scanner de componentes. Não confundir presença de componente
+com exploração comprovada; a versão é substituída por novo release imutável.
+Fixar Go1.26.10/min1.26 e x/net0.62.0/requisitos transitivos mínimos; verificar
+binários finais com Trivy rootfs (scan filesystem sem gobinary não é evidência),
+checks completos, builds/plataformas, assinatura e fonte limpa antes de publicar.
+Preservar0.8.67 e rollback/configuração/outbox; piloto restrito aos mesmos4/71,
+sem ampliar a frota. Homologação e causa dos crashes do MySQL continuam abertas.
+
+Validação da correção0.8.68: race dos12pacotes de configuração/estado/updater/
+HUB/health/bootstrap/coletores afetados PASS; interop serializador Go→PHP real
+PASS. Lint v2.10.1 com defaults v1 migrados e oito equivalências mecânicas PASS,
+sem ignorar novos QF. ./check.sh PASS. Cinco builds de laboratório Go1.26.10
+reconhecidos por Trivy rootfs, zero HIGH/CRITICAL nos cinco OS/arch. Candidatos
+sujos de laboratório não serão distribuídos; reconstruir/assinar da fonte limpa
+com revisão/VCS/manifesto conferidos após este commit. Sem SQL ou expansão.

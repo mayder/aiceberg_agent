@@ -55,9 +55,10 @@ if [[ "$GOFLAGS" != *-buildvcs=false* ]]; then
 fi
 export GOFLAGS
 
-GOLANGCI_LINT_VERSION="${GOLANGCI_LINT_VERSION:-v1.62.2}"
+GOLANGCI_LINT_VERSION="${GOLANGCI_LINT_VERSION:-v2.10.1}"
+LINT_GO_VERSION="$(go env GOVERSION)"
 TOOLS_DIR="$ROOT_DIR/.tools"
-TOOLS_BIN="$TOOLS_DIR/bin"
+TOOLS_BIN="$TOOLS_DIR/bin/${GOLANGCI_LINT_VERSION}-${LINT_GO_VERSION}"
 GOLANGCI_LINT_BIN="$TOOLS_BIN/golangci-lint"
 
 ensure_golangci_lint() {
@@ -70,7 +71,7 @@ ensure_golangci_lint() {
   fi
   mkdir -p "$TOOLS_BIN"
   log "install golangci-lint $GOLANGCI_LINT_VERSION"
-  GOBIN="$TOOLS_BIN" go install "github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
+  GOTOOLCHAIN="$LINT_GO_VERSION" GOBIN="$TOOLS_BIN" go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}"
 }
 
 run_golangci_lint() {
