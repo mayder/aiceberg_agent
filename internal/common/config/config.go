@@ -2,6 +2,8 @@ package config
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -75,6 +77,7 @@ type Config struct {
 	ConfigSyncInterval                 time.Duration
 	ChannelHeartbeatInterval           time.Duration
 	PrefsPath                          string
+	ConfigFailureStatePath             string
 	AgentMode                          string
 	AgentModeOverridePath              string
 	HubURL                             string
@@ -391,6 +394,7 @@ func Load(configPath string) (Config, error) {
 		OutboxMaxPerAgent:                  intEnv("OUTBOX_MAX_PER_AGENT", 0),
 		HealthPort:                         port,
 		PrefsPath:                          getenv("PREFS_PATH", "./data/collect_prefs.json"),
+		ConfigFailureStatePath:             getenv("CONFIG_FAILURE_STATE_PATH", ""),
 		AgentMode:                          strings.ToLower(getenv("AGENT_MODE", "direct")),
 		AgentModeOverridePath:              getenv("AGENT_MODE_OVERRIDE_PATH", ""),
 		HubURL:                             getenv("HUB_URL", ""),
@@ -578,6 +582,18 @@ func Load(configPath string) (Config, error) {
 	if cfg.Agent.Token == "" {
 		return cfg, fmt.Errorf("AGENT_TOKEN obrigatório")
 	}
+	if cfg.ConfigFailureStatePath == "" {
+		if cache, err := os.UserCacheDir(); err == nil {
+			// Scope by configured prefs location without storing that path in reports.
+			prefsPath, absoluteErr := filepath.Abs(cfg.PrefsPath)
+			if absoluteErr != nil {
+				prefsPath = cfg.PrefsPath
+			}
+			sum := sha256.Sum256([]byte(prefsPath))
+			cfg.ConfigFailureStatePath = filepath.Join(cache, "aiceberg", "config-failures", hex.EncodeToString(sum[:8])+".json")
+		}
+	}
+
 	return cfg, nil
 }
 

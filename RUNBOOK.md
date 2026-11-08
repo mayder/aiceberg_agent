@@ -939,3 +939,52 @@ observações seguem retenção atual. Timestamp futuro acima de1800s da recepç
 permanece na observação, mas não atualiza a projeção. Corrigir relógios só após
 diagnóstico. Rollback por flag é preferencial; não reintroduzir ACK total de
 resposta200parcial ao planejar rollback de binário/código.
+
+## Diagnóstico de aplicação de configuração — PKG-134
+
+ConfigSync e ingest próprio compartilham admissão/aplicação, sem rede no callback
+de ingest. Falha local mantém prefs válidas, agenda nova aplicação da mesma
+configuração (transitória: jitter/teto existentes; persistente/desconhecida:60s)
+e continua consultando configuração nova na cadência normal. Assinaturas são
+verificadas antes de efeitos; uma assinatura corrigida não herda a espera da
+inválida, e renovar timestamps/assinatura válida não cria outra falha de filesystem.
+Não mudar a política de assinatura para fazer um teste passar.
+
+CONFIG_FAILURE_STATE_PATH define o arquivo de estado, que pode ficar em volume
+independente do caminho de prefs. Caminhos/aliases ou inodes que coincidam com
+prefs/outbox são recusados, sem sobrescrevê-los. Por padrão config.Load usa o cache do usuário,
+subdiretório aiceberg/config-failures e hash do caminho absoluto de prefs; nenhum
+caminho/token integra o relato. Construtores sem esse campo usam sidecar de prefs
+para compatibilidade. Estado ausente é inicializado; inválido/oversized/symlink é
+preservado e a operação fica em memória limitada, com durabilidade degradada
+explícita. Persistência indisponível é reavaliada a cada minuto, sem impedir a
+aplicação de configuração nova. Não apagar um arquivo inválido sem autorização.
+
+Limites:32condições/64recibos pendentes/128KiB, resolvidos30dias; checkpoints de
+contagem até1min e checkpoints próprios para relatos/ACK. Retry conserva recibo;
+primeira falha/mudança/recuperação são imediatas, summary no máximo1por30min por
+condição. Capacidade extrema descarta primeiro summary pendente ou o mais antigo,
+contabilizando a perda. Não há promessa de histórico ilimitado durante outage.
+Fila é entregue antes/depois da consulta: até2recibos por passagem com orçamento4s,
+sem reexecutar aplicação para reenviar relatório. Não confundir esse limite com SLA.
+
+Prefs e diagnóstico usam temporário sincronizado e substituição. Linux/macOS
+resolvem diretórios por descritores com O_NOFOLLOW e sincronizam o diretório após
+rename; Windows mantém handles de diretórios sem compartilhamento de exclusão,
+recusando reparse points. Somente pastas ausentes são criadas; conflitos/symlinks
+não são corrigidos, permissões existentes são preservadas, sem elevação. Memória
+de prefs muda somente depois de sucesso. Falha física de energia/armazenamento
+ou ACL nativa em host real é homologação distinta das fixtures locais.
+
+Saúde/metrics existentes expõem attempts/suppressed/report_bytes/report_duration_ms/
+dropped_reports em config_failures e agent_config_*_total, sem labels de identidade,
+caminho ou fingerprint. Logs seguros registram causa, espera, duração e fila.
+As consultas GET normais continuam para detectar configuração nova; economia real
+de CPU/disco/tráfego e tempo de diagnóstico deve ser medida no piloto.
+
+Publicar Web e guard API-006 Runtime compatíveis antes do produtor, com autorização,
+artefatos oficiais assinados e smoke. Rollback do agente anterior preserva JSON de
+prefs compatível, estado/outbox e história; manter o consumidor PHP para metadados
+novos enquanto houver agentes novos. Não apagar caches/filas para aparentar recuperação.
+Homologação/piloto controlados com versões/SO registrados, sem falha destrutiva em
+host real, precedem aceite operacional; código100% não comprova esses gates.

@@ -2,16 +2,18 @@ package prefs
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
+	"sync"
 	"sync/atomic"
 
 	"github.com/you/aiceberg_agent/internal/common/config"
+	"github.com/you/aiceberg_agent/internal/data/local/safefile"
 )
 
 type Store struct {
-	path string
-	cur  atomic.Value
+	mu     sync.Mutex
+	path   string
+	cur    atomic.Value
+	writer safefile.Writer
 }
 
 func NewStore(path string) *Store {
@@ -58,7 +60,7 @@ func Default() config.CollectPrefs {
 }
 
 func (s *Store) Load() (config.CollectPrefs, error) {
-	if b, err := os.ReadFile(s.path); err == nil {
+	if b, err := safefile.Read(s.path, 2<<20); err == nil {
 		var p config.CollectPrefs
 		if err := json.Unmarshal(b, &p); err == nil {
 			s.cur.Store(p)
@@ -71,11 +73,13 @@ func (s *Store) Load() (config.CollectPrefs, error) {
 }
 
 func (s *Store) Update(p config.CollectPrefs) error {
-	raw, _ := json.MarshalIndent(p, "", "  ")
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	raw, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(s.path, raw, 0o600); err != nil {
+	if err := s.writer.Replace(s.path, raw); err != nil {
 		return err
 	}
 	s.cur.Store(p)
@@ -89,3 +93,6 @@ func (s *Store) Get() config.CollectPrefs {
 	}
 	return v.(config.CollectPrefs)
 }
+
+// Path is the configured preferences path; callers must not log its raw value.
+func (s *Store) Path() string { return s.path }

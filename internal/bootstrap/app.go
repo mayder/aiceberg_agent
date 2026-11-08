@@ -173,11 +173,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		if ingestCfg.Payload == nil {
 			return
 		}
-		version, applied, err := usecase.ApplyConfigPayloadWithSecurity(log, prefStore, commandChan, *ingestCfg.Payload, usecase.ConfigSecurityOptions{
-			SignatureSecret:        cfg.RemoteConfigSignatureSecret,
-			SignatureRequired:      cfg.RemoteConfigSignatureRequired,
-			AllowUnsignedSensitive: cfg.RemoteConfigAllowUnsignedSensitive,
-		})
+		version, applied, err := configSyncUC.ApplyIncomingConfig(*ingestCfg.Payload)
 		if err != nil {
 			log.Error(logger.KV("ingest config persist failed",
 				"version", version,
@@ -200,11 +196,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 			if ingestCfg.Payload == nil || auth != authHeader {
 				return
 			}
-			version, applied, err := usecase.ApplyConfigPayloadWithSecurity(log, prefStore, commandChan, *ingestCfg.Payload, usecase.ConfigSecurityOptions{
-				SignatureSecret:        cfg.RemoteConfigSignatureSecret,
-				SignatureRequired:      cfg.RemoteConfigSignatureRequired,
-				AllowUnsignedSensitive: cfg.RemoteConfigAllowUnsignedSensitive,
-			})
+			version, applied, err := configSyncUC.ApplyIncomingConfig(*ingestCfg.Payload)
 			if err != nil {
 				log.Error(logger.KV("ingest config persist failed",
 					"version", version,
@@ -440,6 +432,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				CollectErr:       counters.collectErr.Load(),
 				InvalidEnv:       metrics.InvalidEnvelopesTotal(),
 				AgentlessJobs:    metrics.AgentlessJobsTotal(),
+				ConfigFailures:   metrics.ConfigFailureSnapshot(),
 				UptimeSec:        int64(time.Since(startedAt).Seconds()),
 				ProcRSS:          procRSS,
 				ProcCPU:          procCPU,

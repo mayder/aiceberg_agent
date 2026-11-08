@@ -11,28 +11,29 @@ import (
 )
 
 type Snapshot struct {
-	Status           string  `json:"status"`
-	Version          string  `json:"version"`
-	PipelineVersion  string  `json:"agent_pipeline_version,omitempty"`
-	QueueItems       int     `json:"queue_items,omitempty"`
-	QueueBytes       int64   `json:"queue_bytes,omitempty"`
-	FlushOK          int64   `json:"flush_ok,omitempty"`
-	FlushErr         int64   `json:"flush_err,omitempty"`
-	CollectErr       int64   `json:"collect_err,omitempty"`
-	InvalidEnv       int64   `json:"invalid_envelopes,omitempty"`
-	AgentlessJobs    int64   `json:"agentless_jobs,omitempty"`
-	UptimeSec        int64   `json:"uptime_sec,omitempty"`
-	ProcRSS          int64   `json:"proc_rss_bytes,omitempty"`
-	ProcCPU          float64 `json:"proc_cpu_percent,omitempty"`
-	Goroutines       int     `json:"goroutines,omitempty"`
-	LastCollectMs    int64   `json:"last_collect_ms,omitempty"`
-	LastFlushMs      int64   `json:"last_flush_ms,omitempty"`
-	LastFlushBatch   int64   `json:"last_flush_batch,omitempty"`
-	IngestTimeoutSec int64   `json:"ingest_timeout_sec,omitempty"`
-	FlushIntervalSec int64   `json:"flush_interval_sec,omitempty"`
-	FlushBatchLimit  int     `json:"flush_batch_limit,omitempty"`
-	FlushDetail      any     `json:"flush_detail,omitempty"`
-	Channel          any     `json:"channel,omitempty"`
+	ConfigFailures   map[string]int64 `json:"config_failures,omitempty"`
+	Status           string           `json:"status"`
+	Version          string           `json:"version"`
+	PipelineVersion  string           `json:"agent_pipeline_version,omitempty"`
+	QueueItems       int              `json:"queue_items,omitempty"`
+	QueueBytes       int64            `json:"queue_bytes,omitempty"`
+	FlushOK          int64            `json:"flush_ok,omitempty"`
+	FlushErr         int64            `json:"flush_err,omitempty"`
+	CollectErr       int64            `json:"collect_err,omitempty"`
+	InvalidEnv       int64            `json:"invalid_envelopes,omitempty"`
+	AgentlessJobs    int64            `json:"agentless_jobs,omitempty"`
+	UptimeSec        int64            `json:"uptime_sec,omitempty"`
+	ProcRSS          int64            `json:"proc_rss_bytes,omitempty"`
+	ProcCPU          float64          `json:"proc_cpu_percent,omitempty"`
+	Goroutines       int              `json:"goroutines,omitempty"`
+	LastCollectMs    int64            `json:"last_collect_ms,omitempty"`
+	LastFlushMs      int64            `json:"last_flush_ms,omitempty"`
+	LastFlushBatch   int64            `json:"last_flush_batch,omitempty"`
+	IngestTimeoutSec int64            `json:"ingest_timeout_sec,omitempty"`
+	FlushIntervalSec int64            `json:"flush_interval_sec,omitempty"`
+	FlushBatchLimit  int              `json:"flush_batch_limit,omitempty"`
+	FlushDetail      any              `json:"flush_detail,omitempty"`
+	Channel          any              `json:"channel,omitempty"`
 }
 
 func Serve(port int, log logger.Logger, stats func() Snapshot) {
@@ -63,6 +64,9 @@ func Serve(port int, log logger.Logger, stats func() Snapshot) {
 		writeMetric(w, "agent_collect_err_total", float64(snap.CollectErr))
 		writeMetric(w, "agent_invalid_envelopes_total", float64(snap.InvalidEnv))
 		writeMetric(w, "agent_agentless_jobs_total", float64(snap.AgentlessJobs))
+		for _, key := range []string{"attempts", "suppressed", "report_bytes", "report_duration_ms", "dropped_reports"} {
+			writeMetric(w, "agent_config_"+key+"_total", float64(snap.ConfigFailures[key]))
+		}
 		writeMetric(w, "agent_uptime_seconds", float64(snap.UptimeSec))
 		writeMetric(w, "agent_proc_rss_bytes", float64(snap.ProcRSS))
 		writeMetric(w, "agent_proc_cpu_percent", snap.ProcCPU)

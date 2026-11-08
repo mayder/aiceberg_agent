@@ -662,3 +662,29 @@ a data original na observação. O limite é o mesmo do guard legado, aplicado
 sem corrigir horário por hipótese. Registros sem identidade de coleta no agente
 continuam conservadoramente agrupados por check/segmento. Rollback preferencial
 é a flag; reversão de código deve preservar a correção de ACK200parcial.
+
+## DEC-20261108-01 — Diagnóstico de configuração e limites de estado
+
+PKG-134 em implementação: reusar ConfigSync/prefs/retry e config-report, sem novo
+worker de rede. Espera de aplicação por digest estável (assinatura/tempos excluídos)
+independe de buscar configuração nova e de entregar relatório. Ingest próprio
+usa o mesmo controle, sem rede no callback. Última prefs em memória só muda após
+a escrita. Escrita/leitura limitadas usam diretórios ancorados: descritores
+O_NOFOLLOW em Linux/macOS, handles sem compartilhamento de exclusão em Windows;
+recusar links/reparse points e conflito com prefs/outbox. Somente temporários
+criados pela própria operação são limpos; conflitos existentes não são removidos.
+
+Estado mínimo em CONFIG_FAILURE_STATE_PATH; config.Load prefere cache do usuário
+por padrão, separado de prefs. Indisponível/corrompido: memória limitada e durabilidade
+explicitamente degradada; preservar arquivo inválido.32condições/64recibos pendentes/
+128KiB, resolvidos30dias; contadores saturados. Em capacidade, descartar primeiro
+summary pendente ou o recibo mais antigo, contando perda explicitamente em métrica.
+Isso limita recursos durante indisponibilidade prolongada; não promete histórico
+ilimitado. Contagens podem perder até1min no crash, recibos têm checkpoint próprio;
+retry reutiliza identidade persistida. Métricas sem rótulos de agente/caminho/hash.
+
+Web conserva política central e recibo transacional em atividade_evento. Guard
+Runtime API-006 envia diagnostic ao PHP antes de efeitos Go; consumidor compatível
+precede produtor. Nenhum SQL/corte/ownership novo. Reversão deve preservar histórico,
+prefs/estado/outbox e compatibilidade de encaminhamento; sem exclusão de dados.
+Publicação, homologação e piloto continuam gates próprios não executados.

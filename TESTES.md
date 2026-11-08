@@ -1,3 +1,17 @@
+## Diagnóstico de configuração — PKG-134 (08/11/2026)
+
+`go test -race ./internal/domain/configfailure ./internal/data/local/configstate ./internal/data/local/safefile ./internal/data/local/prefs ./internal/domain/usecase ./internal/interfaces/hub ./internal/interfaces/health ./internal/common/config ./internal/bootstrap` passou.
+Casos novos: causas tipadas sem inferência por texto, fingerprint estável/escopado,
+1000ciclos iguais, summary30min, recuperação, ACK/reboot, clock skew, limites/
+contadores saturados, armazenamento inválido/oversized/symlink preservado, conflito
+real de caminho mantendo prefs boas, concorrência, versão nova e ingest próprio.
+HUB mantém corpo e identidade. Contrato compila para Windows/Linux; isso não é
+execução nativa nesses SO. Regressões de assinatura/política do pacote usecase e
+HUB/bootstrap passaram no gate amplo. Persistência usa diretórios ancorados e leitura limitada sem seguir links; teste
+de troca concorrente de ancestral e preservação de arquivo/memória passaram.
+Consolidação e limites em docs/evidence/pkg134-local-20261108.md. Não converter
+esse gate em homologação/publicação.
+
 ## JSON opaco e worker Relay — 04/11/2026
 
 Reteste: go test -race ./internal/bootstrap ./internal/interfaces/hub ./internal/common/envelopejson ./internal/data/local/outbox ./internal/common/config ./internal/domain/usecase -run 'TestAsyncRelay|TestRelayCatchup|TestDecodeBatch|TestHubRaw|TestBolt|TestAsyncOutbox|TestLoadRelay|TestFlushOutbox|TestHubOutbox|TestAsyncHub|TestOwnIngest|TestHubWorker|TestRawBoltBodies' -count=1. Casos: Relay→HUB→API HTTP/Bolt reais antes de liberar coletor bloqueado, timer1h,503/nenhumACK/reabertura, configuração própria serializada, captura de ingresso que sobrescreve valor forjado, RawMessage sem alias de memória, rollback/construtor legado, split atômico com requests≤400B e identidade/rota. Filhos persistidos por ID: validar conjunto de eventos sem inventar ordenação global. Benchmarks Mac/Linux em docs/evidence/hub-cpu-relay-arrival-local-20261104.md; check.sh obrigatório no hook de consolidação. Sem dados/replay produtivos.
@@ -768,3 +782,15 @@ Benchmark Bolt sintético:1000streams mistos/1KiB lógico, seleção100,3iteraç
 Mac ARM64:11,54ms/seleção. Não comprova p95/capacidade/SLA instalado. Gate final
 `./check.sh`; cross-build/artefatos assinados, publicação, ativação e prova dos120s
 permanecem nos gates posteriores. Evidência em docs/evidence/pkg49-local-20261106.md.
+
+## Interop e builds do diagnóstico de configuração
+
+`AICEBERG_CONFIG_FAILURE_WEB_ROOT=/Users/brenomayder/projects/web/public/aiceberg_web go test -race ./internal/domain/usecase -run TestConfigDiagnosticWireAcceptedByActualPHPConsumer -count=1`:
+PASS com four phases first/summary/changed/recovered: serializador HTTP real Go e
+normalizador PHP real, sem DB/env local/provedor. Fixtures de assinatura inválida
+sem efeito, correção válida imediata, renovação sem novo incidente, estado não
+gravável, proteção de prefs/outbox, métricas e corpo excessivo/trailing passaram.
+Builds CGO0 cmd/agent:linux/amd64,linux/arm64,windows/amd64,darwin/amd64,darwin/arm64
+PASS. Testes nativos Windows de códigos e safefile compilados; não executados neste
+Mac. Binários de validação temporários, sem gerar/assinar/publicar release oficial.
+Execução instalada/ACL nativa/falha física por SO pertencem à homologação separada.

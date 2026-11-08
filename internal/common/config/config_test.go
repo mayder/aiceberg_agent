@@ -171,3 +171,28 @@ func TestAgentIdentityHeaderEncodesClaimAsBase64JSON(t *testing.T) {
 		t.Fatalf("signature missing: %#v", payload)
 	}
 }
+
+func TestConfigFailureStateUsesIndependentScopedCacheOrExplicitPath(t *testing.T) {
+	t.Setenv("AGENT_TOKEN", "fixture-token")
+	t.Setenv("CONFIG_FAILURE_STATE_PATH", "")
+	root := t.TempDir()
+	t.Setenv("PREFS_PATH", filepath.Join(root, "one", "prefs.json"))
+	first, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PREFS_PATH", filepath.Join(root, "two", "prefs.json"))
+	second, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ConfigFailureStatePath == "" || first.ConfigFailureStatePath == second.ConfigFailureStatePath || filepath.Dir(first.ConfigFailureStatePath) == filepath.Dir(first.PrefsPath) {
+		t.Fatal("diagnostic storage not independent/scoped")
+	}
+	explicit := filepath.Join(root, "chosen", "state.json")
+	t.Setenv("CONFIG_FAILURE_STATE_PATH", explicit)
+	configured, err := Load("")
+	if err != nil || configured.ConfigFailureStatePath != explicit {
+		t.Fatal("explicit path ignored", err)
+	}
+}
