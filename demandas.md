@@ -949,3 +949,11 @@ deste repositório em06/11, sem push/publicação. Não altera autorização de 
 Evidência: `docs/evidence/pkg49-local-20261106.md`. Sem novo coletor, scheduler,
 fila, tuning em frota, limpeza ou descarte. Push/distribuição autorizados nesta
 publicação; sem update/ativação de HUB/Relay. Homologação e SLA não comprovados.
+
+### PKG-134 — preparação da publicação 0.8.67 (08/11/2026)
+
+Versão exclusiva para os diagnósticos e recuperação de aplicação de configuração.
+Publicação e instalação piloto autorizadas pelo proprietário após o fechamento técnico.
+Artefatos devem ser assinados e publicados somente depois do Web e da API compatíveis;
+piloto restrito, sem injetar falhas de disco/permissão nos hosts e sem ampliar a frota.
+Homologação operacional completa e medição continuam separadas.
