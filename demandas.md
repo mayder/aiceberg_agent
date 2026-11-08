@@ -957,3 +957,22 @@ Publicação e instalação piloto autorizadas pelo proprietário após o fecham
 Artefatos devem ser assinados e publicados somente depois do Web e da API compatíveis;
 piloto restrito, sem injetar falhas de disco/permissão nos hosts e sem ampliar a frota.
 Homologação operacional completa e medição continuam separadas.
+
+### PKG-134 — publicação0.8.67 e piloto instalado (08/11/2026)
+
+Fonte do binário:a1095ff4e84e83faede9dd1b5b549c8614cf9275, árvore limpa.
+Cinco compactados, SHA256SUMS e manifesto Ed25519 verificados e publicados em
+https://cliente.aiceberg.com.br/downloads/agent/0.8.67/. Web92c3ef7c, esteira
+42496278053 SUCCESS; hashes públicos iguais aos locais, chave privada local.
+Lote oficial3/cliente1/concorrência1: agentes4(HUB/Linux) e71(Windows direto),
+ambos0.8.67/version_confirmed/configuração applied/sem update pendente. As11
+condições de readiness passaram em cada host; não houve envio a outros agentes.
+Linux healthok e hash instalado igual ao pacote; recibos reais71838637/71839414.
+Caminho público API-006 permanece PHP compatível; Go não foi ativado/mudado para
+o piloto. Homologação de falhas/recuperação/rollback e medição de valor abertas.
+
+Acompanhamento registrou recorrência do crash do MySQL gerenciado e maintenance
+FATAL; instalação inicial concluída não prova estabilidade do backend. Não
+ampliar piloto com base nesse recibo. Detalhes/rollback e evidência integrada
+em aiceberg_web:docs/evidence/pkg134-production-20261108.md. Este registro
+documental não recompila nem substitui os artefatos públicos imutáveis0.8.67.
