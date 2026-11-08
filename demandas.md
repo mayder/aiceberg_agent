@@ -995,3 +995,21 @@ sem ignorar novos QF. ./check.sh PASS. Cinco builds de laboratório Go1.26.10
 reconhecidos por Trivy rootfs, zero HIGH/CRITICAL nos cinco OS/arch. Candidatos
 sujos de laboratório não serão distribuídos; reconstruir/assinar da fonte limpa
 com revisão/VCS/manifesto conferidos após este commit. Sem SQL ou expansão.
+
+### PKG-134 — piloto final0.8.68 confirmado (08/11/2026)
+
+Artefatos finais da fontede207d9c882599b4277771a3b935ff24c1c9d714: Go1.26.10,
+vcs.modified=false nos cinco binários, scanner rootfs5alvos/zero HIGH-CRITICAL
+e5assinaturas válidas. Sete arquivos0.8.68 públicos200/SHA iguais aos locais;
+Web33451857/esteira42503432242 SUCCESS.0.8.67 preservada, sem ampliar seu piloto.
+Lote4/cliente1/concorrência1 completed: agente4Linux HUB0.8.68/applied88 e
+71Windows direto0.8.68/applied37, version_confirmed e sem update pendente.
+Inspector novo/11condições aprovadas em cada host; recibos reais71912216 e
+71912295 após reinício. Hash Linux instalado igual ao pacote e healthok.
+
+Maintenance retomado somente após conexão nova/Uptime371s e fila vazia para a
+correção autorizada; isso não resolve o crash recorrente do banco. Nenhuma
+mutação de fila/histórico ou bypass de assinatura/contingência de publicação.
+Homologação de falhas/Relay/rollback/aceite e medição permanecem separadas.
+Este recibo não recompila ou altera o release público0.8.68. Evidência integrada
+em aiceberg_web/docs/evidence/pkg134-production-20261108.md.
