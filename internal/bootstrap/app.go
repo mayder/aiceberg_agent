@@ -399,6 +399,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		HasAgentlessWorker: func() bool {
 			return agentlessUC != nil
 		},
+		SupportFlare:    newSupportFlare(runtime.GOOS),
 		UpdateReadiness: selfUpdateUC.CheckUpdateReadiness,
 		RuntimeSnapshot: func() map[string]any {
 			p := prefStore.Get()

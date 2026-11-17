@@ -718,3 +718,13 @@ networkcapture permanece dívida estrutural preexistente: a mudança de sintaxe
 não adiciona responsabilidade; futura separação incremental de merge/contadores
 deve preservar fixtures e contrato de fluxo, fora desta entrega de build.
 Fonte:https://golangci-lint.run/docs/product/migration-guide/.
+
+## DEC-20261117-01 — suporte limitado do próprio serviço
+
+Ligar SupportFlare no bootstrap com produtor de infraestrutura independente do
+executor e fonte fixa por SO. Limitar memória/tempo, ocultar linhas sensíveis e
+retornar falta de capacidade/erro em vez de sucesso por snapshot. Reutilizar o
+canal e a redação compartilhada entre evidência do executor e coletor. Não aceitar
+path/comando vindo de payload, nem coletar logs gerais do host. Sem novo daemon,
+cache de conteúdo ou fila. Reverter commit/pacote preserva dados/config/outbox.
+Linux/Windows têm implementação; pilotos nativos e publicação são gates separados.

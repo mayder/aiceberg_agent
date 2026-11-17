@@ -1013,3 +1013,21 @@ mutação de fila/histórico ou bypass de assinatura/contingência de publicaç�
 Homologação de falhas/Relay/rollback/aceite e medição permanecem separadas.
 Este recibo não recompila ou altera o release público0.8.68. Evidência integrada
 em aiceberg_web/docs/evidence/pkg134-production-20261108.md.
+
+## [PKG-80] Suporte remoto — componente Agent — 17/11/2026
+
+Implementação local L08–L10 do backlog Web concluída; main autorizada.
+Check integral PASS, inclusive lint/vet/testes e gates oficiais. Candidata0.8.69,
+ainda sem distribuição/instalação. Publicação/pilotos reais permanecem separados.
+
+- [x] Produtor de journal Linux/Event Log Windows ligado ao bootstrap existente.
+- [x]16KiB/fonte,5s,100registros; redação de linhas sensíveis, sem shell/path remoto.
+- [x] Callback/ferramenta ausente, fonte vazia, permissão negada e cancelamento
+  resultam em falha diagnosticável, sem sucesso por snapshot isolado.
+- [x] Regressões com-race no bootstrap, coletor e executor, com subprocessos
+  controlados; o teste de seleção de ferramentas usa fixture POSIX e não prova
+  execução/permissão no Windows real.
+- [ ] Artefatos assinados, publicação e piloto SADA Linux/Windows com recibos reais.
+
+Contrato e evidências oficiais no Web:docs/architecture/agent-support.md e
+ docs/evidence/pkg80-local-20261117.md. Sem alteração de outbox, token ou dados.

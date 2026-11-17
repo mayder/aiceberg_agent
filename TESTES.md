@@ -811,3 +811,14 @@ nenhuma regra QF foi desabilitada. Depois de mudança de compiler/dependências,
 rodar race dos fluxos de configuração/estado/updater/HUB e dos consumidores de
 rede afetados, além do check completo e cross-builds. Homologação nativa segue
 separada; não injetar falhas destrutivas em produção.
+
+## Suporte do próprio serviço — 17/11/2026
+
+`go test -race ./internal/bootstrap ./internal/platform/support ./internal/domain/usecase -run 'Test(BootstrapSupport|Collect|ServiceSources|SupportFlare|SelfHealExecutorCollectSupport)' -count=1`
+valida fábrica usada no bootstrap, ferramenta fixa por plataforma, execução real
+de subprocesso controlado, timeout/cancelamento, tamanho, fonte ausente/vazia,
+permissão negada e redação de credenciais repetidas/URL/header. Callback ausente
+ou com erro conserva evidência segura e falha. Fixture de shell de seleção de
+ferramentas é POSIX; não é prova de Event Log/permissão em Windows nativo.
+Cross-build/artefato assinado e piloto por SO são gates separados. Recibo no Web:
+docs/evidence/pkg80-local-20261117.md. Nenhum host real comandado por estes testes.

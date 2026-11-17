@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/common/logger"
+	"github.com/you/aiceberg_agent/internal/common/redaction"
 	"github.com/you/aiceberg_agent/internal/domain/channel"
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 )
@@ -211,18 +212,7 @@ func (uc *SelfHealExecutor) executeCode(ctx context.Context, cmd entities.SelfHe
 	case "inspect_runtime_config":
 		return uc.inspectRuntimeConfig(ctx, cmd)
 	case "collect_support_flare":
-		evidence := uc.withRuntimeEvidence(map[string]any{
-			"snapshot_source": "selfheal.collect_support_flare",
-			"flare_kind":      "support",
-		})
-		if uc.deps.SupportFlare != nil {
-			flare, err := uc.deps.SupportFlare(ctx)
-			if err != nil {
-				return "support flare collection failed", sanitizeEvidence(evidence), err
-			}
-			evidence["flare"] = flare
-		}
-		return "support flare collected", sanitizeEvidence(evidence), nil
+		return uc.collectSupportFlare(ctx)
 	default:
 		return "unsupported self-healing command", map[string]any{"command_code": code}, fmt.Errorf("unsupported command: %s", code)
 	}
@@ -279,22 +269,5 @@ func sanitizeAny(key string, value any) any {
 }
 
 func redactSupportString(value string) string {
-	out := value
-	for _, marker := range []string{"token=", "secret=", "password=", "authorization=", "cookie="} {
-		lower := strings.ToLower(out)
-		if idx := strings.Index(lower, marker); idx >= 0 {
-			end := idx + len(marker)
-			if marker == "authorization=" || marker == "cookie=" {
-				for end < len(out) && out[end] != '&' && out[end] != '\n' {
-					end++
-				}
-			} else {
-				for end < len(out) && out[end] != ' ' && out[end] != '&' && out[end] != '\n' {
-					end++
-				}
-			}
-			out = out[:idx+len(marker)] + "[redacted]" + out[end:]
-		}
-	}
-	return out
+	return redaction.SupportText(value)
 }

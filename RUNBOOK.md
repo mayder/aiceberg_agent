@@ -988,3 +988,19 @@ prefs compatível, estado/outbox e história; manter o consumidor PHP para metad
 novos enquanto houver agentes novos. Não apagar caches/filas para aparentar recuperação.
 Homologação/piloto controlados com versões/SO registrados, sem falha destrutiva em
 host real, precedem aceite operacional; código100% não comprova esses gates.
+
+## Diagnóstico limitado do serviço — 17/11/2026
+
+collect_support_flare usa journalctl restrito a aiceberg-agent.service no Linux
+(última hora/100linhas) ou wevtutil Application/AIcebergAgent no Windows (100eventos).
+Sem shell remoto, sem leitura arbitrária de arquivos. Até16KiB/fonte em5s, com
+redação por linha e truncamento explícito. Ferramenta/fonte ausente, permissão,
+fonte vazia, timeout/cancelamento e SO não suportado não retornam diagnóstico OK.
+Snapshot de runtime permanece complementar; não substitui logs reais.
+
+Publicar pacote oficial assinado e backend compatível antes da ativação. Pilotar
+Linux/Windows/SADA com conta/host autorizados e confirmar versão/retorno. Falha de
+permissão não autoriza elevar privilégio ou mudar a política do host. macOS não
+recebeu coletor de suporte neste escopo. Rollback usa pacote assinado anterior,
+preservando token/env/outbox. Conteúdo centralizado:30dias, metadados180dias;
+procedimento de descarte governado no RUNBOOK Web, sem novo cron no agente.
