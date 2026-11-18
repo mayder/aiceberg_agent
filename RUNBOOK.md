@@ -1004,3 +1004,9 @@ permissão não autoriza elevar privilégio ou mudar a política do host. macOS 
 recebeu coletor de suporte neste escopo. Rollback usa pacote assinado anterior,
 preservando token/env/outbox. Conteúdo centralizado:30dias, metadados180dias;
 procedimento de descarte governado no RUNBOOK Web, sem novo cron no agente.
+
+Suporte0.8.70: em journal/EventLog indisponível, a fonte agent_service_process_log
+pode fornecer logs reais do próprio processo. É volátil, limitada16KiB/100entradas/
+1h, redigida antes de reter; reinício esvazia naturalmente o buffer. Evidência
+mantém falha da fonte SO e degraded=true. Não conceder systemd-journal nem acesso
+amplo ao host apenas para o piloto. Sem entrada real ou após cancelamento, falhar.

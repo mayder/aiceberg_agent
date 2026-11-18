@@ -1031,3 +1031,10 @@ ainda sem distribuição/instalação. Publicação/pilotos reais permanecem sep
 
 Contrato e evidências oficiais no Web:docs/architecture/agent-support.md e
  docs/evidence/pkg80-local-20261117.md. Sem alteração de outbox, token ou dados.
+
+Piloto18/11: HUB84 confirmou0.8.69, mas journal negou permissão. Correção0.8.70
+mantém a falha da fonte SO e usa fallback somente de logs reais deste processo,
+redigidos antes da retenção em memória:16KiB/100entradas/1h, sem arquivo/tabela,
+sem ampliar journal/ACL ou aceitar path remoto. Fonte distinta e degraded=true;
+callback ausente, cancelamento, plataforma não suportada e buffer vazio continuam
+falhando. Piloto real e confirmação do Windows ainda abertos.

@@ -728,3 +728,10 @@ canal e a redação compartilhada entre evidência do executor e coletor. Não a
 path/comando vindo de payload, nem coletar logs gerais do host. Sem novo daemon,
 cache de conteúdo ou fila. Reverter commit/pacote preserva dados/config/outbox.
 Linux/Windows têm implementação; pilotos nativos e publicação são gates separados.
+
+DEC-20261118-SUPPORT-PROCESS-LOG: coletor limitado não recebe acesso amplo ao
+journal por conveniência. Se fonte do SO falhar, bootstrap pode usar buffer volátil
+redigido do logger real do próprio processo, com16KiB/100entradas/1h. A evidência
+preserva permission_denied/missing do SO e identifica fonte process_log/degraded.
+Não persistir novo log, buscar arquivos arbitrários, mudar grupos ou fingir journal.
+Rollback usa versão assinada anterior e perde apenas o buffer volátil, não outbox.

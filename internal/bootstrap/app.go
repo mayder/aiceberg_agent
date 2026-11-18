@@ -54,6 +54,8 @@ import (
 )
 
 func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
+	supportLogs := logger.WithSupportBuffer(log)
+	log = supportLogs
 	ctx, cancelRun := context.WithCancel(ctx)
 	defer cancelRun()
 	startedAt := time.Now()
@@ -399,7 +401,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		HasAgentlessWorker: func() bool {
 			return agentlessUC != nil
 		},
-		SupportFlare:    newSupportFlare(runtime.GOOS),
+		SupportFlare:    newSupportFlare(runtime.GOOS, supportLogs),
 		UpdateReadiness: selfUpdateUC.CheckUpdateReadiness,
 		RuntimeSnapshot: func() map[string]any {
 			p := prefStore.Get()

@@ -822,3 +822,9 @@ ou com erro conserva evidência segura e falha. Fixture de shell de seleção de
 ferramentas é POSIX; não é prova de Event Log/permissão em Windows nativo.
 Cross-build/artefato assinado e piloto por SO são gates separados. Recibo no Web:
 docs/evidence/pkg80-local-20261117.md. Nenhum host real comandado por estes testes.
+
+Suporte18/11: go test -race em logger/support/bootstrap/usecase PASS. Cobertos
+limites/ordem/expiração1h, escrita/leitura concorrente, segredo após limite de bytes,
+fallback com log real redigido, fonte SO ausente preservada, buffer vazio,
+cancelamento e plataforma não suportada. Permissão produtiva falhou explicitamente
+no HUB84/0.8.69; novo candidato0.8.70 exige recibo real, não fixture.
