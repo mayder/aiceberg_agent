@@ -222,7 +222,7 @@ Executar somente os protocolos que precisam de proximidade do host/rede, com con
 ### Cobertura
 
 - pull/passive check autenticado do agente quando a topologia permitir;
-- SNMP GET/WALK/bulk e receptor de traps no HUB;
+- SNMPv1/v2c/v3 por perfil explícito: GET e WALK compatíveis com a versão; GETBULK somente em v2c/v3; receptor de traps no HUB;
 - JMX direto e Jolokia; Prometheus/OpenMetrics;
 - queries read-only de banco com segredo referenciado;
 - IPMI; SSH por comandos tipados; Telnet legado opt-in;
@@ -236,6 +236,23 @@ Executar somente os protocolos que precisam de proximidade do host/rede, com con
 - [ ] impedir segredo, linha sensível ou payload completo em log/outbox;
 - [ ] entregar fixtures/simuladores e matriz real por protocolo/SO/fabricante;
 - [ ] medir footprint e pausar adapter que exceda budget sem afetar o agente.
+
+### Complemento SADA — SNMPv1,19/11/2026
+
+Escopo autorizado de planejamento; não declara suporte implementado nem leitura real comprovada. Coordenação com Web PKG-116/Runtime PKG-20 e com a delegação do Agent/Web PKG-120.
+
+- [ ] Qualificar primeiro um sensor real por consulta externa SNMPv1 a partir do HUB ou de agente autorizado com alcance comprovado; comparar v2c na mesma origem, endpoint, porta e comunidade, sem alterar o perfil produtivo para uma versão ainda não suportada.
+- [ ] Implementar seleção explícita de v1 no cadastro/contrato Web e no coletor Agent, preservando v2c/v3; rejeitar versão incompatível/sem suporte, sem convertê-la silenciosamente em v2c.
+- [ ] Usar GET e GETNEXT/WALK em v1, sem GETBULK; classificar OID/tipo não suportado como indisponível, sem fabricar zero, sucesso ou leitura de temperatura.
+- [ ] Preservar limites, cancelamento, segmentação/outbox e identidade do check; registrar versão efetiva, coletor executor, HUB, OID, unidade/escala e horário real, sem comunidade ou credenciais nos logs/recibos.
+- [ ] Cobrir v1/v2c/v3, GET/WALK, OID ausente, comunidade/versão incorretas, timeout, dado inválido/vencido e regressões dos coletores atuais.
+
+### Gate bloqueante — sensor real antes da publicação
+
+- [ ] Antes de publicar a versão com SNMPv1, obter uma temperatura real do sensor SADA pela origem autorizada: identidade/sysUpTime isolados não bastam. Registrar fabricante/modelo, ativo/check, origem, versão, OID, valor bruto, unidade/escala e valor convertido; confrontar com a leitura local/referência conhecida do equipamento, sem telemetria inventada.
+- [ ] Comprovar estabilidade em pelo menos três ciclos consecutivos na cadência configurada. Guardar evidências sanitizadas em local privado e resultados v1/v2c separados; teste pelo servidor cloud sem a mesma rota não substitui esse gate.
+- [ ] Após implementar, repetir a leitura com a candidata do agente em piloto restrito autorizado, seguindo assinatura/artefatos e procedimento de piloto vigentes, antes da promoção/publicação geral; confirmar observação persistida, cliente/ativo/check corretos, frescor e preservação do histórico.
+- [ ] Bloquear publicação/promoção do suporte novo enquanto faltarem leitura real, testes de regressão, rollback e aceite do piloto; check verde/simulador não substitui sensor físico. O teste externo inicial não exige atualização do agente.
 
 ### Aceite e rollback
 
