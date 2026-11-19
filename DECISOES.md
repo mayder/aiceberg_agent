@@ -735,3 +735,7 @@ redigido do logger real do próprio processo, com16KiB/100entradas/1h. A evidên
 preserva permission_denied/missing do SO e identifica fonte process_log/degraded.
 Não persistir novo log, buscar arquivos arbitrários, mudar grupos ou fingir journal.
 Rollback usa versão assinada anterior e perde apenas o buffer volátil, não outbox.
+
+## DEC-20261119-SAMPLE-CONTRACT
+
+Projeção pura da observação existente: identidade por cliente/ativo/check/métrica, independente de executor, e lacunas unknown/null. Domínio sem transporte/infra; adapter na plataforma não recolhe nem altera outbox/payload. Contrato coordenado e rollback: Web docs/contracts/monitoring-samples-v1.md. Não há emissão canônica automática. Titular autorizou candidata assinada e atualização restrita SADA para viabilizar testes reais sem terminal externo, mantendo promoção geral condicionada à prova física.

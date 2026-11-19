@@ -294,6 +294,15 @@ Adaptar Collector/Forwarder existentes ao modelo canônico sem quebrar snapshots
 - [ ] aplicar budgets/cardinalidade, batching, compressão, retry e backpressure;
 - [ ] cobrir compatibilidade com Web/Runtime antigo e rollback de versão.
 
+### Incremento inicial —19/11/2026
+
+Contrato numérico SNMP v1 e adapter de observação existentes implementados em
+`internal/domain/monitoring` e `internal/platform/agentless/monitoring_projection.go`.
+18vetores compartilhados e PHP real com race aprovados; preservação do payload
+legado, escopo e ausência de nova coleta comprovados. Não encerra os lotes acima:
+modelo/evento universal, demais coletores, transporte e consumo ativo pendentes.
+Contrato coordenado: Web `docs/contracts/monitoring-samples-v1.md`.
+
 ### Aceite e rollback
 
 Uma coleta possui identidade reproduzível e pode gerar séries dependentes no Runtime; payload legado continua aceito durante a janela. Rollback publica a versão anterior e mantém o adapter de compatibilidade servidor-side.

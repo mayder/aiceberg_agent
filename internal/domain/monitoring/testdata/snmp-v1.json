@@ -1,0 +1,930 @@
+[
+  {
+    "name": "valid",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": 80,
+          "memory_percent": 40
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 80
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 40
+        }
+      ]
+    }
+  },
+  {
+    "name": "zero_is_real",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": 0,
+          "memory_percent": 100
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 0
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 100
+        }
+      ]
+    }
+  },
+  {
+    "name": "numeric_strings",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": " +8e1 ",
+          "memory_percent": ".4e2"
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 80
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 40
+        }
+      ]
+    }
+  },
+  {
+    "name": "nested",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_memory": {
+            "cpu_percent": 80,
+            "memory_percent": 40
+          }
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 80
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 40
+        }
+      ]
+    }
+  },
+  {
+    "name": "invalid_does_not_fallback",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": "bad",
+          "memory_percent": 40,
+          "cpu_memory": {
+            "cpu_percent": 80
+          }
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "invalid",
+          "value": null
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 40
+        }
+      ]
+    }
+  },
+  {
+    "name": "missing",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "missing",
+          "value": null
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "missing",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "bool_invalid",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": true,
+          "memory_percent": 40
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "invalid",
+          "value": null
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 40
+        }
+      ]
+    }
+  },
+  {
+    "name": "range_invalid",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": -1,
+          "memory_percent": 101
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "invalid",
+          "value": null
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "invalid",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "partial",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": true,
+        "final": true,
+        "payload": {
+          "cpu_percent": 80,
+          "memory_percent": 40
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "partial",
+          "value": null
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "partial",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "non_final",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": false,
+        "payload": {
+          "cpu_percent": 80,
+          "memory_percent": 40
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "partial",
+          "value": null
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "partial",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "budget",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": 80,
+          "memory_percent": 40,
+          "time_budget_exceeded": true
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "time_budget",
+          "value": null
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "time_budget",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "failed",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "fail",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": 80,
+          "memory_percent": 40
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "observation_failed",
+          "value": null
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "observation_failed",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "stale",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000060001,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": 80,
+          "memory_percent": 40
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "stale",
+          "value": null
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "stale",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "freshness_exact_cut",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000060000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": 80,
+          "memory_percent": 40
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 80
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 40
+        }
+      ]
+    }
+  },
+  {
+    "name": "future",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000001,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": 80,
+          "memory_percent": 40
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000001,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "future",
+          "value": null
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "future",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "untrusted_payload_scope_and_secret",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": 80,
+          "memory_percent": 40,
+          "client_id": 999,
+          "asset_id": 999,
+          "check_id": 999,
+          "community": "fixture-do-not-copy",
+          "password": "fixture-do-not-copy",
+          "host": "fixture-do-not-copy",
+          "collector_id": 999
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 80
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 40
+        }
+      ]
+    }
+  },
+  {
+    "name": "different_tenant",
+    "input": {
+      "scope": {
+        "client_id": 4,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": 80,
+          "memory_percent": 40
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 4,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:4:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 80
+        },
+        {
+          "item_key": "v1:c:4:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 40
+        }
+      ]
+    }
+  },
+  {
+    "name": "hex_is_not_decimal",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60,
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "cpu_percent": "0x1p1",
+          "memory_percent": 40
+        }
+      }
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_snmp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 72
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "metric": "cpu_percent",
+          "unit": "percent",
+          "state": "unknown",
+          "gap": "invalid",
+          "value": null
+        },
+        {
+          "item_key": "v1:c:3:a:52:check:72:snmp:memory_percent",
+          "metric": "memory_percent",
+          "unit": "percent",
+          "state": "ok",
+          "gap": "",
+          "value": 40
+        }
+      ]
+    }
+  }
+]

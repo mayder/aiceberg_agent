@@ -828,3 +828,7 @@ limites/ordem/expiração1h, escrita/leitura concorrente, segredo após limite d
 fallback com log real redigido, fonte SO ausente preservada, buffer vazio,
 cancelamento e plataforma não suportada. Permissão produtiva falhou explicitamente
 no HUB84/0.8.69; novo candidato0.8.70 exige recibo real, não fixture.
+
+## Amostras canônicas iniciais —19/11/2026
+
+`AICEBERG_MONITORING_WEB_ROOT=<Web> go test -race ./internal/domain/monitoring -count=1`:18vetores e PHP real. `go test -race ./internal/platform/agentless -run TestCanonicalProjection -count=1`: observação legada preservada, duas séries sem nova coleta, chave estável ao mudar executor e rejeição de outro check. Não comprova sensor físico, emissão canônica ou capacidade da frota.

@@ -124,3 +124,7 @@ Decisões arquiteturais, técnicas e operacionais ficam em `DECISOES.md`.
 ## Serialização de envelopes de transporte
 
 internal/common/envelopejson contém DTO/parser de Envelope com Body JSON opaco; é consumido pelo listener internal/interfaces/hub e pelo adapter Bolt em internal/data/local/outbox. Entrada: JSON; saída: entities.Envelope com roteamento normalizado e RawMessage validado com bytes próprios. Não autoriza, persiste, envia, altera retenção ou interpreta regras do Body. Erros JSON recusam o request/leitura como no caminho anterior. Regressões de sintaxe, memória, identidade, limites e rollback são obrigatórias; flag doHUB restaura a decodificação anterior. O worker em internal/bootstrap coordena FlushOutbox paraHUB/Relay; CollectAndBuffer continua responsável pela coleta e persistência antes da notificação.
+
+## Projeção inicial de amostras
+
+`internal/domain/monitoring` define projeção numérica de observação existente sem infraestrutura. `internal/platform/agentless/monitoring_projection.go` adapta job/resultado e confere o check; não altera transporte, outbox ou alarmes automaticamente. Contrato, limites, erros, testes e rollback no Web: docs/contracts/monitoring-samples-v1.md.
