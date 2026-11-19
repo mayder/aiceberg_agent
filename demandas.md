@@ -175,7 +175,7 @@ Status: planejado. Prioridade: P0. Coordenação: Web PKG-120 e Runtime PKG-24.
 
 ### Objetivo
 
-Fazer HUBs participarem de grupos com assignment versionado, lease/fencing, capacidade e redistribuição automática sem duplicar checks.
+Fazer HUBs participarem de grupos com assignment versionado, lease/fencing, capacidade e redistribuição automática sem duplicar checks; permitir que o HUB delegue a coleta a relays autorizados com alcance comprovado ao item.
 
 ### Lotes
 
@@ -186,9 +186,28 @@ Fazer HUBs participarem de grupos com assignment versionado, lease/fencing, capa
 - [ ] expor atraso, fila, saturação, drops, último sucesso e motivo de rejeição;
 - [ ] testar queda, partição, clock skew, assignment concorrente, restart e storm de failover.
 
+### Complemento SADA — delegação HUB → relays,19/11/2026
+
+Escopo autorizado de planejamento; encaminhamento relay→HUB existente não comprova delegação implementada. Depende do PKG-116 para executar SNMPv1 efetivamente no coletor escolhido e dos contratos Web PKG-120/Runtime PKG-24 para assignment e autoridade.
+
+- [ ] Distinguir falha da consulta pelo HUB, HUB offline e indisponibilidade do equipamento; timeout não prova sozinho problema de versão, credencial ou queda do sensor.
+- [ ] Após falhas confirmadas do check no HUB, selecionar quantidade limitada de relays ativos do mesmo cliente/local/rede autorizada, com capacidade e versão compatíveis. Proximidade por IP/latência não substitui leitura real do sensor; não transmitir probes ou segredos para toda a frota.
+- [ ] Delegar probe tipada e limitada por alvo/OID/versão, com segredo por referência/entrega restrita ao executor autorizado, prazo, rate limit e correlação; sem shell genérico remoto.
+- [ ] Eleger o relay com leitura válida e manter um responsável por check por período configurado, sob assignment/epoch/lease/fence/ack; impedir coleta autoritativa concorrente do HUB e dos relays, sem refazer a eleição a cada ciclo.
+- [ ] Preservar check_id, histórico e recorrência do alarme. Relay reporta ao HUB e este ao AIceberg, com identidade autenticada do executor, horário e versão efetiva; não exigir conexão direta do relay com o AIceberg nem criar check/alarme novo por origem.
+- [ ] Renovar, revogar e transferir assignment em falha/drain/retorno com critérios e cooldown explícitos; resultado tardio do owner antigo não recupera autoridade nem sobrescreve estado mais recente. Se o HUB estiver offline, preservar resultados na outbox até a reconexão, sem confirmar entrega inexistente.
+- [ ] Testar isolamento de cliente/recurso, segredo/redaction, perda/expiração de lease, dois relays concorrentes, dono antigo, partição, reinício, mensagens duplicadas/reordenadas e reconexão, sem perder observações ou duplicar alarmes.
+
+### Gate bloqueante — delegação com sensor real antes da publicação
+
+- [ ] Primeiro cumprir a qualificação SNMPv1 real do PKG-116; nenhuma publicação do novo fluxo baseada apenas em ping, identidade SNMP, fixture ou simulação de temperatura.
+- [ ] Antes de publicar/promover a delegação, em piloto restrito autorizado comprovar falha da consulta pela origem HUB e leitura real de temperatura pelo relay elegível, sem desligar o sensor; registrar topologia, coletor, OID, versão, valor, unidade/escala, horários, correlação e assignment/fence.
+- [ ] Demonstrar pelo menos três ciclos consecutivos relay→HUB→AIceberg na cadência configurada, com observações frescas no check original e um único coletor autoritativo/alarme; validar troca/retorno controlados e retomada da outbox sem perda ou duplicação.
+- [ ] Manter publicação geral bloqueada até evidências sanitizadas e aceite do piloto. Disponibilização/instalação de candidata de teste segue procedimento vigente de artefatos assinados e autorização de piloto; não equivale a promoção geral.
+
 ### Aceite e rollback
 
-Dois HUBs nunca executam o mesmo assignment válido; queda converge dentro do SLO e preserva observações. Rollback congela rebalanceamento e restaura o assignment anterior assinado.
+HUB e relays nunca executam simultaneamente o mesmo assignment autoritativo válido; queda converge dentro do SLO e preserva observações. Rollback desativa a delegação/rebalanceamento e restaura o assignment anterior assinado com fencing, preservando outbox, checks, histórico e isolamento; não apaga dados.
 
 ## [PKG-117] Discovery local, autorregistro e protótipos
 
