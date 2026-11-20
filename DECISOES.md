@@ -743,3 +743,7 @@ Projeção pura da observação existente: identidade por cliente/ativo/check/m�
 ## DEC-20261119-SNMP-V1-PILOT
 
 SNMPv1 explícito em candidata0.8.71-rc.1: GET unitário e GETNEXT com admissão compartilhada, deadline/cancelamento/cadência/teto e dados ausentes sem zero. Sensor padrão somente em probe opt-in, com ASN/metadados/estado/idade; precisão negativa permanece unknown. Comparação de versão separada da configuração e corrigida para prerelease→final sem force. Preservar rotinas/outbox/contratos legados; não implementar shell, delegação sem lease ou runner genérico neste incremento. Política e rollback coordenados: Web docs/operations/snmp-v1-sensor-pilot.md.
+
+## DEC-20261119-AGENTLESS-COMMAND-WAIT — prioridade manual limitada
+
+Após três recusas reais skipped_busy no HUB84, reservar apenas um comando manual pendente e aguardar o batch atual dentro do mesmo deadline. Novos polls cedem o slot; não há coleta paralela, interrupção, fila ilimitada ou liberação de lock alheio na expiração. Segundo comando mantém busy. Mutex protege reserva e admissão da rotina; atomic busy existente preserva integração atual de recuperação. Rollback por candidata assinada anterior, sem alterar fila/credenciais/checks. Parsing de comando extraído sem alteração funcional para reduzir app.go.

@@ -232,7 +232,7 @@ Redescoberta não duplica; desaparecimento temporário não apaga histórico; ev
 
 ## [PKG-116] Coletores universais — probes locais e de borda
 
-Status: implementação parcial; candidata e piloto pendentes. Prioridade: P1. Coordenação: Web PKG-116 e Runtime PKG-20.
+Status: implementação parcial; candidata rc.1 instalada no HUB84, teste físico pendente. Prioridade: P1. Coordenação: Web PKG-116 e Runtime PKG-20.
 
 ### Objetivo
 
@@ -262,7 +262,10 @@ Executar somente os protocolos que precisam de proximidade do host/rede, com con
 - [x] OIDs/PDU/tipos indisponíveis não fabricam zero; versão efetiva no runtime_applied e regressões v2c/v3.
 - [x] Probe ENTITY-SENSOR-MIB opt-in: somente Celsius com metadados, estado e frescor do dispositivo qualificados; lacunas são unknown/null. Precisão negativa fica explicitamente não suportada.
 - [x] Candidata0.8.71-rc.1 e comparação de versões corrigida para promoção posterior, sem forçar downgrade; DTO/probe/visibilidade restritos no Web.
-- [ ] Construir/verificar/publicar candidata assinada, atualizar HUB SADA selecionado e cumprir teste físico. Restante do catálogo universal e promoção geral continuam pendentes.
+- [x] Construir/verificar/publicar candidata assinada0.8.71-rc.1 e confirmar instalação/version_confirmed no HUB84/SADA; demais agentes preservados.
+- [x] Diagnóstico real166/167/168 chegou por canal autenticado e terminou skipped_busy, sem consulta SNMP ou temperatura. Janela temporária30s de poll/flush não resolveu; cadência original1/2s restaurada e piloto desligado.
+- [x] Correção para0.8.71-rc.2: um comando manual pode aguardar a rotina, com deadline incluindo espera, prioridade sobre novo polling, sem coleta paralela e sem limpar lock alheio ao cancelar. Outro comando é recusado como ocupado; rotina retoma após término.
+- [ ] Construir/verificar/publicar nova candidata assinada, atualizar somente HUB84 e repetir comparação SNMPv1/v2c e aceite físico. Restante do catálogo universal e promoção geral continuam pendentes.
 
 Testes com race e UDP real em loopback são sintéticos. Contrato, limites e rollback:
 Web `docs/operations/snmp-v1-sensor-pilot.md`. Sem novo schema SQL ou transporte

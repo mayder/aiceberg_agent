@@ -1014,3 +1014,7 @@ amplo ao host apenas para o piloto. Sem entrada real ou após cancelamento, falh
 ## Piloto SNMPv1 —19/11/2026
 
 Candidata0.8.71-rc.1 com artefatos oficiais assinados, oculta das listas gerais Web; instalar apenas no HUB SADA selecionado após gates, confirmar versão/readiness/outbox e manter rollback0.8.70. Probe manual temporário cliente/HUB/check no Web, sem alterar perfil ou rotina; oito colunas de sensor fixas, zero retry,5s/16linhas. Não interpretar SNMP OK como temperatura: exigir temperature_sensors qualificado, idade e três ciclos reais. Procedimento: Web docs/operations/snmp-v1-sensor-pilot.md.
+
+## Candidata0.8.71-rc.2 e prioridade manual —19/11/2026
+
+HUB84 confirmou rc.1 assinada, mas diagnósticos166/167/168 terminaram skipped_busy, sem resultado SNMP. Poll1s/flush2s para1873checks torna a janela manual estreita; ajuste temporário30/30s foi restaurado1/2s e piloto desativado, sem reativar os15checks. Nova candidata permite uma espera manual com prazo, cedendo apenas o próximo slot da rotina; nunca cancela a coleta em curso ou libera seu lock. Outra solicitação simultânea mantém skipped_busy. Prazo inclui espera e execução; expiração continua diagnóstico não concluído, sem leitura inventada. Construir/assinar nova versão imutável, atualizar apenas o HUB84 e repetir v2c/v1 pelo serviço Web. Reusar backup privado e rollback0.8.70/rc.1; promoção geral ainda bloqueada por temperatura física, frescor e três ciclos/referência local.

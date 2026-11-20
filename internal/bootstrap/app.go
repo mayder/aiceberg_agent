@@ -294,6 +294,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	var agentlessLastFlush time.Time
 	var agentlessRepo ports.AgentlessOutboxRepo
 	var agentlessBusy atomic.Bool
+	var agentlessCommands agentlessCommandGate
 	// Inicializa coletor de logs do SO; o gating agora é feito pelas prefs (collect_logs e flags avançados).
 	osStore := outbox.NewMemStore()
 	osRepo := repositories.NewOutboxRepositoryWithNotify(osStore, notify)
@@ -938,16 +939,21 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				}
 			case "agentless":
 				if agentlessUC != nil {
-					if agentlessBusy.CompareAndSwap(false, true) {
+					if agentlessCommands.reserve() {
 						cmdCopy := cmd
 						go func(commandName string, cmd usecase.ControlCommand) {
-							defer agentlessBusy.Store(false)
-							runCtx := ctx
-							cancel := func() {}
-							if cmd.TimeoutMs > 0 {
-								runCtx, cancel = context.WithTimeout(ctx, time.Duration(cmd.TimeoutMs)*time.Millisecond)
-							}
+							defer agentlessCommands.done()
+							runCtx, cancel := context.WithTimeout(ctx, agentlessCommandTimeout(cmd.TimeoutMs))
 							defer cancel()
+							if err := agentlessCommands.acquire(runCtx, &agentlessBusy); err != nil {
+								if errors.Is(err, context.DeadlineExceeded) {
+									reportControlCollectTimeout(ctx, cmd, "agentless")
+								} else {
+									reportControlCollectError(ctx, cmd, "agentless", err)
+								}
+								return
+							}
+							defer agentlessBusy.Store(false)
 							reportControlCollectProgress(runCtx, cmd, "running", "agentless", map[string]any{
 								"scope":     agentlessCommandScope(cmd),
 								"check_ids": cmd.CheckIDs,
@@ -1059,7 +1065,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				now := time.Now()
 				shouldPoll := st.Enabled && (agentlessLastPoll.IsZero() || now.Sub(agentlessLastPoll) >= time.Duration(st.PollSec)*time.Second)
 				shouldFlush := agentlessLastFlush.IsZero() || now.Sub(agentlessLastFlush) >= time.Duration(st.FlushSec)*time.Second
-				if (shouldPoll || shouldFlush) && agentlessBusy.CompareAndSwap(false, true) {
+				if (shouldPoll || shouldFlush) && agentlessCommands.tryRoutine(&agentlessBusy) {
 					if shouldPoll {
 						agentlessLastPoll = now
 					}
@@ -1531,32 +1537,6 @@ func channelEnvelopeCollectNow(env channel.Envelope) []string {
 		appendName(values)
 	}
 	return out
-}
-
-func channelEnvelopeAgentlessCommand(env channel.Envelope) usecase.AgentlessCommandRequest {
-	req := usecase.AgentlessCommandRequest{
-		CommandID:     strings.TrimSpace(env.CommandID),
-		CorrelationID: strings.TrimSpace(env.CorrelationID),
-	}
-	if env.Payload == nil {
-		return req
-	}
-	if commandID := strings.TrimSpace(fmt.Sprint(env.Payload["command_id"])); commandID != "" && commandID != "<nil>" {
-		req.CommandID = commandID
-	}
-	if correlationID := strings.TrimSpace(fmt.Sprint(env.Payload["correlation_id"])); correlationID != "" && correlationID != "<nil>" {
-		req.CorrelationID = correlationID
-	}
-	req.CheckIDs = channelPayloadIntList(env.Payload["check_ids"])
-	req.TimeoutMs = intFromAny(env.Payload["timeout_ms"])
-	return req
-}
-
-func agentlessCommandScope(cmd usecase.ControlCommand) string {
-	if len(cmd.CheckIDs) > 0 {
-		return "agentless_check"
-	}
-	return "agentless"
 }
 
 func channelPayloadIntList(raw any) []int {
