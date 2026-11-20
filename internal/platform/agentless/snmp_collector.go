@@ -103,7 +103,11 @@ func (c *goSNMPClient) Close() error {
 }
 
 func (c *goSNMPClient) Get(oids []string) (*gosnmp.SnmpPacket, error) {
-	return c.client.Get(oids)
+	packet, err := c.client.Get(oids)
+	if err == nil && c.basicWire != nil && packet != nil && (packet.Community != c.client.Community || packet.RequestID == 0) {
+		return nil, errSNMPBasicResponseInvalid
+	}
+	return packet, err
 }
 
 func (c *goSNMPClient) GetNext(oids []string) (*gosnmp.SnmpPacket, error) {

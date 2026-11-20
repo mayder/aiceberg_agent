@@ -1111,3 +1111,11 @@ redigidos antes da retenção em memória:16KiB/100entradas/1h, sem arquivo/tabe
 sem ampliar journal/ACL ou aceitar path remoto. Fonte distinta e degraded=true;
 callback ausente, cancelamento, plataforma não suportada e buffer vazio continuam
 falhando. Piloto real e confirmação do Windows ainda abertos.
+
+### Revisão pré-piloto do diagnóstico —20/11/2026
+
+rc.3 assinada e disponibilizada, sem instalação. Revisão do gosnmp1.38.0 encontrou
+aceitação de community divergente e requestID0 pelo decoder. rc.4 acrescenta
+validação explícita apenas no GET básico; erros tipados sem segredo, mantendo
+counters UDP e sem qualificar resposta incompatível. Fixtures UDP cobrem ambos.
+A rc.3 permanece imutável; usar rc.4 no piloto do HUB84 após gates e assinatura.

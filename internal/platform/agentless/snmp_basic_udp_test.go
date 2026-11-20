@@ -19,7 +19,7 @@ func TestBasicProbeRealUDPWireEvidence(t *testing.T) {
 			}
 			defer conn.Close()
 			done := make(chan error, 1)
-			go func() { done <- serveBasicFixture(conn) }()
+			go func() { done <- serveBasicFixture(conn, "", false) }()
 			job := newSNMPJob()
 			job.Endpoint.Endereco = "127.0.0.1"
 			job.SNMP.Version, job.SNMP.Port, job.SNMP.Community = version, conn.LocalAddr().(*net.UDPAddr).Port, "fixture-basic-private"
@@ -45,7 +45,7 @@ func TestBasicProbeRealUDPWireEvidence(t *testing.T) {
 	}
 }
 
-func serveBasicFixture(conn net.PacketConn) error {
+func serveBasicFixture(conn net.PacketConn, replyCommunity string, zeroID bool) error {
 	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	buffer := make([]byte, 2048)
 	n, peer, err := conn.ReadFrom(buffer)
@@ -62,6 +62,12 @@ func serveBasicFixture(conn net.PacketConn) error {
 	}
 	response := &gosnmp.SnmpPacket{Version: packet.Version, Community: packet.Community, PDUType: gosnmp.GetResponse, RequestID: packet.RequestID,
 		Variables: []gosnmp.SnmpPDU{{Name: packet.Variables[0].Name, Type: gosnmp.TimeTicks, Value: uint32(12345)}}}
+	if replyCommunity != "" {
+		response.Community = replyCommunity
+	}
+	if zeroID {
+		response.RequestID = 0
+	}
 	encoded, err := response.MarshalMsg()
 	if err != nil {
 		return err
@@ -93,5 +99,34 @@ func TestBasicProbeUDPTimeoutDoesNotClaimAuthenticationOrResponse(t *testing.T) 
 	}
 	if time.Since(started) > 3*time.Second {
 		t.Fatal("unexpected retries or budget exceeded")
+	}
+}
+
+func TestBasicProbeRealUDPRejectsMismatchedCommunityAndZeroRequestID(t *testing.T) {
+	for _, tc := range []struct {
+		name, community string
+		zeroID          bool
+	}{{"community", "fixture-other-private", false}, {"request_id", "", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, err := net.ListenPacket("udp4", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.Close()
+			done := make(chan error, 1)
+			go func() { done <- serveBasicFixture(conn, tc.community, tc.zeroID) }()
+			job := newSNMPJob()
+			job.Endpoint.Endereco = "127.0.0.1"
+			job.SNMP.Port, job.SNMP.Community = conn.LocalAddr().(*net.UDPAddr).Port, "fixture-basic-private"
+			job.Config["snmp_basic_probe"], job.Config["snmp_basic_oid"] = true, "1.3.6.1.2.1.1.3.0"
+			result := runSNMP(context.Background(), job)
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			report := result.Payload["basic_probe"].(map[string]any)
+			if result.Status != "fail" || report["outcome"] != "invalid_response" || report["response_received"] != false || report["received_datagrams"] != float64(1) {
+				t.Fatalf("mismatched reply accepted: %+v", report)
+			}
+		})
 	}
 }

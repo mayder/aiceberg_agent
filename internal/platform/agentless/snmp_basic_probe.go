@@ -14,6 +14,8 @@ import (
 
 const basicProbeKind = "system_get"
 
+var errSNMPBasicResponseInvalid = errors.New("snmp_basic_response_invalid")
+
 type snmpBasicProbeReport struct {
 	Kind              string `json:"kind"`
 	OID               string `json:"oid"`
@@ -99,6 +101,9 @@ func finishBasicProbe(payload *snmpPayload, started time.Time, outcome, code str
 }
 
 func basicProbeFailure(payload *snmpPayload, started time.Time, ctx context.Context, err error) Result {
+	if errors.Is(err, errSNMPBasicResponseInvalid) {
+		return finishBasicProbe(payload, started, "invalid_response", "snmp_fail")
+	}
 	// Never return arbitrary transport errors: they may contain endpoint or credentials.
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return finishBasicProbe(payload, started, "cancelled", "snmp_fail")

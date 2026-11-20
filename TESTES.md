@@ -853,3 +853,7 @@ Receber UDP não comprova resposta SNMP válida. Piloto apenas HUB84 após gates
 e assinatura; controles positivos antes dos sensores, sem alterar perfil/rotina.
 PKG-116 parcial, sem leitura física nova ou delegação relay declarada. Procedimento
 e rollback: Web docs/operations/snmp-v1-sensor-pilot.md; preservar config/outbox.
+
+Revisão rc.4: TestBasicProbeRealUDPRejectsMismatchedCommunityAndZeroRequestID
+verifica datagrama recebido sem qualificação de resposta quando community ou
+requestID divergem. Não registra community de requisição/resposta no relatório.
