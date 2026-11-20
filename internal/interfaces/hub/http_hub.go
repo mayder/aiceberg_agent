@@ -46,6 +46,7 @@ func ServeHub(ctx context.Context, addr string, cfg config.Config, outbox ports.
 
 func NewHandler(cfg config.Config, outbox ports.OutboxRepo, log logger.Logger, pendingCfg *PendingConfigStore) http.Handler {
 	mux := http.NewServeMux()
+	registerRelaySNMPProxy(mux, cfg)
 	relayChannels := NewRelayChannelStore()
 
 	ingestHandler := func(w http.ResponseWriter, r *http.Request) {

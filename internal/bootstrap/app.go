@@ -369,8 +369,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		agentlessLastFlush = time.Now().Add(-cfg.AgentlessFlushInterval)
 	}
 
+	relaySNMPProbe, stopRelaySNMPProbe := startRelaySNMPProbe(ctx, cfg, log)
+	defer stopRelaySNMPProbe()
 	modeApplier := modechange.NewApplier(cfg, log)
 	selfHealExec := usecase.NewSelfHealExecutor(log, controlClient, usecase.SelfHealDeps{
+		RelaySNMPProbe:   relaySNMPProbe,
 		ConfigSync:       configSyncUC.Execute,
 		Ping:             pingUC.Execute,
 		ApplyAgentMode:   modeApplier.Apply,

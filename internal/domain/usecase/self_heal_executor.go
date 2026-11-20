@@ -33,6 +33,7 @@ type SelfHealDeps struct {
 	RuntimeSnapshot     func() map[string]any
 	UpdateReadiness     func(context.Context) map[string]any
 	SupportFlare        func(context.Context) (map[string]any, error)
+	RelaySNMPProbe      func(context.Context, entities.SelfHealCommand) (map[string]any, error)
 }
 
 type SelfHealExecutor struct {
@@ -211,6 +212,15 @@ func (uc *SelfHealExecutor) executeCode(ctx context.Context, cmd entities.SelfHe
 		return "time sync probe triggered", map[string]any{"source": "health_collect"}, nil
 	case "inspect_runtime_config":
 		return uc.inspectRuntimeConfig(ctx, cmd)
+	case "diagnose_snmp_get":
+		if uc.deps.RelaySNMPProbe == nil {
+			return "relay probe unavailable", nil, fmt.Errorf("relay_probe_unavailable")
+		}
+		evidence, err := uc.deps.RelaySNMPProbe(ctx, cmd)
+		if err != nil {
+			return "relay probe not completed", evidence, err
+		}
+		return "relay probe buffered; delivery pending", evidence, nil
 	case "collect_support_flare":
 		return uc.collectSupportFlare(ctx)
 	default:

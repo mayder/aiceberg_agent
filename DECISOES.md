@@ -755,3 +755,15 @@ sem WALK, sem retry e erro bruto. Contadores de datagramas medem I/O, resposta
 SNMP exige decode/version/PDU compatíveis, valor exige ASN/faixa válidos; timeout
 não identifica comunidade inválida. Reusar runner e envelope diagnóstico sem
 telemetria operacional. Rollback pela candidata anterior, mantendo estado.
+
+## DEC-20261120-RELAY-SNMP-DIAGNOSTIC
+
+Sondagem manual e não autoritativa antecede HA/assignment. Reusar canal tipado
+com referência de execução, fetch restrito e HMAC do parent sem transportar token
+do HUB. Um GET fixo com lease/TTL; sem rotina no relay ou acesso cloud direto.
+Resultado vai a Bolt exclusivo, sem job/credencial, e só sai após ACK explícito
+da API através do HUB. Reinício não repete GET; falha preserva resultado e usa
+backoff15–240s. Sem Bolt, recusar antes do fetch. Retenção: ACK remove, teto50MiB
+bloqueia sem descarte; recusas persistentes requerem reconciliação. Controle
+positivo é explícito e não se apresenta como failover. Rollback e limites no
+runbook Web docs/operations/relay-snmp-probe-pilot.md. PKG-120 permanece parcial.

@@ -229,3 +229,6 @@ func (b *BoltStore) PeekDelivery(n int, ordinal uint64, excluded map[string]bool
 	})
 	return out, err
 }
+
+// Close flushes the dedicated store; callers stop its worker first.
+func (b *BoltStore) Close() error { return b.db.Close() }

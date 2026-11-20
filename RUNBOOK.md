@@ -1031,3 +1031,16 @@ Receber UDP não comprova resposta SNMP válida. Piloto apenas HUB84 após gates
 e assinatura; controles positivos antes dos sensores, sem alterar perfil/rotina.
 PKG-116 parcial, sem leitura física nova ou delegação relay declarada. Procedimento
 e rollback: Web docs/operations/snmp-v1-sensor-pilot.md; preservar config/outbox.
+
+## Diagnóstico limitado pelo relay —20/11/2026
+
+Candidata assinada mínima0.8.72-rc.1 em HUB/relay; primeiro HUB84, depois somente
+relay424 elegível após preflight, versão, heartbeat e fila. Default Web desligado,
+listas explícitas e origem HUB válida. Roteiro: Web docs/operations/relay-snmp-probe-pilot.md.
+Não habilitar rotina ou trocar modo do relay. A fila Bolt usa AGENTLESS_OUTBOX_PATH
+com sufixo .relay-probe,0600/teto configurado50MiB, sem fallback em memória.
+Retry15–240s somente na entrega pelo HUB; API accepted=true antes do ACK local.
+Sem pruning por idade; quando cheia, bloquear, preservar e reconciliar. Não apagar
+registro para contornar falha. Claim/resultado atrasado não ganham autoridade.
+Rollback assinado HUBrc.4/relay0.8.70 após drenar resultados; preservar filas e prefs.
+PKG-120 permanece parcial; sem eleição/ownership/HA ou promoção geral declarados.

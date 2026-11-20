@@ -857,3 +857,17 @@ e rollback: Web docs/operations/snmp-v1-sensor-pilot.md; preservar config/outbox
 Revisão rc.4: TestBasicProbeRealUDPRejectsMismatchedCommunityAndZeroRequestID
 verifica datagrama recebido sem qualificação de resposta quando community ou
 requestID divergem. Não registra community de requisição/resposta no relatório.
+
+## Diagnóstico relay —20/11/2026
+
+Testes Go dos pacotes bootstrap/domain/usecase/data/remote/interfaces/hub/common/relayprobe:
+jornada UDPv1 sintética real através do proxy, identidade/prova do HUB,503 e ACK
+explícito, persistência/reabertura Bolt e retry sem outro GET. Rejeição de modo,
+TTL, comando/payload/OID/versão/executor inválidos; sem API direta ou memória.
+Vetor HMAC idêntico no PHP. Web python3 -B scripts/snmp-sensor-probe-lab.py --relay
+prova request/claim/resultado concorrentes em MySQL nativo exclusivo, com cleanup.
+Fixtures não são sensores físicos; piloto, três ciclos e aceite permanecem separados.
+
+Instalações legadas sem IDs numéricos em env reaproveitam HostGUID medido e
+persistido no bootstrap (ou lido do host), mantendo a mesma identidade assinada.
+Sem identidade, não fazer fetch. Teste verifica que não é inventado installation_id.

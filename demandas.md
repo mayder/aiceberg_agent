@@ -171,7 +171,7 @@ Falha de extensão não derruba o agente nem bloqueia coletores essenciais; mani
 
 ## [PKG-120] HUB resiliente — assignment, failover e capacidade
 
-Status: planejado. Prioridade: P0. Coordenação: Web PKG-120 e Runtime PKG-24.
+Status: implementação parcial de sondagem manual; assignment/HA e aceite físico pendentes. Prioridade: P0. Coordenação: Web PKG-120 e Runtime PKG-24.
 
 ### Objetivo
 
@@ -185,6 +185,21 @@ Fazer HUBs participarem de grupos com assignment versionado, lease/fencing, capa
 - [ ] suportar drain, afinidade, rebalanceamento e retomada sem recriar check;
 - [ ] expor atraso, fila, saturação, drops, último sucesso e motivo de rejeição;
 - [ ] testar queda, partição, clock skew, assignment concorrente, restart e storm de failover.
+
+### Incremento manual implementado —20/11/2026
+
+Candidata0.8.72-rc.1 preparada no código, ainda sem instalação neste registro.
+Comando diagnose_snmp_get só manual, com referência de execução; GET fixo após
+falha recente real do HUB, mesma versão/scalar/perfil e executor autorizado.
+Controle positivo explicitamente permitido não simula falha. PHP mantém scope
+próprio, claim/TTL/primeiro resultado sob lock, sem observação/check/owner novo.
+HUB autentica encaminhamento HMAC, API exige identidade assinada do relay.
+Fila Bolt exclusiva no relay, sem fallback memória/cloud, job/segredo na fila,
+ou ACK sem accepted=true. Reinício/falha retransmitem apenas resultado, não GET.
+Testes PHP/Go, UDP local end-to-end e MySQL concorrente são sintéticos; leitura
+real/assinatura/instalação desta candidata continuam gates separados. Não fecha
+assignment/epoch/lease/fence, eleição automática, HA ou PKG-120 completo.
+Procedimento/retencão/rollback: Web docs/operations/relay-snmp-probe-pilot.md.
 
 ### Complemento SADA — delegação HUB → relays,19/11/2026
 
@@ -200,8 +215,8 @@ Escopo autorizado de planejamento; encaminhamento relay→HUB existente não com
 
 ### Gate bloqueante — delegação com sensor real antes da publicação
 
-- [ ] Cumprir a qualificação SNMPv1 real do PKG-116 antes da promoção geral; candidata assinada de piloto e atualização restrita SADA autorizadas para possibilitar o teste na rede. Ping, identidade SNMP, fixture ou simulação de temperatura não comprovam o sensor.
-- [ ] Antes de publicar/promover a delegação, em piloto restrito autorizado comprovar falha da consulta pela origem HUB e leitura real de temperatura pelo relay elegível, sem desligar o sensor; registrar topologia, coletor, OID, versão, valor, unidade/escala, horários, correlação e assignment/fence.
+- [ ] Cumprir a qualificação SNMPv1 real do PKG-116 antes da promoção geral; candidata assinada de piloto e atualização restrita SADA autorizadas para possibilitar o teste na rede. ICMP/fixture não comprovam resposta SNMP física. Temperatura entregue exige qualificação própria.
+- [ ] Antes de publicar/promover a delegação, em piloto restrito autorizado comprovar falha da consulta pela origem HUB e resposta SNMP real pelo relay elegível, qualificando temperatura quando entregue, sem desligar o sensor; registrar topologia, coletor, OID, versão, valor, unidade/escala, horários, correlação e assignment/fence.
 - [ ] Demonstrar pelo menos três ciclos consecutivos relay→HUB→AIceberg na cadência configurada, com observações frescas no check original e um único coletor autoritativo/alarme; validar troca/retorno controlados e retomada da outbox sem perda ou duplicação.
 - [ ] Manter publicação geral bloqueada até evidências sanitizadas e aceite do piloto. Disponibilização/instalação de candidata de teste segue procedimento vigente de artefatos assinados e autorização de piloto; não equivale a promoção geral.
 

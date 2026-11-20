@@ -42,6 +42,7 @@ const (
 	CommandResyncClock             = "resync_clock"
 	CommandInspectRuntimeConfig    = "inspect_runtime_config"
 	CommandCollectSupportFlare     = "collect_support_flare"
+	CommandDiagnoseSNMPGet         = "diagnose_snmp_get"
 )
 
 var LegacyHTTPContracts = map[string][]string{
@@ -138,6 +139,7 @@ func AllowedCommandCodes() map[string]struct{} {
 		CommandResyncClock:             {},
 		CommandInspectRuntimeConfig:    {},
 		CommandCollectSupportFlare:     {},
+		CommandDiagnoseSNMPGet:         {},
 	}
 }
 
