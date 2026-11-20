@@ -836,3 +836,5 @@ no HUB84/0.8.69; novo candidato0.8.70 exige recibo real, não fixture.
 ## SNMPv1 e candidata de sensores —19/11/2026
 
 `go test -race ./internal/platform/agentless -count=1`: seleção de versão, GET/GETNEXT UDP em loopback, OID ausente, sem GETBULK v1, row/request/rate/budget/cancel, ordenação/loops e regressões v2c/v3. Fixture ENTITY-SENSOR-MIB produz25.3°C com tipo/escala/precisão/estado/TimeTicks; casos incompletos, indisponíveis, antigos, overflow, precisão negativa e wrap são unknown. `go test -race ./internal/domain/usecase -run TestUpdateCandidateVersionPrecedence -count=1` e testes de update: candidata→final, build metadata e proteção de downgrade. Não é teste do sensor físico. Gate geral continua bloqueado.
+
+Complemento116: probe transporta diagnostic_probe em resultado final/segmentos; servidor exige execução autorizada e armazena somente no resultado diagnóstico, sem projeção/check/threshold. Teste UDP verifica o marcador. Nenhuma observação de rotina é marcada.

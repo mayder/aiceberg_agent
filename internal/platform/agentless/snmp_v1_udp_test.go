@@ -210,6 +210,9 @@ func TestSNMPV1RealUDPEntitySensorProducesQualifiedTemperature(t *testing.T) {
 	}
 	job.Config["custom_walk_oids"] = roots
 	result := runSNMP(context.Background(), job)
+	if result.Payload["diagnostic_probe"] != true {
+		t.Fatal("diagnostic marker absent")
+	}
 	sensors, _ := result.Payload["temperature_sensors"].([]any)
 	if result.Status != "ok" || len(sensors) != 1 {
 		t.Fatalf("qualified sensor absent: %+v", result)

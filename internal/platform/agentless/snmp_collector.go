@@ -157,6 +157,7 @@ func runSNMPCollectionWithPartials(ctx context.Context, job entities.AgentlessJo
 	}
 	plan := buildSNMPPlan(job, host)
 	plan.SNMPVersion = effectiveVersion
+	plan.DiagnosticProbe = job.Config["entity_sensor_probe"] == true
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(plan.TimeBudgetMs)*time.Millisecond)
 	defer cancel()
 	payload := newSNMPPayload(plan)

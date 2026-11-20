@@ -41,6 +41,7 @@ type snmpSegmentDefault struct {
 }
 
 type snmpPlan struct {
+	DiagnosticProbe   bool
 	SNMPVersion       string
 	Host              string
 	ProfileID         int

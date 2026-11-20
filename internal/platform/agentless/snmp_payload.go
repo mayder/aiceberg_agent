@@ -43,6 +43,7 @@ type snmpRuntimeApplied struct {
 }
 
 type snmpPayload struct {
+	DiagnosticProbe      bool                                    `json:"diagnostic_probe,omitempty"`
 	SensorUptimeTicks    *uint32                                 `json:"-"`
 	TemperatureSensors   []snmpTemperatureReading                `json:"temperature_sensors,omitempty"`
 	Host                 string                                  `json:"host"`
@@ -96,6 +97,7 @@ func newSNMPPayload(plan snmpPlan) *snmpPayload {
 	}
 
 	return &snmpPayload{
+		DiagnosticProbe:    plan.DiagnosticProbe,
 		Host:               plan.Host,
 		ProfileID:          plan.ProfileID,
 		SNMPCollectionKind: plan.CollectionKind,
