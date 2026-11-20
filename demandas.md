@@ -328,7 +328,7 @@ Cada adapter falha isoladamente, respeita budget e reporta estado explícito. Ro
 
 ## [PKG-115] Modelo universal — contrato local de item, série e pipeline
 
-Status: planejado. Prioridade: P0. Coordenação: Web PKG-115 e Runtime PKG-19.
+Status: implementação parcial de contratos puros; consumo ativo pendente. Prioridade: P0. Coordenação: Web PKG-115 e Runtime PKG-19.
 
 ### Objetivo
 
@@ -351,6 +351,22 @@ Contrato numérico SNMP v1 e adapter de observação existentes implementados em
 legado, escopo e ausência de nova coleta comprovados. Não encerra os lotes acima:
 modelo/evento universal, demais coletores, transporte e consumo ativo pendentes.
 Contrato coordenado: Web `docs/contracts/monitoring-samples-v1.md`.
+
+Incremento20/11/2026: definição de itens com identidade por cliente/ativo/check,
+fontes/tipos explícitos, retenção/frescor limitados e grafo de dependências.
+Validação exige autoridade externa, rejeita ciclo, mestre ausente/desabilitado,
+profundidade/tamanho excessivos e campos extras/segredos.52vetores idênticos ao
+Web, PHP real, race e codec JSON limitado testados; integração ativa não feita.
+Contrato: Web docs/contracts/monitoring-definitions-v1.md. Patches Web/Runtime
+foram reintegrados após encerrar a intervenção concorrente de logs. Paridade
+PHP/Go e regressões de agendadores/análise/controle PHP repetidas com race.
+Composição/herança/macros e preview novos ficam exclusivamente no Runtime;
+o Agent mantém apenas descrição/validação e não recebe outro motor de templates.
+Adapter DescribeSNMPItems descreve a projeção SNMP existente com política e
+autoridade explícitas, sem coletar/copiar endpoint/credencial; diagnóstico não
+é promovido a definição de rotina. Chaves compatíveis e job intacto testados.
+Templates/macros/pipeline, amostras/eventos universais, emissão/transporte,
+compatibilidade instalada e fechamento do pacote continuam pendentes.
 
 ### Aceite e rollback
 

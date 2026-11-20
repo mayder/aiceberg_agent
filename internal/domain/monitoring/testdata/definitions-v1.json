@@ -1,0 +1,7071 @@
+[
+  {
+    "name": "collected_numeric",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": ""
+  },
+  {
+    "name": "type_integer",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "integer",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": ""
+  },
+  {
+    "name": "type_boolean",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "boolean",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": ""
+  },
+  {
+    "name": "type_text",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "text",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": ""
+  },
+  {
+    "name": "type_event",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "event",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": ""
+  },
+  {
+    "name": "dependent",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:derived_cpu",
+          "check_id": 73,
+          "metric": "derived_cpu",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:snmp:cpu_percent"
+          ]
+        }
+      ]
+    },
+    "expected_error": ""
+  },
+  {
+    "name": "calculated_fan_in",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:snmp:memory_percent",
+          "check_id": 73,
+          "metric": "memory_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:74:derived:combined",
+          "check_id": 74,
+          "metric": "combined",
+          "source": "derived",
+          "kind": "calculated",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:snmp:cpu_percent",
+            "v1:c:3:a:52:check:73:snmp:memory_percent"
+          ]
+        }
+      ]
+    },
+    "expected_error": ""
+  },
+  {
+    "name": "disabled_collector",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": false,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": ""
+  },
+  {
+    "name": "wrong_schema",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 2,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_definition"
+  },
+  {
+    "name": "unknown_top_field",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ],
+      "endpoint": "fixture-do-not-copy"
+    },
+    "expected_error": "invalid_monitoring_definition"
+  },
+  {
+    "name": "revision_zero",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 0,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_definition"
+  },
+  {
+    "name": "revision_unsafe_integer",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 9007199254740992,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_definition"
+  },
+  {
+    "name": "wrong_client",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 4,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "monitoring_definition_scope_mismatch"
+  },
+  {
+    "name": "wrong_asset",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 53,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "monitoring_definition_scope_mismatch"
+  },
+  {
+    "name": "unauthorized_check",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 99,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "monitoring_definition_scope_mismatch"
+  },
+  {
+    "name": "empty_authority",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": []
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_authority"
+  },
+  {
+    "name": "duplicate_authority",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        72
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_authority"
+  },
+  {
+    "name": "unsafe_authority",
+    "authority": {
+      "client_id": 9007199254740992,
+      "asset_id": 52,
+      "check_ids": [
+        72
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_authority"
+  },
+  {
+    "name": "invalid_source_other",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "other",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_kind_other",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "other",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_value_type_other",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "other",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_metric_CPU PERCENT",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "CPU PERCENT",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_metric_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_unit_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_freshness_sec_0",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 0,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_freshness_sec_604801",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 604801,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_history_days_0",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 0,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_history_days_3651",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 3651,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_trends_days_-1",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": -1,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_trends_days_29",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 29,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_depends_on_None",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": null
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_enabled_None",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": null,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "invalid_community_fixture-do-not-copy",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [],
+          "community": "fixture-do-not-copy"
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "missing_enabled",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "identity_other_scope",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:4:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "trends_on_text",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "text",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "calculated_boolean",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:bad",
+          "check_id": 73,
+          "metric": "bad",
+          "source": "derived",
+          "kind": "calculated",
+          "value_type": "boolean",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:snmp:cpu_percent"
+          ]
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "derived_without_master",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:73:derived:bad",
+          "check_id": 73,
+          "metric": "bad",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "collected_with_master",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:snmp:cpu_percent"
+          ]
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "duplicate_item",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "duplicate_monitoring_item"
+  },
+  {
+    "name": "missing_master",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:child",
+          "check_id": 73,
+          "metric": "child",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:4:a:52:check:72:snmp:cpu_percent"
+          ]
+        }
+      ]
+    },
+    "expected_error": "monitoring_dependency_missing"
+  },
+  {
+    "name": "self_cycle",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:derived:a",
+          "check_id": 72,
+          "metric": "a",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:a"
+          ]
+        }
+      ]
+    },
+    "expected_error": "monitoring_dependency_cycle"
+  },
+  {
+    "name": "two_item_cycle",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:derived:a",
+          "check_id": 72,
+          "metric": "a",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:73:derived:b"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:b",
+          "check_id": 73,
+          "metric": "b",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:a"
+          ]
+        }
+      ]
+    },
+    "expected_error": "monitoring_dependency_cycle"
+  },
+  {
+    "name": "disabled_master",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": false,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:child",
+          "check_id": 73,
+          "metric": "child",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:snmp:cpu_percent"
+          ]
+        }
+      ]
+    },
+    "expected_error": "monitoring_dependency_disabled"
+  },
+  {
+    "name": "duplicate_dependency",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:child",
+          "check_id": 73,
+          "metric": "child",
+          "source": "derived",
+          "kind": "calculated",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:snmp:cpu_percent",
+            "v1:c:3:a:52:check:72:snmp:cpu_percent"
+          ]
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "too_many_dependencies",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:cpu_percent",
+          "check_id": 72,
+          "metric": "cpu_percent",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:child",
+          "check_id": 73,
+          "metric": "child",
+          "source": "derived",
+          "kind": "calculated",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "p0",
+            "p1",
+            "p2",
+            "p3",
+            "p4",
+            "p5",
+            "p6",
+            "p7",
+            "p8",
+            "p9",
+            "p10",
+            "p11",
+            "p12",
+            "p13",
+            "p14",
+            "p15",
+            "p16"
+          ]
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_item"
+  },
+  {
+    "name": "empty_items",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": []
+    },
+    "expected_error": "invalid_monitoring_definition"
+  },
+  {
+    "name": "too_many_items",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_0",
+          "check_id": 72,
+          "metric": "metric_0",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_1",
+          "check_id": 72,
+          "metric": "metric_1",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_2",
+          "check_id": 72,
+          "metric": "metric_2",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_3",
+          "check_id": 72,
+          "metric": "metric_3",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_4",
+          "check_id": 72,
+          "metric": "metric_4",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_5",
+          "check_id": 72,
+          "metric": "metric_5",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_6",
+          "check_id": 72,
+          "metric": "metric_6",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_7",
+          "check_id": 72,
+          "metric": "metric_7",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_8",
+          "check_id": 72,
+          "metric": "metric_8",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_9",
+          "check_id": 72,
+          "metric": "metric_9",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_10",
+          "check_id": 72,
+          "metric": "metric_10",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_11",
+          "check_id": 72,
+          "metric": "metric_11",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_12",
+          "check_id": 72,
+          "metric": "metric_12",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_13",
+          "check_id": 72,
+          "metric": "metric_13",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_14",
+          "check_id": 72,
+          "metric": "metric_14",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_15",
+          "check_id": 72,
+          "metric": "metric_15",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_16",
+          "check_id": 72,
+          "metric": "metric_16",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_17",
+          "check_id": 72,
+          "metric": "metric_17",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_18",
+          "check_id": 72,
+          "metric": "metric_18",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_19",
+          "check_id": 72,
+          "metric": "metric_19",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_20",
+          "check_id": 72,
+          "metric": "metric_20",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_21",
+          "check_id": 72,
+          "metric": "metric_21",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_22",
+          "check_id": 72,
+          "metric": "metric_22",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_23",
+          "check_id": 72,
+          "metric": "metric_23",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_24",
+          "check_id": 72,
+          "metric": "metric_24",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_25",
+          "check_id": 72,
+          "metric": "metric_25",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_26",
+          "check_id": 72,
+          "metric": "metric_26",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_27",
+          "check_id": 72,
+          "metric": "metric_27",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_28",
+          "check_id": 72,
+          "metric": "metric_28",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_29",
+          "check_id": 72,
+          "metric": "metric_29",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_30",
+          "check_id": 72,
+          "metric": "metric_30",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_31",
+          "check_id": 72,
+          "metric": "metric_31",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_32",
+          "check_id": 72,
+          "metric": "metric_32",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_33",
+          "check_id": 72,
+          "metric": "metric_33",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_34",
+          "check_id": 72,
+          "metric": "metric_34",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_35",
+          "check_id": 72,
+          "metric": "metric_35",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_36",
+          "check_id": 72,
+          "metric": "metric_36",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_37",
+          "check_id": 72,
+          "metric": "metric_37",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_38",
+          "check_id": 72,
+          "metric": "metric_38",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_39",
+          "check_id": 72,
+          "metric": "metric_39",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_40",
+          "check_id": 72,
+          "metric": "metric_40",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_41",
+          "check_id": 72,
+          "metric": "metric_41",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_42",
+          "check_id": 72,
+          "metric": "metric_42",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_43",
+          "check_id": 72,
+          "metric": "metric_43",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_44",
+          "check_id": 72,
+          "metric": "metric_44",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_45",
+          "check_id": 72,
+          "metric": "metric_45",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_46",
+          "check_id": 72,
+          "metric": "metric_46",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_47",
+          "check_id": 72,
+          "metric": "metric_47",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_48",
+          "check_id": 72,
+          "metric": "metric_48",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_49",
+          "check_id": 72,
+          "metric": "metric_49",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_50",
+          "check_id": 72,
+          "metric": "metric_50",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_51",
+          "check_id": 72,
+          "metric": "metric_51",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_52",
+          "check_id": 72,
+          "metric": "metric_52",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_53",
+          "check_id": 72,
+          "metric": "metric_53",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_54",
+          "check_id": 72,
+          "metric": "metric_54",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_55",
+          "check_id": 72,
+          "metric": "metric_55",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_56",
+          "check_id": 72,
+          "metric": "metric_56",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_57",
+          "check_id": 72,
+          "metric": "metric_57",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_58",
+          "check_id": 72,
+          "metric": "metric_58",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_59",
+          "check_id": 72,
+          "metric": "metric_59",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_60",
+          "check_id": 72,
+          "metric": "metric_60",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_61",
+          "check_id": 72,
+          "metric": "metric_61",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_62",
+          "check_id": 72,
+          "metric": "metric_62",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_63",
+          "check_id": 72,
+          "metric": "metric_63",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_64",
+          "check_id": 72,
+          "metric": "metric_64",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_65",
+          "check_id": 72,
+          "metric": "metric_65",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_66",
+          "check_id": 72,
+          "metric": "metric_66",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_67",
+          "check_id": 72,
+          "metric": "metric_67",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_68",
+          "check_id": 72,
+          "metric": "metric_68",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_69",
+          "check_id": 72,
+          "metric": "metric_69",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_70",
+          "check_id": 72,
+          "metric": "metric_70",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_71",
+          "check_id": 72,
+          "metric": "metric_71",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_72",
+          "check_id": 72,
+          "metric": "metric_72",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_73",
+          "check_id": 72,
+          "metric": "metric_73",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_74",
+          "check_id": 72,
+          "metric": "metric_74",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_75",
+          "check_id": 72,
+          "metric": "metric_75",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_76",
+          "check_id": 72,
+          "metric": "metric_76",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_77",
+          "check_id": 72,
+          "metric": "metric_77",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_78",
+          "check_id": 72,
+          "metric": "metric_78",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_79",
+          "check_id": 72,
+          "metric": "metric_79",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_80",
+          "check_id": 72,
+          "metric": "metric_80",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_81",
+          "check_id": 72,
+          "metric": "metric_81",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_82",
+          "check_id": 72,
+          "metric": "metric_82",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_83",
+          "check_id": 72,
+          "metric": "metric_83",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_84",
+          "check_id": 72,
+          "metric": "metric_84",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_85",
+          "check_id": 72,
+          "metric": "metric_85",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_86",
+          "check_id": 72,
+          "metric": "metric_86",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_87",
+          "check_id": 72,
+          "metric": "metric_87",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_88",
+          "check_id": 72,
+          "metric": "metric_88",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_89",
+          "check_id": 72,
+          "metric": "metric_89",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_90",
+          "check_id": 72,
+          "metric": "metric_90",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_91",
+          "check_id": 72,
+          "metric": "metric_91",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_92",
+          "check_id": 72,
+          "metric": "metric_92",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_93",
+          "check_id": 72,
+          "metric": "metric_93",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_94",
+          "check_id": 72,
+          "metric": "metric_94",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_95",
+          "check_id": 72,
+          "metric": "metric_95",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_96",
+          "check_id": 72,
+          "metric": "metric_96",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_97",
+          "check_id": 72,
+          "metric": "metric_97",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_98",
+          "check_id": 72,
+          "metric": "metric_98",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_99",
+          "check_id": 72,
+          "metric": "metric_99",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_100",
+          "check_id": 72,
+          "metric": "metric_100",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_101",
+          "check_id": 72,
+          "metric": "metric_101",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_102",
+          "check_id": 72,
+          "metric": "metric_102",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_103",
+          "check_id": 72,
+          "metric": "metric_103",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_104",
+          "check_id": 72,
+          "metric": "metric_104",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_105",
+          "check_id": 72,
+          "metric": "metric_105",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_106",
+          "check_id": 72,
+          "metric": "metric_106",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_107",
+          "check_id": 72,
+          "metric": "metric_107",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_108",
+          "check_id": 72,
+          "metric": "metric_108",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_109",
+          "check_id": 72,
+          "metric": "metric_109",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_110",
+          "check_id": 72,
+          "metric": "metric_110",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_111",
+          "check_id": 72,
+          "metric": "metric_111",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_112",
+          "check_id": 72,
+          "metric": "metric_112",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_113",
+          "check_id": 72,
+          "metric": "metric_113",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_114",
+          "check_id": 72,
+          "metric": "metric_114",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_115",
+          "check_id": 72,
+          "metric": "metric_115",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_116",
+          "check_id": 72,
+          "metric": "metric_116",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_117",
+          "check_id": 72,
+          "metric": "metric_117",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_118",
+          "check_id": 72,
+          "metric": "metric_118",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_119",
+          "check_id": 72,
+          "metric": "metric_119",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_120",
+          "check_id": 72,
+          "metric": "metric_120",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_121",
+          "check_id": 72,
+          "metric": "metric_121",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_122",
+          "check_id": 72,
+          "metric": "metric_122",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_123",
+          "check_id": 72,
+          "metric": "metric_123",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_124",
+          "check_id": 72,
+          "metric": "metric_124",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_125",
+          "check_id": 72,
+          "metric": "metric_125",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_126",
+          "check_id": 72,
+          "metric": "metric_126",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_127",
+          "check_id": 72,
+          "metric": "metric_127",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_128",
+          "check_id": 72,
+          "metric": "metric_128",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "invalid_monitoring_definition"
+  },
+  {
+    "name": "max_items",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_0",
+          "check_id": 72,
+          "metric": "metric_0",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_1",
+          "check_id": 72,
+          "metric": "metric_1",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_2",
+          "check_id": 72,
+          "metric": "metric_2",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_3",
+          "check_id": 72,
+          "metric": "metric_3",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_4",
+          "check_id": 72,
+          "metric": "metric_4",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_5",
+          "check_id": 72,
+          "metric": "metric_5",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_6",
+          "check_id": 72,
+          "metric": "metric_6",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_7",
+          "check_id": 72,
+          "metric": "metric_7",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_8",
+          "check_id": 72,
+          "metric": "metric_8",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_9",
+          "check_id": 72,
+          "metric": "metric_9",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_10",
+          "check_id": 72,
+          "metric": "metric_10",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_11",
+          "check_id": 72,
+          "metric": "metric_11",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_12",
+          "check_id": 72,
+          "metric": "metric_12",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_13",
+          "check_id": 72,
+          "metric": "metric_13",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_14",
+          "check_id": 72,
+          "metric": "metric_14",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_15",
+          "check_id": 72,
+          "metric": "metric_15",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_16",
+          "check_id": 72,
+          "metric": "metric_16",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_17",
+          "check_id": 72,
+          "metric": "metric_17",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_18",
+          "check_id": 72,
+          "metric": "metric_18",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_19",
+          "check_id": 72,
+          "metric": "metric_19",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_20",
+          "check_id": 72,
+          "metric": "metric_20",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_21",
+          "check_id": 72,
+          "metric": "metric_21",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_22",
+          "check_id": 72,
+          "metric": "metric_22",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_23",
+          "check_id": 72,
+          "metric": "metric_23",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_24",
+          "check_id": 72,
+          "metric": "metric_24",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_25",
+          "check_id": 72,
+          "metric": "metric_25",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_26",
+          "check_id": 72,
+          "metric": "metric_26",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_27",
+          "check_id": 72,
+          "metric": "metric_27",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_28",
+          "check_id": 72,
+          "metric": "metric_28",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_29",
+          "check_id": 72,
+          "metric": "metric_29",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_30",
+          "check_id": 72,
+          "metric": "metric_30",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_31",
+          "check_id": 72,
+          "metric": "metric_31",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_32",
+          "check_id": 72,
+          "metric": "metric_32",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_33",
+          "check_id": 72,
+          "metric": "metric_33",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_34",
+          "check_id": 72,
+          "metric": "metric_34",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_35",
+          "check_id": 72,
+          "metric": "metric_35",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_36",
+          "check_id": 72,
+          "metric": "metric_36",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_37",
+          "check_id": 72,
+          "metric": "metric_37",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_38",
+          "check_id": 72,
+          "metric": "metric_38",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_39",
+          "check_id": 72,
+          "metric": "metric_39",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_40",
+          "check_id": 72,
+          "metric": "metric_40",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_41",
+          "check_id": 72,
+          "metric": "metric_41",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_42",
+          "check_id": 72,
+          "metric": "metric_42",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_43",
+          "check_id": 72,
+          "metric": "metric_43",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_44",
+          "check_id": 72,
+          "metric": "metric_44",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_45",
+          "check_id": 72,
+          "metric": "metric_45",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_46",
+          "check_id": 72,
+          "metric": "metric_46",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_47",
+          "check_id": 72,
+          "metric": "metric_47",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_48",
+          "check_id": 72,
+          "metric": "metric_48",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_49",
+          "check_id": 72,
+          "metric": "metric_49",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_50",
+          "check_id": 72,
+          "metric": "metric_50",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_51",
+          "check_id": 72,
+          "metric": "metric_51",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_52",
+          "check_id": 72,
+          "metric": "metric_52",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_53",
+          "check_id": 72,
+          "metric": "metric_53",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_54",
+          "check_id": 72,
+          "metric": "metric_54",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_55",
+          "check_id": 72,
+          "metric": "metric_55",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_56",
+          "check_id": 72,
+          "metric": "metric_56",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_57",
+          "check_id": 72,
+          "metric": "metric_57",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_58",
+          "check_id": 72,
+          "metric": "metric_58",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_59",
+          "check_id": 72,
+          "metric": "metric_59",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_60",
+          "check_id": 72,
+          "metric": "metric_60",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_61",
+          "check_id": 72,
+          "metric": "metric_61",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_62",
+          "check_id": 72,
+          "metric": "metric_62",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_63",
+          "check_id": 72,
+          "metric": "metric_63",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_64",
+          "check_id": 72,
+          "metric": "metric_64",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_65",
+          "check_id": 72,
+          "metric": "metric_65",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_66",
+          "check_id": 72,
+          "metric": "metric_66",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_67",
+          "check_id": 72,
+          "metric": "metric_67",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_68",
+          "check_id": 72,
+          "metric": "metric_68",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_69",
+          "check_id": 72,
+          "metric": "metric_69",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_70",
+          "check_id": 72,
+          "metric": "metric_70",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_71",
+          "check_id": 72,
+          "metric": "metric_71",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_72",
+          "check_id": 72,
+          "metric": "metric_72",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_73",
+          "check_id": 72,
+          "metric": "metric_73",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_74",
+          "check_id": 72,
+          "metric": "metric_74",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_75",
+          "check_id": 72,
+          "metric": "metric_75",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_76",
+          "check_id": 72,
+          "metric": "metric_76",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_77",
+          "check_id": 72,
+          "metric": "metric_77",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_78",
+          "check_id": 72,
+          "metric": "metric_78",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_79",
+          "check_id": 72,
+          "metric": "metric_79",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_80",
+          "check_id": 72,
+          "metric": "metric_80",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_81",
+          "check_id": 72,
+          "metric": "metric_81",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_82",
+          "check_id": 72,
+          "metric": "metric_82",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_83",
+          "check_id": 72,
+          "metric": "metric_83",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_84",
+          "check_id": 72,
+          "metric": "metric_84",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_85",
+          "check_id": 72,
+          "metric": "metric_85",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_86",
+          "check_id": 72,
+          "metric": "metric_86",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_87",
+          "check_id": 72,
+          "metric": "metric_87",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_88",
+          "check_id": 72,
+          "metric": "metric_88",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_89",
+          "check_id": 72,
+          "metric": "metric_89",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_90",
+          "check_id": 72,
+          "metric": "metric_90",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_91",
+          "check_id": 72,
+          "metric": "metric_91",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_92",
+          "check_id": 72,
+          "metric": "metric_92",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_93",
+          "check_id": 72,
+          "metric": "metric_93",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_94",
+          "check_id": 72,
+          "metric": "metric_94",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_95",
+          "check_id": 72,
+          "metric": "metric_95",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_96",
+          "check_id": 72,
+          "metric": "metric_96",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_97",
+          "check_id": 72,
+          "metric": "metric_97",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_98",
+          "check_id": 72,
+          "metric": "metric_98",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_99",
+          "check_id": 72,
+          "metric": "metric_99",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_100",
+          "check_id": 72,
+          "metric": "metric_100",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_101",
+          "check_id": 72,
+          "metric": "metric_101",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_102",
+          "check_id": 72,
+          "metric": "metric_102",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_103",
+          "check_id": 72,
+          "metric": "metric_103",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_104",
+          "check_id": 72,
+          "metric": "metric_104",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_105",
+          "check_id": 72,
+          "metric": "metric_105",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_106",
+          "check_id": 72,
+          "metric": "metric_106",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_107",
+          "check_id": 72,
+          "metric": "metric_107",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_108",
+          "check_id": 72,
+          "metric": "metric_108",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_109",
+          "check_id": 72,
+          "metric": "metric_109",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_110",
+          "check_id": 72,
+          "metric": "metric_110",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_111",
+          "check_id": 72,
+          "metric": "metric_111",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_112",
+          "check_id": 72,
+          "metric": "metric_112",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_113",
+          "check_id": 72,
+          "metric": "metric_113",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_114",
+          "check_id": 72,
+          "metric": "metric_114",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_115",
+          "check_id": 72,
+          "metric": "metric_115",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_116",
+          "check_id": 72,
+          "metric": "metric_116",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_117",
+          "check_id": 72,
+          "metric": "metric_117",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_118",
+          "check_id": 72,
+          "metric": "metric_118",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_119",
+          "check_id": 72,
+          "metric": "metric_119",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_120",
+          "check_id": 72,
+          "metric": "metric_120",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_121",
+          "check_id": 72,
+          "metric": "metric_121",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_122",
+          "check_id": 72,
+          "metric": "metric_122",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_123",
+          "check_id": 72,
+          "metric": "metric_123",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_124",
+          "check_id": 72,
+          "metric": "metric_124",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_125",
+          "check_id": 72,
+          "metric": "metric_125",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_126",
+          "check_id": 72,
+          "metric": "metric_126",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:metric_127",
+          "check_id": 72,
+          "metric": "metric_127",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": ""
+  },
+  {
+    "name": "max_depth",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:root",
+          "check_id": 72,
+          "metric": "root",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_1",
+          "check_id": 72,
+          "metric": "child_1",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:snmp:root"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_2",
+          "check_id": 72,
+          "metric": "child_2",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_1"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_3",
+          "check_id": 72,
+          "metric": "child_3",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_2"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_4",
+          "check_id": 72,
+          "metric": "child_4",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_3"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_5",
+          "check_id": 72,
+          "metric": "child_5",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_4"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_6",
+          "check_id": 72,
+          "metric": "child_6",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_5"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_7",
+          "check_id": 72,
+          "metric": "child_7",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_6"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_8",
+          "check_id": 72,
+          "metric": "child_8",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_7"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_9",
+          "check_id": 72,
+          "metric": "child_9",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_8"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_10",
+          "check_id": 72,
+          "metric": "child_10",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_9"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_11",
+          "check_id": 72,
+          "metric": "child_11",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_10"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_12",
+          "check_id": 72,
+          "metric": "child_12",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_11"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_13",
+          "check_id": 72,
+          "metric": "child_13",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_12"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_14",
+          "check_id": 72,
+          "metric": "child_14",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_13"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_15",
+          "check_id": 72,
+          "metric": "child_15",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_14"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_16",
+          "check_id": 72,
+          "metric": "child_16",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_15"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_17",
+          "check_id": 72,
+          "metric": "child_17",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_16"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_18",
+          "check_id": 72,
+          "metric": "child_18",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_17"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_19",
+          "check_id": 72,
+          "metric": "child_19",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_18"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_20",
+          "check_id": 72,
+          "metric": "child_20",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_19"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_21",
+          "check_id": 72,
+          "metric": "child_21",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_20"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_22",
+          "check_id": 72,
+          "metric": "child_22",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_21"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_23",
+          "check_id": 72,
+          "metric": "child_23",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_22"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_24",
+          "check_id": 72,
+          "metric": "child_24",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_23"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_25",
+          "check_id": 72,
+          "metric": "child_25",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_24"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_26",
+          "check_id": 72,
+          "metric": "child_26",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_25"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_27",
+          "check_id": 72,
+          "metric": "child_27",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_26"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_28",
+          "check_id": 72,
+          "metric": "child_28",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_27"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_29",
+          "check_id": 72,
+          "metric": "child_29",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_28"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_30",
+          "check_id": 72,
+          "metric": "child_30",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_29"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_31",
+          "check_id": 72,
+          "metric": "child_31",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_30"
+          ]
+        }
+      ]
+    },
+    "expected_error": ""
+  },
+  {
+    "name": "depth_exceeded",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:root",
+          "check_id": 72,
+          "metric": "root",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_1",
+          "check_id": 72,
+          "metric": "child_1",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:snmp:root"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_2",
+          "check_id": 72,
+          "metric": "child_2",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_1"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_3",
+          "check_id": 72,
+          "metric": "child_3",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_2"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_4",
+          "check_id": 72,
+          "metric": "child_4",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_3"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_5",
+          "check_id": 72,
+          "metric": "child_5",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_4"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_6",
+          "check_id": 72,
+          "metric": "child_6",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_5"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_7",
+          "check_id": 72,
+          "metric": "child_7",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_6"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_8",
+          "check_id": 72,
+          "metric": "child_8",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_7"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_9",
+          "check_id": 72,
+          "metric": "child_9",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_8"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_10",
+          "check_id": 72,
+          "metric": "child_10",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_9"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_11",
+          "check_id": 72,
+          "metric": "child_11",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_10"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_12",
+          "check_id": 72,
+          "metric": "child_12",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_11"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_13",
+          "check_id": 72,
+          "metric": "child_13",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_12"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_14",
+          "check_id": 72,
+          "metric": "child_14",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_13"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_15",
+          "check_id": 72,
+          "metric": "child_15",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_14"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_16",
+          "check_id": 72,
+          "metric": "child_16",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_15"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_17",
+          "check_id": 72,
+          "metric": "child_17",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_16"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_18",
+          "check_id": 72,
+          "metric": "child_18",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_17"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_19",
+          "check_id": 72,
+          "metric": "child_19",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_18"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_20",
+          "check_id": 72,
+          "metric": "child_20",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_19"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_21",
+          "check_id": 72,
+          "metric": "child_21",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_20"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_22",
+          "check_id": 72,
+          "metric": "child_22",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_21"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_23",
+          "check_id": 72,
+          "metric": "child_23",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_22"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_24",
+          "check_id": 72,
+          "metric": "child_24",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_23"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_25",
+          "check_id": 72,
+          "metric": "child_25",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_24"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_26",
+          "check_id": 72,
+          "metric": "child_26",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_25"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_27",
+          "check_id": 72,
+          "metric": "child_27",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_26"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_28",
+          "check_id": 72,
+          "metric": "child_28",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_27"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_29",
+          "check_id": 72,
+          "metric": "child_29",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_28"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_30",
+          "check_id": 72,
+          "metric": "child_30",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_29"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_31",
+          "check_id": 72,
+          "metric": "child_31",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_30"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_32",
+          "check_id": 72,
+          "metric": "child_32",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_31"
+          ]
+        }
+      ]
+    },
+    "expected_error": "monitoring_dependency_depth"
+  },
+  {
+    "name": "depth_exceeded_reverse_order",
+    "authority": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        72,
+        73,
+        74
+      ]
+    },
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_32",
+          "check_id": 72,
+          "metric": "child_32",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_31"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_31",
+          "check_id": 72,
+          "metric": "child_31",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_30"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_30",
+          "check_id": 72,
+          "metric": "child_30",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_29"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_29",
+          "check_id": 72,
+          "metric": "child_29",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_28"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_28",
+          "check_id": 72,
+          "metric": "child_28",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_27"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_27",
+          "check_id": 72,
+          "metric": "child_27",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_26"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_26",
+          "check_id": 72,
+          "metric": "child_26",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_25"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_25",
+          "check_id": 72,
+          "metric": "child_25",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_24"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_24",
+          "check_id": 72,
+          "metric": "child_24",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_23"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_23",
+          "check_id": 72,
+          "metric": "child_23",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_22"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_22",
+          "check_id": 72,
+          "metric": "child_22",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_21"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_21",
+          "check_id": 72,
+          "metric": "child_21",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_20"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_20",
+          "check_id": 72,
+          "metric": "child_20",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_19"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_19",
+          "check_id": 72,
+          "metric": "child_19",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_18"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_18",
+          "check_id": 72,
+          "metric": "child_18",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_17"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_17",
+          "check_id": 72,
+          "metric": "child_17",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_16"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_16",
+          "check_id": 72,
+          "metric": "child_16",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_15"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_15",
+          "check_id": 72,
+          "metric": "child_15",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_14"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_14",
+          "check_id": 72,
+          "metric": "child_14",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_13"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_13",
+          "check_id": 72,
+          "metric": "child_13",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_12"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_12",
+          "check_id": 72,
+          "metric": "child_12",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_11"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_11",
+          "check_id": 72,
+          "metric": "child_11",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_10"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_10",
+          "check_id": 72,
+          "metric": "child_10",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_9"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_9",
+          "check_id": 72,
+          "metric": "child_9",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_8"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_8",
+          "check_id": 72,
+          "metric": "child_8",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_7"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_7",
+          "check_id": 72,
+          "metric": "child_7",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_6"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_6",
+          "check_id": 72,
+          "metric": "child_6",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_5"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_5",
+          "check_id": 72,
+          "metric": "child_5",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_4"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_4",
+          "check_id": 72,
+          "metric": "child_4",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_3"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_3",
+          "check_id": 72,
+          "metric": "child_3",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_2"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_2",
+          "check_id": 72,
+          "metric": "child_2",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:derived:child_1"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:derived:child_1",
+          "check_id": 72,
+          "metric": "child_1",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:72:snmp:root"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:72:snmp:root",
+          "check_id": 72,
+          "metric": "root",
+          "source": "snmp",
+          "kind": "collected",
+          "value_type": "number",
+          "unit": "percent",
+          "freshness_sec": 60,
+          "history_days": 30,
+          "trends_days": 365,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "expected_error": "monitoring_dependency_depth"
+  }
+]

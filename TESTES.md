@@ -871,3 +871,16 @@ Fixtures não são sensores físicos; piloto, três ciclos e aceite permanecem s
 Instalações legadas sem IDs numéricos em env reaproveitam HostGUID medido e
 persistido no bootstrap (ou lido do host), mantendo a mesma identidade assinada.
 Sem identidade, não fazer fetch. Teste verifica que não é inventado installation_id.
+
+## Definições de itens — incremento local20/11/2026
+
+`go test -race -count=1 ./internal/domain/monitoring ./internal/platform/agentless`
+cobre52vetores, limites, DAG, roundtrip e adapter sem alterar job, identidade,
+política ou copiar segredo/endereço. O adapter rejeita diagnóstico como rotina.
+`AICEBERG_MONITORING_WEB_ROOT=<Web> go test -race -count=1 ./internal/domain/monitoring`
+comparou os52vetores com PHP real antes de isolar o patch Web. Enquanto o Web
+estiver só em patch, esse interop exige integrar o patch; sem env, SKIP explícito.
+`go test ./internal/domain/monitoring -run '^$' -fuzz '^FuzzDefinitionWire$' -fuzztime=5s -parallel=2`
+executou597860casos sem falha. Cobertura das regras semânticas novas100%; codec
+acima80%. Isso não é cobertura global do agente nem teste produtivo/aceite.
+Sem fixture de banco, Docker, simulador, nova build distribuível ou deploy.

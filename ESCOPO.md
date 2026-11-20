@@ -128,3 +128,14 @@ internal/common/envelopejson contém DTO/parser de Envelope com Body JSON opaco;
 ## Projeção inicial de amostras
 
 `internal/domain/monitoring` define projeção numérica de observação existente sem infraestrutura. `internal/platform/agentless/monitoring_projection.go` adapta job/resultado e confere o check; não altera transporte, outbox ou alarmes automaticamente. Contrato, limites, erros, testes e rollback no Web: docs/contracts/monitoring-samples-v1.md.
+
+### Definições inertes de itens
+
+O domínio monitoring também valida definições versionadas de itens, escopo,
+retenção e grafo limitado. DescribeSNMPItems adapta somente o job SNMP já
+resolvido à descrição das duas séries existentes. Não coleta, transporta,
+persiste ou atribui autoridade; diagnósticos não viram rotina. Política e
+cliente/ativo/checks autorizados são entradas explícitas do chamador.
+Contrato e consumidores Web/Runtime foram reintegrados após a recuperação de
+logs: docs/evidence/monitoring-definition-local-20261120.md. Composição fica no
+Runtime; integração ativa é etapa posterior e não fica implícita no domínio.

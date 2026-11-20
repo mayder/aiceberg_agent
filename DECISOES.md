@@ -767,3 +767,16 @@ backoff15–240s. Sem Bolt, recusar antes do fetch. Retenção: ACK remove, teto
 bloqueia sem descarte; recusas persistentes requerem reconciliação. Controle
 positivo é explícito e não se apresenta como failover. Rollback e limites no
 runbook Web docs/operations/relay-snmp-probe-pilot.md. PKG-120 permanece parcial.
+
+## DEC-20261120-MONITORING-DEFINITION-BOUNDARY
+
+Definições de itens são um contrato inerte no domínio monitoring, validado contra
+cliente/ativo/checks fornecidos pelo chamador autorizado. Identidade independe do
+executor; tipo, unidade, retenção, frescor e DAG têm limites explícitos. O adapter
+SNMP descreve a projeção atual e não habilita coleta ou transporte. Templates,
+macros, pipelines e integração persistente permanecem em lotes próprios.
+Durante a recuperação concorrente de logs, mudanças Web/Runtime ficam em patches
+revisáveis fora dos checkouts; código/fixtures/testes e manifests são preservados,
+sem branch/worktree novos, deploy ou mutação privada. Isso evita misturar commits
+e inventários sem abrir mão da validação prévia PHP/Go. Rollback remove somente
+arquivos/hunks novos; aplicação exige revalidar bases, contratos e checks globais.
