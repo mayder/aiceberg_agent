@@ -15,6 +15,7 @@ import (
 
 type fakeSNMPClient struct {
 	connectErr error
+	getNextFn  func(oids []string) (*gosnmp.SnmpPacket, error)
 	getFn      func(oids []string) (*gosnmp.SnmpPacket, error)
 	bulkWalkFn func(rootOid string, walkFn gosnmp.WalkFunc) error
 	walkFn     func(rootOid string, walkFn gosnmp.WalkFunc) error
@@ -31,6 +32,13 @@ func (f *fakeSNMPClient) Close() error {
 func (f *fakeSNMPClient) Get(oids []string) (*gosnmp.SnmpPacket, error) {
 	if f.getFn != nil {
 		return f.getFn(oids)
+	}
+	return &gosnmp.SnmpPacket{}, nil
+}
+
+func (f *fakeSNMPClient) GetNext(oids []string) (*gosnmp.SnmpPacket, error) {
+	if f.getNextFn != nil {
+		return f.getNextFn(oids)
 	}
 	return &gosnmp.SnmpPacket{}, nil
 }

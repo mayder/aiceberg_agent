@@ -739,3 +739,7 @@ Rollback usa versão assinada anterior e perde apenas o buffer volátil, não ou
 ## DEC-20261119-SAMPLE-CONTRACT
 
 Projeção pura da observação existente: identidade por cliente/ativo/check/métrica, independente de executor, e lacunas unknown/null. Domínio sem transporte/infra; adapter na plataforma não recolhe nem altera outbox/payload. Contrato coordenado e rollback: Web docs/contracts/monitoring-samples-v1.md. Não há emissão canônica automática. Titular autorizou candidata assinada e atualização restrita SADA para viabilizar testes reais sem terminal externo, mantendo promoção geral condicionada à prova física.
+
+## DEC-20261119-SNMP-V1-PILOT
+
+SNMPv1 explícito em candidata0.8.71-rc.1: GET unitário e GETNEXT com admissão compartilhada, deadline/cancelamento/cadência/teto e dados ausentes sem zero. Sensor padrão somente em probe opt-in, com ASN/metadados/estado/idade; precisão negativa permanece unknown. Comparação de versão separada da configuração e corrigida para prerelease→final sem force. Preservar rotinas/outbox/contratos legados; não implementar shell, delegação sem lease ou runner genérico neste incremento. Política e rollback coordenados: Web docs/operations/snmp-v1-sensor-pilot.md.

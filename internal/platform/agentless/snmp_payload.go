@@ -27,6 +27,7 @@ type snmpGroupStats struct {
 }
 
 type snmpRuntimeApplied struct {
+	SNMPVersion        string   `json:"snmp_version,omitempty"`
 	SNMPCollectionKind string   `json:"snmp_collection_kind"`
 	CollectionKind     string   `json:"collection_kind"`
 	SegmentID          string   `json:"segment_id"`
@@ -42,6 +43,8 @@ type snmpRuntimeApplied struct {
 }
 
 type snmpPayload struct {
+	SensorUptimeTicks    *uint32                                 `json:"-"`
+	TemperatureSensors   []snmpTemperatureReading                `json:"temperature_sensors,omitempty"`
 	Host                 string                                  `json:"host"`
 	ProfileID            int                                     `json:"profile_id"`
 	SNMPCollectionKind   string                                  `json:"snmp_collection_kind"`
@@ -77,6 +80,7 @@ type snmpPayload struct {
 
 func newSNMPPayload(plan snmpPlan) *snmpPayload {
 	runtime := snmpRuntimeApplied{
+		SNMPVersion:        plan.SNMPVersion,
 		SNMPCollectionKind: plan.CollectionKind,
 		CollectionKind:     plan.CollectionKind,
 		SegmentID:          plan.SegmentID,
@@ -347,7 +351,7 @@ func evaluateSNMPStatus(p *snmpPayload) (status, code, message string) {
 	for _, msg := range p.Errors {
 		l := strings.ToLower(msg)
 		switch {
-		case strings.Contains(l, "timeout"), strings.Contains(l, "no response"), strings.Contains(l, "i/o timeout"):
+		case strings.Contains(l, "timeout"), strings.Contains(l, "no response"), strings.Contains(l, "i/o timeout"), strings.Contains(l, "deadline exceeded"):
 			return "fail", "snmp_timeout", fmt.Sprintf("SNMP sem resposta (timeout). Detalhe: %s", trimString(msg, 180))
 		case strings.Contains(l, "authentication"), strings.Contains(l, "authorization"), strings.Contains(l, "unknown username"), strings.Contains(l, "wrongdigest"), strings.Contains(l, "decryption"):
 			return "fail", "snmp_auth", fmt.Sprintf("Falha de credencial/versao SNMP. Detalhe: %s", trimString(msg, 180))

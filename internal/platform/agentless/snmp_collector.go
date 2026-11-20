@@ -23,6 +23,7 @@ type snmpClient interface {
 	Connect() error
 	Close() error
 	Get(oids []string) (*gosnmp.SnmpPacket, error)
+	GetNext(oids []string) (*gosnmp.SnmpPacket, error)
 	BulkWalk(rootOid string, walkFn gosnmp.WalkFunc) error
 	Walk(rootOid string, walkFn gosnmp.WalkFunc) error
 }
@@ -36,6 +37,13 @@ type goSNMPClient struct {
 }
 
 func defaultSNMPClientFactory(ctx context.Context, job entities.AgentlessJob, host string) (snmpClient, error) {
+	if job.SNMP == nil {
+		return nil, errors.New("snmp_no_profile")
+	}
+	version, _, err := configuredSNMPVersion(job.SNMP.Version)
+	if err != nil {
+		return nil, err
+	}
 	port := job.SNMP.Port
 	if port == 0 {
 		port = 161
@@ -54,7 +62,7 @@ func defaultSNMPClientFactory(ctx context.Context, job entities.AgentlessJob, ho
 		Context:        ctx,
 	}
 
-	if strings.EqualFold(job.SNMP.Version, "v3") {
+	if version == gosnmp.Version3 {
 		authProto := mapSNMPAuth(job.SNMP.V3AuthProtocol)
 		privProto := mapSNMPPriv(job.SNMP.V3PrivProtocol)
 		sn.Version = gosnmp.Version3
@@ -75,7 +83,7 @@ func defaultSNMPClientFactory(ctx context.Context, job entities.AgentlessJob, ho
 			sn.MsgFlags = gosnmp.AuthPriv
 		}
 	} else {
-		sn.Version = gosnmp.Version2c
+		sn.Version = version
 		sn.Community = job.SNMP.Community
 	}
 
@@ -97,6 +105,10 @@ func (c *goSNMPClient) Get(oids []string) (*gosnmp.SnmpPacket, error) {
 	return c.client.Get(oids)
 }
 
+func (c *goSNMPClient) GetNext(oids []string) (*gosnmp.SnmpPacket, error) {
+	return c.client.GetNext(oids)
+}
+
 func (c *goSNMPClient) BulkWalk(rootOid string, walkFn gosnmp.WalkFunc) error {
 	return c.client.BulkWalk(rootOid, walkFn)
 }
@@ -106,6 +118,9 @@ func (c *goSNMPClient) Walk(rootOid string, walkFn gosnmp.WalkFunc) error {
 }
 
 type snmpCollector struct {
+	ctx         context.Context
+	v1Requests  int
+	v1LastGet   time.Time
 	job         entities.AgentlessJob
 	plan        snmpPlan
 	payload     *snmpPayload
@@ -136,7 +151,14 @@ func runSNMPCollectionWithPartials(ctx context.Context, job entities.AgentlessJo
 		return Result{Status: "fail", Code: "missing_endpoint", Message: "endpoint ausente"}
 	}
 
+	_, effectiveVersion, versionErr := configuredSNMPVersion(job.SNMP.Version)
+	if versionErr != nil {
+		return Result{Status: "fail", Code: "snmp_unsupported_version", Message: "Versão SNMP não suportada"}
+	}
 	plan := buildSNMPPlan(job, host)
+	plan.SNMPVersion = effectiveVersion
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(plan.TimeBudgetMs)*time.Millisecond)
+	defer cancel()
 	payload := newSNMPPayload(plan)
 	if (len(plan.CustomGet) > 0 || len(plan.CustomWalk) > 0) && !stringSliceContains(payload.GroupsRequested, "custom") {
 		payload.GroupsRequested = append(payload.GroupsRequested, "custom")
@@ -160,6 +182,7 @@ func runSNMPCollectionWithPartials(ctx context.Context, job entities.AgentlessJo
 	}
 
 	c := &snmpCollector{
+		ctx:         ctx,
 		job:         job,
 		plan:        plan,
 		payload:     payload,
@@ -226,7 +249,7 @@ func (c *snmpCollector) collectGroup(groupName string, def snmpGroupDef) bool {
 			return false
 		}
 		groupStats.GetAttempts += len(def.Scalars)
-		resp, err := c.client.Get(def.Scalars)
+		resp, err := c.get(def.Scalars)
 		if err != nil {
 			msg := fmt.Sprintf("grupo %s GET falhou: %v", groupName, err)
 			c.payload.addError(msg)
@@ -238,6 +261,9 @@ func (c *snmpCollector) collectGroup(groupName string, def snmpGroupDef) bool {
 				groupStats.Errors = append(groupStats.Errors, msg)
 			}
 			for _, variable := range snmpVariables(resp) {
+				if c.job.Config["entity_sensor_probe"] == true {
+					c.captureSensorUptime(variable)
+				}
 				value := snmpValueToAny(variable)
 				c.payload.Scalars[variable.Name] = value
 				c.payload.OIDs[variable.Name] = value
@@ -309,7 +335,7 @@ func (c *snmpCollector) collectCustom() bool {
 		}
 		customGetOIDs := snmpOIDStrings(c.plan.CustomGet)
 		groupStats.GetAttempts += len(customGetOIDs)
-		resp, err := c.client.Get(customGetOIDs)
+		resp, err := c.get(customGetOIDs)
 		if err != nil {
 			msg := fmt.Sprintf("custom GET falhou: %v", err)
 			c.payload.addError(msg)
@@ -516,20 +542,28 @@ func (c *snmpCollector) walkTable(rootOID string) ([]map[string]any, bool, error
 		if err := c.ensureBudget("walk callback " + rootOID); err != nil {
 			return err
 		}
+		if !usefulSNMPVariable(variable) || (c.plan.SNMPVersion == "v1" && variable.Type == gosnmp.Counter64) {
+			return nil
+		}
 		count++
 		if count > limit {
 			return errSNMPMaxRowsReached
 		}
-		rows = append(rows, map[string]any{
-			"oid":   variable.Name,
-			"index": tableIndex(rootOID, variable.Name),
-			"value": snmpValueToAny(variable),
-		})
+		row := map[string]any{"oid": variable.Name, "index": tableIndex(rootOID, variable.Name), "value": snmpValueToAny(variable)}
+		if enabled, _ := getBool(map[string]any(c.job.Config), "entity_sensor_probe"); enabled {
+			row["value_type"] = variable.Type.String()
+		}
+		rows = append(rows, row)
 		return nil
 	}
 
-	err := c.client.BulkWalk(rootOID, walkFn)
-	if err != nil && !errors.Is(err, errSNMPMaxRowsReached) && !errors.Is(err, errSNMPBudgetExceeded) {
+	var err error
+	if c.plan.SNMPVersion == "v1" {
+		err = c.walkV1(rootOID, walkFn)
+	} else {
+		err = c.client.BulkWalk(rootOID, walkFn)
+	}
+	if c.plan.SNMPVersion != "v1" && err != nil && !errors.Is(err, errSNMPMaxRowsReached) && !errors.Is(err, errSNMPBudgetExceeded) {
 		rows = rows[:0]
 		count = 0
 		err = c.client.Walk(rootOID, walkFn)
@@ -561,6 +595,9 @@ func (c *snmpCollector) ensureBudget(scope string) error {
 }
 
 func (c *snmpCollector) toResult() Result {
+	if enabled, _ := getBool(map[string]any(c.job.Config), "entity_sensor_probe"); enabled {
+		c.payload.TemperatureSensors = entitySensorTemperatures(c.payload.Tables, c.payload.SensorUptimeTicks, c.payload.TimeBudgetExceeded)
+	}
 	c.payload.Ifaces = ifaceSlice(c.ifaceMap)
 	status, code, message := evaluateSNMPStatus(c.payload)
 	return Result{
@@ -573,10 +610,16 @@ func (c *snmpCollector) toResult() Result {
 }
 
 func snmpVariables(resp *gosnmp.SnmpPacket) []gosnmp.SnmpPDU {
-	if resp == nil || len(resp.Variables) == 0 {
+	if resp == nil || resp.Error != gosnmp.NoError {
 		return nil
 	}
-	return resp.Variables
+	variables := make([]gosnmp.SnmpPDU, 0, len(resp.Variables))
+	for _, variable := range resp.Variables {
+		if usefulSNMPVariable(variable) {
+			variables = append(variables, variable)
+		}
+	}
+	return variables
 }
 
 func snmpValueToAny(variable gosnmp.SnmpPDU) any {

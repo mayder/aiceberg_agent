@@ -41,6 +41,7 @@ type snmpSegmentDefault struct {
 }
 
 type snmpPlan struct {
+	SNMPVersion       string
 	Host              string
 	ProfileID         int
 	CollectionProfile string

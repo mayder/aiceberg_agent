@@ -232,7 +232,7 @@ Redescoberta não duplica; desaparecimento temporário não apaga histórico; ev
 
 ## [PKG-116] Coletores universais — probes locais e de borda
 
-Status: planejado. Prioridade: P1. Coordenação: Web PKG-116 e Runtime PKG-20.
+Status: implementação parcial; candidata e piloto pendentes. Prioridade: P1. Coordenação: Web PKG-116 e Runtime PKG-20.
 
 ### Objetivo
 
@@ -256,11 +256,23 @@ Executar somente os protocolos que precisam de proximidade do host/rede, com con
 - [ ] entregar fixtures/simuladores e matriz real por protocolo/SO/fabricante;
 - [ ] medir footprint e pausar adapter que exceda budget sem afetar o agente.
 
+### Incremento local —19/11/2026
+
+- [x] Seleção nativa explícita v1/v2c/v3, rejeição de versão desconhecida, GET v1 isolado e WALK por GETNEXT sem GETBULK; teto256requisições/cadência25ms, deadline, cancelamento, limite de linhas e proteção de loops.
+- [x] OIDs/PDU/tipos indisponíveis não fabricam zero; versão efetiva no runtime_applied e regressões v2c/v3.
+- [x] Probe ENTITY-SENSOR-MIB opt-in: somente Celsius com metadados, estado e frescor do dispositivo qualificados; lacunas são unknown/null. Precisão negativa fica explicitamente não suportada.
+- [x] Candidata0.8.71-rc.1 e comparação de versões corrigida para promoção posterior, sem forçar downgrade; DTO/probe/visibilidade restritos no Web.
+- [ ] Construir/verificar/publicar candidata assinada, atualizar HUB SADA selecionado e cumprir teste físico. Restante do catálogo universal e promoção geral continuam pendentes.
+
+Testes com race e UDP real em loopback são sintéticos. Contrato, limites e rollback:
+Web `docs/operations/snmp-v1-sensor-pilot.md`. Sem novo schema SQL ou transporte
+canônico ativo; profile/config de rotina preservados pelo probe temporário.
+
 ### Complemento SADA — SNMPv1,19/11/2026
 
 Escopo autorizado de planejamento; não declara suporte implementado nem leitura real comprovada. Coordenação com Web PKG-116/Runtime PKG-20 e com a delegação do Agent/Web PKG-120.
 
-- [ ] Qualificar primeiro um sensor real por consulta externa SNMPv1 a partir do HUB ou de agente autorizado com alcance comprovado; comparar v2c na mesma origem, endpoint, porta e comunidade, sem alterar o perfil produtivo para uma versão ainda não suportada.
+- [ ] Qualificar sensor real por consulta SNMPv1 no HUB ou agente escolhido para piloto, comparando v2c na mesma origem/endpoint/porta/comunidade. Sem acesso externo, implementar e publicar candidata assinada restrita, atualizar os agentes SADA escolhidos e só então executar o ensaio; perfil v1 só será enviado a candidato compatível. Promoção geral depende de leitura física e aceite.
 - [ ] Implementar seleção explícita de v1 no cadastro/contrato Web e no coletor Agent, preservando v2c/v3; rejeitar versão incompatível/sem suporte, sem convertê-la silenciosamente em v2c.
 - [ ] Usar GET e GETNEXT/WALK em v1, sem GETBULK; classificar OID/tipo não suportado como indisponível, sem fabricar zero, sucesso ou leitura de temperatura.
 - [ ] Preservar limites, cancelamento, segmentação/outbox e identidade do check; registrar versão efetiva, coletor executor, HUB, OID, unidade/escala e horário real, sem comunidade ou credenciais nos logs/recibos.

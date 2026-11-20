@@ -1010,3 +1010,7 @@ pode fornecer logs reais do próprio processo. É volátil, limitada16KiB/100ent
 1h, redigida antes de reter; reinício esvazia naturalmente o buffer. Evidência
 mantém falha da fonte SO e degraded=true. Não conceder systemd-journal nem acesso
 amplo ao host apenas para o piloto. Sem entrada real ou após cancelamento, falhar.
+
+## Piloto SNMPv1 —19/11/2026
+
+Candidata0.8.71-rc.1 com artefatos oficiais assinados, oculta das listas gerais Web; instalar apenas no HUB SADA selecionado após gates, confirmar versão/readiness/outbox e manter rollback0.8.70. Probe manual temporário cliente/HUB/check no Web, sem alterar perfil ou rotina; oito colunas de sensor fixas, zero retry,5s/16linhas. Não interpretar SNMP OK como temperatura: exigir temperature_sensors qualificado, idade e três ciclos reais. Procedimento: Web docs/operations/snmp-v1-sensor-pilot.md.
