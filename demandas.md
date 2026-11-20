@@ -265,7 +265,10 @@ Executar somente os protocolos que precisam de proximidade do host/rede, com con
 - [x] Construir/verificar/publicar candidata assinada0.8.71-rc.1 e confirmar instalação/version_confirmed no HUB84/SADA; demais agentes preservados.
 - [x] Diagnóstico real166/167/168 chegou por canal autenticado e terminou skipped_busy, sem consulta SNMP ou temperatura. Janela temporária30s de poll/flush não resolveu; cadência original1/2s restaurada e piloto desligado.
 - [x] Correção para0.8.71-rc.2: um comando manual pode aguardar a rotina, com deadline incluindo espera, prioridade sobre novo polling, sem coleta paralela e sem limpar lock alheio ao cancelar. Outro comando é recusado como ocupado; rotina retoma após término.
-- [ ] Construir/verificar/publicar nova candidata assinada, atualizar somente HUB84 e repetir comparação SNMPv1/v2c e aceite físico. Restante do catálogo universal e promoção geral continuam pendentes.
+- [x] Construir/verificar/publicar rc.2 assinada e confirmar instalação/heartbeat/canal/version_confirmed somente no HUB84; atualização71 entregue, sem pendência.
+- [x] Executar comparação real no sensor Catalão:170comprovou v1 e171comprovou v2c, ambas snmp_time_budget_exceeded5000ms, sem identidade/temperatura. Troca de versão não resolveu esse alvo; não extrapolar aos demais14.
+- [x] Encerrar piloto: parâmetro desligado, configuração privada restaurada, poll/flush1/2s originais, zero observações operacionais e check inativo/counters/agenda intactos. Recibo Web: docs/evidence/snmp-v1-sada-pilot-20261119.md.
+- [ ] Qualificar alcance/UDP161/ACL/credencial/origem na rede, demais sensores, três ciclos válidos e referência física. Delegação120 ainda aberta; catálogo universal e promoção geral permanecem pendentes.
 
 Testes com race e UDP real em loopback são sintéticos. Contrato, limites e rollback:
 Web `docs/operations/snmp-v1-sensor-pilot.md`. Sem novo schema SQL ou transporte
