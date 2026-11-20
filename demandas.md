@@ -188,7 +188,8 @@ Fazer HUBs participarem de grupos com assignment versionado, lease/fencing, capa
 
 ### Incremento manual implementado —20/11/2026
 
-Candidata0.8.72-rc.1 preparada no código, ainda sem instalação neste registro.
+Candidata0.8.72-rc.1 assinada e instalada em20/11 no HUB84 (config73) e
+relay424 (config5), ambos version_confirmed e sem update pendente.
 Comando diagnose_snmp_get só manual, com referência de execução; GET fixo após
 falha recente real do HUB, mesma versão/scalar/perfil e executor autorizado.
 Controle positivo explicitamente permitido não simula falha. PHP mantém scope
@@ -196,8 +197,13 @@ próprio, claim/TTL/primeiro resultado sob lock, sem observação/check/owner no
 HUB autentica encaminhamento HMAC, API exige identidade assinada do relay.
 Fila Bolt exclusiva no relay, sem fallback memória/cloud, job/segredo na fila,
 ou ACK sem accepted=true. Reinício/falha retransmitem apenas resultado, não GET.
-Testes PHP/Go, UDP local end-to-end e MySQL concorrente são sintéticos; leitura
-real/assinatura/instalação desta candidata continuam gates separados. Não fecha
+Testes PHP/Go, UDP local end-to-end e MySQL concorrente permanecem sintéticos.
+Piloto físico separado: controle237/238(v2c),239/240,241/242,243/244(v1),
+com valor válido no relay→HUB→API. Sensor Catalão245/246 e247/248 timeout com
+perfis existentes30/29 em HUB e relay, GET enviado sem resposta. Recortes Web
+restaurados/desligados,15ICMP ok/60s, rotina/observações preservadas. Web exigiu
+sessão autenticada recente no gate de versão para lidar com inventário atrasado.
+Evidência: Web docs/evidence/sada-relay-snmp-pilot-20261120.md. Não fecha
 assignment/epoch/lease/fence, eleição automática, HA ou PKG-120 completo.
 Procedimento/retencão/rollback: Web docs/operations/relay-snmp-probe-pilot.md.
 

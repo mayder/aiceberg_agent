@@ -1044,3 +1044,10 @@ Sem pruning por idade; quando cheia, bloquear, preservar e reconciliar. Não apa
 registro para contornar falha. Claim/resultado atrasado não ganham autoridade.
 Rollback assinado HUBrc.4/relay0.8.70 após drenar resultados; preservar filas e prefs.
 PKG-120 permanece parcial; sem eleição/ownership/HA ou promoção geral declarados.
+
+Piloto físico20/11 em0.8.72-rc.1: controle SNMPv2c e três consultas manuais v1
+válidas por relay424→HUB84→API. Sensor Catalão sem resposta em ambas as origens
+com perfis autorizados30/29. Ambos os recortes privados Web restaurados/desligados,
+15ICMP ok/60s e nenhuma observação/rotina alterada. Conferir recibos e limites no
+Web docs/evidence/sada-relay-snmp-pilot-20261120.md; não habilitar assignment
+recorrente ou promover a frota por esse ensaio.
