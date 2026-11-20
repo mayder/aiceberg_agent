@@ -43,6 +43,7 @@ type snmpRuntimeApplied struct {
 }
 
 type snmpPayload struct {
+	BasicProbe           *snmpBasicProbeReport                   `json:"basic_probe,omitempty"`
 	DiagnosticProbe      bool                                    `json:"diagnostic_probe,omitempty"`
 	SensorUptimeTicks    *uint32                                 `json:"-"`
 	TemperatureSensors   []snmpTemperatureReading                `json:"temperature_sensors,omitempty"`

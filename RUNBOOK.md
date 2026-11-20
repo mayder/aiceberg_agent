@@ -1020,3 +1020,14 @@ Candidata0.8.71-rc.1 com artefatos oficiais assinados, oculta das listas gerais 
 HUB84 confirmou rc.1 assinada, mas diagnósticos166/167/168 terminaram skipped_busy, sem resultado SNMP. Poll1s/flush2s para1873checks torna a janela manual estreita; ajuste temporário30/30s foi restaurado1/2s e piloto desativado, sem reativar os15checks. Nova candidata permite uma espera manual com prazo, cedendo apenas o próximo slot da rotina; nunca cancela a coleta em curso ou libera seu lock. Outra solicitação simultânea mantém skipped_busy. Prazo inclui espera e execução; expiração continua diagnóstico não concluído, sem leitura inventada. Construir/assinar nova versão imutável, atualizar apenas o HUB84 e repetir v2c/v1 pelo serviço Web. Reusar backup privado e rollback0.8.70/rc.1; promoção geral ainda bloqueada por temperatura física, frescor e três ciclos/referência local.
 
 Resultado piloto restrito: rc.2 instalada/confirmada somente no HUB84; execuções170(v1) e171(v2c) comprovaram protocolo efetivo, sem dados válidos no budget5s para Catalão. Não houve temperatura; ainda exige qualificação de alcance/ACL/credencial/origem e aceite físico. Piloto desligado, configuração privada original restaurada, poll/flush1/2s, zero observações operacionais do check. Restante14sensores não extrapolado. Recibo no Web: docs/evidence/snmp-v1-sada-pilot-20261119.md.
+
+## Diagnóstico SNMP básico —20/11/2026
+
+Candidata0.8.71-rc.3: preset system_get com GET único de uptime/identidade,
+1500ms/retries0/teto5s, sem WALK. Testes: go test ./internal/platform/agentless
+-run TestBasic -count=1; fixtures UDP reais em loopback v1/v2c com dados sintéticos,
+valor zero válido, timeout sem resposta, counters, limites, redaction e erros PDU.
+Receber UDP não comprova resposta SNMP válida. Piloto apenas HUB84 após gates
+e assinatura; controles positivos antes dos sensores, sem alterar perfil/rotina.
+PKG-116 parcial, sem leitura física nova ou delegação relay declarada. Procedimento
+e rollback: Web docs/operations/snmp-v1-sensor-pilot.md; preservar config/outbox.

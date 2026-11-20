@@ -274,6 +274,16 @@ Testes com race e UDP real em loopback são sintéticos. Contrato, limites e rol
 Web `docs/operations/snmp-v1-sensor-pilot.md`. Sem novo schema SQL ou transporte
 canônico ativo; profile/config de rotina preservados pelo probe temporário.
 
+### Incremento de diagnóstico básico —20/11/2026
+
+Implementação com testes focados locais aprovados na candidata0.8.71-rc.3: um GET de uptime/identidade,
+sem WALK, timeout1500ms/retries0/teto5s; versão real, counters UDP e resposta
+SNMP decodificada distintos. Sem erro bruto/segredo no resultado. Fixtures UDP
+v1/v2c são sintéticas, sem equivaler ao hardware SADA. O objetivo atualizado do
+titular é online/ativo; temperatura opcional. Não há novo aceite físico neste
+registro. O Web fixa preset/scalar/versão/referência de perfil no comando.
+PKG-116 permanece parcial e delegação relay depende da entrega PKG-120.
+
 ### Complemento SADA — SNMPv1,19/11/2026
 
 Escopo autorizado de planejamento; não declara suporte implementado nem leitura real comprovada. Coordenação com Web PKG-116/Runtime PKG-20 e com a delegação do Agent/Web PKG-120.
@@ -286,7 +296,7 @@ Escopo autorizado de planejamento; não declara suporte implementado nem leitura
 
 ### Gate bloqueante — sensor real antes da publicação
 
-- [ ] Antes de publicar a versão com SNMPv1, obter uma temperatura real do sensor SADA pela origem autorizada: identidade/sysUpTime isolados não bastam. Registrar fabricante/modelo, ativo/check, origem, versão, OID, valor bruto, unidade/escala e valor convertido; confrontar com a leitura local/referência conhecida do equipamento, sem telemetria inventada.
+- [ ] Antes da promoção geral de SNMPv1, obter resposta SNMP real e três ciclos de disponibilidade pela origem autorizada. Temperatura é opcional conforme objetivo atualizado do titular; ao entregá-la, identidade/sysUpTime isolados não bastam. Registrar fabricante/modelo, ativo/check, origem, versão, OID, valor bruto, unidade/escala e valor convertido; confrontar com a leitura local/referência conhecida do equipamento, sem telemetria inventada.
 - [ ] Comprovar estabilidade em pelo menos três ciclos consecutivos na cadência configurada. Guardar evidências sanitizadas em local privado e resultados v1/v2c separados; teste pelo servidor cloud sem a mesma rota não substitui esse gate.
 - [ ] Após implementar, repetir a leitura com a candidata do agente em piloto restrito autorizado, seguindo assinatura/artefatos e procedimento de piloto vigentes, antes da promoção/publicação geral; confirmar observação persistida, cliente/ativo/check corretos, frescor e preservação do histórico.
 - [ ] Bloquear publicação/promoção do suporte novo enquanto faltarem leitura real, testes de regressão, rollback e aceite do piloto; check verde/simulador não substitui sensor físico. O teste externo inicial não exige atualização do agente.

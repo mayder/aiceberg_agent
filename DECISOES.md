@@ -747,3 +747,11 @@ SNMPv1 explícito em candidata0.8.71-rc.1: GET unitário e GETNEXT com admissão
 ## DEC-20261119-AGENTLESS-COMMAND-WAIT — prioridade manual limitada
 
 Após três recusas reais skipped_busy no HUB84, reservar apenas um comando manual pendente e aguardar o batch atual dentro do mesmo deadline. Novos polls cedem o slot; não há coleta paralela, interrupção, fila ilimitada ou liberação de lock alheio na expiração. Segundo comando mantém busy. Mutex protege reserva e admissão da rotina; atomic busy existente preserva integração atual de recuperação. Rollback por candidata assinada anterior, sem alterar fila/credenciais/checks. Parsing de comando extraído sem alteração funcional para reduzir app.go.
+
+## DEC-20261120-SNMP-BASIC-PROBE
+
+Disponibilidade SNMP separada da temperatura opcional. GET único de OID fixo,
+sem WALK, sem retry e erro bruto. Contadores de datagramas medem I/O, resposta
+SNMP exige decode/version/PDU compatíveis, valor exige ASN/faixa válidos; timeout
+não identifica comunidade inválida. Reusar runner e envelope diagnóstico sem
+telemetria operacional. Rollback pela candidata anterior, mantendo estado.

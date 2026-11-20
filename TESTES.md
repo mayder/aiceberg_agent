@@ -842,3 +842,14 @@ Complemento116: probe transporta diagnostic_probe em resultado final/segmentos; 
 ## Espera limitada do comando Agentless —19/11/2026
 
 `go test -race ./internal/bootstrap`: rotina ativa não se sobrepõe a comando; reserva única rejeita outro comando e64tentativas concorrentes de rotina; aquisição aguarda liberação, cancelamento/deadline não removem lock alheio e rotina retoma. Prazo inclui espera, default5min e teto1h. Extração de parsing mantém testes de canal existentes. Não comprova coleta física do sensor; piloto anterior recebeu skipped_busy166/167/168.
+
+## Diagnóstico SNMP básico —20/11/2026
+
+Candidata0.8.71-rc.3: preset system_get com GET único de uptime/identidade,
+1500ms/retries0/teto5s, sem WALK. Testes: go test ./internal/platform/agentless
+-run TestBasic -count=1; fixtures UDP reais em loopback v1/v2c com dados sintéticos,
+valor zero válido, timeout sem resposta, counters, limites, redaction e erros PDU.
+Receber UDP não comprova resposta SNMP válida. Piloto apenas HUB84 após gates
+e assinatura; controles positivos antes dos sensores, sem alterar perfil/rotina.
+PKG-116 parcial, sem leitura física nova ou delegação relay declarada. Procedimento
+e rollback: Web docs/operations/snmp-v1-sensor-pilot.md; preservar config/outbox.

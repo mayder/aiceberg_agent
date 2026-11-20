@@ -33,7 +33,8 @@ type snmpClientFactory func(ctx context.Context, job entities.AgentlessJob, host
 var defaultSNMPClient snmpClientFactory = defaultSNMPClientFactory
 
 type goSNMPClient struct {
-	client *gosnmp.GoSNMP
+	client    *gosnmp.GoSNMP
+	basicWire *snmpBasicWire
 }
 
 func defaultSNMPClientFactory(ctx context.Context, job entities.AgentlessJob, host string) (snmpClient, error) {
@@ -87,7 +88,7 @@ func defaultSNMPClientFactory(ctx context.Context, job entities.AgentlessJob, ho
 		sn.Community = job.SNMP.Community
 	}
 
-	return &goSNMPClient{client: sn}, nil
+	return &goSNMPClient{client: sn, basicWire: attachSNMPBasicWire(sn, job.Config["snmp_basic_probe"] == true)}, nil
 }
 
 func (c *goSNMPClient) Connect() error {
@@ -154,6 +155,9 @@ func runSNMPCollectionWithPartials(ctx context.Context, job entities.AgentlessJo
 	_, effectiveVersion, versionErr := configuredSNMPVersion(job.SNMP.Version)
 	if versionErr != nil {
 		return Result{Status: "fail", Code: "snmp_unsupported_version", Message: "Versão SNMP não suportada"}
+	}
+	if job.Config["snmp_basic_probe"] == true {
+		return runSNMPBasicProbe(ctx, job, host, effectiveVersion)
 	}
 	plan := buildSNMPPlan(job, host)
 	plan.SNMPVersion = effectiveVersion
