@@ -200,7 +200,7 @@ Escopo autorizado de planejamento; encaminhamento relay→HUB existente não com
 
 ### Gate bloqueante — delegação com sensor real antes da publicação
 
-- [ ] Primeiro cumprir a qualificação SNMPv1 real do PKG-116; nenhuma publicação do novo fluxo baseada apenas em ping, identidade SNMP, fixture ou simulação de temperatura.
+- [ ] Cumprir a qualificação SNMPv1 real do PKG-116 antes da promoção geral; candidata assinada de piloto e atualização restrita SADA autorizadas para possibilitar o teste na rede. Ping, identidade SNMP, fixture ou simulação de temperatura não comprovam o sensor.
 - [ ] Antes de publicar/promover a delegação, em piloto restrito autorizado comprovar falha da consulta pela origem HUB e leitura real de temperatura pelo relay elegível, sem desligar o sensor; registrar topologia, coletor, OID, versão, valor, unidade/escala, horários, correlação e assignment/fence.
 - [ ] Demonstrar pelo menos três ciclos consecutivos relay→HUB→AIceberg na cadência configurada, com observações frescas no check original e um único coletor autoritativo/alarme; validar troca/retorno controlados e retomada da outbox sem perda ou duplicação.
 - [ ] Manter publicação geral bloqueada até evidências sanitizadas e aceite do piloto. Disponibilização/instalação de candidata de teste segue procedimento vigente de artefatos assinados e autorização de piloto; não equivale a promoção geral.
