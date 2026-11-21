@@ -884,3 +884,13 @@ estiver só em patch, esse interop exige integrar o patch; sem env, SKIP explíc
 executou597860casos sem falha. Cobertura das regras semânticas novas100%; codec
 acima80%. Isso não é cobertura global do agente nem teste produtivo/aceite.
 Sem fixture de banco, Docker, simulador, nova build distribuível ou deploy.
+
+## Execução canônica SNMP21/11
+
+AICEBERG_MONITORING_WEB_ROOT=<Web> go test -race -count=1
+./internal/domain/monitoring ./internal/platform/agentless ./internal/data/remote
+./internal/data/local/agentless ./internal/domain/usecase. Novos casos executam
+definições,18vetores, parciais/diagnóstico, UDPv1 sintético com2OIDs/uma coleta,
+Bolt reaberto, HTTP503/retry e comparação dos consumidores PHP/MySQL/Go.
+Native opt-in pelo scripts/location-schema-lab.py do Web, sem produção/config local.
+O banco e a outbox são descartados no cleanup; nenhum dispositivo físico testado.

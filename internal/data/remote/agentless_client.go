@@ -111,6 +111,9 @@ func (c *AgentlessHubClient) SendObservations(ctx context.Context, list []entiti
 			"payload_json":    o.Payload,
 			"observed_at":     o.ObservedAt.Format("2006-01-02 15:04:05"),
 		}
+		if o.MonitoringSamples != nil {
+			item["monitoring_samples_v1"] = o.MonitoringSamples
+		}
 		if o.CollectionKind != "" {
 			item["snmp_collection_kind"] = o.CollectionKind
 			item["collection_kind"] = o.CollectionKind

@@ -1051,3 +1051,12 @@ com perfis autorizados30/29. Ambos os recortes privados Web restaurados/desligad
 15ICMP ok/60s e nenhuma observação/rotina alterada. Conferir recibos e limites no
 Web docs/evidence/sada-relay-snmp-pilot-20261120.md; não habilitar assignment
 recorrente ou promover a frota por esse ensaio.
+
+## Candidata canônica SNMP0.8.72-rc.2
+
+Consumo servidor deve preceder update restrito. Campos novos são opcionais;
+servidor antigo pode ignorá-los. Não apagar outbox para atualizar/retroceder.
+Conferir IDs/dedupe estáveis, extensão com2séries e parciais unknown, ACK explícito
+e observação única. Sem métricas, status online/offline existente é preservado.
+Assinatura e checksums oficiais são obrigatórios antes de distribuir. Homologação
+de sensores reais exige três ciclos; fixture UDP não comprova resposta SADA.

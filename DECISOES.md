@@ -780,3 +780,11 @@ revisáveis fora dos checkouts; código/fixtures/testes e manifests são preserv
 sem branch/worktree novos, deploy ou mutação privada. Isso evita misturar commits
 e inventários sem abrir mão da validação prévia PHP/Go. Rollback remove somente
 arquivos/hunks novos; aplicação exige revalidar bases, contratos e checks globais.
+
+## DEC-20261121-01 — definição e amostras na coleta SNMP existente
+
+Usar o domínio monitoring antes da projeção da mesma observação; emitir extensão
+opcional superior, mantendo payload bruto/identidade/outbox/ACK. Servidor segue
+autoridade e recompõe por check. Falha da extensão omite metadado sem descartar
+coleta legada. Parciais ganham qualidade própria após fixar o estado do segmento;
+diagnóstico não alimenta série de rotina. Rollback volta ao binário anterior.

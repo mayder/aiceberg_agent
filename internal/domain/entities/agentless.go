@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"time"
+
+	"github.com/you/aiceberg_agent/internal/domain/monitoring"
 )
 
 type AgentlessConfig map[string]any
@@ -136,4 +138,6 @@ type AgentlessObservation struct {
 	DedupeKey        string         `json:"dedupe_key,omitempty"`
 	EndpointID       *int           `json:"endpoint_id,omitempty"`
 	CreatedAt        time.Time      `json:"created_at"`
+
+	MonitoringSamples *monitoring.Batch `json:"monitoring_samples_v1,omitempty"`
 }

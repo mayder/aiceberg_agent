@@ -1156,3 +1156,13 @@ aceitação de community divergente e requestID0 pelo decoder. rc.4 acrescenta
 validação explícita apenas no GET básico; erros tipados sem segredo, mantendo
 counters UDP e sem qualificar resposta incompatível. Fixtures UDP cobrem ambos.
 A rc.3 permanece imutável; usar rc.4 no piloto do HUB84 após gates e assinatura.
+
+### PKG-115 — fluxo ativo SNMP,21/11/2026
+
+RunJob/partiais agora usam definição validada para projetar CPU/memória da mesma
+coleta e enviam monitoring_samples_v1 como metadado opcional via Bolt/HTTP.
+Sem mudar payload/IDs/dedupe/ACK ou promover diagnóstico a rotina. Qualificação
+UDPv1 real local→Bolt reaberto→HTTP503/retry→PHP/MySQL→Go passou; não é sensor
+físico. Candidata0.8.72-rc.2; assinatura/publicação/update são gates separados.
+Demais fontes/pipelines/modelo universal continuam abertos. Contrato Web:
+docs/contracts/monitoring-execution-v1.md.

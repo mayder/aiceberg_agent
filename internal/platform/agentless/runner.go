@@ -86,7 +86,7 @@ func RunJob(ctx context.Context, job entities.AgentlessJob) entities.AgentlessOb
 		res = Result{Status: "fail", Code: "unknown_type", Message: "tipo nao suportado"}
 	}
 
-	return newObservationFromResult(job, res, started)
+	return withMonitoringSamples(job, newObservationFromResult(job, res, started))
 }
 
 func RunJobWithPartials(ctx context.Context, job entities.AgentlessJob, onPartial func(entities.AgentlessObservation)) entities.AgentlessObservation {
@@ -100,13 +100,13 @@ func RunJobWithPartials(ctx context.Context, job entities.AgentlessJob, onPartia
 		seq++
 		obs := newObservationFromResult(job, partial.Result, started)
 		applyObservationSegmentState(&obs, seq, true, false, partial.Group)
-		onPartial(obs)
+		onPartial(withMonitoringSamples(job, obs))
 	})
 
 	seq++
 	obs := newObservationFromResult(job, res, started)
 	applyObservationSegmentState(&obs, seq, false, true, "final")
-	return obs
+	return withMonitoringSamples(job, obs)
 }
 
 func newObservationFromResult(job entities.AgentlessJob, res Result, started time.Time) entities.AgentlessObservation {
