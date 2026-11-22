@@ -1195,3 +1195,16 @@ idade atual sem apagar história ou promover unknown para ok.110vetores semânti
 Web docs/contracts/monitoring-records-v1.md. Sem transporte/collector emitindo este
 formato, alteração de payload SNMP/TCP, nova versão/artefato/update ou SQL.
 Item2 implementado/qualificado;12itens3–14 permanecem na checklist oficial Web.
+
+
+### PKG-115 — coordenação do item3/14 Web115,22/11/2026
+
+Negociação pura monitoring.records.v1 para2..8participantes, fontes/tipos por
+interseção, limites menores e trânsito JSON opaco obrigatório. Codec limitado
+antes do parser, sem coerção/fallback/ativação.86vetores compartilhados PHP/Go,
+matriz9fontes×5tipos e Relay/HUB/Bolt/HTTP reais no Agent, com falha/reabertura/
+retry/resposta perdida e consumidor PHP. Entrada gzip no HUB não suportada:
+recusa/retencão qualificadas, sem mudar opções/defaults. Contrato oficial Web:
+docs/contracts/monitoring-records-transport-v1.md. Item3 de desenvolvimento
+qualificado; itens4–14 e aceite/publicação instalados continuam separados.
+Não fecha o pacote e não altera coletores/filas/configurações de produção.

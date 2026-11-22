@@ -909,3 +909,18 @@ paridade com PHP real, imutabilidade/roundtrip,128registros/256KiB, Unicode/dupl
 underflow/overflow e histórico atrasado vs frescor atual. FuzzRecordsDecodeNeverPanics
 com3s/2workers executou292908casos sem panic, mais seeds. Sem produção/banco/rede.
 Fixtures idênticas às cópias Web/Runtime; novos contratos continuam inertes.
+
+
+Monitoramento universal/item3 —22nov:86vetores idênticos PHP/Agent/Runtime,
+45combinações fonte/tipo, negociação/perfis/limites/read antes do parser,
+no downgrade e JSON opaco. PHP MonitoringRecordsTransportTest:3testes/
+382asserções/47statements cobertos; Go novas funções100%statements. Fuzz3s/
+2workers:207868execuções sem panic. Reteste: AICEBERG_MONITORING_WEB_ROOT=<Web>
+go test -race -count=1 ./internal/monitoring (Runtime) ou
+./internal/domain/monitoring ./internal/interfaces/hub (Agent). Agent cobre
+Relay→HUB→Bolt reaberta→HTTP→Go/PHP, request externo4096B,503/ACK unsupported,
+resposta perdida/reentrega sem mudar IDs/valores/estados/clocks. Gzip no HUB
+recusado mantendo fila; plain até HUB, gzip direto qualificado. Modo legado é
+regressão de valores válidos, não perfil autorizado universal. Dedupe final usa
+fixture por ID, sem SQL universal. Check completo no hook; sem aceite produtivo.
+Contrato Web:docs/contracts/monitoring-records-transport-v1.md.

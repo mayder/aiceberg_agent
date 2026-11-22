@@ -1075,3 +1075,17 @@ Revalidar decode→ValidateRecords com definição/autoridade externa, revisão 
 RecordFreshness separa idade atual da qualidade no evaluated_at_ms original.
 Rollback retira biblioteca sem apagar/configurar/coletar/replay. Não há novo binário
 ou instalação decorrente somente desta definição de contrato.
+
+
+Monitoramento universal/transporte22nov: novos codecs/perfis são internos e
+inertes; nenhuma capability/rota instalada foi habilitada. Não inferir suporte
+por versão/HTTP200: exigir controle autorizado, perfis compatíveis de2..8hops,
+JSON opaco e ACK qualificado após aceitação durável. Negociação limita contrato/
+fontes/tipos/bytes/registros; incompatible_monitoring_transport e
+monitoring_transport_limit bloqueiam envio, sem truncar/coagir/recoletar.
+HUB existente exige entrada plain; gzip na entrada é incompatível e deve manter
+fila pendente, sem mudar opção global. Read recebe stream já descomprimido e com
+deadline; limita bytes antes do parser. ACK intermediário não prova consumo final.
+Ativação/rollout ficam nos gates do item14; rollback local remove componentes
+inertes, sem SQL, limpeza/replay/alteração de dados/configuração/serviços.
+Contrato canônico Web:docs/contracts/monitoring-records-transport-v1.md.
