@@ -1180,3 +1180,18 @@ qualificados, fixture própria removida. Contrato oficial Web:
 `docs/contracts/monitoring-tcp-execution-v1.md`. Checklist14 permanece no backlog
 Web; item1 implementado/qualificado, demais13 continuam abertos. Não fecha PKG-115
 nem autoriza declarar nova candidata instalada. Sem nova versão/artefato neste lote.
+
+
+### PKG-115 — item2/14: registros tipados e estados,22/11/2026
+
+Contrato monitoring.records.v1 implementado no domínio puro, coordenado com Web
+PKG-115/Runtime19. Tipos number/integer/boolean/text/event, seis estados/reasons,
+null explícito, cobertura complete/partial, identidade/escopo/revisão e ocorrência
+de evento estável. Decode/encode estritos com teto de bytes/profundidade/quantidade,
+duplicatas/UTF8/surrogates/número inválido recusados. Evolução não troca tipo/unidade
+na mesma série. evaluated_at_ms preserva qualidade original; RecordFreshness calcula
+idade atual sem apagar história ou promover unknown para ok.110vetores semânticos,
+12wire/8evolução compartilhados PHP/Go, race/fuzz/roundtrip/limites. Contrato oficial
+Web docs/contracts/monitoring-records-v1.md. Sem transporte/collector emitindo este
+formato, alteração de payload SNMP/TCP, nova versão/artefato/update ou SQL.
+Item2 implementado/qualificado;12itens3–14 permanecem na checklist oficial Web.

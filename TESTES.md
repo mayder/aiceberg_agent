@@ -901,3 +901,11 @@ TCP canônico22nov: `AICEBERG_MONITORING_WEB_ROOT=<checkout Web> go test -race
 -count=1`.21vetores compartilhados, definição/tenant/clock, zero, cancelamento,
 parcial/diagnóstico e coleta TCP única. Bolt reaberto/HTTP503/retry/PHP/MySQL no
 laboratório oficial Web, com regressão SNMP/consumidor SQL Go. Não é piloto real.
+
+
+PKG-115/item2: AICEBERG_MONITORING_WEB_ROOT=<Web> go test -race -count=1
+./internal/domain/monitoring.110vetores semânticos,12wire,8evolução, schema PHP,
+paridade com PHP real, imutabilidade/roundtrip,128registros/256KiB, Unicode/duplicatas,
+underflow/overflow e histórico atrasado vs frescor atual. FuzzRecordsDecodeNeverPanics
+com3s/2workers executou292908casos sem panic, mais seeds. Sem produção/banco/rede.
+Fixtures idênticas às cópias Web/Runtime; novos contratos continuam inertes.

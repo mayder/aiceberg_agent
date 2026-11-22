@@ -1067,3 +1067,11 @@ que emita agentless_tcp. Não exige mudança de jobs/cadência/perfil ou probe n
 Rollback Agent omite metadado opcional, preservando outbox e observação legada;
 servidor reconstrói pela latência dedicada. Zero é válido, falha não produz valor.
 Contrato Web monitoring-tcp-execution-v1.md. Nenhum artefato novo gerado no item1.
+
+
+monitoring.records.v1 é contrato inerte. Não emitir nem converter snapshots SNMP/TCP
+existentes por inferência: integração/negociação de transporte pertence ao item3.
+Revalidar decode→ValidateRecords com definição/autoridade externa, revisão e relógio;
+RecordFreshness separa idade atual da qualidade no evaluated_at_ms original.
+Rollback retira biblioteca sem apagar/configurar/coletar/replay. Não há novo binário
+ou instalação decorrente somente desta definição de contrato.
