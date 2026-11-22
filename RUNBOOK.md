@@ -1103,3 +1103,18 @@ novos. Retirar escrita antes de rollback, restaurar conteúdo conhecido em nova
 revisão e preservar histórico/chave/filas/checks. Sem SQL/DELETE/expurgo implícito,
 restauração global de params ou alteração de ACL. Contrato canônico Web:
 docs/contracts/monitoring-configuration-v1.md.
+
+
+### Pipeline básico — item5/14,22/11/2026
+
+Núcleo Go executável versionado/tipado com identity/scale/offset, plano imutável
+fixado por hash exato/revisão/escopo e configuração compilada autorizada. Estágios
+locais explícitos de entrada/resultado evitam reaplicação acidental; somente batch
+final validado segue contrato existente. Orçamentos de etapas/operações/bytes/tempo,
+inteiros exatos e falhas unknown/null sem zero fictício; erros de configuração,
+limites ou cancelamento retornam sem saída parcial.76vetores comuns PHP/Agent/
+Runtime, schema, race, concorrência, replay/recompilação, compositor real e TCP
+loopback→pipeline→PHP. Sem SQL, UI, collector/scheduler produtivo, release/update,
+configuração privada ou teste físico SADA. Contrato canônico Web:
+docs/contracts/monitoring-pipeline-v1.md. Item5 de desenvolvimento qualificado;
+itens6–14 abertos, pacote115/contraparte19 não encerrados.

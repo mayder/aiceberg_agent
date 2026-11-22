@@ -788,3 +788,17 @@ opcional superior, mantendo payload bruto/identidade/outbox/ACK. Servidor segue
 autoridade e recompõe por check. Falha da extensão omite metadado sem descartar
 coleta legada. Parciais ganham qualidade própria após fixar o estado do segmento;
 diagnóstico não alimenta série de rotina. Rollback volta ao binário anterior.
+
+
+### DEC-20261122-MONITORING-PIPELINE-CORE
+
+Execução básica fica no domínio Go espelhado Agent/Runtime; PHP somente valida
+artefato e consome registros canônicos. Evita um segundo interpretador e catálogo.
+Autoridade externa fixa bytes SHA256, revisão e vínculo da configuração/itens;
+artefato não escolhe permissões, orçamento ou latest. Estágios locais distintos
+impedem aplicar acidentalmente o resultado como entrada. Arredondamento não pode
+esconder fração em integer; operações partem de IEEE finitos com verificação
+racional limitada. Falha de valor vira unknown/null com trace sem conteúdo;
+falha global não emite resultado parcial. Núcleo sem I/O/estado nem ativação;
+integração, capacidade, publicação e aceite físico ficam no item14. Rollback
+retira componentes não conectados sem tocar históricos/filas/coletas existentes.
