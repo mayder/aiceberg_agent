@@ -1166,3 +1166,17 @@ UDPv1 real local→Bolt reaberto→HTTP503/retry→PHP/MySQL→Go passou; não �
 físico. Candidata0.8.72-rc.2; assinatura/publicação/update são gates separados.
 Demais fontes/pipelines/modelo universal continuam abertos. Contrato Web:
 docs/contracts/monitoring-execution-v1.md.
+
+
+### PKG-115 — item1/14: TCP até a persistência,22/11/2026
+
+Segundo coletor canônico: RunJob TCP projeta a latência dedicada da conexão já
+realizada, após validar definição/escopo, sem probe adicional ou mudança no payload
+legado. Uma amostra integer/milliseconds; zero real válido, falha/parcial/inválido
+unknown/null. Estado não segmentado legado é final só para a projeção. Bolt/HTTP
+preservam IDs/dedupe/retry/ACK. Servidor PHP reconstrói por check autenticado,
+sem confiar em metadado recebido. MySQL nativo e regressão SNMP/consumidor Go
+qualificados, fixture própria removida. Contrato oficial Web:
+`docs/contracts/monitoring-tcp-execution-v1.md`. Checklist14 permanece no backlog
+Web; item1 implementado/qualificado, demais13 continuam abertos. Não fecha PKG-115
+nem autoriza declarar nova candidata instalada. Sem nova versão/artefato neste lote.

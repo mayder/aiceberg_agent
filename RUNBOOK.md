@@ -1060,3 +1060,10 @@ Conferir IDs/dedupe estáveis, extensão com2séries e parciais unknown, ACK exp
 e observação única. Sem métricas, status online/offline existente é preservado.
 Assinatura e checksums oficiais são obrigatórios antes de distribuir. Homologação
 de sensores reais exige três ciclos; fixture UDP não comprova resposta SADA.
+
+
+TCP canônico: instalar consumidor PHP compatível antes de promover candidata
+que emita agentless_tcp. Não exige mudança de jobs/cadência/perfil ou probe novo.
+Rollback Agent omite metadado opcional, preservando outbox e observação legada;
+servidor reconstrói pela latência dedicada. Zero é válido, falha não produz valor.
+Contrato Web monitoring-tcp-execution-v1.md. Nenhum artefato novo gerado no item1.

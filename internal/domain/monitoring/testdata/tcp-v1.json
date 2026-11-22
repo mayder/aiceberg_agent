@@ -1,0 +1,872 @@
+[
+  {
+    "name": "zero",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": 0,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "ok",
+          "gap": "",
+          "value": 0.0
+        }
+      ]
+    }
+  },
+  {
+    "name": "integer",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": 37,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "ok",
+          "gap": "",
+          "value": 37.0
+        }
+      ]
+    }
+  },
+  {
+    "name": "string",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": " 37 ",
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "ok",
+          "gap": "",
+          "value": 37.0
+        }
+      ]
+    }
+  },
+  {
+    "name": "exponent",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": "1e2",
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "ok",
+          "gap": "",
+          "value": 100.0
+        }
+      ]
+    }
+  },
+  {
+    "name": "upper-bound",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": 86400000,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "ok",
+          "gap": "",
+          "value": 86400000.0
+        }
+      ]
+    }
+  },
+  {
+    "name": "missing",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": null,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "missing",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "negative",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": -1,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "invalid",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "fraction",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": 1.5,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "invalid",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "boolean",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": true,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "invalid",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "object",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": {},
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "invalid",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "overflow",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": 86400001,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "invalid",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "malformed",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": "37ms",
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "invalid",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "failed",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "fail",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": 37,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "observation_failed",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "partial",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": true,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": 37,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "partial",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "not-final",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": false,
+        "payload": {}
+      },
+      "latency_ms": 37,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "partial",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "legacy-partial",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "is_partial": 1
+        }
+      },
+      "latency_ms": 37,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "partial",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "budget",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "time_budget_exceeded": true
+        }
+      },
+      "latency_ms": 37,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "time_budget",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "payload-forgery",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {
+          "latency_ms": 99,
+          "monitoring_samples_v1": {
+            "value": 99
+          }
+        }
+      },
+      "latency_ms": 0,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000000000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "ok",
+          "gap": "",
+          "value": 0.0
+        }
+      ]
+    }
+  },
+  {
+    "name": "stale",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": 37,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000060001,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "stale",
+          "value": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "fresh-edge",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": 37,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1800000060000,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "ok",
+          "gap": "",
+          "value": 37.0
+        }
+      ]
+    }
+  },
+  {
+    "name": "future",
+    "input": {
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observation": {
+        "status": "ok",
+        "partial": false,
+        "final": true,
+        "payload": {}
+      },
+      "latency_ms": 37,
+      "observed_at_ms": 1800000000000,
+      "now_ms": 1799999999999,
+      "freshness_sec": 60
+    },
+    "expected": {
+      "schema_version": 1,
+      "source": "agentless_tcp",
+      "scope": {
+        "client_id": 3,
+        "asset_id": 52,
+        "check_id": 73
+      },
+      "observed_at_ms": 1800000000000,
+      "freshness_sec": 60,
+      "samples": [
+        {
+          "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "metric": "latency_ms",
+          "unit": "milliseconds",
+          "state": "unknown",
+          "gap": "future",
+          "value": null
+        }
+      ]
+    }
+  }
+]

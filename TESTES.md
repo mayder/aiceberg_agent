@@ -894,3 +894,10 @@ definições,18vetores, parciais/diagnóstico, UDPv1 sintético com2OIDs/uma col
 Bolt reaberto, HTTP503/retry e comparação dos consumidores PHP/MySQL/Go.
 Native opt-in pelo scripts/location-schema-lab.py do Web, sem produção/config local.
 O banco e a outbox são descartados no cleanup; nenhum dispositivo físico testado.
+
+
+TCP canônico22nov: `AICEBERG_MONITORING_WEB_ROOT=<checkout Web> go test -race
+./internal/domain/monitoring ./internal/platform/agentless -run 'TestTCP|TestCanonicalTCP'
+-count=1`.21vetores compartilhados, definição/tenant/clock, zero, cancelamento,
+parcial/diagnóstico e coleta TCP única. Bolt reaberto/HTTP503/retry/PHP/MySQL no
+laboratório oficial Web, com regressão SNMP/consumidor SQL Go. Não é piloto real.
