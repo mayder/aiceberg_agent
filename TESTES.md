@@ -924,3 +924,17 @@ recusado mantendo fila; plain até HUB, gzip direto qualificado. Modo legado é
 regressão de valores válidos, não perfil autorizado universal. Dedupe final usa
 fixture por ID, sem SQL universal. Check completo no hook; sem aceite produtivo.
 Contrato Web:docs/contracts/monitoring-records-transport-v1.md.
+
+
+Configuração composta/item4 —22nov:82vetores compartilhados e45combinações fonte/
+tipo; schema, autoridade/pins/vínculos/revisão, completude/limites, referências,
+DAG e evolução. PHP MonitoringConfigurationServiceTest6testes/345asserções,
+94/94statements dos serviços novos; novas funções Go83,3–100% e race PASS.
+Runtime: AICEBERG_MONITORING_WEB_ROOT=<Web> go test -race -count=1
+./internal/monitoring ./internal/controlapi ./cmd/monitoring-preview; Agent:
+./internal/domain/monitoring.9catálogos PHP reais cifrados/CAS/restaurados com
+IDs/config_json preservados, herança/precedência/cancelamento e regressões.
+Fuzz3s/2workers253execuções sem panic. UI real no laboratório oficial:10campos,
+prévia/save/recarga2→3,1280/390px sem overflow/console, CSRF/perfis/tenant,422 na
+aplicação legada sem criação de checks. Laboratório próprio removido; sem aceite
+produtivo ou físico. Contrato Web:docs/contracts/monitoring-configuration-v1.md.

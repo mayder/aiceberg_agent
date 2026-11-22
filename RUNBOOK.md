@@ -1089,3 +1089,17 @@ deadline; limita bytes antes do parser. ACK intermediário não prova consumo fi
 Ativação/rollout ficam nos gates do item14; rollback local remove componentes
 inertes, sem SQL, limpeza/replay/alteração de dados/configuração/serviços.
 Contrato canônico Web:docs/contracts/monitoring-records-transport-v1.md.
+
+
+Configuração composta universal22nov: monitoring.configuration.v1 é um contrato
+compilado/validado inerte. Fornecer autoridade independente de tenant/checks/root/
+pins/revisão e referências; verificar assinatura/autorização no controle, sem
+aceitar autoridade do corpo. Campo faltante não ganha default. Diff/edição não
+permitem aplicar pipeline/host/custom/derived pelo runner legado; este recusa
+universais inteiramente. Publicação/instalação/ativação ficam no item14.
+Depois de revisões universais gravadas em ambiente instalado, manter o leitor/
+normalizador novo no rollback de UI/compilador, pois o leitor antigo recusa campos
+novos. Retirar escrita antes de rollback, restaurar conteúdo conhecido em nova
+revisão e preservar histórico/chave/filas/checks. Sem SQL/DELETE/expurgo implícito,
+restauração global de params ou alteração de ACL. Contrato canônico Web:
+docs/contracts/monitoring-configuration-v1.md.

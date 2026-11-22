@@ -11,6 +11,10 @@ func ValidateDefinitionEvolution(previous, next Definition, a DefinitionAuthorit
 	if err := ValidateDefinition(next, a); err != nil {
 		return err
 	}
+	return validateDefinitionSeriesEvolution(previous, next)
+}
+
+func validateDefinitionSeriesEvolution(previous, next Definition) error {
 	if next.Revision <= previous.Revision {
 		return errors.New("monitoring_revision_not_advanced")
 	}

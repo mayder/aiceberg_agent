@@ -1208,3 +1208,16 @@ recusa/retencão qualificadas, sem mudar opções/defaults. Contrato oficial Web
 docs/contracts/monitoring-records-transport-v1.md. Item3 de desenvolvimento
 qualificado; itens4–14 e aceite/publicação instalados continuam separados.
 Não fecha o pacote e não altera coletores/filas/configurações de produção.
+
+
+### PKG-115 — configuração composta, item4/14 Web115,22/11/2026
+
+Contrato inerte monitoring.configuration.v1: definições canônicas completas,
+origem/pins e vínculos explícitos de checks; parâmetros tipados já resolvidos.
+Go Runtime usa o compositor existente; Agent/PHP validam sem recompor ou executar.
+82vetores compartilhados,45combinações fonte/tipo, schema, referências/limites/
+evolução e9catálogos PHP cifrados/CAS/restaurados. Editor Web qualificado em
+1280/390px; aplicação legada422 sem escrita. Contrato canônico Web:
+docs/contracts/monitoring-configuration-v1.md. Item4 de desenvolvimento concluído;
+5–14 e instalação/aceite permanecem separados. Sem pipeline/coleta nova, SQL,
+publicação/update, branch/worktree nova ou fechamento do pacote.
