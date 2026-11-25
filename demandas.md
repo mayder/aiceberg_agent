@@ -322,6 +322,10 @@ Redescoberta não duplica; desaparecimento temporário não apaga histórico; ev
 
 ## [PKG-116] Coletores universais — probes locais e de borda
 
+A coleta SNMP preserva as categorias de timeout, autenticação e falha de
+transporte sem enviar erros brutos da biblioteca nas observações. A fixture
+verifica as saídas parciais e finais; o piloto físico segue pendente.
+
 Status: implementação parcial; candidata rc.1 instalada no HUB84, teste físico pendente. Prioridade: P1. Coordenação: Web PKG-116 e Runtime PKG-20.
 
 ### Objetivo

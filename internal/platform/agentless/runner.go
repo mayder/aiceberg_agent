@@ -1119,7 +1119,7 @@ func probeDiscoverySNMP(ctx context.Context, host string, policy discoveryPolicy
 		return map[string]any{
 			"status":     "fail",
 			"latency_ms": int(time.Since(start).Milliseconds()),
-			"error":      trimString(err.Error(), 180),
+			"error":      safeSNMPError(err),
 		}
 	}
 	defer func() {
@@ -1134,7 +1134,7 @@ func probeDiscoverySNMP(ctx context.Context, host string, policy discoveryPolicy
 		return map[string]any{
 			"status":     "fail",
 			"latency_ms": latency,
-			"error":      trimString(err.Error(), 180),
+			"error":      safeSNMPError(err),
 		}
 	}
 
@@ -1179,7 +1179,7 @@ func probeDiscoveryNeighborsSNMP(sn *gosnmp.GoSNMP, protocol, nameRootOID, portR
 		}
 		return map[string]any{
 			"status":  status,
-			"message": trimString(err.Error(), 255),
+			"message": safeSNMPError(err),
 		}
 	}
 	if len(names) == 0 {

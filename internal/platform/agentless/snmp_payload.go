@@ -2,7 +2,6 @@ package agentless
 
 import (
 	"encoding/json"
-	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -352,16 +351,8 @@ func evaluateSNMPStatus(p *snmpPayload) (status, code, message string) {
 		return "fail", "snmp_time_budget_exceeded", "Coleta SNMP interrompida: budget excedido"
 	}
 	for _, msg := range p.Errors {
-		l := strings.ToLower(msg)
-		switch {
-		case strings.Contains(l, "timeout"), strings.Contains(l, "no response"), strings.Contains(l, "i/o timeout"), strings.Contains(l, "deadline exceeded"):
-			return "fail", "snmp_timeout", fmt.Sprintf("SNMP sem resposta (timeout). Detalhe: %s", trimString(msg, 180))
-		case strings.Contains(l, "authentication"), strings.Contains(l, "authorization"), strings.Contains(l, "unknown username"), strings.Contains(l, "wrongdigest"), strings.Contains(l, "decryption"):
-			return "fail", "snmp_auth", fmt.Sprintf("Falha de credencial/versao SNMP. Detalhe: %s", trimString(msg, 180))
-		case strings.Contains(l, "connection refused"):
-			return "fail", "snmp_refused", fmt.Sprintf("SNMP desabilitado ou porta bloqueada. Detalhe: %s", trimString(msg, 180))
-		case strings.Contains(l, "tabela sem retorno"):
-			return "fail", "snmp_table_empty", fmt.Sprintf("Tabela SNMP sem retorno. Detalhe: %s", trimString(msg, 180))
+		if failure := classifySNMPFailure(msg); failure.code != "" {
+			return "fail", failure.code, failure.message
 		}
 	}
 	if len(p.Errors) > 0 {

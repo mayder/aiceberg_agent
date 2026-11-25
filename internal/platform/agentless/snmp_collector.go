@@ -180,7 +180,7 @@ func runSNMPCollectionWithPartials(ctx context.Context, job entities.AgentlessJo
 	}
 	client, err := factory(ctx, job, host)
 	if err != nil {
-		payload.addError(fmt.Sprintf("erro ao inicializar cliente SNMP: %v", err))
+		payload.addError("erro ao inicializar cliente SNMP: " + safeSNMPError(err))
 		status, code, message := evaluateSNMPStatus(payload)
 		return Result{
 			Status:  status,
@@ -215,7 +215,7 @@ func stringSliceContains(items []string, needle string) bool {
 
 func (c *snmpCollector) collect() Result {
 	if err := c.client.Connect(); err != nil {
-		c.payload.addError(fmt.Sprintf("connect SNMP falhou: %v", err))
+		c.payload.addError("connect SNMP falhou: " + safeSNMPError(err))
 		return c.toResult()
 	}
 	defer func() {
@@ -260,7 +260,7 @@ func (c *snmpCollector) collectGroup(groupName string, def snmpGroupDef) bool {
 		groupStats.GetAttempts += len(def.Scalars)
 		resp, err := c.get(def.Scalars)
 		if err != nil {
-			msg := fmt.Sprintf("grupo %s GET falhou: %v", groupName, err)
+			msg := fmt.Sprintf("grupo %s GET falhou: %s", groupName, safeSNMPError(err))
 			c.payload.addError(msg)
 			groupStats.Errors = append(groupStats.Errors, msg)
 		} else {
@@ -296,7 +296,7 @@ func (c *snmpCollector) collectGroup(groupName string, def snmpGroupDef) bool {
 			groupStats.WalkAttempts++
 			rows, truncated, err := c.walkTable(rootOID)
 			if err != nil {
-				msg := fmt.Sprintf("grupo %s WALK falhou oid=%s err=%v", groupName, rootOID, err)
+				msg := fmt.Sprintf("grupo %s WALK falhou oid=%s err=%s", groupName, rootOID, safeSNMPError(err))
 				c.payload.addError(msg)
 				groupStats.Errors = append(groupStats.Errors, msg)
 				if errors.Is(err, errSNMPBudgetExceeded) {
@@ -346,14 +346,15 @@ func (c *snmpCollector) collectCustom() bool {
 		groupStats.GetAttempts += len(customGetOIDs)
 		resp, err := c.get(customGetOIDs)
 		if err != nil {
-			msg := fmt.Sprintf("custom GET falhou: %v", err)
+			detail := safeSNMPError(err)
+			msg := "custom GET falhou: " + detail
 			c.payload.addError(msg)
 			groupStats.Errors = append(groupStats.Errors, msg)
 			for _, spec := range c.plan.CustomGet {
 				item := snmpCustomItem(spec)
-				item["error"] = err.Error()
+				item["error"] = detail
 				c.payload.Custom["get"] = append(c.payload.Custom["get"], item)
-				c.payload.addOIDFailed(spec, err.Error())
+				c.payload.addOIDFailed(spec, detail)
 			}
 		} else {
 			values := make(map[string]any)
@@ -396,12 +397,13 @@ func (c *snmpCollector) collectCustom() bool {
 			rows, truncated, err := c.walkTable(rootOID)
 			item := snmpCustomItem(spec)
 			if err != nil {
-				msg := fmt.Sprintf("custom WALK falhou oid=%s err=%v", rootOID, err)
+				detail := safeSNMPError(err)
+				msg := fmt.Sprintf("custom WALK falhou oid=%s err=%s", rootOID, detail)
 				c.payload.addError(msg)
 				groupStats.Errors = append(groupStats.Errors, msg)
-				item["error"] = err.Error()
+				item["error"] = detail
 				c.payload.Custom["walk"] = append(c.payload.Custom["walk"], item)
-				c.payload.addOIDFailed(spec, err.Error())
+				c.payload.addOIDFailed(spec, detail)
 				if errors.Is(err, errSNMPBudgetExceeded) {
 					groupStats.LatencyMs = int(time.Since(groupStart).Milliseconds())
 					c.payload.addGroupStats("custom", groupStats)
