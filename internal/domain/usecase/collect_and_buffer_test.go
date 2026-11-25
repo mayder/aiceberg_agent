@@ -7,12 +7,21 @@ import (
 	"errors"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
+
+func TestEnvelopeIDsAreDistinctAtTheSameInstant(t *testing.T) {
+	at := time.Date(2026, time.November, 24, 20, 0, 0, 0, time.UTC)
+	first, second := genID(at), genID(at)
+	if first == second || !strings.HasPrefix(first, "20261124T200000.000000000-") || !strings.HasPrefix(second, "20261124T200000.000000000-") {
+		t.Fatal("simultaneous collections must have distinct envelope IDs with the same time prefix")
+	}
+}
 
 type fakeCollector struct {
 	name     string

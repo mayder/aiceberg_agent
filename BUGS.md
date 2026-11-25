@@ -621,3 +621,7 @@ A observação prolongada da0.8.56 manteve a fila no limite: inspect99 com9336 i
 ## Coleta passiva e cursor de arquivo —23/11/2026 — alta, correção local
 
 IOwait declarado sem preenchimento; não havia PSI/fila/pendentes nem contador específico de bloqueados. Parser rsyslogISO confundia os dois-pontos do horário com cabeçalho. Cursor usava Seek do arquivo após leitura bufio e podia saltar entradas pré-lidas fora do lote. Corrigido com offset de bytes efetivamente consumidos; fixture120entradas/lote1 sem perda ou duplicação, com race. Não atribuir retrospectivamente perda de um evento específico sem recibo. SMART passa a opt-in explícito; não executado neste incidente. Gates instalados pendentes no WebPKG-143.
+
+## Colisão de ID de coleta concorrente no outbox — 24/11/2026
+
+O ensaio de retirada de componentes registrou sete envelopes para oito eventos. A chave do Bolt usava um ID derivado só do relógio, então duas coletas no mesmo instante podiam ocupar a mesma chave. O Agente preserva o prefixo temporal e acrescenta entropia a cada novo envelope. O retry continua reenviando o ID persistido. O teste com tempo fixo verifica a unicidade e o ensaio de Discovery reabre o Bolt e confere a entrega após perda de ACK.

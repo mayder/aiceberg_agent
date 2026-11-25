@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"os"
 	"strings"
@@ -95,13 +96,14 @@ func (uc *CollectAndBuffer) ExecuteDetailed(ctx context.Context) (*BufferedColle
 		))
 		return nil, err
 	}
+	capturedAt := time.Now()
 	env := entities.Envelope{
-		ID:             genID(),
+		ID:             genID(capturedAt),
 		SchemaVersion:  1,
 		Kind:           "metric",
 		Sub:            uc.collector.Name(),
 		AgentID:        hostname,
-		TSUnixMs:       time.Now().UnixMilli(),
+		TSUnixMs:       capturedAt.UnixMilli(),
 		Body:           json.RawMessage(data), // mantém como JSON bruto
 		AuthHeader:     uc.authHeader,
 		IdentityHeader: uc.currentIdentityHeader(),
@@ -123,7 +125,7 @@ func (uc *CollectAndBuffer) ExecuteDetailed(ctx context.Context) (*BufferedColle
 	}
 	for _, endpoint := range sanitizeExtraEndpoints(uc.endpoint, uc.currentExtraEndpoints()) {
 		extra := env
-		extra.ID = genID()
+		extra.ID = genID(time.Now())
 		extra.Endpoint = endpoint
 		if err := uc.outbox.Append(extra); err != nil {
 			uc.log.Error(logger.KV("outbox append failed",
@@ -152,7 +154,9 @@ func (uc *CollectAndBuffer) ExecuteDetailed(ctx context.Context) (*BufferedColle
 	}, nil
 }
 
-func genID() string { return time.Now().UTC().Format("20060102T150405.000000000") }
+func genID(at time.Time) string {
+	return at.UTC().Format("20060102T150405.000000000") + "-" + rand.Text()
+}
 
 func (uc *CollectAndBuffer) currentExtraEndpoints() []string {
 	if uc.extraEndpoints == nil {
