@@ -54,9 +54,12 @@ func validateDefinitionItem(i ItemDefinition, a DefinitionAuthority, checks map[
 		return errors.New("monitoring_definition_scope_mismatch")
 	}
 	if !definitionMetric.MatchString(i.Metric) || !definitionUnit.MatchString(i.Unit) ||
-		!definitionEnum(i.Source, "snmp", "icmp", "tcp", "http", "dns", "tls", "host", "custom", "derived") ||
+		!definitionEnum(i.Source, "snmp", "icmp", "tcp", "http", "dns", "tls", "openmetrics", "jolokia", "postgresql", IPMISource, VCenterSource, SSHSource, MySQLSource, TelnetSource, BrowserSource, JMXSource, "snmp_trap", "host", "custom", "derived") ||
 		!definitionEnum(i.Kind, "collected", "dependent", "calculated") || !definitionEnum(i.ValueType, "number", "integer", "boolean", "text", "event") ||
 		!definitionInteger(i.FreshnessSec, 1, 604800) || !definitionInteger(i.HistoryDays, 1, 3650) || !definitionInteger(i.TrendsDays, 0, 3650) || i.DependsOn == nil || len(i.DependsOn) > 16 {
+		return errors.New("invalid_monitoring_item")
+	}
+	if i.Source == "snmp_trap" && (i.Metric != "notification" || i.ValueType != "event" || i.Unit != "none") {
 		return errors.New("invalid_monitoring_item")
 	}
 	key := fmt.Sprintf("v1:c:%d:a:%d:check:%d:%s:%s", a.ClientID, a.AssetID, i.CheckID, i.Source, i.Metric)

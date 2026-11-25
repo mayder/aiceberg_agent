@@ -9,7 +9,7 @@ import (
 
 var configurationIdentifier = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,63}$`)
 var configurationSecret = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}:[1-9][0-9]{0,15}$`)
-var configurationReference = regexp.MustCompile(`^check-config:v1:([1-9][0-9]{0,15}):([1-9][0-9]{0,15}):([1-9][0-9]{0,15}):(icmp|tcp|http|dns|tls|snmp):[a-f0-9]{64}$`)
+var configurationReference = regexp.MustCompile(`^check-config:v1:([1-9][0-9]{0,15}):([1-9][0-9]{0,15}):([1-9][0-9]{0,15}):(icmp|tcp|http|dns|tls|snmp|snmp_trap|ipmi|vcenter|ssh|mysql|telnet|browser|jmx):[a-f0-9]{64}$`)
 
 func configurationParameterType(name string) string {
 	switch name {
@@ -102,11 +102,11 @@ func configurationInteger(name string, n int64) bool {
 func configurationText(name, s string, a ConfigurationAuthority) bool {
 	switch name {
 	case "tipo":
-		return definitionEnum(s, "icmp", "tcp", "http", "dns", "tls", "snmp")
+		return definitionEnum(s, "icmp", "tcp", "http", "dns", "tls", "snmp", IPMISource, VCenterSource, SSHSource, MySQLSource, TelnetSource, BrowserSource, JMXSource, "snmp_trap")
 	case "nome":
 		return len(s) > 0 && len(s) <= 120
 	case "source":
-		return definitionEnum(s, "icmp", "tcp", "http", "dns", "tls", "snmp", "host", "custom", "derived")
+		return definitionEnum(s, "icmp", "tcp", "http", "dns", "tls", "snmp", "openmetrics", "jolokia", "postgresql", IPMISource, VCenterSource, SSHSource, MySQLSource, TelnetSource, BrowserSource, JMXSource, "snmp_trap", "host", "custom", "derived")
 	case "kind":
 		return definitionEnum(s, "collected", "dependent", "calculated")
 	case "value_type":

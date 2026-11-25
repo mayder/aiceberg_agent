@@ -326,6 +326,10 @@ A coleta SNMP preserva as categorias de timeout, autenticação e falha de
 transporte sem enviar erros brutos da biblioteca nas observações. A fixture
 verifica as saídas parciais e finais; o piloto físico segue pendente.
 
+Contratos locais de políticas e recibos, seletores e projeção de latência e
+métricas dos novos protocolos foram isolados no núcleo. A integração dos
+adaptadores, da fila e das credenciais fica em entrega separada.
+
 Status: implementação parcial; candidata rc.1 instalada no HUB84, teste físico pendente. Prioridade: P1. Coordenação: Web PKG-116 e Runtime PKG-20.
 
 ### Objetivo

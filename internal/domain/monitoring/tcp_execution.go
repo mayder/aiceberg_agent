@@ -12,9 +12,17 @@ import (
 // TCPCompatibilityDefinition describes the elapsed milliseconds of the existing
 // connection attempt. It never grants authority or changes observation retention.
 func TCPCompatibilityDefinition(scope Scope, freshnessSec int64) Definition {
+	return LatencyCompatibilityDefinition(scope, "tcp", freshnessSec)
+}
+
+func LatencySource(kind string) bool {
+	return definitionEnum(kind, "icmp", "tcp", "http", "dns", "tls")
+}
+
+func LatencyCompatibilityDefinition(scope Scope, source string, freshnessSec int64) Definition {
 	return Definition{SchemaVersion: 1, Revision: 1, ClientID: scope.ClientID, AssetID: scope.AssetID, Items: []ItemDefinition{{
-		Key:     fmt.Sprintf("v1:c:%d:a:%d:check:%d:tcp:latency_ms", scope.ClientID, scope.AssetID, scope.CheckID),
-		CheckID: scope.CheckID, Metric: "latency_ms", Source: "tcp", Kind: "collected", ValueType: "integer", Unit: "milliseconds",
+		Key:     fmt.Sprintf("v1:c:%d:a:%d:check:%d:%s:latency_ms", scope.ClientID, scope.AssetID, scope.CheckID, source),
+		CheckID: scope.CheckID, Metric: "latency_ms", Source: source, Kind: "collected", ValueType: "integer", Unit: "milliseconds",
 		FreshnessSec: freshnessSec, HistoryDays: 1, TrendsDays: 0, Enabled: true, DependsOn: []string{},
 	}}}
 }
@@ -22,6 +30,13 @@ func TCPCompatibilityDefinition(scope Scope, freshnessSec int64) Definition {
 // ProjectDefinedTCP ignores payload-proposed metrics. latencyMS is the dedicated
 // legacy observation field, resolved by the caller, including a genuine zero.
 func ProjectDefinedTCP(d Definition, authority DefinitionAuthority, observation Observation, latencyMS any, observedMS, nowMS int64) (Batch, error) {
+	return ProjectDefinedLatency(d, authority, "tcp", observation, latencyMS, observedMS, nowMS)
+}
+
+func ProjectDefinedLatency(d Definition, authority DefinitionAuthority, source string, observation Observation, latencyMS any, observedMS, nowMS int64) (Batch, error) {
+	if !LatencySource(source) {
+		return Batch{}, errors.New("unsupported_monitoring_definition")
+	}
 	if err := ValidateDefinition(d, authority); err != nil {
 		return Batch{}, err
 	}
@@ -29,14 +44,14 @@ func ProjectDefinedTCP(d Definition, authority DefinitionAuthority, observation 
 		return Batch{}, errors.New("unsupported_monitoring_definition")
 	}
 	item := d.Items[0]
-	if item.CheckID != authority.CheckIDs[0] || item.Source != "tcp" || item.Metric != "latency_ms" || item.Kind != "collected" || item.ValueType != "integer" || item.Unit != "milliseconds" || !item.Enabled {
+	if item.CheckID != authority.CheckIDs[0] || item.Source != source || item.Metric != "latency_ms" || item.Kind != "collected" || item.ValueType != "integer" || item.Unit != "milliseconds" || !item.Enabled {
 		return Batch{}, errors.New("unsupported_monitoring_definition")
 	}
 	if observedMS < 1 || nowMS < 1 || observedMS > 253402300799999 || nowMS > 253402300799999 {
 		return Batch{}, errors.New("invalid_monitoring_clock")
 	}
 	gap := observationGap(observation, observedMS, nowMS, item.FreshnessSec)
-	value, valid := tcpMilliseconds(latencyMS)
+	value, valid := probeMilliseconds(latencyMS)
 	if gap == "" && latencyMS == nil {
 		gap = "missing"
 	} else if gap == "" && !valid {
@@ -47,10 +62,10 @@ func ProjectDefinedTCP(d Definition, authority DefinitionAuthority, observation 
 		sample.State = "ok"
 		sample.Value = &value
 	}
-	return Batch{SchemaVersion: 1, Source: "agentless_tcp", Scope: Scope{ClientID: authority.ClientID, AssetID: authority.AssetID, CheckID: item.CheckID}, ObservedAtMS: observedMS, FreshnessSec: item.FreshnessSec, Samples: []Sample{sample}}, nil
+	return Batch{SchemaVersion: 1, Source: "agentless_" + source, Scope: Scope{ClientID: authority.ClientID, AssetID: authority.AssetID, CheckID: item.CheckID}, ObservedAtMS: observedMS, FreshnessSec: item.FreshnessSec, Samples: []Sample{sample}}, nil
 }
 
-func tcpMilliseconds(raw any) (float64, bool) {
+func probeMilliseconds(raw any) (float64, bool) {
 	var n float64
 	switch v := raw.(type) {
 	case int:
@@ -60,7 +75,7 @@ func tcpMilliseconds(raw any) (float64, bool) {
 	case float64:
 		n = v
 	case json.Number:
-		return tcpMilliseconds(string(v))
+		return probeMilliseconds(string(v))
 	case string:
 		s := strings.Trim(v, " \t\n\r\v\f")
 		if !decimalNumber.MatchString(s) {

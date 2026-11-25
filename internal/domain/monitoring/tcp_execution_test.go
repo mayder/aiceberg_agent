@@ -64,7 +64,7 @@ func TestTCPRejectsUnsafeDefinitionAndClocks(t *testing.T) {
 		}
 	}
 	for _, bad := range []any{math.NaN(), math.Inf(1), float64(1.5), true, []any{}, json.Number("1e999")} {
-		if _, ok := tcpMilliseconds(bad); ok {
+		if _, ok := probeMilliseconds(bad); ok {
 			t.Fatal("invalid latency accepted")
 		}
 	}

@@ -40,7 +40,7 @@ func NegotiateRecordsTransport(hops []TransportProfile) (TransportProfile, error
 }
 
 func validateTransportProfile(p TransportProfile) error {
-	sources := []string{"snmp", "icmp", "tcp", "http", "dns", "tls", "host", "custom", "derived"}
+	sources := []string{"snmp", "icmp", "tcp", "http", "dns", "tls", "openmetrics", "jolokia", "postgresql", IPMISource, VCenterSource, SSHSource, MySQLSource, TelnetSource, BrowserSource, JMXSource, "snmp_trap", "host", "custom", "derived"}
 	types := []string{"number", "integer", "boolean", "text", "event"}
 	if !p.OpaqueJSON || p.Contract != "monitoring.records.v1" || p.MaxBytes < 1 || p.MaxBytes > MaxRecordBytes || p.MaxRecords < 1 || p.MaxRecords > MaxRecords || !transportSet(p.Sources, sources) || !transportSet(p.ValueTypes, types) {
 		return errors.New("invalid_monitoring_transport_profile")
