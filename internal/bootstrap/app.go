@@ -692,6 +692,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		if activeChannelClient == nil || strings.TrimSpace(cmd.CommandID) == "" {
 			return
 		}
+		failureClass := "collect_failed"
+		var pending *usecase.AgentlessPendingDeliveryError
+		if errors.As(err, &pending) {
+			failureClass = "agentless_delivery_pending"
+		}
 		_ = activeChannelClient.SendEvent(runCtx, channel.Envelope{
 			Type:          channel.TypeError,
 			CommandID:     strings.TrimSpace(cmd.CommandID),
@@ -700,7 +705,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 				"status":        "failed",
 				"stage":         "collect",
 				"name":          name,
-				"failure_class": "collect_failed",
+				"failure_class": failureClass,
 				"message":       errString(err),
 			},
 		})
@@ -975,6 +980,11 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 								})
 								if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
 									reportControlCollectTimeout(ctx, cmd, "agentless")
+									return
+								}
+								if errors.Is(err, usecase.ErrAgentlessOutboxBusy) {
+									log.Info(logger.KV("agentless command skipped", "command_id", cmd.CommandID, "reason", "outbox_capacity"))
+									reportControlCollectBusy(runCtx, cmd, "agentless")
 									return
 								}
 								if err != nil {

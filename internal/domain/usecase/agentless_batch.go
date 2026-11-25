@@ -2,80 +2,144 @@ package usecase
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"sync"
+	"time"
 
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 )
 
 const agentlessBatchWorkers = 8
 
-// runAgentlessBatch bounds parallelism and serializes checks for the same destination.
-// The first persistence error cancels remaining work; callers retain unacknowledged data.
-func runAgentlessBatch(ctx context.Context, jobs []entities.AgentlessJob, workers int, run func(context.Context, entities.AgentlessJob) error) error {
-	if workers < 1 {
-		workers = 1
-	}
-	if workers > agentlessBatchWorkers {
-		workers = agentlessBatchWorkers
+type agentlessBatchPolicy struct {
+	workers     int
+	limit       int
+	admission   *agentlessProbeAdmission
+	manual      bool
+	outboxEmpty bool
+}
+
+type agentlessBatchResult struct {
+	work    agentlessBatchWork
+	started time.Time
+	outcome agentlessProbeOutcome
+}
+
+type agentlessBatchStats struct {
+	dispatched      int
+	circuitDeferred int
+	budgetDeferred  int
+	observationCost int
+}
+
+type agentlessJobRunner func(context.Context, entities.AgentlessJob) (agentlessProbeOutcome, error)
+
+// The dispatcher holds rate-limited jobs outside the workers. A persistence
+// error stops new work immediately and cancels probes already running.
+func runAgentlessBatch(ctx context.Context, jobs []entities.AgentlessJob, policy agentlessBatchPolicy, run agentlessJobRunner) (agentlessBatchStats, error) {
+	limit := min(max(0, policy.limit), len(jobs))
+	workers := min(max(1, policy.workers), agentlessBatchWorkers, limit)
+	if workers == 0 {
+		return agentlessBatchStats{}, ctx.Err()
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	groups := groupAgentlessJobs(jobs)
-	queue := make(chan []entities.AgentlessJob)
-	var wg sync.WaitGroup
+
+	schedule := newAgentlessBatchSchedule(jobs, workers, policy.limit)
+	schedule.admission, schedule.manual = policy.admission, policy.manual
+	schedule.allowOversize = policy.outboxEmpty
+	schedule.admission.prune(time.Now())
+	queue := make(chan agentlessBatchWork, workers)
+	results := make(chan agentlessBatchResult, workers)
 	var firstErr error
-	var once sync.Once
-	for i := 0; i < workers && i < len(groups); i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for group := range queue {
-				for _, job := range group {
-					if ctx.Err() != nil {
-						return
-					}
-					if err := run(ctx, job); err != nil {
-						once.Do(func() { firstErr = err; cancel() })
-						return
-					}
-				}
-			}
-		}()
+	var failOnce sync.Once
+	var pool sync.WaitGroup
+	for range workers {
+		pool.Go(func() {
+			workAgentlessBatch(ctx, queue, results, run, func(err error) {
+				failOnce.Do(func() {
+					firstErr = err
+					cancel()
+				})
+			})
+		})
 	}
-	for _, group := range groups {
-		select {
-		case queue <- group:
-		case <-ctx.Done():
-		}
-		if ctx.Err() != nil {
-			break
-		}
-	}
+
+	count := dispatchAgentlessBatch(ctx, schedule, queue, results, workers, limit)
 	close(queue)
-	wg.Wait()
+	pool.Wait()
+	stats := agentlessBatchStats{dispatched: count, circuitDeferred: schedule.circuitDeferred,
+		budgetDeferred: schedule.budgetDeferred, observationCost: schedule.reserved}
 	if firstErr != nil {
-		return firstErr
+		return stats, firstErr
 	}
-	return ctx.Err()
+	return stats, ctx.Err()
 }
 
-func groupAgentlessJobs(jobs []entities.AgentlessJob) [][]entities.AgentlessJob {
-	groups := make([][]entities.AgentlessJob, 0)
-	positions := make(map[string]int)
-	for _, job := range jobs {
-		key := fmt.Sprintf("asset:%d:%d", job.ClienteID, job.AtivoID)
-		if job.Endpoint != nil && strings.TrimSpace(job.Endpoint.Endereco) != "" {
-			key = strings.ToLower(strings.TrimSpace(job.Endpoint.Endereco))
+func dispatchAgentlessBatch(ctx context.Context, schedule *agentlessBatchSchedule, queue chan<- agentlessBatchWork, results <-chan agentlessBatchResult, workers, limit int) int {
+	active, dispatched := 0, 0
+	for {
+		for ctx.Err() == nil && active < workers && dispatched < limit {
+			work, ok := schedule.take(time.Now())
+			if !ok {
+				break
+			}
+			queue <- work
+			active++
+			dispatched++
 		}
-		index, ok := positions[key]
-		if !ok {
-			index = len(groups)
-			positions[key] = index
-			groups = append(groups, nil)
+		if active < workers && dispatched < limit && ctx.Err() == nil && !schedule.wakeAt.IsZero() {
+			result, ready := waitForAgentlessWorker(ctx, results, schedule.wakeAt)
+			if ready {
+				schedule.complete(result)
+				active--
+			}
+			continue
 		}
-		groups[index] = append(groups[index], job)
+		if active == 0 {
+			return dispatched
+		}
+		schedule.complete(<-results)
+		active--
 	}
-	return groups
+}
+
+func waitForAgentlessWorker(ctx context.Context, results <-chan agentlessBatchResult, due time.Time) (agentlessBatchResult, bool) {
+	timer := time.NewTimer(time.Until(due))
+	defer timer.Stop()
+	select {
+	case result := <-results:
+		return result, true
+	case <-timer.C:
+	case <-ctx.Done():
+	}
+	return agentlessBatchResult{}, false
+}
+
+func (s *agentlessBatchSchedule) complete(result agentlessBatchResult) {
+	s.release(result.work)
+	now := time.Now()
+	destination := result.work.destination.key
+	s.admission.finishRate(destination, result.started, now)
+	if result.started.IsZero() {
+		return
+	}
+	if !s.manual {
+		s.admission.recordExecution(result.work.job, destination, result.outcome, now)
+	}
+}
+
+func workAgentlessBatch(ctx context.Context, queue <-chan agentlessBatchWork, results chan<- agentlessBatchResult, run agentlessJobRunner, fail func(error)) {
+	for work := range queue {
+		result := agentlessBatchResult{work: work}
+		if ctx.Err() == nil {
+			result.started = time.Now()
+			outcome, err := run(ctx, work.job)
+			if err != nil {
+				fail(err)
+			} else {
+				result.outcome = outcome
+			}
+		}
+		results <- result
+	}
 }

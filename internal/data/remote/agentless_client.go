@@ -43,6 +43,36 @@ func (c *AgentlessHubClient) FetchJobsWithOptions(ctx context.Context, limit int
 	endpoint := c.cfg.APIEndpoint("/v1/hub-agentless/jobs")
 	params := url.Values{}
 	params.Set("limit", strconv.Itoa(limit))
+	params.Set("probe_capability", "openmetrics-v1")
+	params.Set("jolokia_capability", "jolokia-v1")
+	if config.AgentlessHTTPProbeProfilesFile() != "" {
+		params.Set("http_probe_auth_capability", "http-probe-auth-v1")
+	}
+
+	if config.AgentlessPostgresProfilesFile() != "" {
+		params.Set("postgresql_capability", "postgresql-v1")
+	}
+	if binary, file := config.AgentlessIPMISettings(); binary != "" && file != "" {
+		params.Set("ipmi_capability", "ipmi-v1")
+	}
+	if _, ok := config.AgentlessJMXSettings(); ok {
+		params.Set("jmx_probe_capability", "jmx-probe-v1")
+	}
+	if config.AgentlessBrowserRunnerSocket() != "" {
+		params.Set("browser_probe_capability", "browser-probe-v1")
+	}
+	if config.AgentlessTelnetTargetsFile() != "" {
+		params.Set("telnet_probe_capability", "telnet-probe-v1")
+	}
+	if config.AgentlessMySQLProfilesFile() != "" {
+		params.Set("mysql_probe_capability", "mysql-probe-v1")
+	}
+	if config.AgentlessSSHProfilesFile() != "" {
+		params.Set("ssh_capability", "ssh-probe-v1")
+	}
+	if config.AgentlessVCenterProfilesFile() != "" {
+		params.Set("vcenter_capability", "vcenter-v1")
+	}
 	if lock {
 		params.Set("lock", "1")
 		params.Set("lock_sec", strconv.Itoa(lockSec))
@@ -58,6 +88,10 @@ func (c *AgentlessHubClient) FetchJobsWithOptions(ctx context.Context, limit int
 	if checkIDs := joinPositiveInts(opts.CheckIDs); checkIDs != "" {
 		params.Set("check_ids", checkIDs)
 	}
+	if c.canResolveSNMPCredentials(endpoint) {
+		params.Set("credential_mode", entities.AgentlessCredentialReferenceV1)
+		params.Set("diagnostic_credential_mode", entities.AgentlessCredentialReferenceV1)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+params.Encode(), nil)
 	if err != nil {
 		return nil, err
@@ -69,8 +103,7 @@ func (c *AgentlessHubClient) FetchJobsWithOptions(ctx context.Context, limit int
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		return nil, fmt.Errorf("jobs http %s body=%s", resp.Status, string(body))
+		return nil, fmt.Errorf("jobs http %d", resp.StatusCode)
 	}
 	var out struct {
 		Status string                  `json:"status"`
@@ -78,7 +111,14 @@ func (c *AgentlessHubClient) FetchJobsWithOptions(ctx context.Context, limit int
 		Jobs   []entities.AgentlessJob `json:"jobs"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid agentless jobs response")
+	}
+	for i := range out.Jobs {
+		job := &out.Jobs[i]
+		if job.CredentialDelivery != "" && job.SNMP != nil {
+			profile := job.SNMP.WithoutCredential()
+			job.SNMP = &profile
+		}
 	}
 	return out.Jobs, nil
 }
@@ -113,6 +153,9 @@ func (c *AgentlessHubClient) SendObservations(ctx context.Context, list []entiti
 		}
 		if o.MonitoringSamples != nil {
 			item["monitoring_samples_v1"] = o.MonitoringSamples
+		}
+		if o.ProbeReport != nil {
+			item["probe_report_v1"] = o.ProbeReport
 		}
 		if o.CollectionKind != "" {
 			item["snmp_collection_kind"] = o.CollectionKind
