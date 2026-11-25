@@ -6,9 +6,10 @@ import (
 	"golang.org/x/sys/unix"
 	"os"
 	"path/filepath"
+	"syscall"
 )
 
-func readFile(path string, limit int) ([]byte, error) {
+func readFile(path string, limit int, private bool) ([]byte, error) {
 	parent, err := openDirectoryMode(filepath.Dir(path), false)
 	if err != nil {
 		return nil, err
@@ -18,5 +19,10 @@ func readFile(path string, limit int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return readBounded(os.NewFile(uintptr(descriptor), filepath.Base(path)), limit)
+	return readBounded(os.NewFile(uintptr(descriptor), filepath.Base(path)), limit, private)
+}
+
+func privateFile(info os.FileInfo) bool {
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	return ok && stat.Uid == uint32(os.Geteuid()) && info.Mode().Perm()&0o077 == 0
 }

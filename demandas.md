@@ -322,6 +322,10 @@ Redescoberta não duplica; desaparecimento temporário não apaga histórico; ev
 
 ## [PKG-116] Coletores universais — probes locais e de borda
 
+O receptor de traps do HUB usa habilitação explícita e fila dedicada. O Bolt
+controla capacidade e replay no mesmo commit. A instalação requer configuração
+local e ingestão compatível no servidor.
+
 A coleta SNMP preserva as categorias de timeout, autenticação e falha de
 transporte sem enviar erros brutos da biblioteca nas observações. A fixture
 verifica as saídas parciais e finais; o piloto físico segue pendente.

@@ -15,16 +15,24 @@ func Read(path string, limit int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return readFile(absolute, limit)
+	return readFile(absolute, limit, false)
 }
 
-func readBounded(file *os.File, limit int) ([]byte, error) {
+// ReadPrivate requires a regular owner-only file on a supported platform.
+func ReadPrivate(path string, limit int) ([]byte, error) {
+	if !filepath.IsAbs(path) {
+		return nil, ErrInvalidFile
+	}
+	return readFile(systemPath(filepath.Clean(path)), limit, true)
+}
+
+func readBounded(file *os.File, limit int, private bool) ([]byte, error) {
 	defer file.Close()
 	info, err := file.Stat()
 	if err != nil {
 		return nil, err
 	}
-	if !info.Mode().IsRegular() || info.Size() > int64(limit) {
+	if !info.Mode().IsRegular() || info.Size() > int64(limit) || (private && !privateFile(info)) {
 		return nil, ErrInvalidFile
 	}
 	raw, err := io.ReadAll(io.LimitReader(file, int64(limit)+1))

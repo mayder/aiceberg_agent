@@ -14,17 +14,23 @@ import (
 )
 
 type BoltStore struct {
-	path     string
-	maxMB    int
-	db       *bolt.DB
-	mu       sync.Mutex
-	bucket   []byte
-	maxBytes int64
+	path           string
+	db             *bolt.DB
+	mu             sync.Mutex
+	bucket         []byte
+	maxBytes       int64
+	minRecordBytes int64
+	// Usage is rebuilt on open and changed only after a Bolt commit.
+	items     int
+	usedBytes int64
+	closed    bool
 }
 
 type storedObservation struct {
 	Obs entities.AgentlessObservation `json:"obs"`
 }
+
+var ErrOutboxFull = errors.New("agentless outbox full (max MB reached)")
 
 type storedObservationMeta struct {
 	Obs struct {
@@ -40,6 +46,10 @@ func NewBoltStore(path string, maxMB int) (*BoltStore, error) {
 		maxMB = 50
 	}
 	maxBytes := int64(maxMB) * 1024 * 1024
+	minRecord, err := json.Marshal(storedObservation{})
+	if err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
@@ -47,7 +57,7 @@ func NewBoltStore(path string, maxMB int) (*BoltStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	store := &BoltStore{path: path, maxMB: maxMB, maxBytes: maxBytes, db: db, bucket: []byte("agentless_outbox")}
+	store := &BoltStore{path: path, maxBytes: maxBytes, minRecordBytes: int64(len(minRecord)), db: db, bucket: []byte("agentless_outbox")}
 	if err := store.init(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -57,12 +67,23 @@ func NewBoltStore(path string, maxMB int) (*BoltStore, error) {
 
 func (b *BoltStore) init() error {
 	return b.db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(b.bucket)
-		return err
+		bucket, err := tx.CreateBucketIfNotExists(b.bucket)
+		if err != nil {
+			return err
+		}
+		return bucket.ForEach(func(_, raw []byte) error {
+			b.items++
+			b.usedBytes += int64(len(raw))
+			return nil
+		})
 	})
 }
 
 func (b *BoltStore) Push(o entities.AgentlessObservation) error {
+	return b.push(o, nil)
+}
+
+func (b *BoltStore) push(o entities.AgentlessObservation, proof *entities.SNMPTrapReplayProof) error {
 	raw, err := json.Marshal(storedObservation{Obs: o})
 	if err != nil {
 		return err
@@ -70,15 +91,32 @@ func (b *BoltStore) Push(o entities.AgentlessObservation) error {
 	key := []byte(o.ID)
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if ok, err := b.withinLimit(int64(len(raw))); err != nil {
-		return err
-	} else if !ok {
-		return errors.New("agentless outbox full (max MB reached)")
-	}
-	return b.db.Update(func(tx *bolt.Tx) error {
-		bk := tx.Bucket(b.bucket)
-		return bk.Put(key, raw)
+	var added int
+	var bytesDelta int64
+	err = b.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(b.bucket)
+		old := bucket.Get(key)
+		delta := int64(len(raw) - len(old))
+		if delta > 0 && delta > b.maxBytes-b.usedBytes {
+			return ErrOutboxFull
+		}
+		if proof != nil {
+			accepted, err := admitSNMPTrap(tx, *proof)
+			if err != nil || !accepted {
+				return err
+			}
+		}
+		if old == nil {
+			added = 1
+		}
+		bytesDelta = delta
+		return bucket.Put(key, raw)
 	})
+	if err == nil {
+		b.items += added
+		b.usedBytes += bytesDelta
+	}
+	return err
 }
 
 func (b *BoltStore) Peek(n int) ([]entities.AgentlessObservation, error) {
@@ -105,39 +143,49 @@ func (b *BoltStore) Delete(ids []string) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	idset := make(map[string]struct{}, len(ids))
-	for _, id := range ids {
-		idset[id] = struct{}{}
-	}
-	return b.db.Update(func(tx *bolt.Tx) error {
-		bk := tx.Bucket(b.bucket)
-		for id := range idset {
-			_ = bk.Delete([]byte(id))
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	var removed int
+	var removedBytes int64
+	err := b.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(b.bucket)
+		for _, id := range ids {
+			key := []byte(id)
+			old := bucket.Get(key)
+			if old == nil {
+				continue
+			}
+			removed++
+			removedBytes += int64(len(old))
+			if err := bucket.Delete(key); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
+	if err == nil {
+		b.items -= removed
+		b.usedBytes -= removedBytes
+	}
+	return err
 }
 
 func (b *BoltStore) Len() (int, int64) {
-	var count int
-	var bytes int64
-	_ = b.db.View(func(tx *bolt.Tx) error {
-		count, bytes = bucketStats(tx, b.bucket)
-		return nil
-	})
-	return count, bytes
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return 0, 0
+	}
+	return b.items, b.usedBytes
 }
 
-func (b *BoltStore) withinLimit(nextBytes int64) (bool, error) {
-	var curBytes int64
-	err := b.db.View(func(tx *bolt.Tx) error {
-		_, curBytes = bucketStats(tx, b.bucket)
-		return nil
-	})
-	if err != nil {
-		return false, err
+func (b *BoltStore) AdmissionState() (int, int64, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return 0, 0, bolt.ErrDatabaseNotOpen
 	}
-	return curBytes+nextBytes <= b.maxBytes, nil
+	return b.items, max(0, b.maxBytes-b.usedBytes) / b.minRecordBytes, nil
 }
 
 func (b *BoltStore) Prune(maxAge time.Duration) (int, error) {
@@ -145,10 +193,11 @@ func (b *BoltStore) Prune(maxAge time.Duration) (int, error) {
 		return 0, nil
 	}
 	removed := 0
+	var removedBytes int64
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	now := time.Now()
-	_ = b.db.Update(func(tx *bolt.Tx) error {
+	err := b.db.Update(func(tx *bolt.Tx) error {
 		bk := tx.Bucket(b.bucket)
 		c := bk.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
@@ -161,26 +210,21 @@ func (b *BoltStore) Prune(maxAge time.Duration) (int, error) {
 				continue
 			}
 			if now.Sub(created) > maxAge {
-				_ = c.Delete()
+				removedBytes += int64(len(v))
+				if err := c.Delete(); err != nil {
+					return err
+				}
 				removed++
 			}
 		}
 		return nil
 	})
-	return removed, nil
-}
-
-func bucketStats(tx *bolt.Tx, bucket []byte) (count int, bytes int64) {
-	bk := tx.Bucket(bucket)
-	if bk == nil {
-		return 0, 0
+	if err != nil {
+		return 0, err
 	}
-	_ = bk.ForEach(func(_, v []byte) error {
-		count++
-		bytes += int64(len(v))
-		return nil
-	})
-	return count, bytes
+	b.items -= removed
+	b.usedBytes -= removedBytes
+	return removed, nil
 }
 
 // Project scheduling metadata only; decode payloads solely for selected heads.
@@ -231,4 +275,9 @@ func (b *BoltStore) PeekDelivery(n int, ordinal uint64, excluded map[string]bool
 }
 
 // Close flushes the dedicated store; callers stop its worker first.
-func (b *BoltStore) Close() error { return b.db.Close() }
+func (b *BoltStore) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.closed = true
+	return b.db.Close()
+}

@@ -8,7 +8,10 @@ import (
 	"path/filepath"
 )
 
-func readFile(path string, limit int) ([]byte, error) {
+func readFile(path string, limit int, private bool) ([]byte, error) {
+	if private {
+		return nil, ErrInvalidFile
+	}
 	pins, err := pinDirectoriesMode(filepath.Dir(path), false)
 	if err != nil {
 		return nil, err
@@ -35,5 +38,7 @@ func readFile(path string, limit int) ([]byte, error) {
 		}
 		return nil, err
 	}
-	return readBounded(os.NewFile(uintptr(handle), filepath.Base(path)), limit)
+	return readBounded(os.NewFile(uintptr(handle), filepath.Base(path)), limit, false)
 }
+
+func privateFile(os.FileInfo) bool { return false }

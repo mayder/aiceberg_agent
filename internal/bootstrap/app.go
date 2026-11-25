@@ -364,6 +364,10 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 		agentlessStore := selectAgentlessOutbox(cfg, log)
 		agentlessRepo = repositories.NewAgentlessOutboxRepository(agentlessStore)
 		agentlessClient := agentlessremote.NewAgentlessHubClient(cfg)
+		if mode == "hub" {
+			stopSNMPTraps := startSNMPTrapReceiver(ctx, cfg, log, agentlessClient, agentlessSettings)
+			defer stopSNMPTraps()
+		}
 		targetsStore := selectAgentlessTargetsStore(log)
 		agentlessUC = usecase.NewAgentlessHub(cfg, log, agentlessClient, agentlessRepo, agentlessSettings, targetsStore)
 		agentlessLastPoll = time.Now().Add(-cfg.AgentlessPollInterval)

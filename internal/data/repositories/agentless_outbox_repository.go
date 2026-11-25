@@ -2,6 +2,8 @@ package repositories
 
 import (
 	"errors"
+	"math"
+
 	"github.com/you/aiceberg_agent/internal/domain/entities"
 	"github.com/you/aiceberg_agent/internal/domain/ports"
 )
@@ -32,6 +34,14 @@ func (r *agentlessOutboxRepo) Ack(ids []string) error {
 }
 
 func (r *agentlessOutboxRepo) Len() (int, int64) { return r.store.Len() }
+
+func (r *agentlessOutboxRepo) AdmissionState() (int, int64, error) {
+	if admission, ok := r.store.(ports.AgentlessOutboxAdmission); ok {
+		return admission.AdmissionState()
+	}
+	items, _ := r.store.Len()
+	return items, math.MaxInt64, nil
+}
 
 func (r *agentlessOutboxRepo) ReadDeliveryBatch(n int, ordinal uint64, excluded map[string]bool) ([]entities.AgentlessObservation, error) {
 	if reader, ok := r.store.(interface {

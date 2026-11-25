@@ -14,6 +14,12 @@ type AgentlessOutboxRepo interface {
 	Len() (items int, bytes int64)
 }
 
+// AgentlessOutboxAdmission bounds how many minimum-size observations could
+// fit. Append still validates the actual serialized size.
+type AgentlessOutboxAdmission interface {
+	AdmissionState() (items int, maxNewItems int64, err error)
+}
+
 // AgentlessDeliveryReader optionally provides stream-safe, fair selection.
 // Excluded streams stay pending; reading never acknowledges or removes data.
 type AgentlessDeliveryReader interface {
