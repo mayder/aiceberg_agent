@@ -150,6 +150,7 @@ type AgentlessObservation struct {
 	EndpointID       *int           `json:"endpoint_id,omitempty"`
 	CreatedAt        time.Time      `json:"created_at"`
 
-	MonitoringSamples *monitoring.Batch       `json:"monitoring_samples_v1,omitempty"`
-	ProbeReport       *monitoring.ProbeReport `json:"probe_report_v1,omitempty"`
+	MonitoringSamples *monitoring.Batch                    `json:"monitoring_samples_v1,omitempty"`
+	ProbeReport       *monitoring.ProbeReport              `json:"probe_report_v1,omitempty"`
+	Assignment        *monitoring.CollectorAssignmentGrant `json:"collector_assignment_v1,omitempty"`
 }

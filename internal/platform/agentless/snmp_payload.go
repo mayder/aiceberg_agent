@@ -75,6 +75,7 @@ type snmpPayload struct {
 	Ifaces               []map[string]any                        `json:"ifaces"`
 	Scalars              map[string]any                          `json:"scalars"`
 	Tables               map[string][]map[string]any             `json:"tables"`
+	CompletePortTables   map[string]bool                         `json:"port_tables_complete_v1,omitempty"`
 	Custom               map[string][]map[string]any             `json:"custom"`
 	OIDs                 map[string]any                          `json:"oids,omitempty"`
 }

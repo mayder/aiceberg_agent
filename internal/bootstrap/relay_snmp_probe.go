@@ -25,7 +25,11 @@ func startRelaySNMPProbe(ctx context.Context, cfg config.Config, log logger.Logg
 		log.Error(logger.KV("relay probe unavailable", "code", "relay_probe_outbox_unavailable"))
 		return nil, func() {}
 	}
-	worker := usecase.NewRelaySNMPProbe("relay", remote.NewRelaySNMPProbeClientWithIdentity(cfg, relayProbeIdentity(ctx, cfg)), repositories.NewAgentlessOutboxRepository(store), agentless.RunJob)
+	client := remote.NewRelaySNMPProbeClientWithIdentity(cfg, relayProbeIdentity(ctx, cfg))
+	worker := usecase.NewRelaySNMPProbe("relay", client, repositories.NewAgentlessOutboxRepository(store),
+		func(ctx context.Context, job entities.AgentlessJob) entities.AgentlessObservation {
+			return agentless.RunJobWithCredentials(ctx, job, nil, client.ResolveSNMPCredentials)
+		})
 	runCtx, cancel := context.WithCancel(ctx)
 	var wg sync.WaitGroup
 	wg.Add(1)

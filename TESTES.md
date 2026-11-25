@@ -954,6 +954,387 @@ configuração privada ou teste físico SADA. Contrato canônico Web:
 docs/contracts/monitoring-pipeline-v1.md. Item5 de desenvolvimento qualificado;
 itens6–14 abertos, pacote115/contraparte19 não encerrados.
 
+
+### Pipeline de monitoramento — item 6, 23/11/2026
+
+O executor Go do Agent e Runtime passa a validar faixa ou comprimento, extrair
+uma captura por regex e selecionar valores tipados por JSONPath singular.
+PHP verifica a estrutura e valida o batch de saída. A compilação Go autoriza
+a sintaxe e o custo do regex antes da execução. Os vetores compartilhados
+cobrem a ordem das etapas, limites, tipos, valores ausentes e falhas explícitas.
+A entrega local mantém o contrato de entrada e saída do item 5. A adoção requer
+confirmar que todos os executores da configuração suportam as novas operações.
+Em rollback, restaurar primeiro a revisão compatível ou desativar a atribuição.
+Ver contrato Web em docs/contracts/monitoring-pipeline-v1.md. Itens 7–14 abertos.
+
+
+### Pipeline de monitoramento — item 7
+
+XMLPath singular no Agente e Runtime, com seleção por filho direto, posição
+e atributo final. Valida documento completo, limites, cardinalidade e tipo
+antes de emitir resultado. XML rejeitado, ambiguidade, ausência e estouro de
+limite são distinguíveis sem expor conteúdo. PHP valida o caminho e consome o
+batch final. Ver contrato Web em docs/contracts/monitoring-pipeline-v1.md.
+A adoção produtiva depende de executores compatíveis no item 14.
+
+
+### Pipeline de monitoramento — item 8
+
+Delta para gauge e contador, com base inicial explícita, reset e proteção
+de faixa. Throttle por igualdade tipada e janela desde a última emissão.
+Checkpoint bbolt por vínculo com recibos atômicos, recuperação após
+reinício e recusa de observações conflitantes. Lote suprimido por inteiro
+não gera batch. Ver testes de transação, reentrega e PHP no contrato Web
+docs/contracts/monitoring-pipeline-v1.md. Ativação e gestão do ciclo de vida
+dos checkpoints ficam no item 14.
+
+
+### Pipeline de monitoramento — item 9
+
+O Agente e Runtime executam os itens dependentes do modelo validado, com
+ordem topológica e uma única passagem por nó a partir de um snapshot de
+coleta. Tipos, unidades, frescor e indisponibilidade são propagados por ramo.
+Delta e throttle usam checkpoint atômico do grafo. Qualificação local cobre
+fan-out TCP real com uma conexão, resultado consumível por PHP e reentrega
+do grafo após reabertura bbolt. Adoção em produção no item 14. Ver
+docs/contracts/monitoring-pipeline-v1.md no Web.
+
+
+### Pipeline de monitoramento — item 10
+
+Itens calculados executam fórmulas numéricas tipadas no DAG, com orçamento e
+validação estática de dependências, operadores e unidades. Lacunas, erros
+numéricos e frescor permanecem explícitos. Identidade do resultado calculado
+usa o ciclo, e o DAG preserva a idade da origem mais antiga para a cadeia.
+O compositor Go preserva a declaração da fórmula, e PHP valida a configuração
+e consome o lote. Os testes locais cobrem fórmulas encadeadas, múltiplas
+origens, falhas isoladas e combinação com checkpoint. Contrato Web:
+docs/contracts/monitoring-pipeline-v1.md. Adoção operacional no item 14.
+
+
+### Pipeline de monitoramento — item 11
+
+Etapa script WebAssembly com ABI para valores JSON tipados, no Agente e
+Runtime. O perfil sem imports restringe memória, instruções, concorrência
+e prazo. Tempo/capacidade abortam sem commit parcial. Falhas do valor são
+explícitas e isoladas no ramo. PHP valida o envelope e o resultado. Os
+testes locais cobrem rejeição de recursos proibidos, memória nova por
+chamada, tipo, trap, orçamento, fan-out e reentrega. Ver o contrato Web
+docs/contracts/monitoring-pipeline-v1.md. Adoção operacional no item 14.
+
+
+### Séries de monitoramento — item 12
+
+Persistência MySQL única para registros canônicos, com catálogo por ativo,
+revisão protegida, reentrega idempotente, histórico indexado e último registro.
+Cotas de séries e amostras são transacionais por cliente. A retenção limita
+leitura e escrita e oferece plano revisável de remoção exata, sem ativação
+automática. MySQL 8.4 descartável validou o SQL 286 e o roundtrip DAG → SQL →
+PHP, além de escopo, atomicidade, conflitos, cursor temporal e concorrência.
+Contrato Web em docs/contracts/monitoring-series-v1.md. Agregações ficam no
+item 13. Ativação, grants e conciliação operacional no item 14.
+
+
+### Projeção TCP para o grafo canônico
+
+`TestTCPMonitoringUsesOneExistingConnection` usa socket TCP em loopback
+e projeta as amostras da execução pelo adaptador compartilhado com o Runtime.
+Uma conexão alimenta cinco resultados. Os testes focados de SNMPv1 em loopback
+confirmam GET, GETNEXT, retorno de um sensor simulado e entrega ao consumidor
+PHP via fila local e HTTP. O teste instalado certificará as respostas dos
+sensores da SADA com agentes do recorte autorizado.
+
+
+### Recibo dos adapters de coleta
+
+A suíte `go test -race ./internal/platform/agentless ./internal/data/remote`
+cobre protocolo desconhecido sem eco da entrada, cancelamento de handshake
+TLS e o contrato TCP em loopback. Com `AICEBERG_MONITORING_WEB_ROOT`, o teste
+integrado confirma uma conexão TCP, persistência na fila após reabertura,
+HTTP 503 e reentrega ao consumidor PHP com recibo vinculado ao check.
+
+
+A política de execução tem regressão HTTP real em loopback para timeout total e rejeição antes da rede, além de cobertura para perfil SNMP e frescor do check base.
+
+`go test -race ./internal/domain/usecase ./internal/platform/agentless -run 'AgentlessHTTPKeepsRaw|ICMPExtractsLatency'`
+verifica que credenciais e parâmetros de URL, texto de status recebido
+e saída de ping ficam fora do debug e do outbox. O teste HTTP usa uma
+resposta de loopback, uma falha de conexão e a fila Bolt. Os códigos
+de resultado, o status HTTP normalizado e a latência continuam disponíveis.
+
+`TestSNMPErrorDetailsStayOutOfPartialAndFinalObservations` simula erros
+de tempo, autenticação, conexão recusada e transporte no GET e WALK.
+Confere a categoria, os OIDs com falha e a ausência de dados brutos nas
+observações parciais e finais. O teste Net-SNMP continua cobrindo
+credenciais aceitas e recusadas nas três versões.
+No macOS, usar o Net-SNMP com controle de acesso. O binário nativo
+5.6.2.1 ignorou `rocommunity` no laboratório. A fixture confere a
+recusa de uma comunidade incorreta antes de executar o teste do Agente.
+
+HTTP em loopback validou uma coleta para cinco itens derivados via contrato canônico, usando a mesma implementação das séries de latência.
+
+`TestManualSNMPBackpressureReservesEveryObservation` cobre fila Bolt
+cheia, folga insuficiente para as partes SNMP e recuperação. Depois de
+liberar três vagas na fixture, o HUB envia duas parciais e um final
+por HTTP a partir de respostas UDP de loopback.
+
+`TestAgentlessByteBackpressureStopsLeasesAndRecoversAfterFlush` deixa
+um único registro na fila Bolt com 1 byte livre. Confere que o Agente
+adia rotina e comando manual, recusa uma nova gravação e volta a
+executar após o servidor confirmar a entrega do registro pendente.
+
+`TestAgentlessBoltUsageMatchesCommittedRecords` compara os arquivos
+Bolt com os totais usados para admissão após inclusão, substituição,
+recusa por tamanho, ACK repetido, expiração e reabertura. A suíte de
+traps verifica os mesmos totais após descartar uma repetição.
+Para medir a consulta e a gravação com 400 e 10.000 observações,
+rode `go test -run '^$' -bench '^BenchmarkAgentlessBoltCapacity$' -benchtime=200ms -count=3 ./internal/data/local/agentless`.
+
+`TestAgentlessRateCapacityKeepsOtherClientsRunnable` preenche a cota
+de um cliente e confirma o despacho de outro no mesmo hostname,
+a liberação de vaga em cancelamento e a retomada após a janela.
+`TestAgentlessGlobalRateCapacityResumesAtFirstVacancy` preenche o teto
+do HUB, confirma o primeiro vencimento e reaproveita exatamente uma vaga.
+
+`TestServerCancelledPostgresStatementProvesEndpointReachable` valida
+que o SQLSTATE 57014 encerra a sequência de falhas de conexão, enquanto
+timeouts de conexão PostgreSQL continuam abrindo o circuito.
+`TestSNMPErrorDetailsStayOutOfPartialAndFinalObservations` também
+confere os motivos do recibo em recusa de conexão e rejeição de
+autenticação.
+
+`TestAgentlessHubPausesOnlyTheCheckExhaustingBudget` executa dois
+checks HTTP no mesmo endpoint. O cenário valida a pausa após três
+timeouts de orçamento, continuidade do check saudável, diagnóstico
+manual e teste de recuperação após a pausa. O teste SNMP cobre
+orçamento excedido com leitura aproveitável. A jornada de Chromium
+também verifica o motivo `budget` no recibo de timeout do runner.
+
+`TestAgentlessHubMixedLoadSurvivesDeliveryOutageAndRestart` usa 62
+checks, nove clientes, até oito workers, HTTP e SNMP UDP em loopback,
+com fila Bolt. O receptor responde HTTP 503 após o primeiro ACK.
+O teste reabre a fila, confere a ordem dos segmentos SNMP, a entrega
+das 56 observações pendentes e a ausência de nova coleta.
+
+`AICEBERG_MONITORING_WEB_ROOT=/caminho/do/web go test -race -count=1 ./internal/data/remote -run '^TestSNMPPilotReceiptsFromUDPQualifyThroughTheWebExport$'`
+exercita três GETs SNMPv1 por referência em loopback, o export de
+recibos do Web e a qualificação pelo validador. Um timeout posterior
+reinicia a sequência e o estado do check operacional é preservado.
+
+O SSH restrito usa servidor SSH em loopback e chaves Ed25519 efêmeras.
+`go test -race ./internal/platform/agentless -run 'SSHProbe'` cobre
+autenticação por chave, escopo, chave de host divergente, comando fixo,
+saída excedida, cancelamento e leitura de valor zero.
+
+`TestSSHProbeAgainstRestrictedOpenSSH` executa o mesmo coletor contra
+OpenSSH em `127.0.0.1`. Fornecer
+`AICEBERG_SSH_OPENSSH_FIXTURE_PORT` e o arquivo `0600`
+`AICEBERG_SSH_OPENSSH_FIXTURE_PROFILE`. O perfil de laboratório usa
+`ssh_probe_profile:51`, cliente 3, ativo 52, check 72 e endpoint 17,
+com chaves temporárias. Usar conta de destino separada e forçar o
+comando fixo, com sessões interativas e forwarding desabilitados.
+O ensaio Ubuntu arm64 verificou três medições de `/proc`, recusa por
+escopo e chave de host divergente e recuperação com a chave correta.
+Em Debian arm64 com OpenSSH 9.2, o reteste também confirmou que a chave
+cliente recusada retorna `ssh_access_denied`, sem medição ou credencial
+no recibo. A regressão de admissão confirma que os outros checks do
+serviço permanecem elegíveis após uma recusa explícita.
+Reexecutar a regressão de chave recusada ao atualizar `x/crypto/ssh`,
+que sinaliza a rejeição do lado cliente por uma mensagem de erro.
+
+`TestIPMIProbeAgainstLoopbackBMC` exercita o coletor com ipmitool 1.8.19
+e o BMC em `internal/platform/agentless/testdata/ipmi_rmcpplus_bmc.py`.
+Use um ambiente Python isolado com Pyghmi na
+[revisão testada](https://opendev.org/x/pyghmi/commit/7f826446c14427db3516d48bd5cc36f2b81450ec).
+Inicie a fixture Python e use a porta impressa em
+`AICEBERG_IPMI_LOOPBACK_FIXTURE_PORT`. Informe o caminho absoluto do
+ipmitool em `AICEBERG_IPMI_LOOPBACK_FIXTURE_TOOL` e rode
+`go test -count=1 -v ./internal/platform/agentless -run '^TestIPMIProbeAgainstLoopbackBMC$'`.
+Encerre a fixture após o teste. O cenário comprova cifra 17, unidades,
+zero, lacuna, credencial incorreta e recuperação em loopback.
+Linux amd64 em Ubuntu 22.04.5 passou com o ipmitool 1.8.19 do Debian
+extraído em ambiente descartável. Com o ipmitool 1.8.18 da distribuição,
+o mesmo ensaio retornou sem linhas e o coletor marcou
+`invalid_ipmi_response`. Registrar o binário efetivo na matriz de campo.
+
+`go test -race -count=1 ./internal/domain/usecase -run '^TestCancelledSNMPDiagnosticSurvivesOutboxReopen$'`
+cancela o diagnóstico após o primeiro datagrama em loopback. O teste
+reabre o Bolt e confirma a entrega do recibo com comando e correlação
+originais e sem amostras operacionais.
+
+`python3 scripts/check-mysql-collector.py` executa MySQL local descartável
+com TLS e conta sem grants de tabelas. Cobre as quatro variáveis, CA
+desconhecida, credencial incorreta, escopo de cliente e SQL livre recusado.
+Defina `AICEBERG_MYSQL_PROBE_FIXTURE_BIN` quando os binários não estiverem no PATH.
+
+`python3 scripts/check-postgresql-collector.py` executa PostgreSQL
+descartável com TLS/SCRAM. Os dois scripts alteram a senha da conta da
+fixture pelo socket Unix privado e mantêm o mesmo processo de teste.
+O probe com o perfil antigo falha sem publicar valores. A substituição
+atômica do arquivo privado recupera todas as séries com a mesma
+referência. O teste também verifica a ausência de segredos nas
+observações de falha e recuperação.
+
+`go test -race ./cmd/agent ./internal/platform/telnetprobe` cobre a
+entrada do processo filho com socket real em loopback, opções recusadas,
+banner sem conteúdo persistido, escopo local, cancelamento e resposta
+excedida. TCP com texto comum mantém falha de identificação.
+
+Em um ambiente Python descartável com `telnetlib3==5.0.3`, executar
+`python3 scripts/check-telnet-collector.py`. O servidor independente
+abre duas portas efêmeras em loopback e confirma fim de sessão sem
+dados de aplicação. Os recibos indicam 1 com banner e 0 após negociar
+sem banner, sem incluir o texto recebido. Em Linux arm64, os testes
+do processo filho, escopo, cancelamento e orçamento também passaram
+sob UID 65534 em contêiner descartável, sem capacidades e sem rede externa.
+
+A jornada de navegador usa um Chrome gerenciado já instalado com perfil
+temporário. Execute `AICEBERG_BROWSER_FIXTURE_CHROMIUM=<binário-absoluto>
+go test -race ./cmd/browser-probe ./internal/platform/browserprobe`.
+Com `AICEBERG_BROWSER_FIXTURE_CHROMIUM`, a jornada HTTPS local valida
+certificado confiável, recusa de certificado sem confiança e recusa de
+nome incorreto. As raízes sintéticas ficam no processo de teste. O
+runner instalado usa a cadeia de confiança do sistema.
+A fixture navega, clica, lê estado via GET e confirma texto visível. Cobre
+bloqueio de POST, subrecurso e redirect externos, corpo excessivo e
+cancelamento de uma requisição ativa.
+O teste de sandbox executa um wrapper com `--no-sandbox` e confirma
+`runner_unavailable` e zero requisições à origem. A regra de argumentos
+também roda nativamente na fixture Ubuntu arm64 sem depender de Chromium.
+
+Validar a unidade Linux do pacote com `systemd-analyze verify`. A fixture
+Ubuntu arm64 compila e inicia o runner sob um UID dedicado, confirma
+diretório do socket `0750` e socket `0660`, aceita conexão de outro UID
+no grupo, recusa UID fora do grupo, confere a montagem somente leitura
+das receitas e confirma a remoção do socket na parada. A prova da
+jornada com Chromium e sandbox é um ensaio separado.
+
+Num laboratório Linux com systemd, executar
+`sudo python3 scripts/check-browser-linux-network.py --fixture-ip <ip-local-da-vm>`.
+O roteiro abre duas fixtures HTTP locais e aplica as mesmas regras da
+unidade a processos transitórios. Verifica loopback liberado, IP fora da
+lista bloqueado e acesso restaurado somente após incluir o IP exato.
+Usar um endereço IPv4 privado ou IPv6 ULA atribuído à VM, fora do
+loopback. Executar para as duas famílias atendidas. As units de teste são
+coletadas ao terminar.
+
+
+## Armazenamento passivo —23/11/2026
+
+Fixtures novas de storage_pressure e kernel wait; no Agente testar sysmetrics/oslogs, baseline, boot/reset, fila sem conclusão, arquivoISO/fuso e preservação deError para fontes alheias. No Runtime executar TestStoragePressurePHPParityAndNoSend e TestStorageControllerWaitDeterministicWithoutProvider; PHP precisa ser local e AICEBERG_WEB_ROOT deve apontar ao Web oficial. Não usa provedor real nem dispatch externo. Publicação/ingestão/ACK instalado e entrega permanecem gates separados.
+
+`TestBrowserServiceRunsTheApprovedRecipeFromTheHub` conecta o HUB ao
+serviço local em socket Unix e executa uma jornada de três etapas em Chrome
+real. Verifica as duas amostras e recusa alteração de escopo ou hash antes
+de repetir a coleta. A suite verifica limite de concorrência no runner e
+remoção do socket ao finalizar.
+
+`python3 scripts/check-openmetrics-collector.py <binário node_exporter>`
+inicia o Node Exporter (qualificado com a versão 1.12.1) e um exporter
+descartável com `promhttp` v1.23.2, ambos apenas em HTTPS loopback. O
+roteiro usa Go 1.25, OpenSSL e `htpasswd` com bcrypt. Confirma Text 0.0.4
+e OpenMetrics 1.0.0, duas métricas reais de runtime e recusa de senha,
+CA e cliente incorretos. A recusa de senha produz lacunas sem valores.
+Repor o perfil recupera a coleta. Os dois ensaios usam `-race` e os
+processos e arquivos temporários são removidos no final.
+
+`python3 scripts/check-jolokia-collector.py <JAR JVM javaagent>` inicia
+Jolokia em uma JVM descartável no loopback, com Basic e TLS. O Agente
+lê heap e threads por referência, recusa senha incorreta e CA
+desconhecida, bloqueia outro cliente e recupera a coleta com o perfil
+autorizado. A fixture verifica também a recusa de um comando fora da
+política de leitura e encerra a JVM no final.
+
+`python3 scripts/check-jmx-collector.py` compila o executor JMX direto com
+`javac --release 17` e usa o agente nativo de gerenciamento do OpenJDK com
+JMX RMI/TLS e credencial somente leitura. Cobre as seis métricas, porta
+anunciada fora do perfil, CA e identidade TLS, credencial e prazo total.
+O teste encerra as JVMs e remove os arquivos da fixture.
+
+A fixture JMX empacota o JAR localmente e chama o coletor pelo fluxo
+normal `RunJob`. Comprova dados de heap, uptime e threads, escopo e
+recusa de JAR com hash divergente. O jar, o perfil e os diretórios
+de execução são removidos ao final.
+
+Para executar em imagem Linux com JDK sem instalar Go nela, compilar
+`GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go test -c -o "$BINARIO_TESTE" ./internal/platform/agentless`
+e passar o caminho do binário no ambiente de destino em
+`AICEBERG_JMX_GO_TEST_BINARY` ao chamar o mesmo script. Essa modalidade
+executa o binário de testes nativo da plataforma sem detecção de race.
+
+### VMware vCenter e ESXi
+
+`go test -race -count=1 ./internal/platform/agentless ./internal/domain/usecase -run 'VCenter|ServiceAuthenticationRejection'`
+roda os modelos TLS de vCenter e ESXi. Injeta HTTP 503 no login, perda de
+conexão durante a leitura, HTTP 401, recusa SOAP de permissão e resposta
+inválida. Confirma os motivos no recibo, a recuperação da coleta e a retomada
+do circuito por resposta de autenticação sem pausar o check vizinho.
+
+### Polling contra Net-SNMP
+
+`AICEBERG_SNMPD_BIN=/caminho/para/snmpd go test -race -count=1 ./internal/platform/agentless -run '^TestSNMPPollingAgainstNetSNMP$'`
+inicia um daemon independente, somente em UDP loopback e com configuração
+privada de fixture. Para v1, v2c e v3 com SHA/AES authPriv, verifica GET de
+`sysName`, OID ausente, WALK truncado no limite de três linhas, recusa de
+credencial inválida e recuperação com a referência original. O ensaio
+verifica o recibo e a ausência de segredos na observação serializada. O
+daemon e os arquivos temporários são removidos pelo teste.
+
+## PKG-116/L09 — Admissão e isolamento do HUB
+
+`go test -race -count=1 ./internal/domain/usecase -run 'TestAgentless(HubCircuit|Circuit)'`
+verifica as portas que identificam o serviço de TCP, TLS e HTTP. O ensaio
+TCP usa duas portas no mesmo IP de loopback: a indisponível abre o
+circuito após três falhas e a saudável mantém quatro coletas. URLs HTTP
+equivalentes compartilham a cadência por host, com circuitos separados
+por porta.
+
+O teste `TestCollectCommandDoesNotEnterRoutineTargetsOrDisk` usa uma API
+de loopback com jobs de rotina, comando anterior, correlação divergente,
+check fora do escopo e job duplicado. Somente o job ligado ao comando
+é coletado e entregue. Sem job elegível, o resultado do comando indica falha.
+
+`AICEBERG_MONITORING_WEB_ROOT=<checkout Web> go test -race -count=1 ./internal/data/remote -run '^TestAdminSNMPPollingFromWebToUDPAndBack$'`
+exercita o fluxo completo em uma fixture de loopback. O Admin gera cada
+comando, o cliente do HUB usa TLS e resolve a credencial por referência,
+o coletor troca datagramas SNMPv1 reais com um dispositivo sintético e o
+Web grava o resultado encaminhado pelo outbox Bolt. Três ciclos com
+sete GETs cada confirmam sysUpTime, versão e recibo por comando. Um
+ciclo sem resposta comprova o estado de falha. A reentrega mantém o
+mesmo recibo e a credencial fica fora do outbox e da observação.
+O piloto é revogado depois da entrega de um job para reproduzir a
+recusa da credencial. O Admin recebe `snmp_credential_unavailable`
+como falha de configuração, sem novo datagrama e com o estado de
+disponibilidade do check preservado.
+
+O ensaio força falha na gravação do recibo Web e confirma o rollback.
+`TestCollectCommandRetriesQueuedObservationWithoutCollectingAgain`
+passa pelo comando manual e pela descarga normal do outbox. Confere
+erro transitório identificado, uma única coleta e duas tentativas de
+entrega da mesma observação.
+
+`go test -race ./internal/domain/usecase -run 'Agentless|CollectCommand'`
+cobre concorrência, serialização entre aliases do destino, alternância de
+clientes e retomada quando o destino é liberado. Em loopback, valida o
+limite enviado com pedido de lease, a folga do outbox com cache antigo e a
+espera cancelada de comando manual sem pedir lease. A coleta HTTP
+cancelada ou interrompida pelo deadline do lote preserva a ausência de
+observação terminal de falha. Os testes do adapter cobrem execução já
+cancelada ou vencida antes do início, retorno tardio após o orçamento e
+descarte apenas das parciais emitidas depois do cancelamento.
+
+`TestAgentlessBatchReservesSlotsForAllPossibleSNMPParts` cobre a reserva
+do final e duas parciais, o avanço de coletas que cabem na fila e a
+execução isolada de uma coleta maior quando o outbox está vazio.
+O ensaio Net-SNMP compara o custo reservado com as entregas efetivas.
+
+A mesma suíte cobre cadência entre lotes, cancelamento na fila antes de
+iniciar o probe, abertura após falhas de rede, uma tentativa após a pausa,
+recuperação, diagnóstico manual separado e descarte de estado.
+O ensaio HTTP em loopback confirma que uma porta indisponível abre seu
+circuito e as coletas válidas em outra porta do mesmo IP continuam.
+
+
 ### Discovery de discos Linux
 
 O pacote `internal/platform/collectors/diskretirement` cobre sinal de
@@ -1071,75 +1452,32 @@ System e um canal de fixture inexistente em Windows. Sua compilação foi
 verificada para Windows x64. A execução em host Windows e a remoção e
 volta de um canal real seguem pendentes.
 
-## Armazenamento passivo —23/11/2026
+### Consulta SNMPv1 delegada
 
-Fixtures novas de storage_pressure e kernel wait; no Agente testar sysmetrics/oslogs, baseline, boot/reset, fila sem conclusão, arquivoISO/fuso e preservação deError para fontes alheias. No Runtime executar TestStoragePressurePHPParityAndNoSend e TestStorageControllerWaitDeterministicWithoutProvider; PHP precisa ser local e AICEBERG_WEB_ROOT deve apontar ao Web oficial. Não usa provedor real nem dispatch externo. Publicação/ingestão/ACK instalado e entrega permanecem gates separados.
+`TestRelayPilotSNMPv1AgainstNetSNMP` executa três consultas recorrentes
+independentes contra um processo Net-SNMP local. Confere `sysName`, a
+versão aplicada e o relatório de execução e exporta as capturas para
+a fixture descartável do Runtime testar a cadência pela ingestão.
 
-### Pipeline de monitoramento — item 6, 23/11/2026
+`TestRelayAssignmentVerifiesJobAndRetriesDeliveryWithoutRepeatingSNMP`
+executa o worker e o coletor oficiais do relay contra um sensor sintético
+em UDP loopback. A fixture confere GET SNMPv1, OID, credencial restrita ao
+job, valor recebido e a confirmação após reabrir o Bolt. O primeiro
+envio ocorre no mesmo ciclo e lê o resultado já gravado. Uma falha de
+entrega não repete a consulta nem divulga a comunidade na observação.
+O transporte do HUB é representado por um cliente de teste nesse cenário.
 
-O executor Go do Agent e Runtime passa a validar faixa ou comprimento, extrair
-uma captura por regex e selecionar valores tipados por JSONPath singular.
-PHP verifica a estrutura e valida o batch de saída. A compilação Go autoriza
-a sintaxe e o custo do regex antes da execução. Os vetores compartilhados
-cobrem a ordem das etapas, limites, tipos, valores ausentes e falhas explícitas.
-A entrega local mantém o contrato de entrada e saída do item 5. A adoção requer
-confirmar que todos os executores da configuração suportam as novas operações.
-Em rollback, restaurar primeiro a revisão compatível ou desativar a atribuição.
-Ver contrato Web em docs/contracts/monitoring-pipeline-v1.md. Itens 7–14 abertos.
+`TestSNMPSwitchportWirePreservesPrintableBitmapsAndCollectionCompleteness`
+passa pelo coletor oficial e verifica que bytes aparentemente textuais
+mantêm o bitmap original. Uma tabela truncada fica marcada como
+incompleta no resultado.
+`TestSNMPSwitchportWireOverUDP` executa o coletor com GETNEXT SNMPv1
+em loopback e valida os três payloads usados no ensaio do Runtime.
+O modo `relay-switchport-wire` encaminha esses payloads à fixture da
+API de atribuição para conferir a projeção e a avaliação.
 
-
-### Pipeline de monitoramento — item 7
-
-XMLPath singular no Agente e Runtime, com seleção por filho direto, posição
-e atributo final. Valida documento completo, limites, cardinalidade e tipo
-antes de emitir resultado. XML rejeitado, ambiguidade, ausência e estouro de
-limite são distinguíveis sem expor conteúdo. PHP valida o caminho e consome o
-batch final. Ver contrato Web em docs/contracts/monitoring-pipeline-v1.md.
-A adoção produtiva depende de executores compatíveis no item 14.
-
-
-### Pipeline de monitoramento — item 8
-
-Delta para gauge e contador, com base inicial explícita, reset e proteção
-de faixa. Throttle por igualdade tipada e janela desde a última emissão.
-Checkpoint bbolt por vínculo com recibos atômicos, recuperação após
-reinício e recusa de observações conflitantes. Lote suprimido por inteiro
-não gera batch. Ver testes de transação, reentrega e PHP no contrato Web
-docs/contracts/monitoring-pipeline-v1.md. Ativação e gestão do ciclo de vida
-dos checkpoints ficam no item 14.
-
-
-### Pipeline de monitoramento — item 9
-
-O Agente e Runtime executam os itens dependentes do modelo validado, com
-ordem topológica e uma única passagem por nó a partir de um snapshot de
-coleta. Tipos, unidades, frescor e indisponibilidade são propagados por ramo.
-Delta e throttle usam checkpoint atômico do grafo. Qualificação local cobre
-fan-out TCP real com uma conexão, resultado consumível por PHP e reentrega
-do grafo após reabertura bbolt. Adoção em produção no item 14. Ver
-docs/contracts/monitoring-pipeline-v1.md no Web.
-
-
-### Pipeline de monitoramento — item 10
-
-Itens calculados executam fórmulas numéricas tipadas no DAG, com orçamento e
-validação estática de dependências, operadores e unidades. Lacunas, erros
-numéricos e frescor permanecem explícitos. Identidade do resultado calculado
-usa o ciclo, e o DAG preserva a idade da origem mais antiga para a cadeia.
-O compositor Go preserva a declaração da fórmula, e PHP valida a configuração
-e consome o lote. Os testes locais cobrem fórmulas encadeadas, múltiplas
-origens, falhas isoladas e combinação com checkpoint. Contrato Web:
-docs/contracts/monitoring-pipeline-v1.md. Adoção operacional no item 14.
-
-
-### Pipeline de monitoramento — item 11
-
-Etapa script WebAssembly com ABI para valores JSON tipados, no Agente e
-Runtime. O perfil sem imports restringe memória, instruções, concorrência
-e prazo. Tempo/capacidade abortam sem commit parcial. Falhas do valor são
-explícitas e isoladas no ramo. PHP valida o envelope e o resultado. Os
-testes locais cobrem rejeição de recursos proibidos, memória nova por
-chamada, tipo, trap, orçamento, fan-out e reentrega. Ver o contrato Web
-docs/contracts/monitoring-pipeline-v1.md. Adoção operacional no item 14.
-
-Este commit inclui o núcleo Go e os checkpoints locais. A projeção do coletor e a integração no executor continuam em validação separada.
+`TestHubAssignmentProxyKeepsResultAndReceiptAcrossTLS` percorre relay →
+HUB → API de teste com TLS validado nos dois trechos. Confere a identidade,
+o corpo assinado e a preservação de indisponibilidade, rejeição por
+autoridade e ACK. O HUB recusa requisições HTTP e parâmetros na query
+antes de encaminhar o resultado. As rotas ficam ausentes sem o opt-in.

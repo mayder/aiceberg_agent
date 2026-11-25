@@ -1119,6 +1119,137 @@ configuração privada ou teste físico SADA. Contrato canônico Web:
 docs/contracts/monitoring-pipeline-v1.md. Item5 de desenvolvimento qualificado;
 itens6–14 abertos, pacote115/contraparte19 não encerrados.
 
+
+### Pipeline de monitoramento — item 6, 23/11/2026
+
+O executor Go do Agent e Runtime passa a validar faixa ou comprimento, extrair
+uma captura por regex e selecionar valores tipados por JSONPath singular.
+PHP verifica a estrutura e valida o batch de saída. A compilação Go autoriza
+a sintaxe e o custo do regex antes da execução. Os vetores compartilhados
+cobrem a ordem das etapas, limites, tipos, valores ausentes e falhas explícitas.
+A entrega local mantém o contrato de entrada e saída do item 5. A adoção requer
+confirmar que todos os executores da configuração suportam as novas operações.
+Em rollback, restaurar primeiro a revisão compatível ou desativar a atribuição.
+Ver contrato Web em docs/contracts/monitoring-pipeline-v1.md. Itens 7–14 abertos.
+
+
+### Pipeline de monitoramento — item 7
+
+XMLPath singular no Agente e Runtime, com seleção por filho direto, posição
+e atributo final. Valida documento completo, limites, cardinalidade e tipo
+antes de emitir resultado. XML rejeitado, ambiguidade, ausência e estouro de
+limite são distinguíveis sem expor conteúdo. PHP valida o caminho e consome o
+batch final. Ver contrato Web em docs/contracts/monitoring-pipeline-v1.md.
+A adoção produtiva depende de executores compatíveis no item 14.
+
+
+### Pipeline de monitoramento — item 8
+
+Delta para gauge e contador, com base inicial explícita, reset e proteção
+de faixa. Throttle por igualdade tipada e janela desde a última emissão.
+Checkpoint bbolt por vínculo com recibos atômicos, recuperação após
+reinício e recusa de observações conflitantes. Lote suprimido por inteiro
+não gera batch. Ver testes de transação, reentrega e PHP no contrato Web
+docs/contracts/monitoring-pipeline-v1.md. Ativação e gestão do ciclo de vida
+dos checkpoints ficam no item 14.
+
+
+### Pipeline de monitoramento — item 9
+
+O Agente e Runtime executam os itens dependentes do modelo validado, com
+ordem topológica e uma única passagem por nó a partir de um snapshot de
+coleta. Tipos, unidades, frescor e indisponibilidade são propagados por ramo.
+Delta e throttle usam checkpoint atômico do grafo. Qualificação local cobre
+fan-out TCP real com uma conexão, resultado consumível por PHP e reentrega
+do grafo após reabertura bbolt. Adoção em produção no item 14. Ver
+docs/contracts/monitoring-pipeline-v1.md no Web.
+
+
+### Pipeline de monitoramento — item 10
+
+Itens calculados executam fórmulas numéricas tipadas no DAG, com orçamento e
+validação estática de dependências, operadores e unidades. Lacunas, erros
+numéricos e frescor permanecem explícitos. Identidade do resultado calculado
+usa o ciclo, e o DAG preserva a idade da origem mais antiga para a cadeia.
+O compositor Go preserva a declaração da fórmula, e PHP valida a configuração
+e consome o lote. Os testes locais cobrem fórmulas encadeadas, múltiplas
+origens, falhas isoladas e combinação com checkpoint. Contrato Web:
+docs/contracts/monitoring-pipeline-v1.md. Adoção operacional no item 14.
+
+
+### Pipeline de monitoramento — item 11
+
+Etapa script WebAssembly com ABI para valores JSON tipados, no Agente e
+Runtime. O perfil sem imports restringe memória, instruções, concorrência
+e prazo. Tempo/capacidade abortam sem commit parcial. Falhas do valor são
+explícitas e isoladas no ramo. PHP valida o envelope e o resultado. Os
+testes locais cobrem rejeição de recursos proibidos, memória nova por
+chamada, tipo, trap, orçamento, fan-out e reentrega. Ver o contrato Web
+docs/contracts/monitoring-pipeline-v1.md. Adoção operacional no item 14.
+
+
+### Séries de monitoramento — item 12
+
+Persistência MySQL única para registros canônicos, com catálogo por ativo,
+revisão protegida, reentrega idempotente, histórico indexado e último registro.
+Cotas de séries e amostras são transacionais por cliente. A retenção limita
+leitura e escrita e oferece plano revisável de remoção exata, sem ativação
+automática. MySQL 8.4 descartável validou o SQL 286 e o roundtrip DAG → SQL →
+PHP, além de escopo, atomicidade, conflitos, cursor temporal e concorrência.
+Contrato Web em docs/contracts/monitoring-series-v1.md. Agregações ficam no
+item 13. Ativação, grants e conciliação operacional no item 14.
+
+## Recepção de traps SNMP no HUB
+
+O listener é opt-in e usa um IP dedicado da rede de gerenciamento.
+Acompanhar `snmp_trap_configuration_invalid`, `snmp_trap_profiles_unavailable`,
+`snmp_trap_listen_failed` e `snmp_trap_outbox_unavailable` no serviço do HUB.
+Para v3, conferir authPriv, SHA configurado, AES de 128 bits, usuário, Engine
+ID, contexto e relógio com um emissor autorizado. A versão do perfil é
+explícita por IP. O estado de tempo e replay fica no arquivo Bolt
+`.snmp-traps` e precisa ser preservado em reinício e rollback. Para
+desativar o listener, remover suas duas configurações de ambiente e
+reiniciar somente o HUB selecionado. Ver `docs/contracts/monitoring-snmp-trap-v1.md`
+no Web para o contrato e a validação do histórico.
+
+
+## OpenMetrics e Jolokia autenticados no HUB
+
+Configurar o arquivo privado referenciado por `AICEBERG_HTTP_PROBE_PROFILES_FILE`
+no HUB Linux/macOS e confirmar o pull com `http-probe-auth-v1`. Manter a
+URL HTTPS completa, escopo e referência iguais aos do job. Diagnosticar
+`http_credential_unavailable` por ausência ou escopo do perfil e
+`http_access_denied` por recusa do destino. Inspecionar o certificado e a
+CA quando houver `http_fail`. O material de autenticação fica no HUB.
+O procedimento de rotação e rollback está no contrato
+`docs/contracts/monitoring-probe-policy-v1.md` do Web.
+
+
+## Reteste de armazenamento InspectApp —23/11/2026
+
+Host187.45.180.181,cliente1,agente70. Preservar DenyKey smart.*, smartd inativo e contas/cursors/outbox. Não executar SMART/perccli/carga/reset/firmware para smoke. No Agente garantir AICEBERG_ALLOW_SMART não habilitado; sampler usa procfs/sysfs somente. Preservar fontes e cursores existentes: syslog já contém kernel; não adicionar kern.log em paralelo nem recontar eventos históricos.
+Publicar somente código deste incidente pelo fluxo oficial, sem incorporar alterações SNMP concorrentes. Confirmar configuração publicada/aplicada e versão/hash do binário, amostra passiva, alerta persistido no sink controlado e tela instalada. SQLs de preparação/ativação/rollback no Web. Fixtures no-send não são notificação entregue. A publicação permanece pendente neste incremento.
+## Execução SNMP delegada no relay
+
+O worker e as rotas do HUB ficam desligados por padrão. Para laboratório,
+`RELAY_SNMP_ASSIGNMENT_ENABLED=true` libera as rotas de encaminhamento no HUB
+e o worker no relay. O relay requer `RELAY_SNMP_ASSIGNMENT_HUB_ID`,
+`RELAY_SNMP_ASSIGNMENT_PUBLIC_KEY` (Ed25519 em hexadecimal) e os IDs do
+cliente e do agente. As duas conexões usam HTTPS verificado. O worker
+usa arquivo Bolt dedicado com sufixo `.relay-assignment`. O primeiro
+envio usa a observação gravada no Bolt logo após a coleta. Se a entrega
+falhar, o worker reenvia a observação antes de solicitar outra coleta.
+
+O contrato usa `/v1/relay-snmp-assignment/job` para oferta, claim e credencial
+referenciada, e `/v1/relay-snmp-assignment/result` para entrega. A execução
+exige um job assinado compatível com o check e a epoch da oferta. O recibo
+de entrega precisa devolver o mesmo `dedupe_key`. O Runtime recebe as rotas
+upstream no recorte piloto configurado. Um resultado recusado por perda de
+autoridade só sai da fila de envio após ser preservado no bucket
+`relay_assignment_fenced_v1`, com o mesmo identificador. A fila preserva os
+dados se esse armazenamento atingir 8 MiB. Manter o recurso desligado fora do
+laboratório até validar a integração operacional e o piloto físico.
+
 ## Retirada de interface no Discovery
 
 Depois de autorizar cliente e ativo na ingestão do Discovery, configure
@@ -1273,77 +1404,3 @@ respostas de canal inexistente separadas por pelo menos dois minutos.
 Canal desabilitado ou erro de permissão preserva o item. Antes de ativar
 em produção, execute o ensaio de descoberta, remoção e retorno de um
 canal de teste em host Windows autorizado.
-
-## Reteste de armazenamento InspectApp —23/11/2026
-
-Host187.45.180.181,cliente1,agente70. Preservar DenyKey smart.*, smartd inativo e contas/cursors/outbox. Não executar SMART/perccli/carga/reset/firmware para smoke. No Agente garantir AICEBERG_ALLOW_SMART não habilitado; sampler usa procfs/sysfs somente. Preservar fontes e cursores existentes: syslog já contém kernel; não adicionar kern.log em paralelo nem recontar eventos históricos.
-Publicar somente código deste incidente pelo fluxo oficial, sem incorporar alterações SNMP concorrentes. Confirmar configuração publicada/aplicada e versão/hash do binário, amostra passiva, alerta persistido no sink controlado e tela instalada. SQLs de preparação/ativação/rollback no Web. Fixtures no-send não são notificação entregue. A publicação permanece pendente neste incremento.
-
-### Pipeline de monitoramento — item 6, 23/11/2026
-
-O executor Go do Agent e Runtime passa a validar faixa ou comprimento, extrair
-uma captura por regex e selecionar valores tipados por JSONPath singular.
-PHP verifica a estrutura e valida o batch de saída. A compilação Go autoriza
-a sintaxe e o custo do regex antes da execução. Os vetores compartilhados
-cobrem a ordem das etapas, limites, tipos, valores ausentes e falhas explícitas.
-A entrega local mantém o contrato de entrada e saída do item 5. A adoção requer
-confirmar que todos os executores da configuração suportam as novas operações.
-Em rollback, restaurar primeiro a revisão compatível ou desativar a atribuição.
-Ver contrato Web em docs/contracts/monitoring-pipeline-v1.md. Itens 7–14 abertos.
-
-
-### Pipeline de monitoramento — item 7
-
-XMLPath singular no Agente e Runtime, com seleção por filho direto, posição
-e atributo final. Valida documento completo, limites, cardinalidade e tipo
-antes de emitir resultado. XML rejeitado, ambiguidade, ausência e estouro de
-limite são distinguíveis sem expor conteúdo. PHP valida o caminho e consome o
-batch final. Ver contrato Web em docs/contracts/monitoring-pipeline-v1.md.
-A adoção produtiva depende de executores compatíveis no item 14.
-
-
-### Pipeline de monitoramento — item 8
-
-Delta para gauge e contador, com base inicial explícita, reset e proteção
-de faixa. Throttle por igualdade tipada e janela desde a última emissão.
-Checkpoint bbolt por vínculo com recibos atômicos, recuperação após
-reinício e recusa de observações conflitantes. Lote suprimido por inteiro
-não gera batch. Ver testes de transação, reentrega e PHP no contrato Web
-docs/contracts/monitoring-pipeline-v1.md. Ativação e gestão do ciclo de vida
-dos checkpoints ficam no item 14.
-
-
-### Pipeline de monitoramento — item 9
-
-O Agente e Runtime executam os itens dependentes do modelo validado, com
-ordem topológica e uma única passagem por nó a partir de um snapshot de
-coleta. Tipos, unidades, frescor e indisponibilidade são propagados por ramo.
-Delta e throttle usam checkpoint atômico do grafo. Qualificação local cobre
-fan-out TCP real com uma conexão, resultado consumível por PHP e reentrega
-do grafo após reabertura bbolt. Adoção em produção no item 14. Ver
-docs/contracts/monitoring-pipeline-v1.md no Web.
-
-
-### Pipeline de monitoramento — item 10
-
-Itens calculados executam fórmulas numéricas tipadas no DAG, com orçamento e
-validação estática de dependências, operadores e unidades. Lacunas, erros
-numéricos e frescor permanecem explícitos. Identidade do resultado calculado
-usa o ciclo, e o DAG preserva a idade da origem mais antiga para a cadeia.
-O compositor Go preserva a declaração da fórmula, e PHP valida a configuração
-e consome o lote. Os testes locais cobrem fórmulas encadeadas, múltiplas
-origens, falhas isoladas e combinação com checkpoint. Contrato Web:
-docs/contracts/monitoring-pipeline-v1.md. Adoção operacional no item 14.
-
-
-### Pipeline de monitoramento — item 11
-
-Etapa script WebAssembly com ABI para valores JSON tipados, no Agente e
-Runtime. O perfil sem imports restringe memória, instruções, concorrência
-e prazo. Tempo/capacidade abortam sem commit parcial. Falhas do valor são
-explícitas e isoladas no ramo. PHP valida o envelope e o resultado. Os
-testes locais cobrem rejeição de recursos proibidos, memória nova por
-chamada, tipo, trap, orçamento, fan-out e reentrega. Ver o contrato Web
-docs/contracts/monitoring-pipeline-v1.md. Adoção operacional no item 14.
-
-Este commit inclui o núcleo Go e os checkpoints locais. A projeção do coletor e a integração no executor continuam em validação separada.

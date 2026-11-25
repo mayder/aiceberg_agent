@@ -317,7 +317,7 @@ func (c *snmpCollector) collectGroup(groupName string, def snmpGroupDef) bool {
 				groupStats.Errors = append(groupStats.Errors, "limite snmp_max_rows atingido para OID "+rootOID)
 			}
 			groupStats.WalkRows += len(rows)
-			c.payload.Tables[rootOID] = rows
+			c.payload.storeTable(rootOID, rows, truncated)
 			if isInterfaceTableOID(rootOID) {
 				updateIfaces(c.ifaceMap, rootOID, rows)
 			}
@@ -424,7 +424,7 @@ func (c *snmpCollector) collectCustom() bool {
 			item["truncated"] = truncated
 			item["data"] = rows
 			c.payload.Custom["walk"] = append(c.payload.Custom["walk"], item)
-			c.payload.Tables[rootOID] = rows
+			c.payload.storeTable(rootOID, rows, truncated)
 			if len(rows) > 0 {
 				c.payload.addOIDSuccess(spec, map[string]any{
 					"rows":      len(rows),
@@ -560,7 +560,7 @@ func (c *snmpCollector) walkTable(rootOID string) ([]map[string]any, bool, error
 		if count > limit {
 			return errSNMPMaxRowsReached
 		}
-		row := map[string]any{"oid": variable.Name, "index": tableIndex(rootOID, variable.Name), "value": snmpValueToAny(variable)}
+		row := map[string]any{"oid": variable.Name, "index": tableIndex(rootOID, variable.Name), "value": snmpTableValue(rootOID, variable)}
 		if enabled, _ := getBool(map[string]any(c.job.Config), "entity_sensor_probe"); enabled {
 			row["value_type"] = variable.Type.String()
 		}

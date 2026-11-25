@@ -171,7 +171,10 @@ Falha de extensão não derruba o agente nem bloqueia coletores essenciais; mani
 
 ## [PKG-120] HUB resiliente — assignment, failover e capacidade
 
-Status: implementação parcial de sondagem manual; assignment/HA e aceite físico pendentes. Prioridade: P0. Coordenação: Web PKG-120 e Runtime PKG-24.
+Status: implementação parcial com concessão assinada e retorno ao HUB
+após diagnóstico de recuperação. Aceite físico e HA seguem pendentes.
+O HUB habilitado usa a API por HTTPS verificado e mantém a outbox de
+atribuições separada. Prioridade: P0. Coordenação: Web PKG-120 e Runtime PKG-24.
 
 ### Objetivo
 
@@ -185,6 +188,25 @@ Fazer HUBs participarem de grupos com assignment versionado, lease/fencing, capa
 - [ ] suportar drain, afinidade, rebalanceamento e retomada sem recriar check;
 - [ ] expor atraso, fila, saturação, drops, último sucesso e motivo de rejeição;
 - [ ] testar queda, partição, clock skew, assignment concorrente, restart e storm de failover.
+
+O verificador local de grants v1 valida a chave pública do coordenador, o job
+recebido, o escopo, a epoch e o vencimento.
+
+O worker opt-in do relay já usa o verificador antes do SNMP e grava a reserva
+no Bolt antes de emitir a consulta. O retorno contém o grant e uma chave de
+deduplicação. O worker grava o resultado no Bolt e tenta a entrega no mesmo
+ciclo. Só remove a observação após confirmação do mesmo retorno. Se falhar,
+a fila pendente tem prioridade antes de buscar outra coleta.
+Solicitação e entrega passam pelo HUB com TLS verificado. O Runtime recebe o
+fluxo em laboratório. Um resultado rejeitado por autoridade é preservado no
+Bolt fora da fila de reenvio. A integração operacional e a campanha física
+continuam pendentes.
+
+No check SNMP que coleta estado e VLAN de interfaces, o Agente transmite
+bitmaps Q-BRIDGE em hexadecimal e indica quais tabelas foram lidas por
+inteiro. O Runtime usa essa evidência para comparar configuração e modo
+de porta em observações delegadas. A homologação em switches reais segue
+pendente.
 
 ### Incremento manual implementado —20/11/2026
 
@@ -357,11 +379,113 @@ Executar somente os protocolos que precisam de proximidade do host/rede, com con
 ### Lotes
 
 - [ ] adotar contrato comum de probe/amostra/evento/erro do Runtime;
-- [ ] separar adapters por pacote interno e capability, sem `switch` monolítico;
-- [ ] implementar pools, timeout, rate limit, cancelamento, backpressure e circuit breaker;
+  Recibo de execução versionado integrado aos adapters existentes, com
+  reentrega na fila e validação PHP. Cancelamento durante o handshake TLS
+  comprovado em loopback. A política publicada impõe orçamento, frescor
+  pelo check base e referência ao perfil SNMP resolvido. ICMP, HTTP, DNS e
+  TLS agora geram amostras de latência assim como TCP. O HUB resolve
+  credenciais SNMP de rotina e diagnóstico por referência dentro do prazo
+  da coleta. A execução manual não entra no cache de alvos da rotina.
+  O registro aceita adapters com resultado final e parciais sem depender
+  do coletor SNMP. O relay diagnóstico negocia referência por HTTPS, resolve
+  durante o lease e persiste somente o resultado. Pendem adoção pelos
+  novos protocolos, instalação e aceite em campo.
+- [x] Preservar o recibo final do diagnóstico SNMP direto quando o
+  contexto termina durante a resolução da credencial. O cancelamento
+  deixa de ser classificado como credencial indisponível e o recibo fica
+  isolado das amostras de rotina.
+- [x] Aplicar cancelamento e prazo antes da execução e na emissão do
+  resultado. Preservar segmentos emitidos e descartar dados tardios.
+  O deadline do lote não alimenta disponibilidade. O timeout do
+  probe mantém o próprio recibo.
+- [x] Primeira integração da onda de exporters: Prometheus Text 0.0.4 e
+  OpenMetrics 1.0 no HUB, seletores exatos e escopo validado. Teste em
+  loopback cobre dados, cancelamento e limites. Painel, autenticação
+  de exporter e aceite instalado seguem pendentes.
+- [x] JMX via Jolokia no HUB, com leitura em lote de atributos exatos,
+  proteção de transporte comum aos exporters e prova com OpenJDK 17.
+  Autenticação e validação instalada seguem pendentes.
+- [x] Executor JMX direto por RMI/TLS, com papel de leitura, hostname e
+  destinos autorizados e filtro de tipos nas respostas. Seis métricas de
+  OpenJDK 17 comprovadas em fixture local. O HUB executa JAR com SHA-256 verificado. Piloto instalado pendente.
+- [x] Credenciais Basic/Bearer por referência local para OpenMetrics e
+  Jolokia com TLS verificado, escopo completo e isolamento no transporte.
+  Configuração no Admin e aceite instalado seguem pendentes.
+- [x] PostgreSQL somente leitura com presets de catálogo, TLS/SCRAM, perfil
+  privado do HUB e validação em banco real de loopback. Demais SGBDs,
+  Windows, configuração no Admin e aceitação instalada seguem abertos.
+- [x] Runner separado de navegador com Chrome/Chromium headless, contrato
+  declarativo, orçamento e rede por origem/IP. Navegação, clique e asserção
+  validados em Chrome no macOS. O HUB já usa a receita aprovada e o socket
+  local para produzir as séries canônicas. Linux instalado e publicação pendentes.
+- [x] Telnet legado opt-in com escopo local, processo filho e um socket
+  por execução. Telnetlib3 confirmou negociação com e sem banner em
+  macOS arm64. Linux arm64 confirmou escopo, fechamento do socket no
+  cancelamento e orçamento sob UID sem privilégios. Piloto instalado pendente.
+- [x] MySQL somente leitura com status global permitido, TLS, credencial
+  por escopo e limite de transporte. Validado em MySQL 8.4 local com
+  `caching_sha2_password` e sem grants de tabelas. Matriz instalada pendente.
+- [x] VMware/vCenter via HTTPS e credencial local, consultando os
+  atributos aprovados de uma VM por ID/UUID. Testado com os modelos
+  TLS de vCenter e ESXi. Logout autenticado após cancelamento confirmado
+  no modelo vCenter. HTTP 503 no login e conexão interrompida durante a
+  leitura contam como falha de conexão. Recusa explícita fica restrita
+  ao check e confirma que o serviço respondeu. Volume, versões e conta
+  real de leitura pendentes.
+- [x] SSH restrito no HUB, com chave de host fixada, perfil local escopado,
+  métricas Linux de leitura fixa e saída limitada. Loopback com autenticação
+  por chave, rejeição de escopo, limite de saída e cancelamento. Qualificação
+  com OpenSSH instalado segue pendente.
+- [x] IPMI com `sensor list` por RMCP+ e suíte 17, credencial local por
+  referência, saída reduzida às métricas autorizadas, timeout e cancelamento.
+  Qualificado com ipmitool 1.8.19 e BMC Pyghmi de loopback em Ubuntu arm64.
+  Pendente canário com BMC físico e matriz instalada.
+- [x] Receiver passivo opt-in para traps v1/v2c com origem, versão e
+  OIDs configurados no HUB, fila Bolt separada da rotina, limites
+  por origem e desligamento por contexto. O receptor v3 exige USM authPriv
+  e persiste a proteção contra repetição junto com a fila. SHA/AES foi
+  validado com Net-SNMP local e SHA-2 com fixtures Go. Pendem validação
+  instalada e matriz por fabricante.
+- [x] Associar execução e classificação de falhas ao adapter, mantendo
+  parciais e custo no adapter SNMP. Timeout do executor JMX usa circuito
+  por check.
+- [ ] Concluir a separação dos adapters por pacote interno e capability.
+- [x] Limitar workers do HUB, alternar clientes, serializar destino no cliente,
+  aplicar backpressure à rotina e cancelar a espera do comando manual.
+  O comando manual usa a mesma folga por observação. Fila sem vagas
+  retorna ocupado antes da busca. SNMP incremental reserva o conjunto
+  de parciais e o final antes do primeiro GET ou WALK.
+  A folga da fila Bolt considera também o limite em bytes, com reteste
+  de saturação com um único registro e recuperação após a confirmação
+  da entrega.
+  A consulta de capacidade usa totais reconstruídos na abertura e
+  atualizados após o commit Bolt. Medida local com até 10.000 registros.
+- [x] Aplicar 100 ms entre inícios por cliente e destino, abrir circuito
+  por falhas de rede no serviço e retomar com probe único. Isolamento e
+  recuperação validados localmente. A cadência reserva uma vaga por
+  destino antes do despacho, com cotas por cliente e HUB. Saturação de
+  um cliente mantém os demais elegíveis enquanto houver folga no HUB.
+  Recusa SNMP conta como falha de conexão. Rejeição SNMP de credencial
+  fica no diagnóstico de configuração. Uma resposta PostgreSQL com
+  SQLSTATE 57014 confirma conectividade e preserva o timeout da consulta.
+  Uma rejeição de autenticação pelo PostgreSQL ou MySQL também comprova
+  conectividade. O HUB encerra o circuito de rede e permite outro check
+  do serviço, com falha de configuração no recibo da coleta recusada.
+- [ ] qualificar prazos e recuperação sob carga instalada;
+  Carga local com 62 checks de nove clientes, HTTP e SNMP, oito workers
+  e 64 observações na fila Bolt. HTTP 503 preservou a fila pendente
+  e a entrega recuperou os dados após reabertura sem recoleta.
 - [ ] impedir segredo, linha sensível ou payload completo em log/outbox;
+  O debug do HUB registra o ID do endpoint e códigos de resultado. HTTP
+  persiste status padronizado e erros fixos, e ICMP extrai latência sem
+  guardar a saída de ping. TCP, DNS e TLS usam mensagens fixas nas falhas.
+  SNMP preserva categorias e OIDs autorizados nos erros de conexão, GET e
+  WALK, inclusive em observações parciais. A auditoria de payload dos
+  demais adapters e o aceite instalado seguem abertos.
 - [ ] entregar fixtures/simuladores e matriz real por protocolo/SO/fabricante;
-- [ ] medir footprint e pausar adapter que exceda budget sem afetar o agente.
+- [x] Pausar por 30 s o check com três estouros de orçamento registrados.
+  Prova local com dois checks no mesmo endpoint, retomada e diagnóstico manual.
+- [ ] Medir footprint e qualificar a pausa por orçamento em HUB instalado.
 
 ### Incremento local —19/11/2026
 
@@ -1323,13 +1447,6 @@ configuração privada ou teste físico SADA. Contrato canônico Web:
 docs/contracts/monitoring-pipeline-v1.md. Item5 de desenvolvimento qualificado;
 itens6–14 abertos, pacote115/contraparte19 não encerrados.
 
-## Cobertura de armazenamento — contraparte WebPKG-143,23/11/2026
-
-- [x] Código local e fixtures para pressão passiva/espera MegaRAID, sem SMART, sem IA e sem alterar branch.
-- [x] Paridade PHP/Go e casos de ausência/stall/fuso/isolamento com sink no-send.
-- [ ] Check completo/revisão e publicação coordenada, sem incorporar modificações SNMP concorrentes.
-- [ ] Prova instalada no agente70/cliente1, configuração/hash aplicado, persistência/painel/alerta e rollback.
-Não encerrado; nenhum push, release/tag, atualização de agente ou notificação produtiva deste incremento.
 
 ### Pipeline de monitoramento — item 6, 23/11/2026
 
@@ -1398,4 +1515,23 @@ testes locais cobrem rejeição de recursos proibidos, memória nova por
 chamada, tipo, trap, orçamento, fan-out e reentrega. Ver o contrato Web
 docs/contracts/monitoring-pipeline-v1.md. Adoção operacional no item 14.
 
-Este commit inclui o núcleo Go e os checkpoints locais. A projeção do coletor e a integração no executor continuam em validação separada.
+
+### Séries de monitoramento — item 12
+
+Persistência MySQL única para registros canônicos, com catálogo por ativo,
+revisão protegida, reentrega idempotente, histórico indexado e último registro.
+Cotas de séries e amostras são transacionais por cliente. A retenção limita
+leitura e escrita e oferece plano revisável de remoção exata, sem ativação
+automática. MySQL 8.4 descartável validou o SQL 286 e o roundtrip DAG → SQL →
+PHP, além de escopo, atomicidade, conflitos, cursor temporal e concorrência.
+Contrato Web em docs/contracts/monitoring-series-v1.md. Agregações ficam no
+item 13. Ativação, grants e conciliação operacional no item 14.
+
+
+## Cobertura de armazenamento — contraparte WebPKG-143,23/11/2026
+
+- [x] Código local e fixtures para pressão passiva/espera MegaRAID, sem SMART, sem IA e sem alterar branch.
+- [x] Paridade PHP/Go e casos de ausência/stall/fuso/isolamento com sink no-send.
+- [ ] Check completo/revisão e publicação coordenada, sem incorporar modificações SNMP concorrentes.
+- [ ] Prova instalada no agente70/cliente1, configuração/hash aplicado, persistência/painel/alerta e rollback.
+Não encerrado; nenhum push, release/tag, atualização de agente ou notificação produtiva deste incremento.

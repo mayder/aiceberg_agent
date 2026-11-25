@@ -376,6 +376,8 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 
 	relaySNMPProbe, stopRelaySNMPProbe := startRelaySNMPProbe(ctx, cfg, log)
 	defer stopRelaySNMPProbe()
+	stopRelaySNMPAssignment := startRelaySNMPAssignment(ctx, cfg, log)
+	defer stopRelaySNMPAssignment()
 	modeApplier := modechange.NewApplier(cfg, log)
 	selfHealExec := usecase.NewSelfHealExecutor(log, controlClient, usecase.SelfHealDeps{
 		RelaySNMPProbe:   relaySNMPProbe,
