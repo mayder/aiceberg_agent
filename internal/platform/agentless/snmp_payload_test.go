@@ -1,6 +1,29 @@
 package agentless
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	"github.com/you/aiceberg_agent/internal/domain/entities"
+)
+
+func TestSNMPManualDedupeUsesCommandAndPreservesRoutineIdentity(t *testing.T) {
+	at := time.Date(2026, 11, 23, 18, 39, 0, 0, time.UTC)
+	obs := entities.AgentlessObservation{CheckID: 91, ObservedAt: at, CollectionKind: "legacy"}
+	if key := observationDedupeKey(&obs, "", 1); key != "check:91|observed:20261123183900|segment:legacy|seq:1" {
+		t.Fatalf("routine dedupe contract changed: %s", key)
+	}
+	obs.CommandID = "command-one"
+	first := observationDedupeKey(&obs, "", 1)
+	obs.ObservedAt = at.Add(time.Second)
+	if retry := observationDedupeKey(&obs, "", 1); retry != first {
+		t.Fatal("retry changed the command identity")
+	}
+	obs.ObservedAt, obs.CommandID = at, "command-two"
+	if second := observationDedupeKey(&obs, "", 1); second == first {
+		t.Fatal("different commands in the same second shared a dedupe key")
+	}
+}
 
 func TestSNMPStatsAddGroup(t *testing.T) {
 	var stats snmpStats

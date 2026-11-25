@@ -18,11 +18,12 @@ func TestSNMPErrorDetailsStayOutOfPartialAndFinalObservations(t *testing.T) {
 		name   string
 		err    error
 		code   string
+		reason string
 	}{
-		{"timeout", fmt.Errorf("%s: %w", private, context.DeadlineExceeded), "snmp_timeout"},
-		{"authentication", fmt.Errorf("%s: %w", private, gosnmp.ErrWrongDigest), "snmp_auth"},
-		{"refused", errors.New("connection refused: " + private), "snmp_refused"},
-		{"transport", errors.New("invalid transport response: " + private), "snmp_fail"},
+		{"timeout", fmt.Errorf("%s: %w", private, context.DeadlineExceeded), "snmp_timeout", "deadline"},
+		{"authentication", fmt.Errorf("%s: %w", private, gosnmp.ErrWrongDigest), "snmp_auth", "configuration"},
+		{"refused", errors.New("connection refused: " + private), "snmp_refused", "connection"},
+		{"transport", errors.New("invalid transport response: " + private), "snmp_fail", "execution"},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			job := newSNMPJob()
@@ -40,8 +41,11 @@ func TestSNMPErrorDetailsStayOutOfPartialAndFinalObservations(t *testing.T) {
 			final := RunJobWithPartials(context.Background(), job, func(obs entities.AgentlessObservation) {
 				partials = append(partials, obs)
 			})
-			if len(partials) == 0 || final.Status != "fail" || final.Code != scenario.code {
+			if len(partials) == 0 || final.Status != "fail" || final.Code != scenario.code || final.ProbeReport == nil {
 				t.Fatalf("lost partials or canonical failure: parts=%d code=%s", len(partials), final.Code)
+			}
+			if final.ProbeReport.Reason != scenario.reason {
+				t.Fatalf("unexpected canonical reason: got=%s want=%s", final.ProbeReport.Reason, scenario.reason)
 			}
 			for _, obs := range append(partials, final) {
 				wire, err := json.Marshal(obs)

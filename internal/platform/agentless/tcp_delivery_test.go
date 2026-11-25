@@ -58,7 +58,7 @@ func TestCanonicalTCPOutboxHTTPToPHP(t *testing.T) {
 	}
 	listener.Close()
 	<-done
-	if observation.Status != "ok" || observation.MonitoringSamples == nil || calls.Load() != 1 {
+	if observation.Status != "ok" || observation.MonitoringSamples == nil || observation.ProbeReport == nil || calls.Load() != 1 {
 		t.Fatal("real TCP collection failed")
 	}
 	// Proposed payload metadata and latency never supply the persisted sample.
@@ -81,7 +81,8 @@ func TestCanonicalTCPOutboxHTTPToPHP(t *testing.T) {
 	}
 	defer store.Close()
 	batch, err := store.Peek(1)
-	if err != nil || len(batch) != 1 || !reflect.DeepEqual(batch[0].MonitoringSamples, observation.MonitoringSamples) {
+	if err != nil || len(batch) != 1 || !reflect.DeepEqual(batch[0].MonitoringSamples, observation.MonitoringSamples) ||
+		!reflect.DeepEqual(batch[0].ProbeReport, observation.ProbeReport) {
 		t.Fatal("durable metadata changed", err)
 	}
 	persisted, _ := json.Marshal(batch[0].Payload)
@@ -116,7 +117,7 @@ func TestCanonicalTCPOutboxHTTPToPHP(t *testing.T) {
 			return
 		}
 		var receipt map[string]any
-		if json.Unmarshal(output, &receipt) != nil || receipt["samples_equal"] != true || receipt["canonical_scope_verified"] != true {
+		if json.Unmarshal(output, &receipt) != nil || receipt["samples_equal"] != true || receipt["canonical_scope_verified"] != true || receipt["probe_report_verified"] != true {
 			t.Error("invalid TCP receipt")
 			w.WriteHeader(500)
 			return

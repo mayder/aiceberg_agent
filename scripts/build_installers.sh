@@ -25,6 +25,7 @@ AIceberg Agent - pacote standalone
 
 Conteúdo:
 - aiceberg_agent (binário)
+- aiceberg-browser-probe (runner opcional de jornadas)
 - agent.env.example (variáveis de ambiente)
 - service (systemd ou launchd) para instalar como serviço
 
@@ -39,6 +40,11 @@ Passos resumidos:
      AUTO_UPDATE_COMMAND=/Library/AIceberg/sbin/aiceberg-agent-update-launcher.sh,
      AUTO_UPDATE_DIR=/Library/AIceberg/data/updates e HEALTH_PORT=8081.
 5) Verifique: curl http://localhost:8081/health (se HEALTH_PORT habilitado).
+
+Para usar o runner de jornadas, instale o binário separadamente em uma conta
+dedicada com Chrome ou Chromium gerenciado. Consulte a configuração com
+aiceberg-browser-probe -help. No Linux, o pacote inclui a unidade opcional
+service/aiceberg-browser-probe.service. O instalador do Agente não inicia o runner.
 
   API de produção já é padrão: https://api.aiceberg.com.br (o agente adiciona `/v1/...`).
 EOF
@@ -77,12 +83,14 @@ build_unix() {
   local outdir="$DIST/aiceberg-agent-${os}-${arch}"
   mkdir -p "$outdir/service"
   GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build -ldflags "$LD_FLAGS" -o "$outdir/$BIN_NAME" "$ROOT/cmd/agent"
+  GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build -ldflags "$LD_FLAGS" -o "$outdir/aiceberg-browser-probe" "$ROOT/cmd/browser-probe"
   cp "$ROOT/configs/agent.env.example" "$outdir/agent.env.example"
   if [[ -n "$svc" ]]; then
     cp "$ROOT/$svc" "$outdir/service/"
   fi
   if [[ "$os" == "linux" ]]; then
     cp "$ROOT/scripts/linux/install.sh" "$outdir/install.sh"
+    cp "$ROOT/scripts/linux/aiceberg-browser-probe.service" "$outdir/service/"
     cp "$ROOT/scripts/linux/aiceberg-agent-update-launcher.sh" "$outdir/service/aiceberg-agent-update-launcher.sh"
     cp "$ROOT/scripts/linux/aiceberg-agent-apply-update.sh" "$outdir/service/aiceberg-agent-apply-update.sh"
     chmod +x "$outdir/install.sh"

@@ -322,6 +322,11 @@ Redescoberta não duplica; desaparecimento temporário não apaga histórico; ev
 
 ## [PKG-116] Coletores universais — probes locais e de borda
 
+O despacho normal do Agente usa o registro de adaptadores, valida o
+orçamento de cada coleta e inclui recibos e amostras canônicas. Os
+protocolos adicionais exigem configuração compatível. Distribuição das
+credenciais de rotina pelo HUB e ativação em campo seguem em lotes separados.
+
 O receptor de traps do HUB usa habilitação explícita e fila dedicada. O Bolt
 controla capacidade e replay no mesmo commit. A instalação requer configuração
 local e ingestão compatível no servidor.

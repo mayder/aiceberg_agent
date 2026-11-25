@@ -58,6 +58,7 @@ func TestTCPMonitoringUsesOneExistingConnection(t *testing.T) {
 	if sample.State != "ok" || sample.Value == nil || *sample.Value != float64(o.LatencyMs) || sample.Unit != "milliseconds" {
 		t.Fatal("latency mismatch", sample)
 	}
+	qualifyTCPMonitoringGraph(t, o)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	failed := RunJob(ctx, job)

@@ -68,6 +68,14 @@ type AgentlessSnmpProfile struct {
 	Retries        int    `json:"retries,omitempty"`
 }
 
+const AgentlessCredentialReferenceV1 = "reference-v1"
+
+// WithoutCredential keeps the scheduling and target metadata only.
+func (p AgentlessSnmpProfile) WithoutCredential() AgentlessSnmpProfile {
+	return AgentlessSnmpProfile{BindingID: p.BindingID, ProfileID: p.ProfileID, Version: p.Version,
+		Port: p.Port, TimeoutMs: p.TimeoutMs, TimeBudgetMs: p.TimeBudgetMs, Retries: p.Retries}
+}
+
 type AgentlessSnmpVendorOIDProfile struct {
 	ProfileKey      string `json:"profile_key,omitempty"`
 	ProfileVersion  string `json:"profile_version,omitempty"`
@@ -92,30 +100,33 @@ type AgentlessSnmpOIDSpec struct {
 }
 
 type AgentlessJob struct {
-	CheckID             int                   `json:"check_id"`
-	AtivoID             int                   `json:"ativo_id"`
-	ClienteID           int                   `json:"cliente_id"`
-	Tipo                string                `json:"tipo"`
-	Nome                string                `json:"nome,omitempty"`
-	IntervalSec         int                   `json:"interval_sec"`
-	TimeoutMs           int                   `json:"timeout_ms"`
-	CollectionKind      string                `json:"snmp_collection_kind,omitempty"`
-	CollectionKindAlias string                `json:"collection_kind,omitempty"`
-	SegmentID           string                `json:"segment_id,omitempty"`
-	CollectionProfile   string                `json:"collection_profile,omitempty"`
-	FetchMode           string                `json:"fetch_mode,omitempty"`
-	TimeBudgetMs        int                   `json:"time_budget_ms,omitempty"`
-	SNMPMaxRows         int                   `json:"snmp_max_rows,omitempty"`
-	IncludeGroups       []string              `json:"include_groups,omitempty"`
-	ExcludeGroups       []string              `json:"exclude_groups,omitempty"`
-	CommandID           string                `json:"command_id,omitempty"`
-	CorrelationID       string                `json:"correlation_id,omitempty"`
-	Retries             int                   `json:"retries"`
-	FailThreshold       int                   `json:"fail_threshold"`
-	SuccessThresh       int                   `json:"success_threshold"`
-	Config              AgentlessConfig       `json:"config"`
-	Endpoint            *AgentlessEndpoint    `json:"endpoint,omitempty"`
-	SNMP                *AgentlessSnmpProfile `json:"snmp,omitempty"`
+	CheckID             int                     `json:"check_id"`
+	AtivoID             int                     `json:"ativo_id"`
+	ClienteID           int                     `json:"cliente_id"`
+	Tipo                string                  `json:"tipo"`
+	Nome                string                  `json:"nome,omitempty"`
+	IntervalSec         int                     `json:"interval_sec"`
+	BaseIntervalSec     int                     `json:"base_interval_sec,omitempty"`
+	ProbePolicy         *monitoring.ProbePolicy `json:"probe_policy_v1,omitempty"`
+	CredentialDelivery  string                  `json:"credential_delivery,omitempty"`
+	TimeoutMs           int                     `json:"timeout_ms"`
+	CollectionKind      string                  `json:"snmp_collection_kind,omitempty"`
+	CollectionKindAlias string                  `json:"collection_kind,omitempty"`
+	SegmentID           string                  `json:"segment_id,omitempty"`
+	CollectionProfile   string                  `json:"collection_profile,omitempty"`
+	FetchMode           string                  `json:"fetch_mode,omitempty"`
+	TimeBudgetMs        int                     `json:"time_budget_ms,omitempty"`
+	SNMPMaxRows         int                     `json:"snmp_max_rows,omitempty"`
+	IncludeGroups       []string                `json:"include_groups,omitempty"`
+	ExcludeGroups       []string                `json:"exclude_groups,omitempty"`
+	CommandID           string                  `json:"command_id,omitempty"`
+	CorrelationID       string                  `json:"correlation_id,omitempty"`
+	Retries             int                     `json:"retries"`
+	FailThreshold       int                     `json:"fail_threshold"`
+	SuccessThresh       int                     `json:"success_threshold"`
+	Config              AgentlessConfig         `json:"config"`
+	Endpoint            *AgentlessEndpoint      `json:"endpoint,omitempty"`
+	SNMP                *AgentlessSnmpProfile   `json:"snmp,omitempty"`
 }
 
 type AgentlessObservation struct {
@@ -139,5 +150,6 @@ type AgentlessObservation struct {
 	EndpointID       *int           `json:"endpoint_id,omitempty"`
 	CreatedAt        time.Time      `json:"created_at"`
 
-	MonitoringSamples *monitoring.Batch `json:"monitoring_samples_v1,omitempty"`
+	MonitoringSamples *monitoring.Batch       `json:"monitoring_samples_v1,omitempty"`
+	ProbeReport       *monitoring.ProbeReport `json:"probe_report_v1,omitempty"`
 }

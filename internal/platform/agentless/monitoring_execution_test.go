@@ -210,7 +210,7 @@ func TestMonitoringMetadataTracksPartialsAndNeverAdoptsDiagnostics(t *testing.T)
 		t.Fatal("foreign observation projected")
 	}
 	o.CheckID = 72
-	job.Tipo = "http"
+	job.Tipo = "discovery"
 	if withMonitoringSamples(job, o).MonitoringSamples != nil {
 		t.Fatal("unsupported collector projected")
 	}

@@ -3,6 +3,7 @@ package agentless
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/binary"
 	"encoding/hex"
@@ -29,6 +30,7 @@ type Result struct {
 	Code      string
 	Message   string
 	Payload   map[string]any
+	failure   error
 }
 
 type discoveryPolicy struct {
@@ -62,52 +64,6 @@ type discoveryPolicy struct {
 }
 
 var errDiscoverySNMPRowLimit = errors.New("discovery snmp row limit reached")
-
-func RunJob(ctx context.Context, job entities.AgentlessJob) entities.AgentlessObservation {
-	started := time.Now()
-	var res Result
-
-	switch strings.ToLower(job.Tipo) {
-	case "icmp":
-		res = runICMP(ctx, job)
-	case "tcp":
-		res = runTCP(ctx, job)
-	case "http":
-		res = runHTTP(ctx, job, false)
-	case "dns":
-		res = runDNS(ctx, job)
-	case "tls":
-		res = runTLS(ctx, job)
-	case "snmp":
-		res = runSNMP(ctx, job)
-	case "discovery_assisted", "discovery":
-		res = runDiscoveryAssisted(ctx, job)
-	default:
-		res = Result{Status: "fail", Code: "unknown_type", Message: "tipo nao suportado"}
-	}
-
-	return withMonitoringSamples(job, newObservationFromResult(job, res, started))
-}
-
-func RunJobWithPartials(ctx context.Context, job entities.AgentlessJob, onPartial func(entities.AgentlessObservation)) entities.AgentlessObservation {
-	if strings.ToLower(job.Tipo) != "snmp" || !shouldFlushSNMPPartials(job) || onPartial == nil {
-		return RunJob(ctx, job)
-	}
-
-	started := time.Now()
-	seq := 0
-	res := runSNMPWithPartials(ctx, job, func(partial snmpPartialResult) {
-		seq++
-		obs := newObservationFromResult(job, partial.Result, started)
-		applyObservationSegmentState(&obs, seq, true, false, partial.Group)
-		onPartial(withMonitoringSamples(job, obs))
-	})
-
-	seq++
-	obs := newObservationFromResult(job, res, started)
-	applyObservationSegmentState(&obs, seq, false, true, "final")
-	return withMonitoringSamples(job, obs)
-}
 
 func newObservationFromResult(job entities.AgentlessJob, res Result, started time.Time) entities.AgentlessObservation {
 	obs := entities.AgentlessObservation{
@@ -232,6 +188,11 @@ func observationDedupeKey(obs *entities.AgentlessObservation, segmentID string, 
 	if strings.TrimSpace(segmentID) == "" {
 		segmentID = obs.CollectionKind
 	}
+	if obs.CommandID != "" {
+		// Manual runs in the same second are distinct; a redelivery of one command is not.
+		identity := sha256.Sum256([]byte(obs.CommandID + "\x00" + segmentID))
+		return fmt.Sprintf("check:%d|command:%x|seq:%d", obs.CheckID, identity[:16], seq)
+	}
 	return fmt.Sprintf(
 		"check:%d|observed:%s|segment:%s|seq:%d",
 		obs.CheckID,
@@ -247,11 +208,11 @@ func runICMP(ctx context.Context, job entities.AgentlessJob) Result {
 		return Result{Status: "fail", Code: "missing_endpoint", Message: "endpoint ausente"}
 	}
 	timeout := time.Millisecond * time.Duration(maxInt(job.TimeoutMs, 1000))
-	latency, out, err := pingOnce(ctx, target, timeout)
+	latency, err := pingOnce(ctx, target, timeout)
 	if err != nil {
-		return Result{Status: "fail", Code: "ping_fail", Message: err.Error(), Payload: map[string]any{"output": out}}
+		return Result{Status: "fail", Code: "ping_fail", Message: "consulta ICMP falhou", failure: err}
 	}
-	return Result{Status: "ok", LatencyMs: latency, Payload: map[string]any{"output": out}}
+	return Result{Status: "ok", LatencyMs: latency}
 }
 
 func runTCP(ctx context.Context, job entities.AgentlessJob) Result {
@@ -269,7 +230,7 @@ func runTCP(ctx context.Context, job entities.AgentlessJob) Result {
 		_ = conn.Close()
 	}
 	if err != nil {
-		return Result{Status: "fail", LatencyMs: latency, Code: "connect_fail", Message: err.Error()}
+		return Result{Status: "fail", LatencyMs: latency, Code: "connect_fail", Message: "conexão TCP falhou", failure: err}
 	}
 	return Result{Status: "ok", LatencyMs: latency}
 }
@@ -284,22 +245,26 @@ func runHTTP(ctx context.Context, job entities.AgentlessJob, tlsOnly bool) Resul
 	start := time.Now()
 	req, err := http.NewRequestWithContext(ctx, method, endpointURL, nil)
 	if err != nil {
-		return Result{Status: "fail", Code: "http_request", Message: err.Error()}
+		return Result{Status: "fail", Code: "http_request", Message: "requisição HTTP inválida"}
 	}
 	resp, err := client.Do(req)
 	latency := int(time.Since(start).Milliseconds())
 	if err != nil {
-		return Result{Status: "fail", LatencyMs: latency, Code: "http_fail", Message: err.Error()}
+		return Result{Status: "fail", LatencyMs: latency, Code: "http_fail", Message: "consulta HTTP falhou", failure: err}
 	}
 	defer resp.Body.Close()
+	status := strconv.Itoa(resp.StatusCode)
+	if description := http.StatusText(resp.StatusCode); description != "" {
+		status += " " + description
+	}
 	payload := map[string]any{
 		"status_code": resp.StatusCode,
-		"status":      resp.Status,
+		"status":      status,
 	}
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 		return Result{Status: "ok", LatencyMs: latency, Payload: payload}
 	}
-	return Result{Status: "fail", LatencyMs: latency, Code: "http_status", Message: resp.Status, Payload: payload}
+	return Result{Status: "fail", LatencyMs: latency, Code: "http_status", Message: status, Payload: payload}
 }
 
 func runDNS(ctx context.Context, job entities.AgentlessJob) Result {
@@ -315,7 +280,7 @@ func runDNS(ctx context.Context, job entities.AgentlessJob) Result {
 	addrs, err := resolver.LookupHost(ctx, host)
 	latency := int(time.Since(start).Milliseconds())
 	if err != nil {
-		return Result{Status: "fail", LatencyMs: latency, Code: "dns_fail", Message: err.Error()}
+		return Result{Status: "fail", LatencyMs: latency, Code: "dns_fail", Message: "consulta DNS falhou", failure: err}
 	}
 	return Result{Status: "ok", LatencyMs: latency, Payload: map[string]any{"addrs": addrs}}
 }
@@ -333,12 +298,13 @@ func runTLS(ctx context.Context, job entities.AgentlessJob) Result {
 	if job.Endpoint != nil && job.Endpoint.TLSSNI != "" {
 		conf.ServerName = job.Endpoint.TLSSNI
 	}
-	conn, err := tls.DialWithDialer(&d, "tcp", addr, conf)
+	dialer := tls.Dialer{NetDialer: &d, Config: conf}
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	latency := int(time.Since(start).Milliseconds())
 	if err != nil {
-		return Result{Status: "fail", LatencyMs: latency, Code: "tls_fail", Message: err.Error()}
+		return Result{Status: "fail", LatencyMs: latency, Code: "tls_fail", Message: "conexão TLS falhou", failure: err}
 	}
-	state := conn.ConnectionState()
+	state := conn.(*tls.Conn).ConnectionState()
 	_ = conn.Close()
 
 	payload := map[string]any{}
@@ -1571,7 +1537,7 @@ func buildHTTPURL(job entities.AgentlessJob, forceTLS bool) (string, error) {
 	return (&url.URL{Scheme: scheme, Host: host, Path: path}).String(), nil
 }
 
-func pingOnce(ctx context.Context, target string, timeout time.Duration) (int, string, error) {
+func pingOnce(ctx context.Context, target string, timeout time.Duration) (int, error) {
 	var args []string
 	ms := int(timeout.Milliseconds())
 	if ms <= 0 {
@@ -1591,11 +1557,7 @@ func pingOnce(ctx context.Context, target string, timeout time.Duration) (int, s
 	}
 	cmd := exec.CommandContext(ctx, "ping", args...)
 	out, err := cmd.CombinedOutput()
-	latency := parsePingLatency(string(out))
-	if err != nil {
-		return latency, string(out), err
-	}
-	return latency, string(out), nil
+	return parsePingLatency(string(out)), err
 }
 
 func parsePingLatency(out string) int {

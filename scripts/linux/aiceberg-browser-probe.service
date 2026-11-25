@@ -1,0 +1,27 @@
+[Unit]
+Description=AIceberg browser journey runner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=aiceberg_browser
+Group=aiceberg_browser
+UMask=0077
+RuntimeDirectory=aiceberg-browser-probe
+RuntimeDirectoryMode=0750
+StateDirectory=aiceberg-browser-probe
+StateDirectoryMode=0700
+Environment=AICEBERG_BROWSER_CHROMIUM=/usr/bin/chromium
+EnvironmentFile=-/etc/aiceberg/browser-probe.env
+ExecStart=/usr/local/bin/aiceberg-browser-probe -socket /run/aiceberg-browser-probe/runner.sock -recipes /var/lib/aiceberg-browser-probe/recipes -chromium ${AICEBERG_BROWSER_CHROMIUM}
+Restart=on-failure
+RestartSec=3
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/var/lib/aiceberg-browser-probe/recipes
+IPAddressDeny=any
+IPAddressAllow=localhost
+
+[Install]
+WantedBy=multi-user.target

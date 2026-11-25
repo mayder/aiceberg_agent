@@ -14,12 +14,16 @@ import (
 	"github.com/you/aiceberg_agent/internal/common/config"
 	"github.com/you/aiceberg_agent/internal/common/logger"
 	"github.com/you/aiceberg_agent/internal/domain/usecase"
+	"github.com/you/aiceberg_agent/internal/platform/telnetprobe"
 )
 
 var configPath = flag.String("config", "", "path to config file (.env|.json|.yaml)")
 var doctor = flag.Bool("doctor", false, "run local channel diagnostics and exit")
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == telnetprobe.WorkerArgument {
+		os.Exit(telnetprobe.RunInherited(os.Stdout))
+	}
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
