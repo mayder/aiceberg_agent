@@ -37,6 +37,7 @@ import (
 )
 
 type collector struct {
+	storage      storageSampler
 	queueStats   func() (int, int64)
 	runtimeStats func() AgentRuntimeStats
 	prefs        func() config.CollectPrefs
@@ -140,6 +141,7 @@ func looksLikeBinaryCPUArtifact(goos string, values []float64) bool {
 }
 
 type snapshot struct {
+	Storage      *storageProfile     `json:"storage_pressure,omitempty"`
 	Capabilities map[string]bool     `json:"capabilities,omitempty"`
 	CPU          *cpuSnapshot        `json:"cpu,omitempty"`
 	Memory       *memSnapshot        `json:"memory,omitempty"`
@@ -651,7 +653,7 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 					devSeen[p.Device] = struct{}{}
 				}
 			}
-			if sm := collectSMART(devSeen); len(sm) > 0 {
+			if sm := collectOptInSMART(devSeen); len(sm) > 0 {
 				diskSnap.SMART = sm
 				diskOk = true
 			}
@@ -950,7 +952,14 @@ func (c *collector) Collect(ctx context.Context) ([]byte, error) {
 	} else {
 		s.Capabilities["processes"] = false
 	}
+	if p.Disk {
+		s.Storage = c.storage.sample()
+	}
 	s.Performance = buildPerformanceProfile(s, p)
+	if s.Storage != nil && s.Performance != nil {
+		s.Performance.Resources.IOWaitPercent = s.Storage.IOWaitPercent
+		s.Performance.Gaps = limitStrings(append(s.Performance.Gaps, s.Storage.Gaps...), 12)
+	}
 	s.Capabilities["performance_profile"] = s.Performance != nil
 
 	return json.Marshal(s)

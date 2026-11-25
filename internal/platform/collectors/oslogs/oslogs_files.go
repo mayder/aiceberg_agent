@@ -319,9 +319,11 @@ func (c *collector) readFile(path, hostname string) ([]logEvent, logSourceHealth
 	}
 	r := bufio.NewReader(f)
 	pending := ""
+	consumedOffset := offset
 	for len(out) < c.batchLines {
 		line, err := r.ReadString('\n')
 		if line != "" {
+			lineBytes := int64(len(line))
 			line = strings.TrimRight(line, "\r\n")
 			if pending == "" || looksLikeNewLogEntry(line) {
 				if pending != "" {
@@ -335,6 +337,7 @@ func (c *collector) readFile(path, hostname string) ([]logEvent, logSourceHealth
 			} else {
 				pending += "\n" + line
 			}
+			consumedOffset += lineBytes
 		}
 		if err != nil {
 			break
@@ -343,10 +346,10 @@ func (c *collector) readFile(path, hostname string) ([]logEvent, logSourceHealth
 	if pending != "" && len(out) < c.batchLines {
 		out = append(out, c.buildEvent(path, hostname, pending))
 	}
-	if pos, err := f.Seek(0, 1); err == nil {
-		c.cursor[path] = pos
-		health.Cursor = strconv.FormatInt(pos, 10)
-	}
+	// bufio may have read beyond the emitted batch. Commit only consumed lines;
+	// the lookahead entry that closes the batch must be read on the next cycle.
+	c.cursor[path] = consumedOffset
+	health.Cursor = strconv.FormatInt(consumedOffset, 10)
 	return out, health
 }
 
@@ -411,6 +414,9 @@ func (c *collector) buildEvent(path, hostname, line string) logEvent {
 		category = detectUnixCategory(msg)
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, sourceAt := unixISOPrefix(line); sourceAt != "" {
+		now = sourceAt
+	}
 	cursor := strconv.FormatInt(c.cursor[path], 10)
 	event := logEvent{
 		SchemaVersion:   logSchemaVersion,
@@ -438,7 +444,7 @@ func (c *collector) buildEvent(path, hostname, line string) logEvent {
 	if signal, ok := parseWordPressAccessSignal(line); ok {
 		return applyWordPressAccessSignal(event, signal)
 	}
-	return enrichSOCEvent(event)
+	return enrichSOCEvent(preserveCriticalStorageSignal(event))
 }
 
 func (c *collector) buildLocalEvent(hostname string, item localLogEntry) logEvent {
@@ -531,6 +537,7 @@ func parseSyslog(line string, maxBytes int) (app, pid, level, severity, facility
 	if len(msg) > maxBytes {
 		msg = msg[:maxBytes]
 	}
+	msg, _ = unixISOPrefix(msg)
 	if idx := strings.Index(msg, ":"); idx >= 0 {
 		header := strings.TrimSpace(msg[:idx])
 		msg = strings.TrimSpace(msg[idx+1:])

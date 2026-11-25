@@ -1273,3 +1273,8 @@ respostas de canal inexistente separadas por pelo menos dois minutos.
 Canal desabilitado ou erro de permissão preserva o item. Antes de ativar
 em produção, execute o ensaio de descoberta, remoção e retorno de um
 canal de teste em host Windows autorizado.
+
+## Reteste de armazenamento InspectApp —23/11/2026
+
+Host187.45.180.181,cliente1,agente70. Preservar DenyKey smart.*, smartd inativo e contas/cursors/outbox. Não executar SMART/perccli/carga/reset/firmware para smoke. No Agente garantir AICEBERG_ALLOW_SMART não habilitado; sampler usa procfs/sysfs somente. Preservar fontes e cursores existentes: syslog já contém kernel; não adicionar kern.log em paralelo nem recontar eventos históricos.
+Publicar somente código deste incidente pelo fluxo oficial, sem incorporar alterações SNMP concorrentes. Confirmar configuração publicada/aplicada e versão/hash do binário, amostra passiva, alerta persistido no sink controlado e tela instalada. SQLs de preparação/ativação/rollback no Web. Fixtures no-send não são notificação entregue. A publicação permanece pendente neste incremento.

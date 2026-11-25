@@ -802,3 +802,8 @@ racional limitada. Falha de valor vira unknown/null com trace sem conteúdo;
 falha global não emite resultado parcial. Núcleo sem I/O/estado nem ativação;
 integração, capacidade, publicação e aceite físico ficam no item14. Rollback
 retira componentes não conectados sem tocar históricos/filas/coletas existentes.
+
+
+## DEC-20261123-STORAGE-PRESSURE
+
+Contraparte de WebPKG-143: contabilidade passiva de armazenamento, sem usar espaço ocupado como performance. PSI,IOwait,latência/fila/pendentes e processos bloqueados têm unidades/proveniência; amostra inválida não vira zero. Mesmo contrato e catálogo determinístico PHP/Go, sem necessidade de IA para espera MegaRAID. Histórico do Web reutiliza estruturas existentes e exceção explícita24h por cliente/agente. Sem publicação nesta decisão; rollback reverte só o incremento e preserva outbox/logs/contenção.

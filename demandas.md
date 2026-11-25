@@ -1305,3 +1305,11 @@ loopback→pipeline→PHP. Sem SQL, UI, collector/scheduler produtivo, release/u
 configuração privada ou teste físico SADA. Contrato canônico Web:
 docs/contracts/monitoring-pipeline-v1.md. Item5 de desenvolvimento qualificado;
 itens6–14 abertos, pacote115/contraparte19 não encerrados.
+
+## Cobertura de armazenamento — contraparte WebPKG-143,23/11/2026
+
+- [x] Código local e fixtures para pressão passiva/espera MegaRAID, sem SMART, sem IA e sem alterar branch.
+- [x] Paridade PHP/Go e casos de ausência/stall/fuso/isolamento com sink no-send.
+- [ ] Check completo/revisão e publicação coordenada, sem incorporar modificações SNMP concorrentes.
+- [ ] Prova instalada no agente70/cliente1, configuração/hash aplicado, persistência/painel/alerta e rollback.
+Não encerrado; nenhum push, release/tag, atualização de agente ou notificação produtiva deste incremento.

@@ -1070,3 +1070,7 @@ captura e ausência sustentada. `TestNativeEventLogChannelProbe` consulta
 System e um canal de fixture inexistente em Windows. Sua compilação foi
 verificada para Windows x64. A execução em host Windows e a remoção e
 volta de um canal real seguem pendentes.
+
+## Armazenamento passivo —23/11/2026
+
+Fixtures novas de storage_pressure e kernel wait; no Agente testar sysmetrics/oslogs, baseline, boot/reset, fila sem conclusão, arquivoISO/fuso e preservação deError para fontes alheias. No Runtime executar TestStoragePressurePHPParityAndNoSend e TestStorageControllerWaitDeterministicWithoutProvider; PHP precisa ser local e AICEBERG_WEB_ROOT deve apontar ao Web oficial. Não usa provedor real nem dispatch externo. Publicação/ingestão/ACK instalado e entrega permanecem gates separados.

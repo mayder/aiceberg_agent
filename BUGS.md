@@ -616,3 +616,8 @@ O inspect95 da0.8.55 confirmou9432 envelopes/208201238bytes, sem erro nem reten�
 ### Ajuste mensurado0.8.57
 
 A observação prolongada da0.8.56 manteve a fila no limite: inspect99 com9336 itens/209713514bytes e133 retidos no ciclo. Há206 relays ativos com CPU/memória ligadas. Lote400/4 não oferece margem suficiente. A0.8.57 usa lote máximo800 e oito grupos simultâneos; preserva orçamento de despacho8s, timeout HTTP, identidades, ACK/retry e retenção. Validar escoamento sustentado antes de encerrar.
+
+
+## Coleta passiva e cursor de arquivo —23/11/2026 — alta, correção local
+
+IOwait declarado sem preenchimento; não havia PSI/fila/pendentes nem contador específico de bloqueados. Parser rsyslogISO confundia os dois-pontos do horário com cabeçalho. Cursor usava Seek do arquivo após leitura bufio e podia saltar entradas pré-lidas fora do lote. Corrigido com offset de bytes efetivamente consumidos; fixture120entradas/lote1 sem perda ou duplicação, com race. Não atribuir retrospectivamente perda de um evento específico sem recibo. SMART passa a opt-in explícito; não executado neste incidente. Gates instalados pendentes no WebPKG-143.
