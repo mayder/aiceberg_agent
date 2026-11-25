@@ -1,0 +1,156 @@
+[
+    {
+        "name": "persisted-interface-preview",
+        "client_id": 2,
+        "asset_id": 4,
+        "source": "interfaces",
+        "identity": [
+            "02-00-00-00-00-01"
+        ],
+        "fingerprint": "bc98f4d96ec10bfb448c3de38c898c612cd0d9f8aebfaf320d4b6a2a4a228d62"
+    },
+    {
+        "name": "interface",
+        "client_id": 2,
+        "asset_id": 17,
+        "source": "interfaces",
+        "identity": [
+            "02:AB:00:00:00:01"
+        ],
+        "fingerprint": "6107ab69eb84281f6a3240a71ebc508bd0508f8f9f5545a4e3f98ea94aca01e9"
+    },
+    {
+        "name": "same-interface-new-format",
+        "client_id": 2,
+        "asset_id": 17,
+        "source": "interfaces",
+        "identity": [
+            " 02-ab-00-00-00-01\t"
+        ],
+        "fingerprint": "6107ab69eb84281f6a3240a71ebc508bd0508f8f9f5545a4e3f98ea94aca01e9"
+    },
+    {
+        "name": "same-interface-other-client",
+        "client_id": 3,
+        "asset_id": 17,
+        "source": "interfaces",
+        "identity": [
+            "02:AB:00:00:00:01"
+        ],
+        "fingerprint": "edb5b4869413d58c9bff64eb9ce18e87a01518eba7c0a0e67811d2a52908a533"
+    },
+    {
+        "name": "same-interface-other-asset",
+        "client_id": 2,
+        "asset_id": 18,
+        "source": "interfaces",
+        "identity": [
+            "02:AB:00:00:00:01"
+        ],
+        "fingerprint": "912ce1d31610c39d7a40b05620e089c24167ed55757a337108282c20a37f6ef5"
+    },
+    {
+        "name": "ambiguous-zero-interface",
+        "client_id": 2,
+        "asset_id": 17,
+        "source": "interfaces",
+        "identity": [
+            "00:00:00:00:00:00"
+        ],
+        "fingerprint": null
+    },
+    {
+        "name": "invalid-multicast-interface",
+        "client_id": 2,
+        "asset_id": 17,
+        "source": "interfaces",
+        "identity": [
+            "01:00:00:00:00:01"
+        ],
+        "fingerprint": null
+    },
+    {
+        "name": "disk-path",
+        "client_id": 2,
+        "asset_id": 17,
+        "source": "disks",
+        "identity": [
+            "/dev/mapper/vg-system"
+        ],
+        "fingerprint": "28ff13578ca6133dfa8fb5b3c9ba5a718328d2f37ca7d342e930e3d05f37f59a"
+    },
+    {
+        "name": "sensor-unicode",
+        "client_id": 2,
+        "asset_id": 17,
+        "source": "sensors",
+        "identity": [
+            " Temperatura á / 🚀 "
+        ],
+        "fingerprint": "ff594f651b05a0798fb94b0bd3c7459925d4044c06d7721138d1bdc27ce77e0c"
+    },
+    {
+        "name": "service-escapes",
+        "client_id": 2,
+        "asset_id": 17,
+        "source": "services",
+        "identity": [
+            "<svc>\\\t\"A&B\" \u2028"
+        ],
+        "fingerprint": "96af3b4eaca068fce52f8c775e8db36db10d060fdbc76bb774d5da65aeb73c5d"
+    },
+    {
+        "name": "package-identity",
+        "client_id": 2,
+        "asset_id": 17,
+        "source": "applications",
+        "identity": [
+            "agente",
+            "arm64",
+            "local/teste"
+        ],
+        "fingerprint": "90a8c4280706f25e73790b76ffb7b63a1d04bbda0404c1bddaa4fc89817d33ec"
+    },
+    {
+        "name": "package-empty-qualifiers",
+        "client_id": 2,
+        "asset_id": 17,
+        "source": "applications",
+        "identity": [
+            "agente",
+            "",
+            ""
+        ],
+        "fingerprint": "5270c9cab6a4ecb446001317f8c53ffbc13c38f21cbf99629a9e3a5bcb781fbb"
+    },
+    {
+        "name": "package-incomplete",
+        "client_id": 2,
+        "asset_id": 17,
+        "source": "applications",
+        "identity": [
+            "agente"
+        ],
+        "fingerprint": null
+    },
+    {
+        "name": "log-source-approved-fingerprint",
+        "client_id": 2,
+        "asset_id": 17,
+        "source": "log_sources",
+        "identity": [
+            "fixture-local-fingerprint"
+        ],
+        "fingerprint": "74782d7e328ce6d23552e310050a28e29c425aaacd91c06a296973d0ed9639d3"
+    },
+    {
+        "name": "missing",
+        "client_id": 2,
+        "asset_id": 17,
+        "source": "services",
+        "identity": [
+            " \r\n\t"
+        ],
+        "fingerprint": null
+    }
+]

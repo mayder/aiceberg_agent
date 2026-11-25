@@ -152,6 +152,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	inventoryEndpoint := "/v1/ingest/inventory"
 	bootstrapEndpoint := "/v1/ingest/bootstrap"
 	networkCaptureEndpoint := "/v1/ingest/network_capture"
+	startDiscoveryRetirements(ctx, mode, metricsEndpoint, authHeader, identityHeaderProvider, outboxRepo, log)
 
 	metricsUC := usecase.NewCollectAndBufferWithIdentityProvider(newFilteredCollector(collector, "sysmetrics", metricsEndpoint, cfg.MetricsInterval, metricsKeys()), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
 	healthUC := usecase.NewCollectAndBufferWithIdentityProvider(newFilteredCollector(collector, "sysmetrics_health", healthEndpoint, 10*time.Minute, healthKeys()), outboxRepo, log, authHeader, identityHeaderProvider, healthEndpoint)
@@ -162,7 +163,7 @@ func Run(ctx context.Context, cfg config.Config, log logger.Logger) error {
 	containersUC := usecase.NewCollectAndBufferWithIdentityProvider(containers.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
 	kubernetesUC := usecase.NewCollectAndBufferWithIdentityProvider(kubernetes.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
 	localChecksUC := usecase.NewCollectAndBufferWithIdentityProvider(localchecks.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
-	logDiscoveryUC := usecase.NewCollectAndBufferWithIdentityProvider(logdiscovery.New(cfg, prefStore.Get), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
+	logDiscoveryUC := newLogDiscoveryCollection(logdiscovery.New(cfg, prefStore.Get), mode, metricsEndpoint, authHeader, identityHeaderProvider, outboxRepo, log)
 	otlpReceiver := otlp.NewReceiver(cfg, prefStore.Get)
 	otlpMetricsUC := usecase.NewCollectAndBufferWithIdentityProvider(otlpReceiver.MetricsCollector(), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)
 	otlpTracesUC := usecase.NewCollectAndBufferWithIdentityProvider(otlpReceiver.TracesCollector(), outboxRepo, log, authHeader, identityHeaderProvider, metricsEndpoint)

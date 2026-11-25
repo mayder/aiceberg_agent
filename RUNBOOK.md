@@ -1118,3 +1118,158 @@ loopback→pipeline→PHP. Sem SQL, UI, collector/scheduler produtivo, release/u
 configuração privada ou teste físico SADA. Contrato canônico Web:
 docs/contracts/monitoring-pipeline-v1.md. Item5 de desenvolvimento qualificado;
 itens6–14 abertos, pacote115/contraparte19 não encerrados.
+
+## Retirada de interface no Discovery
+
+Depois de autorizar cliente e ativo na ingestão do Discovery, configure
+`DISCOVERY_INTERFACE_CLIENT_ID` e `DISCOVERY_INTERFACE_ASSET_ID` no ambiente
+privado do serviço Agente ou HUB Linux ou Windows que monitora esse ativo diretamente.
+O código exige os dois IDs positivos e não habilita a emissão em relays.
+Em Linux, o coletor usa a notificação de exclusão de link do kernel.
+Em Windows, exige notificação de exclusão da interface IP e confirma que
+a identidade e o MAC não continuam na tabela de interfaces do sistema.
+Uma família IPv4/IPv6 removida não basta se o adaptador ainda estiver presente.
+A retirada confirmada gera um fingerprint da interface,
+enviado pela fila existente para `/v1/ingest/metrics`. O limite é 16 eventos
+por minuto e o frescor é de 300 segundos. A fila mantém o mesmo comportamento de
+retry. A retirada efetiva da série exige a janela e o plano revisado do servidor.
+Para desativar o coletor, remova os dois parâmetros e reinicie o serviço.
+
+### Discos e partições Linux
+
+Configure `DISCOVERY_DISK_CLIENT_ID` e `DISCOVERY_DISK_ASSET_ID` no
+ambiente privado do Agente ou HUB Linux que monitora diretamente o ativo.
+A autorização na ingestão e a revisão de retirada são as mesmas das
+interfaces. O coletor usa o inventário local padrão do kernel e recusa
+redirecionamentos de `HOST_PROC` ou `HOST_SYS`. Somente uma exclusão
+explícita de dispositivo de bloco com ausência confirmada em
+`/sys/class/block` gera evento. Desmontagem, alteração e falha de leitura
+de I/O não geram retirada. O limite é de 16 notificações aceitas por
+minuto e o frescor é de 300 segundos. Remova os dois parâmetros e reinicie
+o serviço para desativar a emissão.
+
+### Temperatura local Linux
+
+Configure `DISCOVERY_SENSOR_CLIENT_ID` e `DISCOVERY_SENSOR_ASSET_ID` no
+ambiente privado do Agente ou HUB Linux vinculado diretamente ao ativo. A
+emissão requer exclusão explícita do dispositivo hwmon pelo kernel, uma
+chave de temperatura previamente observada e única, e ausência confirmada
+do dispositivo e da chave após a remoção. Aplica-se às temperaturas
+expostas diretamente por hwmon no sysfs local. Leituras térmicas legadas
+podem impedir a retirada de uma chave ainda visível. O limite é de 16
+eventos por minuto e o frescor é de 300 segundos. Se o outbox ficar
+indisponível, o coletor retém até 16 lotes em memória. Tenta enviar um
+lote a cada cinco segundos, com novo inventário. Se o sensor reaparecer
+ou o evento vencer, o reenvio é descartado. A janela de retirada,
+a aprovação vigente e a revisão continuam exigidas no servidor. Remova
+os dois parâmetros e reinicie o serviço para desativar a emissão.
+
+### Serviços Windows e Linux
+
+Configure `DISCOVERY_SERVICE_CLIENT_ID` e `DISCOVERY_SERVICE_ASSET_ID` no
+ambiente privado do Agente ou HUB vinculado ao ativo. No Windows, o coletor
+enumera serviços no SCM a cada 30 segundos com permissões de consulta.
+Confirma individualmente a exclusão de nomes previamente observados e
+envia no máximo 16 retiradas por captura, com frescor de 300 segundos.
+Se o outbox falhar, o evento mantém seu horário enquanto estiver fresco e
+a exclusão continuar confirmada. A aprovação e a janela de retirada são
+validadas no servidor. Remova os dois parâmetros e reinicie o serviço
+para desativar a emissão.
+
+No Linux com systemd, os mesmos parâmetros autorizam uma consulta a cada
+30 segundos. O coletor acompanha unidades `.service` concretas e instaladas,
+com diferenciação entre maiúsculas e minúsculas. Uma unidade previamente
+vista precisa estar ausente da listagem e responder `LoadState=not-found`
+e `ActiveState=inactive`.
+Os limites são 1.024 unidades, 64 consultas individuais e 16 retiradas por
+captura, com até 10 segundos para consulta e envio. A desativação usa os
+mesmos parâmetros do Windows.
+Em um host Linux isolado com systemd, execute
+`TestNativeSystemdServiceRemovalAndReturn` com
+`AICEBERG_DISCOVERY_SYSTEMD_FIXTURE=1` e permissão de escrita em
+`/run/systemd/system`. O teste usa uma unit temporária inativa e confirma
+remoção, reenvio após falha do outbox e retorno com a mesma identidade.
+
+### Pacotes Debian e RPM
+
+Configure `DISCOVERY_APPLICATION_CLIENT_ID`, `DISCOVERY_APPLICATION_ASSET_ID`
+e `AICEBERG_AGENT_ENABLE_PACKAGE_INVENTORY=true` no ambiente privado do
+Agente ou HUB Linux vinculado ao ativo. A consulta somente leitura usa a
+base local do dpkg ou RPM a cada 30 segundos. O coletor acompanha até
+4.096 registros e publica até 16 eventos por consulta. Preserva o nome
+binário, incluindo o sufixo de arquitetura quando fornecido pelo dpkg, e
+a origem `dpkg`. A ausência total precisa ser confirmada em duas capturas
+completas. Estados intermediários de atualização mantêm o pacote em
+observação. Remova os dois parâmetros `DISCOVERY_APPLICATION_*` e reinicie
+o serviço para desativar a emissão.
+Para RPM, a identidade usa nome, arquitetura e origem `rpm`. Versões
+paralelas da mesma arquitetura entram na mesma identidade. O Agente envia
+a retirada depois de duas capturas completas sem nenhuma versão instalada.
+
+### Aplicações Windows
+
+Use os mesmos parâmetros `DISCOVERY_APPLICATION_*` e habilite
+`AICEBERG_AGENT_ENABLE_PACKAGE_INVENTORY=true` no Agente Windows. A consulta
+somente leitura verifica as chaves de desinstalação em `HKLM` nas visões
+de Registro disponíveis. A retirada usa o nome observado e a origem
+`registry`. Confirme o ciclo em um host Windows com um aplicativo de
+teste antes de habilitar em produção. Aplicações registradas somente no
+perfil do usuário e fontes fora dessas chaves ficam fora da cobertura.
+
+No Windows de teste autorizado, execute
+`TestNativeRegistryApplicationRemovalAndReturn` com
+`AICEBERG_DISCOVERY_WINDOWS_REGISTRY_FIXTURE=1` e permissão de
+escrita em HKLM. O teste cria uma chave de desinstalação exclusiva,
+confirma a ausência e o retorno da identidade e remove somente a
+própria chave. Execute em um host de laboratório com inventário
+acessível e sem instalação de software concorrente.
+
+Para qualificar o SCM, execute
+`TestNativeWindowsServiceRemovalAndReturn` no mesmo host isolado com
+`AICEBERG_DISCOVERY_WINDOWS_SERVICE_FIXTURE=1`. O ensaio requer
+permissão de criação de serviço. Usa um nome exclusivo e um serviço
+desabilitado. A fixture nunca inicia o serviço e remove somente
+o registro temporário criado pelo teste.
+
+### Arquivos de log
+
+No Agente ou HUB vinculado ao ativo, habilite o Discovery de fontes de
+logs e configure `DISCOVERY_LOG_SOURCE_CLIENT_ID` e
+`DISCOVERY_LOG_SOURCE_ASSET_ID`. A cada ciclo do Discovery, o Agente
+acompanha arquivos regulares já enviados ao outbox. A retirada exige
+ausência em duas capturas, separadas por pelo menos dois minutos, com
+o mesmo diretório acessível. A consulta verifica apenas metadados.
+O retorno do arquivo cancela a retirada pendente na ingestão.
+Para desativar, remova os dois parâmetros de escopo e reinicie o Agente.
+
+### Fontes de logs do systemd e journald
+
+Use o mesmo escopo de retirada de arquivos de log em agentes Linux.
+Quando uma fonte conhecida deixa de aparecer, o Agente exige a ausência
+do arquivo da unit ou do socket conhecido, sob o mesmo diretório
+acessível. A consulta somente leitura a `systemctl show` precisa
+confirmar `LoadState=not-found` e `ActiveState=inactive`.
+Duas verificações separadas por pelo menos dois minutos confirmam a
+retirada. Uma unit ativa, parada ou mascarada ainda pode estar instalada.
+O socket pode desaparecer enquanto o serviço continua instalado.
+Tempo excedido, permissão negada ou erro ao consultar o gerenciador
+interrompem a confirmação para a fonte. A análise tem orçamento de
+quatro segundos por ciclo e retoma as fontes restantes no ciclo seguinte.
+
+Para validar em um host Linux isolado com systemd, execute
+`TestNativeSystemdLogSourceRemovalAndReturn` com a variável
+`AICEBERG_DISCOVERY_SYSTEMD_FIXTURE=1` e permissão de escrita em
+`/run/systemd/system`. O teste cria só a unit temporária, recarrega
+o gerenciador nas transições e remove a fixture ao terminar. O relógio
+da confirmação é controlado pelo teste.
+
+### Canais do Windows Event Log
+
+A descoberta consulta a configuração local de Security, System,
+Application, Sysmon e canais adicionais da configuração efetiva do
+Agente, com limite total de 64 canais. O mesmo escopo de arquivos de log
+habilita a retirada dos canais já enviados. A ausência exige duas
+respostas de canal inexistente separadas por pelo menos dois minutos.
+Canal desabilitado ou erro de permissão preserva o item. Antes de ativar
+em produção, execute o ensaio de descoberta, remoção e retorno de um
+canal de teste em host Windows autorizado.

@@ -138,7 +138,7 @@ func (c *Collector) Collect(ctx context.Context) ([]byte, error) {
 	host, _ := c.hostname()
 	gaps := make([]gap, 0, 4)
 	candidates := make([]Candidate, 0, c.maxCandidates(p))
-	candidates = append(candidates, c.discoverStructuredChannels()...)
+	candidates = append(candidates, c.discoverStructuredChannels(ctx, p, &gaps)...)
 	candidates = append(candidates, c.discoverKnownLogFiles(&gaps)...)
 	candidates = append(candidates, c.discoverSystemdUnits(&gaps)...)
 	candidates = append(candidates, c.discoverRuntimes()...)
@@ -214,31 +214,6 @@ func (c *Collector) maxEvidenceBytes(p config.CollectPrefs) int {
 		return 2048
 	}
 	return max
-}
-
-func (c *Collector) discoverStructuredChannels() []Candidate {
-	if runtime.GOOS != "windows" {
-		return nil
-	}
-	rows := []Candidate{}
-	for _, channel := range []string{"Security", "System", "Application", "Microsoft-Windows-Sysmon/Operational"} {
-		row := baseCandidate("eventlog_channel", "windows_eventlog")
-		row.Channel = channel
-		row.ServiceName = "windows_eventlog"
-		row.Confidence = 0.92
-		row.Evidence = []string{"windows_eventlog_channel:" + channel}
-		assignCategory(&row, "soc")
-		row.SOCSourceType = "windows_security"
-		row.SOCEligible = "yes"
-		if channel == "System" || channel == "Application" {
-			assignCategory(&row, "observability")
-			row.SOCEligible = "conditional"
-			row.SOCSourceType = "none"
-		}
-		row.Fingerprint = fingerprint(row)
-		rows = append(rows, row)
-	}
-	return rows
 }
 
 func (c *Collector) discoverKnownLogFiles(gaps *[]gap) []Candidate {

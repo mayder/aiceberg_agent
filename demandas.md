@@ -232,7 +232,76 @@ HUB e relays nunca executam simultaneamente o mesmo assignment autoritativo vál
 
 ## [PKG-117] Discovery local, autorregistro e protótipos
 
-Status: planejado. Prioridade: P1. Coordenação: Web PKG-117 e Runtime PKG-21.
+Status: evento local e emissão de retirada de interface implementados para Linux e Windows em 24/11/2026; ensaio real Windows e demais fontes pendentes. Prioridade: P1. Coordenação: Web PKG-117 e Runtime PKG-21.
+
+A geração do evento usa a identidade normalizada da prévia de inventário Web,
+com fixtures compartilhadas para as seis fontes. Formato de MAC, caminhos e
+Unicode foram verificados sem alterar a impressão digital usada nas aprovações.
+No Linux, o Agente autentica o envio com a identidade já usada pela ingestão e
+enfileira a retirada explícita emitida pelo kernel. Uma interface que ainda
+aparece com o mesmo MAC, alteração de nome ou estado e inventário ausente
+não geram retirada. O teste isolado confirmou a remoção real de uma interface
+virtual e a ausência de evento ao colocá-la administrativamente em down.
+O coletor exige habilitação explícita de cliente e ativo no serviço.
+No Windows, a retirada exige uma notificação de exclusão e confirmação
+na tabela de interfaces do sistema. Remover apenas a família IPv4/IPv6
+enquanto a interface permanece presente não inicia retirada. Compilação
+Windows e testes da reconciliação passaram. O ensaio de retirada em host
+Windows continua pendente.
+No Linux, a retirada de discos e partições usa eventos de remoção de
+bloco do kernel e a ausência confirmada no inventário sysfs. A identidade
+usa o nome publicado em `disk.io_stats`. O teste isolado criou e removeu
+um dispositivo de bloco virtual próprio e confirmou o tombstone gerado
+pelo kernel, inclusive seu reenvio quando o outbox ficou indisponível.
+O ensaio não cobriu a desconexão de disco físico ou de partição.
+Na retirada de sensores hwmon, uma falha ao gravar no outbox mantém o
+coletor ativo. O reenvio preserva a identidade e o horário, exige confirmação
+atual da ausência e descarta eventos vencidos.
+Após gravar no Bolt, as retiradas de interfaces, discos e sensores
+sobrevivem à reabertura da fila. O ensaio HTTP conferiu os mesmos IDs,
+horários e payloads após perda de ACK e troca de credenciais.
+No Windows, a retirada de serviço exige que o Service Control Manager
+confirme a exclusão de um nome conhecido. Um serviço parado ou ocultado
+por falta de permissão permanece no inventário de referência. O Agente
+revalida a exclusão antes de reenviar um evento que falhou no outbox.
+O ensaio em host Windows com remoção real ainda está pendente. Em Linux,
+o Agente usa o inventário de unidades instaladas do systemd e só emite a
+retirada de um serviço antes observado quando o systemd confirma ausência
+no estado de carga. Unidades apenas paradas, desabilitadas ou mascaradas
+permanecem preservadas. O ensaio com systemd real confirmou remoção,
+reenvio do evento original após falha do outbox e retorno com a mesma
+identidade. A qualificação em produção segue pendente. Para aplicações Debian,
+o Agente já emite retirada de pacotes antes instalados após confirmar a
+desinstalação no dpkg.
+Uma remoção completa exige ausência em duas leituras completas consecutivas.
+Um ensaio isolado com dpkg real confirmou remoção, reinstalação e purge.
+Para RPM, duas leituras completas sem o pacote confirmam a retirada da
+identidade por nome e arquitetura. Versões instaladas em paralelo mantêm
+a identidade presente até a última ser removida. O ensaio usou uma cópia
+descartável da base RPM real. Para aplicações Windows, o Agente acompanha
+as chaves de desinstalação da máquina nas visões 32 e 64 bits do Registro.
+Duas capturas completas sem a chave confirmam a retirada de um nome
+observado sem ambiguidade. Mudança de chave com o mesmo nome, renomeação
+em uma chave presente e leitura incompleta preservam o item. Falta o
+ensaio de desinstalação e reinstalação em host Windows.
+O Agente também produz retirada opt-in para arquivos identificados pelo
+Discovery de logs. Só acompanha candidatos que chegaram à fila e exige
+duas confirmações da ausência separadas por pelo menos dois minutos,
+com o mesmo diretório acessível. Retorno após rotação dentro do intervalo,
+troca de diretório e falha de leitura preservam a fonte. No Windows, a
+descoberta confirma o registro dos canais padrão e configurados no Event
+Log. A retirada exige duas respostas nativas de canal inexistente, com o
+mesmo intervalo. Canais desabilitados continuam registrados; falhas de
+acesso interrompem a confirmação. Falta o ensaio em host Windows.
+Em Linux, fontes vinculadas a uma unit do systemd e ao socket do
+journald exigem a ausência do caminho já observado e a confirmação
+`not-found/inactive` no gerenciador local. A consulta também foi
+conferida em um host Linux, com uma unit ativa e outra inexistente.
+O ensaio Linux em VM existente criou uma unit temporária, confirmou
+a retirada quando o gerenciador deixou de reconhecê-la e redescobriu a
+mesma identidade após sua restauração. A unidade de teste foi removida ao final.
+Sinais de processo, listener e outros runtimes seguem sem retirada
+automática até existir confirmação local de exclusão da fonte de log.
 
 ### Objetivo
 
@@ -240,7 +309,7 @@ Descobrir interfaces, discos, sensores, serviços, aplicações e fontes locais 
 
 ### Lotes
 
-- [ ] definir evento de discovery com fingerprint, fonte, confiança, freshness e tombstone;
+- [x] definir evento de discovery com fingerprint, fonte, confiança, freshness e tombstone;
 - [ ] implementar inventário incremental e bounded por coletor, sem comando arbitrário;
 - [ ] autorregistrar agente/HUB com identidade forte, quarentena e rotação;
 - [ ] detectar rename, desaparecimento temporário e retorno preservando identidade;

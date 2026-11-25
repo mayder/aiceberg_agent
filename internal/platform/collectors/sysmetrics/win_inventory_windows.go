@@ -47,7 +47,8 @@ func collectWindowsApps(ctx context.Context) []winApp {
 	  'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
 	  'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
 	)
-	Get-ItemProperty $paths | Select-Object DisplayName,DisplayVersion,Publisher,InstallDate,InstallLocation,InstallSource,UninstallString | ConvertTo-Json
+	$apps = @(Get-ItemProperty $paths | Select-Object DisplayName,DisplayVersion,Publisher,InstallDate,InstallLocation,InstallSource,UninstallString)
+	ConvertTo-Json -InputObject $apps
 	`
 	cmd := exec.CommandContext(ctx, path, "-Command", script)
 	raw, err := cmd.Output()

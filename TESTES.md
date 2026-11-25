@@ -953,3 +953,120 @@ loopback→pipeline→PHP. Sem SQL, UI, collector/scheduler produtivo, release/u
 configuração privada ou teste físico SADA. Contrato canônico Web:
 docs/contracts/monitoring-pipeline-v1.md. Item5 de desenvolvimento qualificado;
 itens6–14 abertos, pacote115/contraparte19 não encerrados.
+
+### Discovery de discos Linux
+
+O pacote `internal/platform/collectors/diskretirement` cobre sinal de
+remoção de bloco, identidade de I/O para disco ou partição e ausência
+confirmada no sysfs. `TestDiskWatcherReportsKernelRemovalOfOwnedLoopDevice`
+aguarda a inscrição no netlink, remove um dispositivo de bloco virtual
+criado para o teste e confere a identidade, o instante e a ausência no sysfs.
+A primeira publicação falha de propósito e o Agente tenta novamente com
+o mesmo tombstone. O ensaio usa um contêiner Linux isolado sem rede, acesso
+ao dispositivo de controle loop e `AICEBERG_TEST_DISPOSABLE_LOOP_DEVICE=1`.
+Discos físicos e partições permanecem pendentes de validação em campo.
+
+Os testes Linux de hwmon verificam que o coletor aceita a próxima retirada
+após falha do outbox e reenvia o mesmo evento que ficou pendente. Um
+inventário indisponível adia o envio. Reaparecimento da identidade em
+outro dispositivo ou vencimento cancela o reenvio.
+
+`TestDiscoveryRetirementsSurviveRestartAndLostAcknowledgment`
+enfileira retiradas de interface, disco, sensor e serviço pelo bootstrap, reabre
+o Bolt e usa o transporte HTTP com credenciais atualizadas. Uma resposta
+de erro simula a perda do ACK após o recebimento. A tentativa seguinte
+leva os mesmos envelopes, e o ACK de duplicidade esvazia a fila.
+
+Os testes de `serviceretirement` cobrem enumeração indisponível,
+serviço ainda instalado, acesso negado, exclusão confirmada e retorno
+antes do reenvio. O teste de outbox preserva o fingerprint e o instante
+originais. A compilação Windows amd64 cobre a ligação ao SCM. O ensaio de
+exclusão usando o SCM de um host Windows continua pendente.
+O pacote local `discovery-windows-amd64-20261124T232612Z.zip` reúne os
+testes nativos compilados de aplicativo no Registro, serviço no SCM e
+consulta ao Event Log. O runner confere SHA-256, exige PowerShell elevado
+e exige a linha `PASS` de cada teste. Foram validados formato PE AMD64,
+integridade do ZIP e sintaxe do runner no Mac. A execução em um Windows
+de laboratório autorizado segue pendente.
+As fixtures do systemd cobrem nomes que diferem por caixa, serviços
+parados ou mascarados, unidades geradas e respostas incompletas. Apenas
+a ausência confirmada de uma unidade instalada produz a retirada.
+`TestNativeSystemdServiceRemovalAndReturn` passou em Linux arm64 com
+systemd 255 na VM Colima existente. O coletor real observou uma unit
+inativa instalada e emitiu a retirada após o gerenciador confirmar a
+remoção. O reenvio após falha simulada do outbox manteve o evento original.
+A restauração recuperou a mesma identidade. A fixture e o binário foram
+removidos e a VM retornou ao estado desligado.
+
+### Retirada de aplicações Debian
+
+`TestDebianRetirementUsesDPKGInDisposableRoot` instala, remove, reinstala e
+expurga um pacote de fixture, usando uma raiz dpkg em `/tmp` dentro do
+contêiner já disponível `php:8.3-cli-bookworm`. O container é descartável,
+sem rede e com o sistema raiz somente leitura. O teste confirma o mesmo
+fingerprint no remove e no purge e exige duas capturas depois do purge.
+As fixtures cobrem atualização intermediária, arquitetura qualificada,
+saída incompleta e falha de outbox. A integração de bootstrap inclui o
+evento de aplicação no replay HTTP após reabrir o Bolt.
+
+`TestRPMRetirementUsesNativeDatabaseInDisposableRoot` usa o RPM real do
+contêiner local `mysql:8.4.11`. Remove só a entrada de um pacote na cópia
+temporária do banco RPM e comprova que duas capturas completas geram o
+evento com a arquitetura exata. As fixtures com duas versões e arquiteturas
+confirmam que a versão ou arquitetura restante continua no inventário.
+
+### Retirada de aplicações Windows
+
+As fixtures `TestRegistryApplication*` cobrem chave movida para outra
+visão, nomes ambíguos, renomeação na mesma chave, título indisponível e
+chave duplicada na captura. A integração de bootstrap inclui o replay do
+evento `registry` via outbox. O fluxo de reinstalação é exercitado com
+`inventory.windows_apps` na fixture MySQL do Runtime. A validação nativa
+de desinstalação e reinstalação em um host Windows continua pendente.
+O ensaio opt-in `TestNativeRegistryApplicationRemovalAndReturn` está
+compilado para Windows x64. Ele usa uma chave nova e exclusiva no
+Registro local, lê as visões pelo coletor real e verifica retirada e
+retorno do mesmo fingerprint. Falta executar o ensaio em um Windows
+de teste autorizado.
+A fixture nativa `TestNativeWindowsServiceRemovalAndReturn` cria um
+serviço temporário desabilitado, verifica a captura pelo SCM, sua
+ausência após exclusão e a mesma identidade após recriação. Também
+foi compilada para Windows x64 e aguarda execução em host autorizado.
+
+### Retirada de arquivos de log
+
+`TestFileRetirement*` usa arquivos e diretórios reais em raiz temporária
+para conferir rotação, retorno, troca do diretório e desativação do
+Discovery. A fixture de outbox confirma reenvio com o mesmo evento quando
+a primeira gravação falha. O replay HTTP do bootstrap inclui a origem
+`log_sources`. Web e Runtime exercitam reconciliação por fingerprint
+único; o mesmo evento reenviado após retorno não reabre a retirada.
+
+### Fontes de logs do systemd e journald
+
+`TestSystemdLogSourceWaitsForUnitAndPathToBeAbsent` remove o caminho
+temporário de uma unit de fixture e comprova que a resposta do
+gerenciador precisa confirmar a ausência. A fixture cobre serviço
+presente, permissão negada e duas confirmações separadas. O teste do
+journald usa um socket Unix real e comprova que o socket ausente sozinho
+preserva a fonte. No VMAIPROD2, a consulta somente leitura verificou
+`loaded/active` para systemd-journald e `not-found/inactive` para um
+nome de fixture inexistente. Em 24/11/2026,
+`TestNativeSystemdLogSourceRemovalAndReturn` passou na VM Colima
+existente, Linux arm64 com systemd 255. O coletor real descobriu uma
+unit instalada e inativa em `/run/systemd/system`, emitiu um evento
+após remoção e duas confirmações e recuperou o fingerprint original
+após a restauração. A fixture avançou o relógio do tracker para
+exercitar a carência de dois minutos. A unit e o binário de teste
+foram removidos, a VM voltou a ficar desligada e o contexto Docker
+Desktop continuou ativo. O ensaio exercita o coletor e a emissão
+local da retirada sem qualificar a operação em produção.
+
+### Canais do Windows Event Log
+
+`TestEventChannel*` cobre descoberta de canais padrão e configurados,
+identidade estável por nome, acesso negado, canal registrado fora da
+captura e ausência sustentada. `TestNativeEventLogChannelProbe` consulta
+System e um canal de fixture inexistente em Windows. Sua compilação foi
+verificada para Windows x64. A execução em host Windows e a remoção e
+volta de um canal real seguem pendentes.
