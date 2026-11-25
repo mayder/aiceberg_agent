@@ -44,7 +44,8 @@ type PipelineAuthority struct {
 type CompiledPipeline struct {
 	definition PipelineDefinition
 	authority  PipelineAuthority
-	operands   []float64
+	steps      []compiledPipelineStep
+	stateful   bool
 }
 
 // PipelineBudget is trusted execution policy, never an artifact-supplied allowance.

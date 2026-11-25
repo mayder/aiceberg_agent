@@ -13,7 +13,7 @@ var configurationReference = regexp.MustCompile(`^check-config:v1:([1-9][0-9]{0,
 
 func configurationParameterType(name string) string {
 	switch name {
-	case "tipo", "nome", "metric", "source", "kind", "unit", "value_type", "pipeline_ref", "configuration_ref":
+	case "tipo", "nome", "metric", "source", "kind", "unit", "value_type", "pipeline_ref", "configuration_ref", "formula":
 		return "text"
 	case "interval_sec", "timeout_ms", "retries", "fail_threshold", "success_threshold", "freshness_sec", "history_days", "trends_days":
 		return "integer"
@@ -115,6 +115,8 @@ func configurationText(name, s string, a ConfigurationAuthority) bool {
 		return definitionUnit.MatchString(s)
 	case "metric":
 		return definitionMetric.MatchString(s)
+	case "formula":
+		return formulaTokens(s) != nil
 	case "pipeline_ref":
 		return configurationIdentifier.MatchString(s) && definitionEnum(s, a.PipelineReferences...)
 	case "credential_ref":

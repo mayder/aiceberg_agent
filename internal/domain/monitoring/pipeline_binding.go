@@ -6,24 +6,15 @@ func pipelineInputDefinition(c Configuration, a ConfigurationAuthority, p Compil
 	if _, err := EncodeConfiguration(c, a); err != nil {
 		return Definition{}, nil, err
 	}
-	pin := p.authority
-	spec := p.definition
-	if spec.Contract != "monitoring.pipeline.v1" || pin.SHA256 == "" || pin.ClientID != c.Definition.ClientID || pin.AssetID != c.Definition.AssetID || pin.ConfigurationRevision != c.Definition.Revision {
-		return Definition{}, nil, errors.New("pipeline_scope_mismatch")
+	if err := pipelineMatchesScope(c, p); err != nil {
+		return Definition{}, nil, err
 	}
-	definitions := map[string]ItemDefinition{}
-	items := map[string]ConfigurationItem{}
-	for _, item := range c.Definition.Items {
-		definitions[item.Key] = item
-	}
-	for _, item := range c.Items {
-		items[item.ItemKey] = item
-	}
+	definitions, items := pipelineConfigurationItems(c)
 	assigned := map[string]bool{}
-	for _, key := range pin.ItemKeys {
+	for _, key := range p.authority.ItemKeys {
 		d, exists := definitions[key]
 		item, found := items[key]
-		if !exists || !found || !d.Enabled || configurationString(item.Parameters["pipeline_ref"]) != spec.ID || d.ValueType != spec.OutputType || d.Unit != spec.OutputUnit {
+		if !exists || !found || !pipelineMatchesItem(d, item, p) {
 			return Definition{}, nil, errors.New("pipeline_binding_mismatch")
 		}
 		if d.Kind != "collected" {
@@ -35,11 +26,36 @@ func pipelineInputDefinition(c Configuration, a ConfigurationAuthority, p Compil
 	result.Items = append([]ItemDefinition{}, c.Definition.Items...)
 	for n, item := range result.Items {
 		if assigned[item.Key] {
-			result.Items[n].ValueType = spec.InputType
-			result.Items[n].Unit = spec.InputUnit
+			result.Items[n] = graphInputItem(item, p)
 		}
 	}
 	return result, assigned, nil
+}
+
+func pipelineMatchesScope(c Configuration, p CompiledPipeline) error {
+	pin := p.authority
+	spec := p.definition
+	if spec.Contract != "monitoring.pipeline.v1" || pin.SHA256 == "" || pin.ClientID != c.Definition.ClientID || pin.AssetID != c.Definition.AssetID || pin.ConfigurationRevision != c.Definition.Revision {
+		return errors.New("pipeline_scope_mismatch")
+	}
+	return nil
+}
+
+func pipelineConfigurationItems(c Configuration) (map[string]ItemDefinition, map[string]ConfigurationItem) {
+	definitions := map[string]ItemDefinition{}
+	items := map[string]ConfigurationItem{}
+	for _, item := range c.Definition.Items {
+		definitions[item.Key] = item
+	}
+	for _, item := range c.Items {
+		items[item.ItemKey] = item
+	}
+	return definitions, items
+}
+
+func pipelineMatchesItem(d ItemDefinition, item ConfigurationItem, p CompiledPipeline) bool {
+	return d.Enabled && configurationString(item.Parameters["pipeline_ref"]) == p.definition.ID &&
+		d.ValueType == p.definition.OutputType && d.Unit == p.definition.OutputUnit
 }
 
 func validatePipelineBudget(b PipelineBudget) error {

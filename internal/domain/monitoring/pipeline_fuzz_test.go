@@ -2,22 +2,18 @@ package monitoring
 
 import (
 	"context"
-	"encoding/json"
-	"os"
 	"testing"
 )
 
 func FuzzPipelineBoundedCompileAndExecutionNeverPanic(f *testing.F) {
-	raw, err := os.ReadFile("testdata/pipeline-v1.json")
-	if err != nil {
-		f.Fatal(err)
-	}
-	var cases []pipelineCase
-	if json.Unmarshal(raw, &cases) != nil || len(cases) == 0 {
-		f.Fatal("invalid fixture")
-	}
+	cases := pipelineCases(f)
 	c := cases[0]
 	f.Add([]byte(c.Wire))
+	for _, item := range cases {
+		if item.CompileValid {
+			f.Add([]byte(item.Wire))
+		}
+	}
 	f.Add([]byte(`{}`))
 	f.Add([]byte(`null`))
 

@@ -75,6 +75,9 @@ func validateConfigurationItem(i ConfigurationItem, d ItemDefinition, keys map[s
 		return err
 	}
 	p := i.Parameters
+	if _, ok := p["formula"]; ok && d.Kind != "calculated" {
+		return errInvalidFormula
+	}
 	for name, want := range map[string]string{"metric": d.Metric, "source": d.Source, "kind": d.Kind, "unit": d.Unit, "value_type": d.ValueType} {
 		if configurationString(p[name]) != want {
 			return errors.New("monitoring_configuration_definition_mismatch")

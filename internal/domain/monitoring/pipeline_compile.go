@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -30,17 +29,12 @@ func CompilePipeline(raw []byte, a PipelineAuthority) (CompiledPipeline, error) 
 	if json.Unmarshal(raw, &p) != nil {
 		return CompiledPipeline{}, errors.New("invalid_monitoring_pipeline")
 	}
-	if err := validatePipelineDefinition(p, a); err != nil {
+	steps, err := compilePipelineSteps(p, a)
+	if err != nil {
 		return CompiledPipeline{}, err
 	}
 	a.ItemKeys = append([]string{}, a.ItemKeys...)
-	operands := make([]float64, len(p.Steps))
-	for n, step := range p.Steps {
-		if step.Operation != "identity" {
-			operands[n], _ = strconv.ParseFloat(string(bytes.TrimSpace(step.Argument)), 64)
-		}
-	}
-	return CompiledPipeline{definition: p, authority: a, operands: operands}, nil
+	return CompiledPipeline{definition: p, authority: a, steps: steps, stateful: pipelineHasState(p.Steps)}, nil
 }
 
 func validatePipelineAuthority(a PipelineAuthority) error {
@@ -83,26 +77,29 @@ func pipelineShape(raw []byte) bool {
 	return true
 }
 
-func validatePipelineDefinition(p PipelineDefinition, a PipelineAuthority) error {
+func compilePipelineSteps(p PipelineDefinition, a PipelineAuthority) ([]compiledPipelineStep, error) {
 	if p.Contract != "monitoring.pipeline.v1" || p.SchemaVersion != 1 || p.ID != a.ID || p.Revision != a.Revision || p.ClientID != a.ClientID || len(p.Steps) < 1 || len(p.Steps) > MaxPipelineSteps || !pipelineType(p.InputType) || !pipelineType(p.OutputType) || !definitionUnit.MatchString(p.InputUnit) || !definitionUnit.MatchString(p.OutputUnit) {
-		return errors.New("invalid_monitoring_pipeline")
+		return nil, errors.New("invalid_monitoring_pipeline")
 	}
+	compiled := make([]compiledPipelineStep, 0, len(p.Steps))
 	kind, unit := p.InputType, p.InputUnit
 	seen := map[string]bool{}
-	for _, step := range p.Steps {
-		if !configurationIdentifier.MatchString(step.ID) || seen[step.ID] || step.InputType != kind || step.InputUnit != unit || !pipelineType(step.OutputType) || !definitionUnit.MatchString(step.OutputUnit) {
-			return errors.New("invalid_pipeline_chain")
+	for index, step := range p.Steps {
+		if (step.Operation == "throttle" && index != len(p.Steps)-1) || !configurationIdentifier.MatchString(step.ID) || seen[step.ID] || step.InputType != kind || step.InputUnit != unit || !pipelineType(step.OutputType) || !definitionUnit.MatchString(step.OutputUnit) {
+			return nil, errors.New("invalid_pipeline_chain")
 		}
-		if err := validatePipelineStep(step); err != nil {
-			return err
+		operation, err := compilePipelineStep(step)
+		if err != nil {
+			return nil, err
 		}
+		compiled = append(compiled, operation)
 		seen[step.ID] = true
 		kind, unit = step.OutputType, step.OutputUnit
 	}
 	if kind != p.OutputType || unit != p.OutputUnit {
-		return errors.New("invalid_pipeline_chain")
+		return nil, errors.New("invalid_pipeline_chain")
 	}
-	return nil
+	return compiled, nil
 }
 
 func validatePipelineStep(s PipelineStep) error {
@@ -123,4 +120,13 @@ func validatePipelineStep(s PipelineStep) error {
 
 func pipelineType(s string) bool {
 	return definitionEnum(s, "number", "integer", "boolean", "text", "event")
+}
+
+func pipelineHasState(steps []PipelineStep) bool {
+	for _, step := range steps {
+		if definitionEnum(step.Operation, "delta", "throttle") {
+			return true
+		}
+	}
+	return false
 }

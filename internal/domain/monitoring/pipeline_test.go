@@ -24,26 +24,33 @@ type pipelineCase struct {
 	CompileValid           bool                   `json:"compile_valid"`
 	RunValid               bool                   `json:"run_valid"`
 	Expected               struct {
-		Value      json.RawMessage `json:"value"`
-		State      string          `json:"state"`
-		Reason     string          `json:"reason"`
-		Failed     int             `json:"failed"`
-		Skipped    int             `json:"skipped"`
-		Operations int             `json:"operations"`
+		Value       json.RawMessage `json:"value"`
+		State       string          `json:"state"`
+		Reason      string          `json:"reason"`
+		FailureCode string          `json:"failure_code"`
+		Failed      int             `json:"failed"`
+		Skipped     int             `json:"skipped"`
+		Operations  int             `json:"operations"`
 	} `json:"expected"`
 }
 
-func pipelineCases(t *testing.T) []pipelineCase {
+var pipelineFixtureNames = []string{"pipeline-v1.json", "pipeline-xmlpath-v1.json"}
+
+func pipelineCases(t testing.TB) []pipelineCase {
 	t.Helper()
-	raw, err := os.ReadFile("testdata/pipeline-v1.json")
-	if err != nil {
-		t.Fatal(err)
+	var all []pipelineCase
+	for _, name := range pipelineFixtureNames {
+		raw, err := os.ReadFile(filepath.Join("testdata/", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var cases []pipelineCase
+		if err := json.Unmarshal(raw, &cases); err != nil || len(cases) == 0 {
+			t.Fatalf("invalid fixture %s: %v", name, err)
+		}
+		all = append(all, cases...)
 	}
-	var cases []pipelineCase
-	if json.Unmarshal(raw, &cases) != nil {
-		t.Fatal("invalid pipeline fixtures")
-	}
-	return cases
+	return all
 }
 
 func TestPipelineSharedVersionTypesMathStatesAndLimits(t *testing.T) {
@@ -91,8 +98,12 @@ func assertPipelineResult(t *testing.T, c pipelineCase, r PipelineExecution) {
 	if len(r.Failures) != r.Failed {
 		t.Fatal("missing safe failure trace")
 	}
+	code := c.Expected.FailureCode
+	if code == "" {
+		code = "pipeline_numeric_range"
+	}
 	for _, failure := range r.Failures {
-		if failure.Code != "pipeline_numeric_range" || failure.ItemKey != got.ItemKey || failure.ObservedAtMS != got.ObservedAtMS || failure.StepID != "step1" {
+		if failure.Code != code || failure.ItemKey != got.ItemKey || failure.ObservedAtMS != got.ObservedAtMS || failure.StepID != "step1" {
 			t.Fatal("unsafe trace", failure)
 		}
 	}
@@ -146,9 +157,14 @@ func comparePipelinePHP(t *testing.T, root string, requests []map[string]any, ca
 			t.Fatalf("PHP acceptance mismatch %s: %+v", c.Name, results[i])
 		}
 	}
-	local, _ := os.ReadFile("testdata/pipeline-v1.json")
-	peer, err := os.ReadFile(filepath.Join(root, "docs/contracts/fixtures/monitoring-pipeline-v1.json"))
-	if err != nil || !bytes.Equal(local, peer) {
-		t.Fatal("pipeline fixtures drift", err)
+	for _, name := range pipelineFixtureNames {
+		local, err := os.ReadFile(filepath.Join("testdata/", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		peer, err := os.ReadFile(filepath.Join(root, "docs/contracts/fixtures", "monitoring-"+name))
+		if err != nil || !bytes.Equal(local, peer) {
+			t.Fatalf("pipeline fixture %s drift: %v", name, err)
+		}
 	}
 }

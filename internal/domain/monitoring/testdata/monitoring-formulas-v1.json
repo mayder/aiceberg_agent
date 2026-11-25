@@ -1,0 +1,1116 @@
+{
+  "configuration": {
+    "contract": "monitoring.configuration.v1",
+    "schema_version": 1,
+    "definition": {
+      "schema_version": 1,
+      "revision": 1,
+      "client_id": 3,
+      "asset_id": 52,
+      "items": [
+        {
+          "key": "v1:c:3:a:52:check:73:derived:after_failure",
+          "check_id": 73,
+          "metric": "after_failure",
+          "source": "derived",
+          "kind": "calculated",
+          "value_type": "integer",
+          "unit": "one",
+          "freshness_sec": 60,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:73:derived:divide_zero"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:double_sum",
+          "check_id": 73,
+          "metric": "double_sum",
+          "source": "derived",
+          "kind": "calculated",
+          "value_type": "integer",
+          "unit": "milliseconds",
+          "freshness_sec": 60,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:73:derived:sum"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:divide_zero",
+          "check_id": 73,
+          "metric": "divide_zero",
+          "source": "derived",
+          "kind": "calculated",
+          "value_type": "integer",
+          "unit": "one",
+          "freshness_sec": 60,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:73:tcp:latency_ms",
+            "v1:c:3:a:52:check:73:tcp:reference"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:ratio",
+          "check_id": 73,
+          "metric": "ratio",
+          "source": "derived",
+          "kind": "calculated",
+          "value_type": "number",
+          "unit": "one",
+          "freshness_sec": 60,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:73:tcp:latency_ms",
+            "v1:c:3:a:52:check:73:tcp:reference"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:mean",
+          "check_id": 73,
+          "metric": "mean",
+          "source": "derived",
+          "kind": "calculated",
+          "value_type": "number",
+          "unit": "milliseconds",
+          "freshness_sec": 60,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:73:tcp:latency_ms",
+            "v1:c:3:a:52:check:73:tcp:reference"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:sum",
+          "check_id": 73,
+          "metric": "sum",
+          "source": "derived",
+          "kind": "calculated",
+          "value_type": "integer",
+          "unit": "milliseconds",
+          "freshness_sec": 60,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:73:tcp:latency_ms",
+            "v1:c:3:a:52:check:73:tcp:reference"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:tcp:reference",
+          "check_id": 73,
+          "metric": "reference",
+          "source": "tcp",
+          "kind": "collected",
+          "value_type": "integer",
+          "unit": "milliseconds",
+          "freshness_sec": 60,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": []
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:blocked",
+          "check_id": 73,
+          "metric": "blocked",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "integer",
+          "unit": "milliseconds",
+          "freshness_sec": 60,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:73:derived:range"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:range",
+          "check_id": 73,
+          "metric": "range",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "integer",
+          "unit": "milliseconds",
+          "freshness_sec": 60,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:73:tcp:latency_ms"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:offset",
+          "check_id": 73,
+          "metric": "offset",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "integer",
+          "unit": "microseconds",
+          "freshness_sec": 60,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:73:derived:scaled"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:echo",
+          "check_id": 73,
+          "metric": "echo",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "integer",
+          "unit": "milliseconds",
+          "freshness_sec": 10,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:73:tcp:latency_ms"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:derived:scaled",
+          "check_id": 73,
+          "metric": "scaled",
+          "source": "derived",
+          "kind": "dependent",
+          "value_type": "integer",
+          "unit": "microseconds",
+          "freshness_sec": 60,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": [
+            "v1:c:3:a:52:check:73:tcp:latency_ms"
+          ]
+        },
+        {
+          "key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+          "check_id": 73,
+          "metric": "latency_ms",
+          "source": "tcp",
+          "kind": "collected",
+          "value_type": "integer",
+          "unit": "milliseconds",
+          "freshness_sec": 60,
+          "history_days": 1,
+          "trends_days": 0,
+          "enabled": true,
+          "depends_on": []
+        }
+      ]
+    },
+    "root": {
+      "id": 1,
+      "revision": 1
+    },
+    "lineage": [
+      {
+        "id": 1,
+        "revision": 1
+      }
+    ],
+    "items": [
+      {
+        "template_key": "after_failure",
+        "item_key": "v1:c:3:a:52:check:73:derived:after_failure",
+        "source_item_id": 46,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "after_failure"
+          },
+          "source": {
+            "type": "text",
+            "value": "derived"
+          },
+          "kind": {
+            "type": "text",
+            "value": "calculated"
+          },
+          "unit": {
+            "type": "text",
+            "value": "one"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "integer"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": [
+              "divide_zero"
+            ]
+          },
+          "formula": {
+            "type": "text",
+            "value": "d1 i:one:1 +"
+          }
+        }
+      },
+      {
+        "template_key": "double_sum",
+        "item_key": "v1:c:3:a:52:check:73:derived:double_sum",
+        "source_item_id": 45,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "double_sum"
+          },
+          "source": {
+            "type": "text",
+            "value": "derived"
+          },
+          "kind": {
+            "type": "text",
+            "value": "calculated"
+          },
+          "unit": {
+            "type": "text",
+            "value": "milliseconds"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "integer"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": [
+              "sum"
+            ]
+          },
+          "formula": {
+            "type": "text",
+            "value": "d1 i:one:2 *"
+          }
+        }
+      },
+      {
+        "template_key": "divide_zero",
+        "item_key": "v1:c:3:a:52:check:73:derived:divide_zero",
+        "source_item_id": 44,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "divide_zero"
+          },
+          "source": {
+            "type": "text",
+            "value": "derived"
+          },
+          "kind": {
+            "type": "text",
+            "value": "calculated"
+          },
+          "unit": {
+            "type": "text",
+            "value": "one"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "integer"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": [
+              "catalog-item-10",
+              "reference"
+            ]
+          },
+          "formula": {
+            "type": "text",
+            "value": "d1 d2 d2 - /"
+          }
+        }
+      },
+      {
+        "template_key": "ratio",
+        "item_key": "v1:c:3:a:52:check:73:derived:ratio",
+        "source_item_id": 43,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "ratio"
+          },
+          "source": {
+            "type": "text",
+            "value": "derived"
+          },
+          "kind": {
+            "type": "text",
+            "value": "calculated"
+          },
+          "unit": {
+            "type": "text",
+            "value": "one"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "number"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": [
+              "catalog-item-10",
+              "reference"
+            ]
+          },
+          "formula": {
+            "type": "text",
+            "value": "d1 number d2 number /"
+          }
+        }
+      },
+      {
+        "template_key": "mean",
+        "item_key": "v1:c:3:a:52:check:73:derived:mean",
+        "source_item_id": 42,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "mean"
+          },
+          "source": {
+            "type": "text",
+            "value": "derived"
+          },
+          "kind": {
+            "type": "text",
+            "value": "calculated"
+          },
+          "unit": {
+            "type": "text",
+            "value": "milliseconds"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "number"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": [
+              "catalog-item-10",
+              "reference"
+            ]
+          },
+          "formula": {
+            "type": "text",
+            "value": "d1 number d2 number + n:one:2 /"
+          }
+        }
+      },
+      {
+        "template_key": "sum",
+        "item_key": "v1:c:3:a:52:check:73:derived:sum",
+        "source_item_id": 41,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "sum"
+          },
+          "source": {
+            "type": "text",
+            "value": "derived"
+          },
+          "kind": {
+            "type": "text",
+            "value": "calculated"
+          },
+          "unit": {
+            "type": "text",
+            "value": "milliseconds"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "integer"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": [
+              "catalog-item-10",
+              "reference"
+            ]
+          },
+          "formula": {
+            "type": "text",
+            "value": "d1 d2 +"
+          }
+        }
+      },
+      {
+        "template_key": "reference",
+        "item_key": "v1:c:3:a:52:check:73:tcp:reference",
+        "source_item_id": 40,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "reference"
+          },
+          "source": {
+            "type": "text",
+            "value": "tcp"
+          },
+          "kind": {
+            "type": "text",
+            "value": "collected"
+          },
+          "unit": {
+            "type": "text",
+            "value": "milliseconds"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "integer"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": []
+          }
+        }
+      },
+      {
+        "template_key": "blocked",
+        "item_key": "v1:c:3:a:52:check:73:derived:blocked",
+        "source_item_id": 24,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "blocked"
+          },
+          "source": {
+            "type": "text",
+            "value": "derived"
+          },
+          "kind": {
+            "type": "text",
+            "value": "dependent"
+          },
+          "unit": {
+            "type": "text",
+            "value": "milliseconds"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "integer"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": [
+              "range"
+            ]
+          }
+        }
+      },
+      {
+        "template_key": "range",
+        "item_key": "v1:c:3:a:52:check:73:derived:range",
+        "source_item_id": 23,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "range"
+          },
+          "source": {
+            "type": "text",
+            "value": "derived"
+          },
+          "kind": {
+            "type": "text",
+            "value": "dependent"
+          },
+          "unit": {
+            "type": "text",
+            "value": "milliseconds"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "integer"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": [
+              "catalog-item-10"
+            ]
+          },
+          "pipeline_ref": {
+            "type": "text",
+            "value": "range-ms"
+          }
+        }
+      },
+      {
+        "template_key": "offset",
+        "item_key": "v1:c:3:a:52:check:73:derived:offset",
+        "source_item_id": 22,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "offset"
+          },
+          "source": {
+            "type": "text",
+            "value": "derived"
+          },
+          "kind": {
+            "type": "text",
+            "value": "dependent"
+          },
+          "unit": {
+            "type": "text",
+            "value": "microseconds"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "integer"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": [
+              "scaled"
+            ]
+          },
+          "pipeline_ref": {
+            "type": "text",
+            "value": "offset-us"
+          }
+        }
+      },
+      {
+        "template_key": "echo",
+        "item_key": "v1:c:3:a:52:check:73:derived:echo",
+        "source_item_id": 21,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "echo"
+          },
+          "source": {
+            "type": "text",
+            "value": "derived"
+          },
+          "kind": {
+            "type": "text",
+            "value": "dependent"
+          },
+          "unit": {
+            "type": "text",
+            "value": "milliseconds"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "integer"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 10
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": [
+              "catalog-item-10"
+            ]
+          }
+        }
+      },
+      {
+        "template_key": "scaled",
+        "item_key": "v1:c:3:a:52:check:73:derived:scaled",
+        "source_item_id": 20,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "scaled"
+          },
+          "source": {
+            "type": "text",
+            "value": "derived"
+          },
+          "kind": {
+            "type": "text",
+            "value": "dependent"
+          },
+          "unit": {
+            "type": "text",
+            "value": "microseconds"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "integer"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": [
+              "catalog-item-10"
+            ]
+          },
+          "pipeline_ref": {
+            "type": "text",
+            "value": "scale-unit"
+          }
+        }
+      },
+      {
+        "template_key": "catalog-item-10",
+        "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+        "source_item_id": 10,
+        "source_template_id": 1,
+        "source_revision": 1,
+        "parameters": {
+          "metric": {
+            "type": "text",
+            "value": "latency_ms"
+          },
+          "source": {
+            "type": "text",
+            "value": "tcp"
+          },
+          "kind": {
+            "type": "text",
+            "value": "collected"
+          },
+          "unit": {
+            "type": "text",
+            "value": "milliseconds"
+          },
+          "value_type": {
+            "type": "text",
+            "value": "integer"
+          },
+          "freshness_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "history_days": {
+            "type": "integer",
+            "value": 1
+          },
+          "trends_days": {
+            "type": "integer",
+            "value": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "value": true
+          },
+          "depends_on": {
+            "type": "text_list",
+            "value": []
+          },
+          "interval_sec": {
+            "type": "integer",
+            "value": 60
+          },
+          "tipo": {
+            "type": "text",
+            "value": "tcp"
+          },
+          "configuration_ref": {
+            "type": "text",
+            "value": "check-config:v1:3:1:10:tcp:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        }
+      }
+    ]
+  },
+  "configuration_authority": {
+    "revision": 1,
+    "root": {
+      "id": 1,
+      "revision": 1
+    },
+    "definition": {
+      "client_id": 3,
+      "asset_id": 52,
+      "check_ids": [
+        73
+      ]
+    },
+    "bindings": {
+      "catalog-item-10": {
+        "check_id": 73,
+        "source_item_id": 10,
+        "source_template_id": 1
+      },
+      "scaled": {
+        "check_id": 73,
+        "source_item_id": 20,
+        "source_template_id": 1
+      },
+      "echo": {
+        "check_id": 73,
+        "source_item_id": 21,
+        "source_template_id": 1
+      },
+      "offset": {
+        "check_id": 73,
+        "source_item_id": 22,
+        "source_template_id": 1
+      },
+      "range": {
+        "check_id": 73,
+        "source_item_id": 23,
+        "source_template_id": 1
+      },
+      "blocked": {
+        "check_id": 73,
+        "source_item_id": 24,
+        "source_template_id": 1
+      },
+      "reference": {
+        "check_id": 73,
+        "source_item_id": 40,
+        "source_template_id": 1
+      },
+      "sum": {
+        "check_id": 73,
+        "source_item_id": 41,
+        "source_template_id": 1
+      },
+      "mean": {
+        "check_id": 73,
+        "source_item_id": 42,
+        "source_template_id": 1
+      },
+      "ratio": {
+        "check_id": 73,
+        "source_item_id": 43,
+        "source_template_id": 1
+      },
+      "divide_zero": {
+        "check_id": 73,
+        "source_item_id": 44,
+        "source_template_id": 1
+      },
+      "double_sum": {
+        "check_id": 73,
+        "source_item_id": 45,
+        "source_template_id": 1
+      },
+      "after_failure": {
+        "check_id": 73,
+        "source_item_id": 46,
+        "source_template_id": 1
+      }
+    },
+    "template_revisions": {
+      "1": 1
+    },
+    "secret_references": [],
+    "pipeline_references": [
+      "scale-unit",
+      "offset-us",
+      "range-ms"
+    ]
+  },
+  "budget": {
+    "max_steps": 32,
+    "max_operations": 4096,
+    "max_input_bytes": 262144,
+    "max_output_bytes": 262144,
+    "timeout_ms": 2000
+  },
+  "batch": {
+    "contract": "monitoring.records.v1",
+    "schema_version": 1,
+    "definition_revision": 1,
+    "client_id": 3,
+    "asset_id": 52,
+    "coverage": "complete",
+    "evaluated_at_ms": 1800000000000,
+    "records": [
+      {
+        "item_key": "v1:c:3:a:52:check:73:tcp:latency_ms",
+        "value_type": "integer",
+        "unit": "milliseconds",
+        "observed_at_ms": 1800000000000,
+        "state": "ok",
+        "reason": "none",
+        "value": 12
+      },
+      {
+        "item_key": "v1:c:3:a:52:check:73:tcp:reference",
+        "value_type": "integer",
+        "unit": "milliseconds",
+        "observed_at_ms": 1799999998000,
+        "state": "ok",
+        "reason": "none",
+        "value": 8
+      }
+    ]
+  },
+  "now_ms": 1800000000000,
+  "pipelines": [
+    {
+      "wire": "{\"contract\":\"monitoring.pipeline.v1\",\"schema_version\":1,\"id\":\"scale-unit\",\"revision\":1,\"client_id\":3,\"input_type\":\"integer\",\"input_unit\":\"milliseconds\",\"output_type\":\"integer\",\"output_unit\":\"microseconds\",\"steps\":[{\"id\":\"step1\",\"operation\":\"scale\",\"input_type\":\"integer\",\"input_unit\":\"milliseconds\",\"output_type\":\"integer\",\"output_unit\":\"microseconds\",\"argument\":1000}]}",
+      "authority": {
+        "client_id": 3,
+        "asset_id": 52,
+        "configuration_revision": 1,
+        "id": "scale-unit",
+        "revision": 1,
+        "item_keys": [
+          "v1:c:3:a:52:check:73:derived:scaled"
+        ],
+        "sha256": "efad31419410d963ad49eea308567fda2384b78715861af832d5d7ec29b4b791"
+      }
+    },
+    {
+      "wire": "{\"contract\":\"monitoring.pipeline.v1\",\"schema_version\":1,\"id\":\"offset-us\",\"revision\":1,\"client_id\":3,\"input_type\":\"integer\",\"input_unit\":\"microseconds\",\"output_type\":\"integer\",\"output_unit\":\"microseconds\",\"steps\":[{\"id\":\"step1\",\"operation\":\"offset\",\"input_type\":\"integer\",\"input_unit\":\"microseconds\",\"output_type\":\"integer\",\"output_unit\":\"microseconds\",\"argument\":4}]}",
+      "authority": {
+        "client_id": 3,
+        "asset_id": 52,
+        "configuration_revision": 1,
+        "id": "offset-us",
+        "revision": 1,
+        "item_keys": [
+          "v1:c:3:a:52:check:73:derived:offset"
+        ],
+        "sha256": "fbbb3f201597263d266d003ed3bd9d5a66c80ba62e1cbdb8eee09ed3dbf3fab0"
+      }
+    },
+    {
+      "wire": "{\"contract\":\"monitoring.pipeline.v1\",\"schema_version\":1,\"id\":\"range-ms\",\"revision\":1,\"client_id\":3,\"input_type\":\"integer\",\"input_unit\":\"milliseconds\",\"output_type\":\"integer\",\"output_unit\":\"milliseconds\",\"steps\":[{\"id\":\"step1\",\"operation\":\"validate\",\"input_type\":\"integer\",\"input_unit\":\"milliseconds\",\"output_type\":\"integer\",\"output_unit\":\"milliseconds\",\"argument\":{\"min\":1000000,\"max\":1000001}}]}",
+      "authority": {
+        "client_id": 3,
+        "asset_id": 52,
+        "configuration_revision": 1,
+        "id": "range-ms",
+        "revision": 1,
+        "item_keys": [
+          "v1:c:3:a:52:check:73:derived:range"
+        ],
+        "sha256": "acb55e277709b43b41c113a72c03bd2b37b83367f4e4cd6e5c9db01cc55cad0f"
+      }
+    }
+  ]
+}

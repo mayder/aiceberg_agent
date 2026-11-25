@@ -1313,3 +1313,72 @@ itens6–14 abertos, pacote115/contraparte19 não encerrados.
 - [ ] Check completo/revisão e publicação coordenada, sem incorporar modificações SNMP concorrentes.
 - [ ] Prova instalada no agente70/cliente1, configuração/hash aplicado, persistência/painel/alerta e rollback.
 Não encerrado; nenhum push, release/tag, atualização de agente ou notificação produtiva deste incremento.
+
+### Pipeline de monitoramento — item 6, 23/11/2026
+
+O executor Go do Agent e Runtime passa a validar faixa ou comprimento, extrair
+uma captura por regex e selecionar valores tipados por JSONPath singular.
+PHP verifica a estrutura e valida o batch de saída. A compilação Go autoriza
+a sintaxe e o custo do regex antes da execução. Os vetores compartilhados
+cobrem a ordem das etapas, limites, tipos, valores ausentes e falhas explícitas.
+A entrega local mantém o contrato de entrada e saída do item 5. A adoção requer
+confirmar que todos os executores da configuração suportam as novas operações.
+Em rollback, restaurar primeiro a revisão compatível ou desativar a atribuição.
+Ver contrato Web em docs/contracts/monitoring-pipeline-v1.md. Itens 7–14 abertos.
+
+
+### Pipeline de monitoramento — item 7
+
+XMLPath singular no Agente e Runtime, com seleção por filho direto, posição
+e atributo final. Valida documento completo, limites, cardinalidade e tipo
+antes de emitir resultado. XML rejeitado, ambiguidade, ausência e estouro de
+limite são distinguíveis sem expor conteúdo. PHP valida o caminho e consome o
+batch final. Ver contrato Web em docs/contracts/monitoring-pipeline-v1.md.
+A adoção produtiva depende de executores compatíveis no item 14.
+
+
+### Pipeline de monitoramento — item 8
+
+Delta para gauge e contador, com base inicial explícita, reset e proteção
+de faixa. Throttle por igualdade tipada e janela desde a última emissão.
+Checkpoint bbolt por vínculo com recibos atômicos, recuperação após
+reinício e recusa de observações conflitantes. Lote suprimido por inteiro
+não gera batch. Ver testes de transação, reentrega e PHP no contrato Web
+docs/contracts/monitoring-pipeline-v1.md. Ativação e gestão do ciclo de vida
+dos checkpoints ficam no item 14.
+
+
+### Pipeline de monitoramento — item 9
+
+O Agente e Runtime executam os itens dependentes do modelo validado, com
+ordem topológica e uma única passagem por nó a partir de um snapshot de
+coleta. Tipos, unidades, frescor e indisponibilidade são propagados por ramo.
+Delta e throttle usam checkpoint atômico do grafo. Qualificação local cobre
+fan-out TCP real com uma conexão, resultado consumível por PHP e reentrega
+do grafo após reabertura bbolt. Adoção em produção no item 14. Ver
+docs/contracts/monitoring-pipeline-v1.md no Web.
+
+
+### Pipeline de monitoramento — item 10
+
+Itens calculados executam fórmulas numéricas tipadas no DAG, com orçamento e
+validação estática de dependências, operadores e unidades. Lacunas, erros
+numéricos e frescor permanecem explícitos. Identidade do resultado calculado
+usa o ciclo, e o DAG preserva a idade da origem mais antiga para a cadeia.
+O compositor Go preserva a declaração da fórmula, e PHP valida a configuração
+e consome o lote. Os testes locais cobrem fórmulas encadeadas, múltiplas
+origens, falhas isoladas e combinação com checkpoint. Contrato Web:
+docs/contracts/monitoring-pipeline-v1.md. Adoção operacional no item 14.
+
+
+### Pipeline de monitoramento — item 11
+
+Etapa script WebAssembly com ABI para valores JSON tipados, no Agente e
+Runtime. O perfil sem imports restringe memória, instruções, concorrência
+e prazo. Tempo/capacidade abortam sem commit parcial. Falhas do valor são
+explícitas e isoladas no ramo. PHP valida o envelope e o resultado. Os
+testes locais cobrem rejeição de recursos proibidos, memória nova por
+chamada, tipo, trap, orçamento, fan-out e reentrega. Ver o contrato Web
+docs/contracts/monitoring-pipeline-v1.md. Adoção operacional no item 14.
+
+Este commit inclui o núcleo Go e os checkpoints locais. A projeção do coletor e a integração no executor continuam em validação separada.

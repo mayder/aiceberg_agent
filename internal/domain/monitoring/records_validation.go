@@ -52,17 +52,20 @@ func validateTypedRecord(record TypedRecord, items map[string]ItemDefinition, no
 	if definitionEnum(record.State, "ok", "problem") && !validRecordValue(record.ValueType, record.Value) {
 		return "", errors.New("invalid_monitoring_record_value")
 	}
+	return seriesRecordIdentity(record), nil
+}
+
+func seriesRecordIdentity(record TypedRecord) string {
 	suffix := "time:" + strconv.FormatInt(record.ObservedAtMS, 10)
 	if record.ValueType == "event" && !bytes.Equal(bytes.TrimSpace(record.Value), []byte("null")) {
 		event, _ := decodeRecordEvent(record.Value)
 		suffix = "event:" + event.EventID
 	}
-	return record.ItemKey + "|" + suffix, nil
+	return record.ItemKey + "|" + suffix
 }
 
 func validateRecordState(record TypedRecord, now, freshness int64) error {
-	reasons := map[string][]string{"ok": {"none"}, "problem": {"none"}, "unknown": {"missing", "invalid", "observation_failed", "partial", "time_budget", "future", "dependency_unavailable"}, "stale": {"stale"}, "unsupported": {"unsupported"}, "insufficient_data": {"insufficient_data"}}
-	if !definitionEnum(record.Reason, reasons[record.State]...) {
+	if !validRecordStateReason(record.State, record.Reason) {
 		return errors.New("invalid_monitoring_record_state")
 	}
 	future := record.ObservedAtMS > now
@@ -74,6 +77,11 @@ func validateRecordState(record TypedRecord, now, freshness int64) error {
 		return errors.New("invalid_monitoring_record_value")
 	}
 	return nil
+}
+
+func validRecordStateReason(state, reason string) bool {
+	reasons := map[string][]string{"ok": {"none"}, "problem": {"none"}, "unknown": {"missing", "invalid", "observation_failed", "partial", "time_budget", "future", "dependency_unavailable"}, "stale": {"stale"}, "unsupported": {"unsupported"}, "insufficient_data": {"insufficient_data"}}
+	return definitionEnum(reason, reasons[state]...)
 }
 
 func validateRecordsEnvelope(batch RecordsBatch, d Definition, a DefinitionAuthority, now int64) error {

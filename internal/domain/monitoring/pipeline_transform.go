@@ -11,13 +11,24 @@ import (
 
 // Numeric operations start from bounded IEEE values; no unbounded exponent parsing.
 // Rational arithmetic detects integer precision loss before any rounding can hide it.
-func pipelineTransform(step PipelineStep, operand float64, raw json.RawMessage) (json.RawMessage, error) {
+func pipelineTransform(step PipelineStep, compiled compiledPipelineStep, raw json.RawMessage) (json.RawMessage, error) {
 	if !validRecordValue(step.InputType, raw) {
 		return nil, errors.New("pipeline_value_invalid")
 	}
 	if step.Operation == "identity" {
 		return append([]byte{}, raw...), nil
 	}
+	switch step.Operation {
+	case "validate", "regex", "jsonpath", "xmlpath":
+		return pipelinePreprocess(step, compiled, raw)
+	case "scale", "offset":
+		return pipelineArithmetic(step, compiled.operand, raw)
+	default:
+		return nil, errors.New("unsupported_pipeline_step")
+	}
+}
+
+func pipelineArithmetic(step PipelineStep, operand float64, raw json.RawMessage) (json.RawMessage, error) {
 	value, err := strconv.ParseFloat(string(bytes.TrimSpace(raw)), 64)
 	if err != nil {
 		return nil, errors.New("pipeline_numeric_range")
@@ -30,7 +41,11 @@ func pipelineTransform(step PipelineStep, operand float64, raw json.RawMessage) 
 	} else {
 		result.Add(left, right)
 	}
-	if step.OutputType == "integer" {
+	return pipelineNumericResult(step.OutputType, result)
+}
+
+func pipelineNumericResult(kind string, result *big.Rat) (json.RawMessage, error) {
+	if kind == "integer" {
 		if !result.IsInt() || !result.Num().IsInt64() {
 			return nil, errors.New("pipeline_numeric_range")
 		}
