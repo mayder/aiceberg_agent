@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func batchClaim(values map[string]any) string {
@@ -82,22 +83,40 @@ func TestIdentityBatchScopeMatchesActualPHPValidator(t *testing.T) {
 		t.Skip("requires explicit Web checkout for the actual PHP oracle")
 	}
 	cfg := Config{Agent: AgentCfg{Token: "synthetic-secret"}, AgentClientID: 7, AgentID: 42, AgentInstallationID: "instalação-1"}
-	header := cfg.AgentIdentityHeader("servidor-á")
-	raw, err := base64.RawURLEncoding.DecodeString(header)
-	if err != nil {
-		t.Fatal(err)
+	for _, cfg := range []Config{cfg, {Agent: AgentCfg{Token: "synthetic-secret"}, AgentInstallationID: "instalação-1"}, {Agent: AgentCfg{Token: "synthetic-secret"}}} {
+		header := cfg.AgentIdentityHeader("servidor-á")
+		if _, _, ok := VerifiedIdentityBatchScope(header, "Token synthetic-secret", time.Now().Unix()); !ok {
+			t.Fatal("official legacy claim rejected")
+		}
+		raw, err := base64.RawURLEncoding.DecodeString(header)
+		if err != nil {
+			t.Fatal(err)
+		}
+		command := exec.Command("php", filepath.Join("..", "..", "..", "scripts", "identity_batch_php_oracle.php"))
+		command.Stdin = strings.NewReader(string(raw))
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("PHP oracle failed: %v: %s", err, output)
+		}
+		var result struct {
+			Trusted  bool `json:"trusted"`
+			Rejected bool `json:"changed_subject_rejected"`
+		}
+		if json.Unmarshal(output, &result) != nil || !result.Trusted || !result.Rejected {
+			t.Fatal("actual PHP signature/subject contract differs")
+		}
 	}
-	command := exec.Command("php", filepath.Join("..", "..", "..", "scripts", "identity_batch_php_oracle.php"))
-	command.Stdin = strings.NewReader(string(raw))
-	output, err := command.CombinedOutput()
-	if err != nil {
-		t.Fatalf("PHP oracle failed: %v: %s", err, output)
+}
+
+func TestIdentityBatchLegacyClaimsKeepHostAndInstallationBoundaries(t *testing.T) {
+	cfg := Config{Agent: AgentCfg{Token: "synthetic-secret"}}
+	a, _, ok := VerifiedIdentityBatchScope(cfg.AgentIdentityHeader("host-a"), "Token synthetic-secret", time.Now().Unix())
+	b, _, other := VerifiedIdentityBatchScope(cfg.AgentIdentityHeader("host-b"), "Token synthetic-secret", time.Now().Unix())
+	if !ok || !other || a == b {
+		t.Fatal("legacy signed host boundary lost")
 	}
-	var result struct {
-		Trusted  bool `json:"trusted"`
-		Rejected bool `json:"changed_subject_rejected"`
-	}
-	if json.Unmarshal(output, &result) != nil || !result.Trusted || !result.Rejected {
-		t.Fatal("actual PHP signature/subject contract differs")
+	claim := map[string]any{"schema_version": AgentIdentitySchemaVersion, "issued_at": time.Now().Unix(), "nonce": "n"}
+	if _, _, valid := VerifiedIdentityBatchScope(batchClaim(claim), "Token synthetic-secret", time.Now().Unix()); valid {
+		t.Fatal("claim without stable subject grouped")
 	}
 }

@@ -1550,3 +1550,8 @@ Não encerrado; nenhum push, release/tag, atualização de agente ou notificaç�
 - [x] Validar fronteiras,ordem,ACK/retry/cooldown e interoperabilidade comPHP real.
 - [ ] Gate completo,pacote assinado e piloto produtivo restritoHUB84.
 - [ ] Comprovar escoamento sustentado e custoCPU/RSS;0.8.72-rc.3 isolada não comprovou recuperação de vazão.
+
+### Compatibilidade legada0.8.72-rc.5
+
+- [x] Preservar campos opcionais do contrato assinadoPHP/Go e validar fronteiras/contagens redigidas.
+- [ ] Gate integral,pacote assinado e pilotoHUB84 com prova sustentada;rc.4 manteve fila cheia.

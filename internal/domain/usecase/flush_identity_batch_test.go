@@ -126,3 +126,22 @@ func BenchmarkVerifiedRelayBatch(b *testing.B) {
 		})
 	}
 }
+
+func TestVerifiedRelayLegacyBatchAndBoundedReasons(t *testing.T) {
+	cfg := config.Config{Agent: config.AgentCfg{Token: "synthetic-secret"}}
+	batch := make([]entities.Envelope, 0, 21)
+	for i := 0; i < 20; i++ {
+		batch = append(batch, entities.Envelope{ID: fmt.Sprint(i), AuthHeader: "Token synthetic-secret", IdentityHeader: cfg.AgentIdentityHeader("legacy-host"), Endpoint: "/v1/ingest/metrics"})
+	}
+	batch = append(batch, entities.Envelope{ID: "opaque", AuthHeader: "Token synthetic-secret", IdentityHeader: "opaque"})
+	uc := NewFlushOutboxWithOptions(nil, nil, &fakeLogger{}, "", nil, FlushOutboxOptions{BatchVerifiedIdentities: true})
+	groups, _ := uc.groupFlushBatch(batch)
+	s := uc.Snapshot()
+	if len(groups) != 2 || s.LastIdentityReasons["verified"] != 20 || s.LastIdentityReasons["invalid_claim"] != 1 {
+		t.Fatal("legacy batching/reasons incorrect", s)
+	}
+	s.LastIdentityReasons["verified"] = 0
+	if uc.Snapshot().LastIdentityReasons["verified"] != 20 {
+		t.Fatal("snapshot exposed mutable internal map")
+	}
+}

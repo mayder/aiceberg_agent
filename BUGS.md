@@ -633,3 +633,7 @@ Confirmado no código: Push/Replace/Len percorriam todos os valores para somar b
 ### Complemento: fragmentação por nonce da identidade assinada
 
 O piloto0.8.72-rc.3 manteve fila cheia:contabilidade corrigida não resolve sozinha a vazão. Identificado no código que cada request do relay gera nonce/assinatura novos; o HUB agrupava pelo cabeçalho inteiro, fragmentando amostras do mesmo sujeito. Novo agrupamento somenteHUB valida cada assinatura com a credencial original, schema/cliente/agente/instalação/host/validade idênticos, seleciona um cabeçalho original e conserva ordem de entrada e recibos. Claims inválidos/legados/escopos desconhecidos seguem separados. Cooldown usa o sujeito autenticado estável para impedir que nonce novo contorne401/Retry-After. Nenhum segredo/identidade é emitido no diagnóstico; apenas contagens de grupos.
+
+### Compatibilidade do sujeito assinado legado
+
+PHP e o gerador oficial aceitam identidade sem IDs numéricos, vinculada pelo token e host/instalação assinados. O agrupadorrc.4 exigia ambosIDs e mantinha esses grupos fragmentados. Candidatarc.5 preserva ausência no payload canônico, exige sujeito estável, valida HMAC e separa todos os campos presentes/auth/rota. Evidência limitada por contagens de motivos,sem emitir token,claim ou hash identificável. Pilotorc.4 confirmou atualização,mas continuou cheio; não atribuir recuperação.

@@ -16,6 +16,7 @@ type verifiedBatchIdentity struct {
 	issued int64
 	valid  bool
 	scope  string
+	reason string
 }
 
 // Selection preserves the input order and uses an original, verified header.
@@ -25,15 +26,18 @@ func (uc *FlushOutbox) groupVerifiedIdentities(batch []entities.Envelope) map[fl
 	choices := make(map[verifiedBatchKey]verifiedBatchIdentity)
 	cache := make(map[flushGroupKey]verifiedBatchIdentity)
 	now := uc.now().Unix()
+	reasons := make(map[string]int)
 	for _, envelope := range batch {
 		original := flushGroupKey{auth: envelope.AuthHeader, identity: envelope.IdentityHeader, endpoint: envelope.Endpoint}
 		cacheKey := flushGroupKey{auth: original.auth, identity: original.identity}
 		identity, found := cache[cacheKey]
 		if !found {
-			identity.scope, identity.issued, identity.valid = config.VerifiedIdentityBatchScope(original.identity, original.auth, now)
+			identity.scope, identity.issued, identity.reason = config.IdentityBatchScopeEvidence(original.identity, original.auth, now)
+			identity.valid = identity.reason == "verified"
 			identity.header = original.identity
 			cache[cacheKey] = identity
 		}
+		reasons[identity.reason]++
 		key := verifiedBatchKey{group: original, verified: identity.valid}
 		if identity.valid {
 			key.group.identity = identity.scope
@@ -55,6 +59,9 @@ func (uc *FlushOutbox) groupVerifiedIdentities(batch []entities.Envelope) map[fl
 		}
 		result[group] = envelopes
 	}
+	uc.mu.Lock()
+	uc.snapshot.LastIdentityReasons = reasons
+	uc.mu.Unlock()
 	return result
 }
 

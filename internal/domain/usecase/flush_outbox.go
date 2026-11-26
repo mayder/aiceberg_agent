@@ -46,6 +46,7 @@ type FlushOutboxOptions struct {
 }
 
 type FlushOutboxSnapshot struct {
+	LastIdentityReasons   map[string]int `json:"last_identity_reasons,omitempty"`
 	BatchLimit            int            `json:"batch_limit"`
 	Concurrency           int            `json:"concurrency"`
 	LastError             string         `json:"last_error,omitempty"`
@@ -382,6 +383,12 @@ func (uc *FlushOutbox) Snapshot() FlushOutboxSnapshot {
 	uc.mu.Lock()
 	defer uc.mu.Unlock()
 	out := uc.snapshot
+	if uc.snapshot.LastIdentityReasons != nil {
+		out.LastIdentityReasons = make(map[string]int, len(uc.snapshot.LastIdentityReasons))
+		for k, v := range uc.snapshot.LastIdentityReasons {
+			out.LastIdentityReasons[k] = v
+		}
+	}
 	out.BatchLimit = uc.batchSize
 	out.Concurrency = uc.concurrency
 	if uc.snapshot.EndpointBacklog != nil {

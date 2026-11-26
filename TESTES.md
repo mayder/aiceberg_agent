@@ -1489,3 +1489,7 @@ antes de encaminhar o resultado. As rotas ficam ausentes sem o opt-in.
 ## Agrupamento autenticado de relay —25/11/2026
 
 `AICEBERG_WEB_ROOT=<checkoutWeb> go test -race ./internal/common/config ./internal/domain/usecase ./internal/bootstrap -run 'TestIdentityBatch|TestVerifiedRelay|TestFlushOutbox|TestHubOutbox' -count=1` PASS. Validador PHP real aceita assinatura do signerGo comUnicode e recusa sujeito alterado; nenhum banco/rede/escrita no oráculo. Casos:nonce/horário variável do mesmo sujeito;cliente/agente/instalação/host/rota separados;assinatura/credencial inválidas,claim vencido/futuro/schema desconhecido,limites,503 semACK/retry,ordem e headers duráveis preservados. Nonce novo não contorna cooldown401. Fixture100mensagens/100claims faz1request por tentativa e100ACKs somente após persistência confirmada. Benchmark800claims/200agentes:800→200grupos;agrupamento~0,125→3,92ms/~0,34→3,47MB alocados por ciclo, com concorrência e lote inalterados. Ganho instalado deve ser medido separadamente.
+
+### Contrato legado de identidade —26/11/2026
+
+Gerador oficial semIDs comhost/instalação e somentehost aceito por PHP real e agrupadorGo;host diferente permanece separado. Ausência difere de zero,sem sujeito é conservador;alteração do sujeito rejeitada pelo PHP. Snapshot copia contagens para impedir mutação externa. Testes race focados incluídos no gate normal.

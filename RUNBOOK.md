@@ -1412,3 +1412,7 @@ A candidata mantém totals em bucket interno separado; abertura reconstrói a pa
 ## Piloto0.8.72-rc.4 — vazão por agrupamento autenticado
 
 Preservar backup/cfg75 da0.8.72-rc.3,pré-verificação fresca,assinatura/cincoSHA e instalação somenteHUB84. Conferir last_input_groups versus last_dispatch_groups,ACK/idade real/recusas eCPU/RSS do novoPID por deltas; não confundir pacote antigo recém-recebido com dado atual. Rollback por pacote assinado0.8.72-rc.3/force controlado ou backup do lançador se serviço não iniciar;sem limpeza/compactação/replay,sem ampliar concorrência,capacidade ou frequência. Relay585 será verificado por operador Windows amanhã por decisão do titular,sem tentativa remota nesta entrega.
+
+### Piloto0.8.72-rc.5
+
+Comparar last_input_groups/last_dispatch_groups e last_identity_reasons (somente contagens),ACK,idade da fila e CPU/RSS do mesmoPID. Claims legados semIDs só agrupam após HMAC válido e sujeitohost/instalação estável. Atualizar exclusivamenteHUB84 com readiness fresco,backup/configCAS e pacotes assinados;rollbackrc.4,sem limpeza de filas ou alteraçãoAPI/Runtime/DLQ.

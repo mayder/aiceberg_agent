@@ -815,3 +815,7 @@ Manter contagem/bytes em bucket auxiliar interno com valor de16bytes, na mesma t
 ## DEC-20261125-VERIFIED-RELAY-BATCH — agrupar sem substituir a identidade do relay
 
 Somente HUB normaliza a chave de agrupamento de claims v1 individualmente verificados porHMAC usando a mesma credencial original. Cliente/agente/instalação/host e rota permanecem fronteiras; nonce/issued_at podem variar dentro da validade já aceita no PHP/Go(7dias). Nenhum claim é assinado/forjado pelo HUB; o cabeçalho escolhido é original e válido. Dados duráveis mantêm cabeçalhos/IDs/horários; apenas a cópia de envio usa o cabeçalho escolhido. Claims desconhecidos/malformados/semprova não são agrupados. Backoff por sujeito/credencial/rota permanece estável entre nonces e respeita401/Retry-After. Transporte mantém limite8MiB,concorrência8,janela8s,ACK e ordem. last_input_groups/last_dispatch_groups são inteiros aditivos no inspector. Rollback assinado para0.8.72-rc.3 preserva filas e devolve agrupamento legado.
+
+### Sujeito legado de agrupamento —26/11/2026
+
+IDs opcionais seguem o contrato PHP já existente;ausência não vira zero na assinatura. Token original,host/instalação e IDs presentes delimitam o sujeito;sem sujeito estável ou HMAC inválido mantém separação original. Contagens transitórias dos motivos reutilizam inspector,outbox e retenção existentes;nenhum dado bruto é persistido. Rollbackrc.4 preserva toda outbox.
