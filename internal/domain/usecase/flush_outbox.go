@@ -25,6 +25,7 @@ type FlushOutbox struct {
 	onConfig                      IngestConfigHandler
 	batchSize                     int
 	concurrency                   int
+	batchVerifiedIdentities       bool
 	configMu                      sync.Mutex
 	maxBatchBytes                 int
 	identityHeaderProvider        func() string
@@ -38,6 +39,7 @@ type FlushOutbox struct {
 type FlushOutboxOptions struct {
 	BatchSize                     int
 	Concurrency                   int
+	BatchVerifiedIdentities       bool
 	MaxBatchBytes                 int
 	IdentityHeaderProvider        func() string
 	RefreshCredentialsForEnvelope func(entities.Envelope) bool
@@ -56,6 +58,8 @@ type FlushOutboxSnapshot struct {
 	LastRetained          int            `json:"last_retained,omitempty"`
 	LastDeferred          int            `json:"last_deferred,omitempty"`
 	LastReadBatch         int            `json:"last_read_batch,omitempty"`
+	LastInputGroups       int            `json:"last_input_groups,omitempty"`
+	LastDispatchGroups    int            `json:"last_dispatch_groups,omitempty"`
 	OldestPendingAgeSec   int64          `json:"oldest_pending_age_sec,omitempty"`
 	LastBackoffRoute      string         `json:"last_backoff_route,omitempty"`
 	LastBackoffUntilUnix  int64          `json:"last_backoff_until_unix,omitempty"`
@@ -70,9 +74,10 @@ type backoffState struct {
 }
 
 type flushGroupKey struct {
-	auth     string
-	identity string
-	endpoint string
+	auth          string
+	identity      string
+	endpoint      string
+	verifiedScope string
 }
 
 func NewFlushOutbox(o ports.OutboxRepo, t ports.Transport, l logger.Logger, defaultAuth string, onConfig IngestConfigHandler) *FlushOutbox {
@@ -96,6 +101,7 @@ func NewFlushOutboxWithOptions(o ports.OutboxRepo, t ports.Transport, l logger.L
 		onConfig:                      onConfig,
 		batchSize:                     batchSize,
 		concurrency:                   boundedFlushConcurrency(opts.Concurrency),
+		batchVerifiedIdentities:       opts.BatchVerifiedIdentities,
 		maxBatchBytes:                 maxBatchBytes,
 		identityHeaderProvider:        opts.IdentityHeaderProvider,
 		refreshCredentialsForEnvelope: opts.RefreshCredentialsForEnvelope,
@@ -152,7 +158,7 @@ func (uc *FlushOutbox) flushGroupsSequential(grouped map[flushGroupKey][]entitie
 	var firstErr error
 	acked, retained := 0, 0
 	for group, list := range grouped {
-		key := group.auth + "|" + group.identity + "|" + group.endpoint
+		key := flushBackoffKey(group)
 		if until, ok := uc.backoffUntil(key); ok {
 			retained += len(list)
 			firstErr = firstError(firstErr, errors.New("transport backoff active"))
@@ -186,6 +192,10 @@ func (uc *FlushOutbox) flushGroupsSequential(grouped map[flushGroupKey][]entitie
 
 func (uc *FlushOutbox) groupFlushBatch(batch []entities.Envelope) (map[flushGroupKey][]entities.Envelope, []string) {
 	freshIdentityHeader := ""
+	var prepared []entities.Envelope
+	if uc.batchVerifiedIdentities {
+		prepared = make([]entities.Envelope, 0, len(batch))
+	}
 	grouped := make(map[flushGroupKey][]entities.Envelope)
 	invalidIDs := make([]string, 0, 1)
 	for _, envelope := range batch {
@@ -217,7 +227,18 @@ func (uc *FlushOutbox) groupFlushBatch(batch []entities.Envelope) (map[flushGrou
 		}
 		key := flushGroupKey{auth: auth, identity: envelope.IdentityHeader, endpoint: endpoint}
 		grouped[key] = append(grouped[key], envelope)
+		if uc.batchVerifiedIdentities {
+			envelope.AuthHeader, envelope.Endpoint = auth, endpoint
+			prepared = append(prepared, envelope)
+		}
 	}
+	inputGroups := len(grouped)
+	if uc.batchVerifiedIdentities {
+		grouped = uc.groupVerifiedIdentities(prepared)
+	}
+	uc.mu.Lock()
+	uc.snapshot.LastInputGroups, uc.snapshot.LastDispatchGroups = inputGroups, len(grouped)
+	uc.mu.Unlock()
 	return grouped, invalidIDs
 }
 
@@ -229,7 +250,7 @@ func firstError(current, candidate error) error {
 }
 
 func (uc *FlushOutbox) flushChunk(group flushGroupKey, list []entities.Envelope) (int, int, error) {
-	key := group.auth + "|" + group.identity + "|" + group.endpoint
+	key := flushBackoffKey(group)
 	if until, ok := uc.backoffUntil(key); ok {
 		uc.log.Info(logger.KV("transport backoff active",
 			"route", group.endpoint, "batch_size", len(list),

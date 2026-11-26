@@ -1408,3 +1408,7 @@ canal de teste em host Windows autorizado.
 ## Contabilidade transacional da fila —25/11/2026
 
 A candidata mantém totals em bucket interno separado; abertura reconstrói a partir de todos os envelopes antes de aceitar gravações. Backup/rollback seguem o pacote assinado anterior, sem apagar/compactar fila nem editar bucket manualmente. Versão antiga ignora os metadados; reupgrade reconstrói novamente. Comparar deltas do mesmo PID, CPU/RSS, idade medida/recebida, ACK/deferred/retained e falhas por rota. Não usar queda de ocupação isolada como prova de entrega, porque a retenção preexistente continua existindo. Relay585 sem canal/heartbeat não se recupera com mudança no HUB: verificar serviço Windows e comprovar nova amostra do mesmo host/volume.
+
+## Piloto0.8.72-rc.4 — vazão por agrupamento autenticado
+
+Preservar backup/cfg75 da0.8.72-rc.3,pré-verificação fresca,assinatura/cincoSHA e instalação somenteHUB84. Conferir last_input_groups versus last_dispatch_groups,ACK/idade real/recusas eCPU/RSS do novoPID por deltas; não confundir pacote antigo recém-recebido com dado atual. Rollback por pacote assinado0.8.72-rc.3/force controlado ou backup do lançador se serviço não iniciar;sem limpeza/compactação/replay,sem ampliar concorrência,capacidade ou frequência. Relay585 será verificado por operador Windows amanhã por decisão do titular,sem tentativa remota nesta entrega.

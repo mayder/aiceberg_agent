@@ -10,13 +10,13 @@ func TestHubOutboxCapacityIsBoundedAndDoesNotChangeRelayOrDirect(t *testing.T) {
 	base := usecase.FlushOutboxOptions{BatchSize: 50}
 	for _, mode := range []string{"relay", "direct"} {
 		o := hubOutboxFlushOptions(mode, config.Config{}, base)
-		if o.BatchSize != 50 || o.Concurrency != 0 {
+		if o.BatchSize != 50 || o.Concurrency != 0 || o.BatchVerifiedIdentities {
 			t.Fatal("non-hub changed")
 		}
 	}
 	for _, cfg := range []config.Config{{}, {HubOutboxFlushBatch: 10000, HubOutboxFlushConcurrency: 10000}} {
 		o := hubOutboxFlushOptions("hub", cfg, base)
-		if o.BatchSize != 800 || o.Concurrency < 8 || o.Concurrency > 8 {
+		if o.BatchSize != 800 || o.Concurrency < 8 || o.Concurrency > 8 || !o.BatchVerifiedIdentities {
 			t.Fatalf("unsafe hub capacity: %#v", o)
 		}
 	}

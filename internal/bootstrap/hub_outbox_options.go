@@ -26,6 +26,7 @@ func hubOutboxFlushOptions(mode string, cfg config.Config, opts usecase.FlushOut
 	}
 	opts.BatchSize = batch
 	opts.Concurrency = concurrency
+	opts.BatchVerifiedIdentities = true
 	return opts
 }
 

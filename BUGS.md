@@ -629,3 +629,7 @@ O ensaio de retirada de componentes registrou sete envelopes para oito eventos. 
 ## BUG-20261125-OUTBOX-ACCOUNTING — varredura completa por gravação/ocupação
 
 Confirmado no código: Push/Replace/Len percorriam todos os valores para somar bytes da outbox. HUB84 reportou cerca12mil itens/~200MiB, atraso/deferred e falhas401 em logs. Corrigido localmente com totais transacionais reconstruídos em cada abertura. Não atribuir toda a pressão ou interrupção do relay585 a esse custo; serviço585 sem canal exige diagnóstico Windows. Testes race e rollback/reabertura preservam dados, capacidade e ACK. Benchmark local12mil itens:consulta103644→239ns, alocações4416→10; não é SLA ou medição instalada.
+
+### Complemento: fragmentação por nonce da identidade assinada
+
+O piloto0.8.72-rc.3 manteve fila cheia:contabilidade corrigida não resolve sozinha a vazão. Identificado no código que cada request do relay gera nonce/assinatura novos; o HUB agrupava pelo cabeçalho inteiro, fragmentando amostras do mesmo sujeito. Novo agrupamento somenteHUB valida cada assinatura com a credencial original, schema/cliente/agente/instalação/host/validade idênticos, seleciona um cabeçalho original e conserva ordem de entrada e recibos. Claims inválidos/legados/escopos desconhecidos seguem separados. Cooldown usa o sujeito autenticado estável para impedir que nonce novo contorne401/Retry-After. Nenhum segredo/identidade é emitido no diagnóstico; apenas contagens de grupos.

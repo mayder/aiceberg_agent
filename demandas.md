@@ -1543,3 +1543,10 @@ Não encerrado; nenhum push, release/tag, atualização de agente ou notificaç�
 - [x] Gate completo ./check.sh e testes race da outbox aprovados.
 - [ ] Publicar candidata0.8.72-rc.3 assinada e validar piloto sem ampliar CPU/memória.
 - [ ] Comprovar entrega sustentada e recuperar o relay585 após diagnóstico local Windows.
+
+### Complemento de vazão0.8.72-rc.4
+
+- [x] Reproduzir fragmentação por nonce e agrupar somente sujeitos com assinaturas válidas/equivalentes,sem alterar claims duráveis.
+- [x] Validar fronteiras,ordem,ACK/retry/cooldown e interoperabilidade comPHP real.
+- [ ] Gate completo,pacote assinado e piloto produtivo restritoHUB84.
+- [ ] Comprovar escoamento sustentado e custoCPU/RSS;0.8.72-rc.3 isolada não comprovou recuperação de vazão.
