@@ -73,7 +73,10 @@ func NewBoltStoreWithOptions(path string, maxMB int, opts BoltOptions) (*BoltSto
 func (b *BoltStore) init() error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(b.bucket)
-		return err
+		if err != nil {
+			return err
+		}
+		return rebuildAccounting(tx, b.bucket)
 	})
 }
 
@@ -88,12 +91,19 @@ func (b *BoltStore) Push(e entities.Envelope) error {
 	}
 	return b.write(func(tx *bolt.Tx) error {
 		bk := tx.Bucket(b.bucket)
-		_, currentBytes := bucketStats(tx, b.bucket)
-		projected := currentBytes - int64(len(bk.Get([]byte(e.ID)))) + int64(len(raw))
+		count, currentBytes := accountedStats(tx, b.bucket)
+		previous := bk.Get([]byte(e.ID))
+		projected := currentBytes - int64(len(previous)) + int64(len(raw))
 		if projected > b.maxBytes {
 			return errors.New("outbox full (max MB reached)")
 		}
-		return bk.Put([]byte(e.ID), raw)
+		if err := bk.Put([]byte(e.ID), raw); err != nil {
+			return err
+		}
+		if previous == nil {
+			count++
+		}
+		return writeAccounting(tx, count, projected)
 	})
 }
 
@@ -129,12 +139,17 @@ func (b *BoltStore) Delete(ids []string) error {
 	}
 	return b.write(func(tx *bolt.Tx) error {
 		bk := tx.Bucket(b.bucket)
+		count, size := accountedStats(tx, b.bucket)
 		for id := range idset {
+			if previous := bk.Get([]byte(id)); previous != nil {
+				count--
+				size -= int64(len(previous))
+			}
 			if err := bk.Delete([]byte(id)); err != nil {
 				return err
 			}
 		}
-		return nil
+		return writeAccounting(tx, count, size)
 	})
 }
 
@@ -164,11 +179,14 @@ func (b *BoltStore) Replace(originalID string, replacements []entities.Envelope)
 		if original == nil {
 			return nil
 		}
-		_, currentBytes := bucketStats(tx, b.bucket)
+		count, currentBytes := accountedStats(tx, b.bucket)
+		count--
 		projectedBytes := currentBytes - int64(len(original))
 		for id, raw := range encoded {
 			if existing := bk.Get([]byte(id)); existing != nil {
 				projectedBytes -= int64(len(existing))
+			} else {
+				count++
 			}
 			projectedBytes += int64(len(raw))
 		}
@@ -183,7 +201,7 @@ func (b *BoltStore) Replace(originalID string, replacements []entities.Envelope)
 				return err
 			}
 		}
-		return nil
+		return writeAccounting(tx, count, projectedBytes)
 	})
 }
 
@@ -192,7 +210,7 @@ func (b *BoltStore) Len() (int, int64) {
 	var count int
 	var bytes int64
 	_ = b.db.View(func(tx *bolt.Tx) error {
-		count, bytes = bucketStats(tx, b.bucket)
+		count, bytes = accountedStats(tx, b.bucket)
 		return nil
 	})
 	return count, bytes
@@ -205,12 +223,15 @@ func (b *BoltStore) GC() error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bk := tx.Bucket(b.bucket)
 		c := bk.Cursor()
-		_, curBytes := bucketStats(tx, b.bucket)
+		count, curBytes := accountedStats(tx, b.bucket)
 		for k, v := c.First(); k != nil && curBytes > b.maxBytes; k, v = c.Next() {
 			curBytes -= int64(len(v))
-			_ = bk.Delete(k)
+			count--
+			if err := bk.Delete(k); err != nil {
+				return err
+			}
 		}
-		return nil
+		return writeAccounting(tx, count, curBytes)
 	})
 }
 
@@ -229,6 +250,7 @@ func (b *BoltStore) Prune(opts PruneOptions) (int, error) {
 			return nil
 		}
 		perAgent := make(map[string]int)
+		count, size := accountedStats(tx, b.bucket)
 		c := bk.Cursor()
 		for k, v := c.Last(); k != nil; k, v = c.Prev() {
 			var stored storedEnvelopeMeta
@@ -238,21 +260,29 @@ func (b *BoltStore) Prune(opts PruneOptions) (int, error) {
 			env := stored.Env
 			if maxAge > 0 && env.TSUnixMs > 0 {
 				if now.Sub(time.UnixMilli(env.TSUnixMs)) > maxAge {
-					_ = c.Delete()
+					size -= int64(len(v))
+					count--
+					if err := c.Delete(); err != nil {
+						return err
+					}
 					removed++
 					continue
 				}
 			}
 			if maxPerAgent > 0 {
 				if perAgent[env.AgentID] >= maxPerAgent {
-					_ = c.Delete()
+					size -= int64(len(v))
+					count--
+					if err := c.Delete(); err != nil {
+						return err
+					}
 					removed++
 					continue
 				}
 				perAgent[env.AgentID]++
 			}
 		}
-		return nil
+		return writeAccounting(tx, count, size)
 	})
 	return removed, err
 }

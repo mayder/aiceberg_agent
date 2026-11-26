@@ -1404,3 +1404,7 @@ respostas de canal inexistente separadas por pelo menos dois minutos.
 Canal desabilitado ou erro de permissão preserva o item. Antes de ativar
 em produção, execute o ensaio de descoberta, remoção e retorno de um
 canal de teste em host Windows autorizado.
+
+## Contabilidade transacional da fila —25/11/2026
+
+A candidata mantém totals em bucket interno separado; abertura reconstrói a partir de todos os envelopes antes de aceitar gravações. Backup/rollback seguem o pacote assinado anterior, sem apagar/compactar fila nem editar bucket manualmente. Versão antiga ignora os metadados; reupgrade reconstrói novamente. Comparar deltas do mesmo PID, CPU/RSS, idade medida/recebida, ACK/deferred/retained e falhas por rota. Não usar queda de ocupação isolada como prova de entrega, porque a retenção preexistente continua existindo. Relay585 sem canal/heartbeat não se recupera com mudança no HUB: verificar serviço Windows e comprovar nova amostra do mesmo host/volume.

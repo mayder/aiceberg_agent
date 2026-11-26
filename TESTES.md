@@ -1481,3 +1481,7 @@ HUB → API de teste com TLS validado nos dois trechos. Confere a identidade,
 o corpo assinado e a preservação de indisponibilidade, rejeição por
 autoridade e ACK. O HUB recusa requisições HTTP e parâmetros na query
 antes de encaminhar o resultado. As rotas ficam ausentes sem o opt-in.
+
+## Contabilidade da outbox —25/11/2026
+
+`go test -race ./internal/data/local/outbox -count=1` PASS; totais comparados à varredura real após mutações/capacidade recusada/ACK duplicado/retenção,64escritas Batch concorrentes e reabertura após escritor legado. `go test ./internal/data/local/outbox -run '^$' -bench BenchmarkBoltAccountingFullQueue -benchtime=300ms -count=1`:12mil itens/12MiB,consulta anterior103644ns/35832B/4416alocações versus239ns/520B/10alocações. Benchmark macOS local, sem promessa de ganho produtivo equivalente. Gate completo, pacote assinado, piloto HUB e confirmação do relay585 separados.

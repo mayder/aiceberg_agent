@@ -807,3 +807,7 @@ retira componentes não conectados sem tocar históricos/filas/coletas existente
 ## DEC-20261123-STORAGE-PRESSURE
 
 Contraparte de WebPKG-143: contabilidade passiva de armazenamento, sem usar espaço ocupado como performance. PSI,IOwait,latência/fila/pendentes e processos bloqueados têm unidades/proveniência; amostra inválida não vira zero. Mesmo contrato e catálogo determinístico PHP/Go, sem necessidade de IA para espera MegaRAID. Histórico do Web reutiliza estruturas existentes e exceção explícita24h por cliente/agente. Sem publicação nesta decisão; rollback reverte só o incremento e preserva outbox/logs/contenção.
+
+## DEC-20261125-OUTBOX-ACCOUNTING — totais duráveis sem scan por operação
+
+Manter contagem/bytes em bucket auxiliar interno com valor de16bytes, na mesma transação das gravações/ACK/substituições/retenção já existentes. Reconstruir integralmente uma vez em cada abertura: binário anterior pode ignorar o bucket e continuar usando o formato original; nova abertura corrige totais após rollback. Não manter cache mutável fora da transação, pois callbacks Batch podem repetir/abortar. Fsync, capacidade, política de retenção, identidade e confirmação remota permanecem. Teste compara totais com varredura real, cobre concorrência, overwrite, ACK idempotente, capacidade recusada, substituição e escrita por versão antiga.

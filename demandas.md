@@ -1535,3 +1535,11 @@ item 13. Ativação, grants e conciliação operacional no item 14.
 - [ ] Check completo/revisão e publicação coordenada, sem incorporar modificações SNMP concorrentes.
 - [ ] Prova instalada no agente70/cliente1, configuração/hash aplicado, persistência/painel/alerta e rollback.
 Não encerrado; nenhum push, release/tag, atualização de agente ou notificação produtiva deste incremento.
+
+## Confiabilidade de entrega — incidente25/11/2026
+
+- [x] Identificar scan integral da outbox por gravação/ocupação e remover custo mantendo transação/ACK/capacidade.
+- [x] Validar concorrência, reabertura após escritor legado e benchmark controlado.
+- [x] Gate completo ./check.sh e testes race da outbox aprovados.
+- [ ] Publicar candidata0.8.72-rc.3 assinada e validar piloto sem ampliar CPU/memória.
+- [ ] Comprovar entrega sustentada e recuperar o relay585 após diagnóstico local Windows.

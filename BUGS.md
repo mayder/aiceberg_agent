@@ -625,3 +625,7 @@ IOwait declarado sem preenchimento; não havia PSI/fila/pendentes nem contador e
 ## Colisão de ID de coleta concorrente no outbox — 24/11/2026
 
 O ensaio de retirada de componentes registrou sete envelopes para oito eventos. A chave do Bolt usava um ID derivado só do relógio, então duas coletas no mesmo instante podiam ocupar a mesma chave. O Agente preserva o prefixo temporal e acrescenta entropia a cada novo envelope. O retry continua reenviando o ID persistido. O teste com tempo fixo verifica a unicidade e o ensaio de Discovery reabre o Bolt e confere a entrega após perda de ACK.
+
+## BUG-20261125-OUTBOX-ACCOUNTING — varredura completa por gravação/ocupação
+
+Confirmado no código: Push/Replace/Len percorriam todos os valores para somar bytes da outbox. HUB84 reportou cerca12mil itens/~200MiB, atraso/deferred e falhas401 em logs. Corrigido localmente com totais transacionais reconstruídos em cada abertura. Não atribuir toda a pressão ou interrupção do relay585 a esse custo; serviço585 sem canal exige diagnóstico Windows. Testes race e rollback/reabertura preservam dados, capacidade e ACK. Benchmark local12mil itens:consulta103644→239ns, alocações4416→10; não é SLA ou medição instalada.
