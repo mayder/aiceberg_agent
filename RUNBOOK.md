@@ -1416,3 +1416,5 @@ Preservar backup/cfg75 da0.8.72-rc.3,pré-verificação fresca,assinatura/cincoS
 ### Piloto0.8.72-rc.5
 
 Comparar last_input_groups/last_dispatch_groups e last_identity_reasons (somente contagens),ACK,idade da fila e CPU/RSS do mesmoPID. Claims legados semIDs só agrupam após HMAC válido e sujeitohost/instalação estável. Atualizar exclusivamenteHUB84 com readiness fresco,backup/configCAS e pacotes assinados;rollbackrc.4,sem limpeza de filas ou alteraçãoAPI/Runtime/DLQ.
+
+Recibo de publicação e limites do piloto: docs/evidence/telemetry-delivery-20261125.md. rc.5/cfg77 confirmada apenas no HUB84; fila ainda sem normalização, verificador local conservador em800/800claims, sem atribuir esse motivo à API. Windows585 adiado pelo titular; sem fechamento de recuperação.

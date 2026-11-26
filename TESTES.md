@@ -1493,3 +1493,5 @@ antes de encaminhar o resultado. As rotas ficam ausentes sem o opt-in.
 ### Contrato legado de identidade —26/11/2026
 
 Gerador oficial semIDs comhost/instalação e somentehost aceito por PHP real e agrupadorGo;host diferente permanece separado. Ausência difere de zero,sem sujeito é conservador;alteração do sujeito rejeitada pelo PHP. Snapshot copia contagens para impedir mutação externa. Testes race focados incluídos no gate normal.
+
+Recibo de publicação e limites do piloto: docs/evidence/telemetry-delivery-20261125.md. rc.5/cfg77 confirmada apenas no HUB84; fila ainda sem normalização, verificador local conservador em800/800claims, sem atribuir esse motivo à API. Windows585 adiado pelo titular; sem fechamento de recuperação.

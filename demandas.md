@@ -1541,17 +1541,20 @@ Não encerrado; nenhum push, release/tag, atualização de agente ou notificaç�
 - [x] Identificar scan integral da outbox por gravação/ocupação e remover custo mantendo transação/ACK/capacidade.
 - [x] Validar concorrência, reabertura após escritor legado e benchmark controlado.
 - [x] Gate completo ./check.sh e testes race da outbox aprovados.
-- [ ] Publicar candidata0.8.72-rc.3 assinada e validar piloto sem ampliar CPU/memória.
-- [ ] Comprovar entrega sustentada e recuperar o relay585 após diagnóstico local Windows.
+- [x] Publicar candidatas assinadas e atualizar somente HUB84 com readiness/backup/CAS; última rc.5/cfg77 confirmada.
+- [ ] Aceitar recursos e escoamento sustentados; não comprovados pela confirmação da versão.
+- [ ] Comprovar entrega sustentada e recuperar o relay585 após diagnóstico local Windows, adiado pelo titular para amanhã.
 
 ### Complemento de vazão0.8.72-rc.4
 
 - [x] Reproduzir fragmentação por nonce e agrupar somente sujeitos com assinaturas válidas/equivalentes,sem alterar claims duráveis.
 - [x] Validar fronteiras,ordem,ACK/retry/cooldown e interoperabilidade comPHP real.
-- [ ] Gate completo,pacote assinado e piloto produtivo restritoHUB84.
+- [x] Gate completo, pacote assinado e piloto produtivo restrito HUB84; vazão não normalizada.
 - [ ] Comprovar escoamento sustentado e custoCPU/RSS;0.8.72-rc.3 isolada não comprovou recuperação de vazão.
 
 ### Compatibilidade legada0.8.72-rc.5
 
 - [x] Preservar campos opcionais do contrato assinadoPHP/Go e validar fronteiras/contagens redigidas.
-- [ ] Gate integral,pacote assinado e pilotoHUB84 com prova sustentada;rc.4 manteve fila cheia.
+- [x] Gate integral, pacote assinado rc.5 e piloto HUB84/cfg77 confirmado.
+- [ ] Prova sustentada: fila continua cheia; tokens/ACK e Windows585 pendentes.
+Recibo: docs/evidence/telemetry-delivery-20261125.md.
